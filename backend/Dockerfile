@@ -1,11 +1,12 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.26-alpine AS builder
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o sailor-buddy ./cmd/api
+RUN go build -o /app/sailor-buddy ./cmd/api
 
-FROM alpine:3.19
+FROM golang:1.26-alpine
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/sailor-buddy .
