@@ -4,9 +4,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
-      - ./backend:/app
       - backend-data:/app/data
     environment:
       - SAILOR_DB_PATH=/app/data/sailor.db
@@ -20,10 +19,10 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - ./frontend/src:/app/src
+      - ./frontend/static:/app/static
     environment:
-      - PUBLIC_API_URL=http://localhost:8080/api/v1
+      - PUBLIC_API_URL=http://localhost:8081/api
 
 volumes:
   backend-data:

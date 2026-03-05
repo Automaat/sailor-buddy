@@ -6,7 +6,18 @@
       "Bash(unzip -q \"/Users/marcin.skalski/sideprojects/sailor-buddy/Wielkie podsumowanie żeglarskie.xlsx\" -d wielkie_podsumowanie)",
       "Bash(wc:*)",
       "Bash(unzip:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(gh repo:*)",
+      "Bash(gh api:*)",
+      "Bash(go get:*)",
+      "Bash(sqlc generate:*)",
+      "Bash(go version:*)",
+      "Bash(go install:*)",
+      "Bash(gofumpt:*)",
+      "Bash(go build:*)",
+      "Bash(go vet:*)",
+      "Bash(npx:*)",
+      "Bash(npm install:*)"
     ]
   }
 }
