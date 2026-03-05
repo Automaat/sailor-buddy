@@ -4,6 +4,10 @@ node = "24"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "v1.30.0"
 "go:github.com/air-verse/air" = "v1.64.5"
 
+[tasks.dev]
+description = "Start full stack via docker-compose"
+run = "docker compose up --build"
+
 [tasks.dev-backend]
 description = "Run backend with hot reload"
 run = "cd backend && air"
