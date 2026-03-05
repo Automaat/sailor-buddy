@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -81,14 +82,22 @@ func (h *ImportHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "missing file field")
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("failed to close uploaded file: %v", err)
+		}
+	}()
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "failed to parse xlsx file")
 		return
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Printf("failed to close xlsx file: %v", err)
+		}
+	}()
 
 	cruises, err := parseOpinionSheet(f)
 	if err != nil {
