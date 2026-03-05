@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: backend/go.mod
-      - uses: golangci/golangci-lint-action@2f856675483cb8b9378ee77ee0beb67955aca9d7 # v6.5.1
+      - uses: golangci/golangci-lint-action@4696ba8babb6127d732c3c6dde519db15edab9ea # v6.5.1
         with:
           working-directory: backend
 
