@@ -1,7 +1,8 @@
 [tools]
 go = "1.26.0"
 node = "24"
-"npm:sqlc" = "latest"
+"go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "v1.30.0"
+"go:github.com/air-verse/air" = "v1.64.5"
 
 [tasks.dev-backend]
 description = "Run backend with hot reload"
