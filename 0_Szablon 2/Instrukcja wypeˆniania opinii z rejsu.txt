@@ -1,0 +1,26 @@
+                                     Instrukcja wype³nienia opinii z rejsu AK¯ AGH.
+
+Opinia z rejsu opiera siê o korespondencjê seryjn¹ w pliku WORD. Ma s³u¿yæ oszczêdnoœci czasu przy wype³nianiu opinii oraz wprowadziæ nowy  i ujednolicony standard opinii, który odpowiada potrzebie lepszego odzwierciedlenia przebiegu rejsu. Opinia, poza dokumentem bêd¹cym podstaw¹ do ubiegania siê o stopnie ¿eglarskie, ma byæ równie¿ pami¹tk¹ i "przypominaczem"
+Stosowanie tej opinii wydaje siê autorowi ciekaw¹ alternatyw¹ dla typowych opinii.
+Zwraca siê uwagê, ¿e opinia AK¯, zawiera przynajmniej te dane, które zawiera standardowa opinia z rejsu.
+
+Instrukcja u¿ytkowania:
+1. Wype³niæ plik EXCEL "Opinia z rejsu AK¯ Plik matka excel" w arkuszu "Macierz sternika" w polach w kolorach bia³ym i szarym. Pozosta³e pola (br¹zowawe) i arkusze (czerwone) nie wymagaj¹ wprowadzania danych
+2. Zapisaæ i zamkn¹æ plik EXCEL. Gdy jest otwarty pliku WORD nie jest mo¿liwe wprowadzanie zmian w arkuszu EXCEL
+3. Otworzyæ plik WORD "Opinia z rejsu AK¯ Plik matka word". Word bêdzie wymaga³ podania œcie¿ki adresu pliku EXCEL do pliku "Opinia z rejsu AK¯ Plik matka excel" (UWAGA czasem trzeba spróbowaæ 2-3 razy).
+4. Zauwa¿my, ¿e poza danymi o rejsie we wzorze u¿yto loga rejsu, zdjêcia za³ogowego oraz zarysu trasy rejsu wykonanej w GOOGLE EARTH i wyciêtego narzêdziem windows WYCINANIE. Mo¿ecie je usun¹æ, ale to one nadaj¹ opinii wspomnieñ i indywidualnoœci.
+5. Po osi¹gniêciu satysfakcjonuj¹cego efektu estetycznego z p. 4, nale¿y wykonaæ sprawdzenie w korespondencji seryjnej- 
+	a) na wst¹¿ce WORD, prze³¹czamy w pole "Korespondencja" 
+	b) w czêœci "Podgl¹d wyników" mo¿emy sprawdziæ wygl¹d poszczególnych opinii. To ostatni moment by zmieniæ ogóln¹ koncepcjê opinii. Uwaga na tym etapie nie wprowadzamy drobnych zmian (np. ENTERy), gdy¿ przenios¹ siê na wszystkie opinie. 
+	c) w czêœci "Koñczenie" klikamy "Zakoñcz i scal", "Edytuj poszczergólne dokumenty" , Wype³niamy pola "Od" na "1" ,  "Do" na "<iloœæ cz³onków za³ogi>"
+	d) teraz pokarz¹ siê poszczególne opinie, to miejsce by ew. powiêkszyæ lub pomniejszyæ tekst na pojedynczej opinii, dodaæ spacje czy entery.
+	e) gdy jesteœmy zadowoleni mo¿emy zapisywaæ i drukowaæ. UWAGA: WORD w wersji 2010 i wczeœneiejszych nie potrafi wydrukowaæ opinii z pojedynczej strony tylko zawsze drukuje wszystkie, mimo ¿e w czasie drukowania ustawimy dany zakres- taki b³¹d programu. 
+
+Dla ulepszaj¹cych opiniê:
+1. Zmiany w koncenpcji pliku EXCELmog¹ rozsypaæ worda- zawsze testuj zmiany.
+2. EXCEL posiada 2 zabezpieczone arkusze, ale zabezpieczenie nie ma has³a, wiêc wystarczy ze wst¹¿ki "Recenzja" klikn¹æ "nie chroñ arkusza" by coœ pozmieniaæ.
+3. Zmiany w pliku WORD, które mia³yby byæ przeniesione na opinie z innych rejsów, nale¿y wykonywaæ w pliku szablonu word- nale¿y zauwa¿yæ ¿e ka¿de otwarcie szablonu generuje utworzenie nowego pliku, który nie jest ju¿ szablonem. Szablon otwiera siê klikaj¹c prawy przycisk myszy i klikaj¹c "otwórz"
+
+Opina z rejsu v 0.0
+Akademicki Klub ¯eglarski AGH, listopad 2016
+Wykona³: Jaros³aw Przyby³a

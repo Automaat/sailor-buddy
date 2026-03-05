@@ -1,0 +1,11 @@
+CREATE TABLE trainings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    date TEXT,
+    name TEXT NOT NULL,
+    organizer TEXT,
+    cost REAL DEFAULT 0,
+    url TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

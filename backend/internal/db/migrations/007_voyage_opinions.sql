@@ -1,0 +1,8 @@
+CREATE TABLE voyage_opinions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cruise_id INTEGER NOT NULL REFERENCES cruises(id) ON DELETE CASCADE,
+    crew_member_id INTEGER NOT NULL REFERENCES crew_members(id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL,
+    file_format TEXT NOT NULL DEFAULT 'pdf',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

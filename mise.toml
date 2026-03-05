@@ -1,0 +1,24 @@
+[tools]
+go = "1.23"
+node = "22"
+"npm:sqlc" = "latest"
+
+[tasks.dev-backend]
+description = "Run backend with hot reload"
+run = "cd backend && air"
+
+[tasks.dev-frontend]
+description = "Run frontend dev server"
+run = "cd frontend && npm run dev"
+
+[tasks.migrate]
+description = "Run database migrations"
+run = "cd backend && go run cmd/migrate/main.go"
+
+[tasks.sqlc]
+description = "Generate sqlc code"
+run = "cd backend && sqlc generate"
+
+[tasks.test]
+description = "Run all tests"
+run = "cd backend && go test ./..."

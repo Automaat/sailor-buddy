@@ -1,0 +1,31 @@
+# Go
+backend/tmp/
+backend/sailor-buddy
+
+# Frontend
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# DB
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Uploads
+backend/uploads/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Env
+.env
+.env.local
+
+# klaudiush
+.klaudiush/
