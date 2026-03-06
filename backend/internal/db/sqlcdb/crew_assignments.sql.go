@@ -41,11 +41,18 @@ func (q *Queries) CreateCrewAssignment(ctx context.Context, arg CreateCrewAssign
 }
 
 const deleteCrewAssignment = `-- name: DeleteCrewAssignment :exec
-DELETE FROM crew_assignments WHERE id = $1
+DELETE FROM crew_assignments
+WHERE crew_assignments.id = $1
+  AND crew_assignments.cruise_id IN (SELECT cruises.id FROM cruises WHERE cruises.owner_id = $2)
 `
 
-func (q *Queries) DeleteCrewAssignment(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteCrewAssignment, id)
+type DeleteCrewAssignmentParams struct {
+	ID      int64
+	OwnerID int64
+}
+
+func (q *Queries) DeleteCrewAssignment(ctx context.Context, arg DeleteCrewAssignmentParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCrewAssignment, arg.ID, arg.OwnerID)
 	return err
 }
 
@@ -172,9 +179,16 @@ const listCruiseCrewAssignments = `-- name: ListCruiseCrewAssignments :many
 SELECT ca.id, ca.cruise_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.email
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
+JOIN cruises c ON c.id = ca.cruise_id
 WHERE ca.cruise_id = $1
+  AND c.owner_id = $2
 ORDER BY cm.full_name
 `
+
+type ListCruiseCrewAssignmentsParams struct {
+	CruiseID int64
+	OwnerID  int64
+}
 
 type ListCruiseCrewAssignmentsRow struct {
 	ID           int64
@@ -187,8 +201,8 @@ type ListCruiseCrewAssignmentsRow struct {
 	Email        sql.NullString
 }
 
-func (q *Queries) ListCruiseCrewAssignments(ctx context.Context, cruiseID int64) ([]ListCruiseCrewAssignmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseCrewAssignments, cruiseID)
+func (q *Queries) ListCruiseCrewAssignments(ctx context.Context, arg ListCruiseCrewAssignmentsParams) ([]ListCruiseCrewAssignmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseCrewAssignments, arg.CruiseID, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}

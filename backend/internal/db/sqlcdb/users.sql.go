@@ -99,7 +99,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 const linkFirebaseUIDByEmail = `-- name: LinkFirebaseUIDByEmail :one
 UPDATE users SET
   firebase_uid = $1,
-  name = COALESCE(NULLIF($2, ''), name),
+  name = COALESCE(NULLIF($2::TEXT, ''), name),
   updated_at = CURRENT_TIMESTAMP
 WHERE email = $3
   AND (firebase_uid IS NULL OR firebase_uid = $1)
@@ -108,7 +108,7 @@ RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, fi
 
 type LinkFirebaseUIDByEmailParams struct {
 	FirebaseUid sql.NullString
-	NewName     interface{}
+	NewName     string
 	Email       string
 }
 

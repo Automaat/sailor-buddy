@@ -22,7 +22,7 @@ RETURNING *;
 -- name: LinkFirebaseUIDByEmail :one
 UPDATE users SET
   firebase_uid = sqlc.arg(firebase_uid),
-  name = COALESCE(NULLIF(sqlc.arg(new_name), ''), name),
+  name = COALESCE(NULLIF(sqlc.arg(new_name)::TEXT, ''), name),
   updated_at = CURRENT_TIMESTAMP
 WHERE email = sqlc.arg(email)
   AND (firebase_uid IS NULL OR firebase_uid = sqlc.arg(firebase_uid))

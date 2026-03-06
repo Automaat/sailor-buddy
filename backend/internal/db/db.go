@@ -50,7 +50,7 @@ func Migrate(db *sql.DB) error {
 			continue
 		}
 
-		var count int
+		var count int64
 		if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = $1", entry.Name()).Scan(&count); err != nil {
 			return fmt.Errorf("check migration %s: %w", entry.Name(), err)
 		}

@@ -4,7 +4,7 @@ Sailing cruise tracker and crew document generator.
 
 ## Stack
 
-- **Backend**: Go 1.23 + chi router + PostgreSQL 18 (pgx/v5) + sqlc
+- **Backend**: Go 1.25 + chi router + PostgreSQL 18 (pgx/v5) + sqlc
 - **Frontend**: SvelteKit 5 (Svelte 5 runes) + Tailwind CSS
 - **Auth**: JWT access (15min) + refresh tokens (30d) + bcrypt
 

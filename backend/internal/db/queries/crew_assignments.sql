@@ -2,14 +2,18 @@
 INSERT INTO crew_assignments (cruise_id, crew_member_id, role, patent_number) VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: ListCruiseCrewAssignments :many
-SELECT ca.*, cm.full_name, cm.email
+SELECT ca.id, ca.cruise_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.email
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
+JOIN cruises c ON c.id = ca.cruise_id
 WHERE ca.cruise_id = $1
+  AND c.owner_id = $2
 ORDER BY cm.full_name;
 
 -- name: DeleteCrewAssignment :exec
-DELETE FROM crew_assignments WHERE id = $1;
+DELETE FROM crew_assignments
+WHERE crew_assignments.id = $1
+  AND crew_assignments.cruise_id IN (SELECT cruises.id FROM cruises WHERE cruises.owner_id = $2);
 
 -- name: GetCrewMemberCruises :many
 SELECT c.*, ca.role
