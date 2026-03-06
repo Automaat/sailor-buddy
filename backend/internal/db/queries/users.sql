@@ -22,9 +22,10 @@ RETURNING *;
 -- name: LinkFirebaseUIDByEmail :one
 UPDATE users SET
   firebase_uid = sqlc.arg(firebase_uid),
-  name = CASE WHEN sqlc.arg(new_name) = '' THEN name ELSE sqlc.arg(new_name) END,
+  name = COALESCE(NULLIF(sqlc.arg(new_name), ''), name),
   updated_at = CURRENT_TIMESTAMP
 WHERE email = sqlc.arg(email)
+  AND (firebase_uid IS NULL OR firebase_uid = sqlc.arg(firebase_uid))
 RETURNING *;
 
 -- name: UpdateUser :exec

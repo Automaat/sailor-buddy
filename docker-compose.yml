@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: firebase-emulator.Dockerfile
     ports:
-      - "9099:9099"
-      - "4000:4000"
+      - "127.0.0.1:9099:9099"
+      - "127.0.0.1:4000:4000"
     volumes:
       - firebase-data:/opt/firebase/data
 

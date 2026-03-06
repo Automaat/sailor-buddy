@@ -2,7 +2,9 @@ FROM node:24-alpine
 
 RUN apk add --no-cache openjdk17-jre-headless
 
-RUN npm install -g firebase-tools
+ARG FIREBASE_TOOLS_VERSION=13.35.1
+
+RUN npm install -g firebase-tools@${FIREBASE_TOOLS_VERSION}
 
 WORKDIR /opt/firebase
 

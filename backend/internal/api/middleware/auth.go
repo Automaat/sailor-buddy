@@ -52,6 +52,17 @@ func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Ha
 				FirebaseUid: fbUID,
 			})
 			if err != nil {
+				if !strings.Contains(err.Error(), "UNIQUE constraint failed: users.email") {
+					log.Printf("upsert failed (email=%s uid=%s): %v", email, fbToken.UID, err)
+					http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
+					return
+				}
+				emailVerified, _ := fbToken.Claims["email_verified"].(bool)
+				if !emailVerified {
+					log.Printf("email not verified, refusing link by email (email=%s uid=%s)", email, fbToken.UID)
+					http.Error(w, `{"error":"email not verified"}`, http.StatusUnauthorized)
+					return
+				}
 				log.Printf("upsert failed (email=%s uid=%s): %v — trying link by email", email, fbToken.UID, err)
 				user, err = q.LinkFirebaseUIDByEmail(r.Context(), sqlcdb.LinkFirebaseUIDByEmailParams{
 					FirebaseUid: fbUID,
