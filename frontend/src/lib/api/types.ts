@@ -88,3 +88,17 @@ export interface YearStats {
 	total_miles: number;
 	total_days: number;
 }
+
+export interface UploadResponse {
+	url: string;
+}
+
+export interface VoyageOpinion {
+	id: number;
+	cruise_id: number;
+	crew_member_id: number;
+	file_path: string;
+	file_format: string;
+	full_name: string;
+	created_at: string;
+}

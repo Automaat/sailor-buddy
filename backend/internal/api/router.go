@@ -78,6 +78,14 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 				r.Delete("/{assignmentID}", crewH.RemoveCruiseCrew)
 			})
 
+			opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
+			r.Route("/cruises/{cruiseID}/opinions", func(r chi.Router) {
+				r.Get("/", opinH.List)
+				r.Post("/", opinH.Generate)
+				r.Get("/{id}/download", opinH.Download)
+				r.Delete("/{id}", opinH.Delete)
+			})
+
 			trainingH := handlers.NewTrainingHandler(q)
 			r.Route("/trainings", func(r chi.Router) {
 				r.Get("/", trainingH.List)
@@ -88,6 +96,10 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 					r.Delete("/", trainingH.Delete)
 				})
 			})
+
+			uploadH := handlers.NewUploadHandler(cfg.UploadDir)
+			r.Post("/upload/image", uploadH.UploadImage)
+			r.Get("/uploads/*", uploadH.ServeFile)
 
 			importH := handlers.NewImportHandler(q)
 			r.Post("/import/xlsx", importH.Upload)

@@ -115,3 +115,37 @@ func (q *Queries) ListCruiseVoyageOpinions(ctx context.Context, cruiseID int64) 
 	}
 	return items, nil
 }
+
+const upsertVoyageOpinion = `-- name: UpsertVoyageOpinion :one
+INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (cruise_id, crew_member_id) DO UPDATE
+SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
+RETURNING id, cruise_id, crew_member_id, file_path, file_format, created_at
+`
+
+type UpsertVoyageOpinionParams struct {
+	CruiseID     int64
+	CrewMemberID int64
+	FilePath     string
+	FileFormat   string
+}
+
+func (q *Queries) UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (VoyageOpinion, error) {
+	row := q.db.QueryRowContext(ctx, upsertVoyageOpinion,
+		arg.CruiseID,
+		arg.CrewMemberID,
+		arg.FilePath,
+		arg.FileFormat,
+	)
+	var i VoyageOpinion
+	err := row.Scan(
+		&i.ID,
+		&i.CruiseID,
+		&i.CrewMemberID,
+		&i.FilePath,
+		&i.FileFormat,
+		&i.CreatedAt,
+	)
+	return i, err
+}

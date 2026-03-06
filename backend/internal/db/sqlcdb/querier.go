@@ -23,6 +23,7 @@ type Querier interface {
 	DeleteTraining(ctx context.Context, arg DeleteTrainingParams) error
 	DeleteVoyageOpinion(ctx context.Context, id int64) error
 	DeleteYacht(ctx context.Context, arg DeleteYachtParams) error
+	GetCrewAssignmentByCruiseAndMember(ctx context.Context, arg GetCrewAssignmentByCruiseAndMemberParams) (GetCrewAssignmentByCruiseAndMemberRow, error)
 	GetCrewMember(ctx context.Context, arg GetCrewMemberParams) (CrewMember, error)
 	GetCrewMemberByName(ctx context.Context, arg GetCrewMemberByNameParams) (CrewMember, error)
 	GetCrewMemberCruises(ctx context.Context, crewMemberID int64) ([]GetCrewMemberCruisesRow, error)
@@ -50,6 +51,7 @@ type Querier interface {
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 	UpdateYacht(ctx context.Context, arg UpdateYachtParams) error
 	UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error)
+	UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (VoyageOpinion, error)
 }
 
 var _ Querier = (*Queries)(nil)
