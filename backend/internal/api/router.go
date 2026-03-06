@@ -45,11 +45,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 			r.Route("/cruises", func(r chi.Router) {
 				r.Get("/", cruiseH.List)
 				r.Post("/", cruiseH.Create)
-				r.Route("/{id}", func(r chi.Router) {
-					r.Get("/", cruiseH.Get)
-					r.Put("/", cruiseH.Update)
-					r.Delete("/", cruiseH.Delete)
-				})
 				r.Route("/{cruiseID}/crew", func(r chi.Router) {
 					r.Get("/", crewH.ListCruiseCrew)
 					r.Post("/", crewH.AssignCrew)
@@ -60,6 +55,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 					r.Post("/", opinH.Generate)
 					r.Get("/{id}/download", opinH.Download)
 					r.Delete("/{id}", opinH.Delete)
+				})
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", cruiseH.Get)
+					r.Put("/", cruiseH.Update)
+					r.Delete("/", cruiseH.Delete)
 				})
 			})
 
