@@ -1,5 +1,5 @@
 [tools]
-go = "1.26.0"
+go = "1.26.1"
 node = "24"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "v1.30.0"
 "go:github.com/air-verse/air" = "v1.64.5"
