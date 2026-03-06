@@ -19,5 +19,14 @@ ON CONFLICT(firebase_uid) DO UPDATE SET
   updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
+-- name: LinkFirebaseUIDByEmail :one
+UPDATE users SET
+  firebase_uid = sqlc.arg(firebase_uid),
+  name = COALESCE(NULLIF(sqlc.arg(new_name), ''), name),
+  updated_at = CURRENT_TIMESTAMP
+WHERE email = sqlc.arg(email)
+  AND (firebase_uid IS NULL OR firebase_uid = sqlc.arg(firebase_uid))
+RETURNING *;
+
 -- name: UpdateUser :exec
 UPDATE users SET name = ?, email = ?, avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;

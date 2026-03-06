@@ -96,6 +96,38 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
+const linkFirebaseUIDByEmail = `-- name: LinkFirebaseUIDByEmail :one
+UPDATE users SET
+  firebase_uid = ?1,
+  name = COALESCE(NULLIF(?2, ''), name),
+  updated_at = CURRENT_TIMESTAMP
+WHERE email = ?3
+  AND (firebase_uid IS NULL OR firebase_uid = ?1)
+RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+`
+
+type LinkFirebaseUIDByEmailParams struct {
+	FirebaseUid sql.NullString
+	NewName     string
+	Email       string
+}
+
+func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, linkFirebaseUIDByEmail, arg.FirebaseUid, arg.NewName, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FirebaseUid,
+	)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :exec
 UPDATE users SET name = ?, email = ?, avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
 `
