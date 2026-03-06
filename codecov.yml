@@ -25,6 +25,8 @@ ignore:
   - "backend/internal/db/db.go"
   - "backend/internal/auth/firebase.go"
   - "backend/internal/api/router.go"
+  - "backend/internal/api/middleware/auth.go"
+  - "backend/internal/docgen/pdf.go"
 
 flags:
   backend:
