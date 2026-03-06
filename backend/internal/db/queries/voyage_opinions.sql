@@ -1,6 +1,13 @@
 -- name: CreateVoyageOpinion :one
 INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format) VALUES ($1, $2, $3, $4) RETURNING *;
 
+-- name: UpsertVoyageOpinion :one
+INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (cruise_id, crew_member_id) DO UPDATE
+SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
+RETURNING *;
+
 -- name: ListCruiseVoyageOpinions :many
 SELECT vo.*, cm.full_name
 FROM voyage_opinions vo

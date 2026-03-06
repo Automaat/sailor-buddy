@@ -33,10 +33,15 @@ type mockQuerier struct {
 	createCrewAssignmentFn func(ctx context.Context, arg sqlcdb.CreateCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
 	listCruiseCrewFn       func(ctx context.Context, arg sqlcdb.ListCruiseCrewAssignmentsParams) ([]sqlcdb.ListCruiseCrewAssignmentsRow, error)
 	deleteCrewAssignmentFn func(ctx context.Context, arg sqlcdb.DeleteCrewAssignmentParams) error
-	getDashboardStatsFn    func(ctx context.Context, ownerID int64) (sqlcdb.GetDashboardStatsRow, error)
-	getCruisesByYearFn     func(ctx context.Context, ownerID int64) ([]sqlcdb.GetCruisesByYearRow, error)
-	getYachtByNameFn       func(ctx context.Context, arg sqlcdb.GetYachtByNameParams) (sqlcdb.Yacht, error)
-	getCrewMemberByNameFn  func(ctx context.Context, arg sqlcdb.GetCrewMemberByNameParams) (sqlcdb.CrewMember, error)
+	getDashboardStatsFn                  func(ctx context.Context, ownerID int64) (sqlcdb.GetDashboardStatsRow, error)
+	getCruisesByYearFn                   func(ctx context.Context, ownerID int64) ([]sqlcdb.GetCruisesByYearRow, error)
+	getYachtByNameFn                     func(ctx context.Context, arg sqlcdb.GetYachtByNameParams) (sqlcdb.Yacht, error)
+	getCrewMemberByNameFn                func(ctx context.Context, arg sqlcdb.GetCrewMemberByNameParams) (sqlcdb.CrewMember, error)
+	getCrewAssignmentByCruiseAndMemberFn func(ctx context.Context, arg sqlcdb.GetCrewAssignmentByCruiseAndMemberParams) (sqlcdb.GetCrewAssignmentByCruiseAndMemberRow, error)
+	upsertVoyageOpinionFn                func(ctx context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error)
+	listCruiseVoyageOpinionsFn           func(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseVoyageOpinionsRow, error)
+	getVoyageOpinionFn                   func(ctx context.Context, id int64) (sqlcdb.VoyageOpinion, error)
+	deleteVoyageOpinionFn                func(ctx context.Context, id int64) error
 }
 
 func (m *mockQuerier) ListCruises(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error) {
@@ -236,8 +241,11 @@ func (m *mockQuerier) CreateVoyageOpinion(context.Context, sqlcdb.CreateVoyageOp
 	panic("unexpected call")
 }
 
-func (m *mockQuerier) DeleteVoyageOpinion(context.Context, int64) error {
-	panic("unexpected call")
+func (m *mockQuerier) DeleteVoyageOpinion(ctx context.Context, id int64) error {
+	if m.deleteVoyageOpinionFn != nil {
+		return m.deleteVoyageOpinionFn(ctx, id)
+	}
+	panic("unexpected call to DeleteVoyageOpinion")
 }
 
 func (m *mockQuerier) GetCrewMemberCruises(context.Context, int64) ([]sqlcdb.GetCrewMemberCruisesRow, error) {
@@ -260,16 +268,22 @@ func (m *mockQuerier) GetUserByID(context.Context, int64) (sqlcdb.User, error) {
 	panic("unexpected call")
 }
 
-func (m *mockQuerier) GetVoyageOpinion(context.Context, int64) (sqlcdb.VoyageOpinion, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetVoyageOpinion(ctx context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
+	if m.getVoyageOpinionFn != nil {
+		return m.getVoyageOpinionFn(ctx, id)
+	}
+	panic("unexpected call to GetVoyageOpinion")
 }
 
 func (m *mockQuerier) LinkFirebaseUIDByEmail(context.Context, sqlcdb.LinkFirebaseUIDByEmailParams) (sqlcdb.User, error) {
 	panic("unexpected call")
 }
 
-func (m *mockQuerier) ListCruiseVoyageOpinions(context.Context, int64) ([]sqlcdb.ListCruiseVoyageOpinionsRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListCruiseVoyageOpinions(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseVoyageOpinionsRow, error) {
+	if m.listCruiseVoyageOpinionsFn != nil {
+		return m.listCruiseVoyageOpinionsFn(ctx, cruiseID)
+	}
+	panic("unexpected call to ListCruiseVoyageOpinions")
 }
 
 func (m *mockQuerier) UpdateUser(context.Context, sqlcdb.UpdateUserParams) error {
@@ -278,6 +292,20 @@ func (m *mockQuerier) UpdateUser(context.Context, sqlcdb.UpdateUserParams) error
 
 func (m *mockQuerier) UpsertUserByFirebaseUID(context.Context, sqlcdb.UpsertUserByFirebaseUIDParams) (sqlcdb.User, error) {
 	panic("unexpected call")
+}
+
+func (m *mockQuerier) GetCrewAssignmentByCruiseAndMember(ctx context.Context, arg sqlcdb.GetCrewAssignmentByCruiseAndMemberParams) (sqlcdb.GetCrewAssignmentByCruiseAndMemberRow, error) {
+	if m.getCrewAssignmentByCruiseAndMemberFn != nil {
+		return m.getCrewAssignmentByCruiseAndMemberFn(ctx, arg)
+	}
+	panic("unexpected call to GetCrewAssignmentByCruiseAndMember")
+}
+
+func (m *mockQuerier) UpsertVoyageOpinion(ctx context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
+	if m.upsertVoyageOpinionFn != nil {
+		return m.upsertVoyageOpinionFn(ctx, arg)
+	}
+	panic("unexpected call to UpsertVoyageOpinion")
 }
 
 func userCtx(ctx context.Context) context.Context {

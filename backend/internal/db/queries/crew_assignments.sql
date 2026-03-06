@@ -22,6 +22,12 @@ JOIN cruises c ON c.id = ca.cruise_id
 WHERE ca.crew_member_id = $1
 ORDER BY c.year DESC, c.embark_date DESC;
 
+-- name: GetCrewAssignmentByCruiseAndMember :one
+SELECT ca.*, cm.full_name, cm.patent_number AS member_patent
+FROM crew_assignments ca
+JOIN crew_members cm ON cm.id = ca.crew_member_id
+WHERE ca.cruise_id = $1 AND ca.crew_member_id = $2;
+
 -- name: GetCrewMemberStats :one
 SELECT
     COUNT(*)::BIGINT AS cruise_count,

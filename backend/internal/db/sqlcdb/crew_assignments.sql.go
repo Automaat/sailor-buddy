@@ -56,6 +56,45 @@ func (q *Queries) DeleteCrewAssignment(ctx context.Context, arg DeleteCrewAssign
 	return err
 }
 
+const getCrewAssignmentByCruiseAndMember = `-- name: GetCrewAssignmentByCruiseAndMember :one
+SELECT ca.id, ca.cruise_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.patent_number AS member_patent
+FROM crew_assignments ca
+JOIN crew_members cm ON cm.id = ca.crew_member_id
+WHERE ca.cruise_id = $1 AND ca.crew_member_id = $2
+`
+
+type GetCrewAssignmentByCruiseAndMemberParams struct {
+	CruiseID     int64
+	CrewMemberID int64
+}
+
+type GetCrewAssignmentByCruiseAndMemberRow struct {
+	ID           int64
+	CruiseID     int64
+	CrewMemberID int64
+	Role         string
+	PatentNumber sql.NullString
+	CreatedAt    sql.NullTime
+	FullName     string
+	MemberPatent sql.NullString
+}
+
+func (q *Queries) GetCrewAssignmentByCruiseAndMember(ctx context.Context, arg GetCrewAssignmentByCruiseAndMemberParams) (GetCrewAssignmentByCruiseAndMemberRow, error) {
+	row := q.db.QueryRowContext(ctx, getCrewAssignmentByCruiseAndMember, arg.CruiseID, arg.CrewMemberID)
+	var i GetCrewAssignmentByCruiseAndMemberRow
+	err := row.Scan(
+		&i.ID,
+		&i.CruiseID,
+		&i.CrewMemberID,
+		&i.Role,
+		&i.PatentNumber,
+		&i.CreatedAt,
+		&i.FullName,
+		&i.MemberPatent,
+	)
+	return i, err
+}
+
 const getCrewMemberCruises = `-- name: GetCrewMemberCruises :many
 SELECT c.id, c.owner_id, c.name, c.year, c.embark_date, c.disembark_date, c.countries, c.start_port, c.end_port, c.hours_total, c.hours_sail, c.hours_engine, c.hours_over_6bf, c.miles, c.days, c.captain_name, c.yacht_id, c.tidal_waters, c.cost_total, c.cost_per_person, c.image_logo_url, c.image_photo_url, c.image_route_url, c.description, c.created_at, c.updated_at, ca.role
 FROM crew_assignments ca
