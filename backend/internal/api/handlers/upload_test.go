@@ -147,3 +147,58 @@ func TestServeFile_PathTraversal(t *testing.T) {
 		t.Fatalf("expected 403, got %d", rr.Code)
 	}
 }
+
+func TestServeFile_EmptyPath(t *testing.T) {
+	dir := t.TempDir()
+	h := NewUploadHandler(dir)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/", nil)
+	req = req.WithContext(userCtx(req.Context()))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("*", "")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.ServeFile(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestServeFile_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	h := NewUploadHandler(dir)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/missing.jpg", nil)
+	req = req.WithContext(userCtx(req.Context()))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("*", "1/images/missing.jpg")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.ServeFile(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestServeFile_OtherUserPath(t *testing.T) {
+	dir := t.TempDir()
+	h := NewUploadHandler(dir)
+
+	// user 1 in context, trying to access user 2's file
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/2/images/test.jpg", nil)
+	req = req.WithContext(userCtx(req.Context()))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("*", "2/images/test.jpg")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	rr := httptest.NewRecorder()
+	h.ServeFile(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
+	}
+}
