@@ -1,4 +1,14 @@
 services:
+  firebase-emulator:
+    build:
+      context: .
+      dockerfile: firebase-emulator.Dockerfile
+    ports:
+      - "9099:9099"
+      - "4000:4000"
+    volumes:
+      - firebase-data:/opt/firebase/data
+
   backend:
     build:
       context: ./backend
@@ -11,7 +21,9 @@ services:
       - SAILOR_DB_PATH=/app/data/sailor.db
       - SAILOR_FIREBASE_PROJECT_ID=sailor-buddy-dev
       - SAILOR_LISTEN_ADDR=:8080
-      - FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+    depends_on:
+      - firebase-emulator
 
   frontend:
     build:
@@ -25,6 +37,9 @@ services:
     environment:
       - PUBLIC_API_URL=http://localhost:8081/api
       - VITE_BACKEND_URL=http://backend:8080
+      - VITE_FIREBASE_AUTH_EMULATOR_URL=http://localhost:9099
+      - VITE_FIREBASE_PROJECT_ID=sailor-buddy-dev
 
 volumes:
   backend-data:
+  firebase-data:

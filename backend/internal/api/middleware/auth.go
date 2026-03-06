@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 	"strings"
 
@@ -44,12 +45,22 @@ func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Ha
 
 			name, _ := fbToken.Claims["name"].(string)
 
+			fbUID := sql.NullString{String: fbToken.UID, Valid: true}
 			user, err := q.UpsertUserByFirebaseUID(r.Context(), sqlcdb.UpsertUserByFirebaseUIDParams{
 				Email:       email,
 				Name:        name,
-				FirebaseUid: sql.NullString{String: fbToken.UID, Valid: true},
+				FirebaseUid: fbUID,
 			})
 			if err != nil {
+				log.Printf("upsert failed (email=%s uid=%s): %v — trying link by email", email, fbToken.UID, err)
+				user, err = q.LinkFirebaseUIDByEmail(r.Context(), sqlcdb.LinkFirebaseUIDByEmailParams{
+					FirebaseUid: fbUID,
+					NewName:     name,
+					Email:       email,
+				})
+			}
+			if err != nil {
+				log.Printf("provision failed (email=%s uid=%s): %v", email, fbToken.UID, err)
 				http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 				return
 			}

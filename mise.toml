@@ -9,17 +9,17 @@ node = "24"
 description = "Start full stack via docker-compose"
 run = "docker compose up --build"
 
-[tasks.dev-emulator]
-description = "Start Firebase Auth emulator"
-run = "firebase emulators:start --only auth --project sailor-buddy-dev"
-
 [tasks.dev-backend]
-description = "Run backend with hot reload"
-run = "cd backend && FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 air"
+description = "Run backend with hot reload (needs: mise run dev-emulator)"
+run = "cd backend && FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 air"
 
 [tasks.dev-frontend]
 description = "Run frontend dev server"
 run = "cd frontend && npm run dev"
+
+[tasks.dev-emulator]
+description = "Start Firebase emulator in Docker"
+run = "docker compose up --build firebase-emulator"
 
 [tasks.migrate]
 description = "Run database migrations"
