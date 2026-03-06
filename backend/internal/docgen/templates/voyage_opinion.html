@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 25mm 20mm; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #222; line-height: 1.5; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 5mm; color: #1a3a5c; }
+  h2 { font-size: 13pt; color: #1a3a5c; border-bottom: 1px solid #ccc; padding-bottom: 2mm; margin-top: 8mm; }
+  .subtitle { text-align: center; font-size: 10pt; color: #666; margin-bottom: 10mm; }
+  table { width: 100%; border-collapse: collapse; margin: 4mm 0; }
+  th, td { border: 1px solid #ccc; padding: 2mm 3mm; text-align: left; font-size: 10pt; }
+  th { background: #f0f4f8; color: #1a3a5c; width: 40%; }
+  .signature { margin-top: 20mm; text-align: right; }
+  .signature-line { border-top: 1px solid #333; width: 60mm; display: inline-block; margin-top: 15mm; }
+  .signature-label { font-size: 9pt; color: #666; }
+  .footer { margin-top: 15mm; text-align: center; font-size: 8pt; color: #999; }
+</style>
+</head>
+<body>
+  <h1>Opinia z Rejsu</h1>
+  <div class="subtitle">Voyage Opinion Certificate</div>
+
+  <h2>Dane Uczestnika / Crew Member</h2>
+  <table>
+    <tr><th>Imie i Nazwisko / Full Name</th><td>{{.CrewMemberName}}</td></tr>
+    <tr><th>Numer Patentu / License No.</th><td>{{.PatentNumber}}</td></tr>
+    <tr><th>Funkcja / Role</th><td>{{.Role}}</td></tr>
+  </table>
+
+  <h2>Dane Rejsu / Cruise Details</h2>
+  <table>
+    <tr><th>Nazwa Rejsu / Cruise Name</th><td>{{.CruiseName}}</td></tr>
+    <tr><th>Jacht / Yacht</th><td>{{.YachtName}}{{if .YachtType}} ({{.YachtType}}){{end}}</td></tr>
+    <tr><th>Data Zaokretowania / Embarkation</th><td>{{.EmbarkDate}}</td></tr>
+    <tr><th>Data Wyokretowania / Disembarkation</th><td>{{.DisembarkDate}}</td></tr>
+    <tr><th>Port Wyjscia / Start Port</th><td>{{.StartPort}}</td></tr>
+    <tr><th>Port Przyjscia / End Port</th><td>{{.EndPort}}</td></tr>
+    <tr><th>Kraje / Countries</th><td>{{.Countries}}</td></tr>
+  </table>
+
+  <h2>Statystyki / Statistics</h2>
+  <table>
+    <tr><th>Przebyte Mile / Nautical Miles</th><td>{{printf "%.1f" .Miles}} NM</td></tr>
+    <tr><th>Liczba Dni / Days</th><td>{{.Days}}</td></tr>
+    <tr><th>Godziny Razem / Total Hours</th><td>{{printf "%.1f" .HoursTotal}}</td></tr>
+    <tr><th>Godziny Pod Zaglami / Sailing Hours</th><td>{{printf "%.1f" .HoursSail}}</td></tr>
+    <tr><th>Godziny Na Silniku / Engine Hours</th><td>{{printf "%.1f" .HoursEngine}}</td></tr>
+    <tr><th>Godziny pow. 6 Bf / Hours &gt;6Bf</th><td>{{printf "%.1f" .HoursOver6bf}}</td></tr>
+    <tr><th>Wody Plywowe / Tidal Waters</th><td>{{if .TidalWaters}}Tak / Yes{{else}}Nie / No{{end}}</td></tr>
+  </table>
+
+  <div class="signature">
+    <div class="signature-line"></div>
+    <br>
+    <div class="signature-label">{{.CaptainName}}<br>Kapitan / Captain</div>
+  </div>
+
+  <div class="footer">
+    Wygenerowano / Generated: {{.GeneratedDate}}
+  </div>
+</body>
+</html>

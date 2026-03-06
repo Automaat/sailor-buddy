@@ -7,7 +7,8 @@ COPY . .
 RUN go build -o /app/sailor-buddy ./cmd/api
 
 FROM alpine:3.23
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates chromium
+ENV CHROME_PATH=/usr/bin/chromium-browser
 WORKDIR /app
 COPY --from=builder /app/sailor-buddy .
 EXPOSE 8080
