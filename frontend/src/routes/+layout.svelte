@@ -43,8 +43,7 @@
 						(item.href !== '/' && $page.url.pathname.startsWith(item.href))}
 					<a
 						href={item.href}
-						onclick={(e) => { e.preventDefault(); goto(item.href); }}
-						class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
+							class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
 							? 'bg-white/15'
 							: ''}"
 					>
