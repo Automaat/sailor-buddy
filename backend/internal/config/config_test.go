@@ -5,6 +5,10 @@ import (
 )
 
 func TestLoad_Defaults(t *testing.T) {
+	t.Setenv("SAILOR_DATABASE_URL", "")
+	t.Setenv("SAILOR_LISTEN_ADDR", "")
+	t.Setenv("SAILOR_UPLOAD_DIR", "")
+	t.Setenv("SAILOR_FIREBASE_PROJECT_ID", "")
 	cfg := Load()
 
 	defaults := map[string]struct {

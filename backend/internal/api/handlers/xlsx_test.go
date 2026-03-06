@@ -15,27 +15,45 @@ func createTestXLSX(t *testing.T, opinieRows, szkoleniaRows [][]string) *bytes.B
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
 
-	idx, _ := f.NewSheet("opinie")
+	idx, err := f.NewSheet("opinie")
+	if err != nil {
+		t.Fatalf("NewSheet opinie: %v", err)
+	}
 	f.SetActiveSheet(idx)
 	for i, row := range opinieRows {
 		for j, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(j+1, i+1)
-			_ = f.SetCellValue("opinie", cell, val)
+			cell, err := excelize.CoordinatesToCellName(j+1, i+1)
+			if err != nil {
+				t.Fatalf("CoordinatesToCellName: %v", err)
+			}
+			if err := f.SetCellValue("opinie", cell, val); err != nil {
+				t.Fatalf("SetCellValue opinie %s: %v", cell, err)
+			}
 		}
 	}
 
-	_, _ = f.NewSheet("szkolenia")
+	_, err = f.NewSheet("szkolenia")
+	if err != nil {
+		t.Fatalf("NewSheet szkolenia: %v", err)
+	}
 	for i, row := range szkoleniaRows {
 		for j, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(j+1, i+1)
-			_ = f.SetCellValue("szkolenia", cell, val)
+			cell, err := excelize.CoordinatesToCellName(j+1, i+1)
+			if err != nil {
+				t.Fatalf("CoordinatesToCellName: %v", err)
+			}
+			if err := f.SetCellValue("szkolenia", cell, val); err != nil {
+				t.Fatalf("SetCellValue szkolenia %s: %v", cell, err)
+			}
 		}
 	}
 
 	_ = f.DeleteSheet("Sheet1")
 
 	var buf bytes.Buffer
-	_ = f.Write(&buf)
+	if err := f.Write(&buf); err != nil {
+		t.Fatalf("Write xlsx: %v", err)
+	}
 	return &buf
 }
 
