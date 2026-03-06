@@ -30,9 +30,28 @@
 
 	$effect(() => {
 		if (auth.isAuthenticated && !auth.user) {
-			api.get<User>('/auth/me').then((u) => {
-				auth.user = u;
-			});
+			const currentUid = auth.firebaseUser?.uid;
+			let cancelled = false;
+
+			(async () => {
+				try {
+					const u = await api.get<User>('/auth/me');
+
+					if (
+						!cancelled &&
+						auth.isAuthenticated &&
+						auth.firebaseUser?.uid === currentUid
+					) {
+						auth.user = u;
+					}
+				} catch (err) {
+					console.error('Failed to fetch authenticated user via /auth/me', err);
+				}
+			})();
+
+			return () => {
+				cancelled = true;
+			};
 		}
 	});
 </script>

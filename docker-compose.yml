@@ -11,6 +11,7 @@ services:
       - SAILOR_DB_PATH=/app/data/sailor.db
       - SAILOR_FIREBASE_PROJECT_ID=sailor-buddy-dev
       - SAILOR_LISTEN_ADDR=:8080
+      - FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099
 
   frontend:
     build:

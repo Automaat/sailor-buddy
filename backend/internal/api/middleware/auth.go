@@ -37,6 +37,11 @@ func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Ha
 			}
 
 			email, _ := fbToken.Claims["email"].(string)
+			if email == "" {
+				http.Error(w, `{"error":"missing email claim"}`, http.StatusUnauthorized)
+				return
+			}
+
 			name, _ := fbToken.Claims["name"].(string)
 
 			user, err := q.UpsertUserByFirebaseUID(r.Context(), sqlcdb.UpsertUserByFirebaseUIDParams{
@@ -49,7 +54,7 @@ func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Ha
 				return
 			}
 
-			claims := &auth.Claims{UserID: user.ID, Email: user.Email}
+			claims := &auth.Claims{UserID: user.ID, Email: user.Email, Name: user.Name, AvatarUrl: user.AvatarUrl.String}
 			ctx := context.WithValue(r.Context(), UserCtxKey, claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

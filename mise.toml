@@ -3,7 +3,7 @@ go = "1.26.1"
 node = "24"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "v1.30.0"
 "go:github.com/air-verse/air" = "v1.64.5"
-"npm:firebase-tools" = "latest"
+"npm:firebase-tools" = "13.29.2"
 
 [tasks.dev]
 description = "Start full stack via docker-compose"

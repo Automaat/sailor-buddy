@@ -19,7 +19,9 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]any{
-		"id":    user.UserID,
-		"email": user.Email,
+		"id":         user.UserID,
+		"email":      user.Email,
+		"name":       user.Name,
+		"avatar_url": user.AvatarUrl,
 	})
 }
