@@ -3,6 +3,7 @@ package docgen
 import (
 	"context"
 	"encoding/base64"
+	"os"
 	"time"
 
 	"github.com/chromedp/cdproto/page"
@@ -14,6 +15,9 @@ func GeneratePDF(htmlBytes []byte) ([]byte, error) {
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-gpu", true),
 	)
+	if p := os.Getenv("CHROME_PATH"); p != "" {
+		opts = append(opts, chromedp.ExecPath(p))
+	}
 
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer allocCancel()
@@ -33,10 +37,6 @@ func GeneratePDF(htmlBytes []byte) ([]byte, error) {
 			buf, _, err := page.PrintToPDF().
 				WithPaperWidth(8.27).
 				WithPaperHeight(11.69).
-				WithMarginTop(0).
-				WithMarginBottom(0).
-				WithMarginLeft(0).
-				WithMarginRight(0).
 				WithPrintBackground(true).
 				Do(ctx)
 			if err != nil {

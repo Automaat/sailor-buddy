@@ -142,6 +142,12 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	for _, oldFmt := range []string{"pdf", "docx"} {
+		if oldFmt != req.Format {
+			_ = os.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", cruiseID, req.CrewMemberID, oldFmt)))
+		}
+	}
+
 	filename := fmt.Sprintf("%d_%d.%s", cruiseID, req.CrewMemberID, req.Format)
 	filePath := filepath.Join(dir, filename)
 	if err := os.WriteFile(filePath, fileBytes, 0o644); err != nil {

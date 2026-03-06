@@ -31,10 +31,16 @@ var allowedMIME = map[string]string{
 func (h *UploadHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 
+	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		respondError(w, http.StatusBadRequest, "file too large (max 5MB)")
 		return
 	}
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
@@ -85,13 +91,28 @@ func (h *UploadHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UploadHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+
 	relPath := chi.URLParam(r, "*")
-	if relPath == "" || strings.Contains(relPath, "..") {
+	if relPath == "" {
 		respondError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
 
-	absPath := filepath.Join(h.uploadDir, relPath)
+	userPrefix := strconv.FormatInt(user.UserID, 10) + "/"
+	if !strings.HasPrefix(relPath, userPrefix) {
+		respondError(w, http.StatusForbidden, "access denied")
+		return
+	}
+
+	clean := filepath.Clean("/" + relPath)
+	absPath := filepath.Join(h.uploadDir, clean)
+	rel, err := filepath.Rel(h.uploadDir, absPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
 	if _, err := os.Stat(absPath); os.IsNotExist(err) {
 		respondError(w, http.StatusNotFound, "file not found")
 		return
