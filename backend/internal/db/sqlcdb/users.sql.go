@@ -15,9 +15,9 @@ INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '',
 `
 
 type CreateUserParams struct {
-	Email       string
-	Name        string
-	FirebaseUid sql.NullString
+	Email       string         `json:"email"`
+	Name        string         `json:"name"`
+	FirebaseUid sql.NullString `json:"firebase_uid"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -107,9 +107,9 @@ RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, fi
 `
 
 type LinkFirebaseUIDByEmailParams struct {
-	FirebaseUid sql.NullString
-	NewName     string
-	Email       string
+	FirebaseUid sql.NullString `json:"firebase_uid"`
+	NewName     string         `json:"new_name"`
+	Email       string         `json:"email"`
 }
 
 func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error) {
@@ -133,10 +133,10 @@ UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TI
 `
 
 type UpdateUserParams struct {
-	Name      string
-	Email     string
-	AvatarUrl sql.NullString
-	ID        int64
+	Name      string         `json:"name"`
+	Email     string         `json:"email"`
+	AvatarUrl sql.NullString `json:"avatar_url"`
+	ID        int64          `json:"id"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
@@ -160,9 +160,9 @@ RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, fi
 `
 
 type UpsertUserByFirebaseUIDParams struct {
-	Email       string
-	Name        string
-	FirebaseUid sql.NullString
+	Email       string         `json:"email"`
+	Name        string         `json:"name"`
+	FirebaseUid sql.NullString `json:"firebase_uid"`
 }
 
 func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error) {

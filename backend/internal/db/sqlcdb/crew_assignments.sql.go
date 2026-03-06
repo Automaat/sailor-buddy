@@ -15,10 +15,10 @@ INSERT INTO crew_assignments (cruise_id, crew_member_id, role, patent_number) VA
 `
 
 type CreateCrewAssignmentParams struct {
-	CruiseID     int64
-	CrewMemberID int64
-	Role         string
-	PatentNumber sql.NullString
+	CruiseID     int64          `json:"cruise_id"`
+	CrewMemberID int64          `json:"crew_member_id"`
+	Role         string         `json:"role"`
+	PatentNumber sql.NullString `json:"patent_number"`
 }
 
 func (q *Queries) CreateCrewAssignment(ctx context.Context, arg CreateCrewAssignmentParams) (CrewAssignment, error) {
@@ -47,8 +47,8 @@ WHERE crew_assignments.id = $1
 `
 
 type DeleteCrewAssignmentParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) DeleteCrewAssignment(ctx context.Context, arg DeleteCrewAssignmentParams) error {
@@ -65,33 +65,33 @@ ORDER BY c.year DESC, c.embark_date DESC
 `
 
 type GetCrewMemberCruisesRow struct {
-	ID            int64
-	OwnerID       int64
-	Name          string
-	Year          sql.NullInt64
-	EmbarkDate    sql.NullString
-	DisembarkDate sql.NullString
-	Countries     sql.NullString
-	StartPort     sql.NullString
-	EndPort       sql.NullString
-	HoursTotal    sql.NullFloat64
-	HoursSail     sql.NullFloat64
-	HoursEngine   sql.NullFloat64
-	HoursOver6bf  sql.NullFloat64
-	Miles         sql.NullFloat64
-	Days          sql.NullInt64
-	CaptainName   sql.NullString
-	YachtID       sql.NullInt64
-	TidalWaters   sql.NullInt64
-	CostTotal     sql.NullFloat64
-	CostPerPerson sql.NullFloat64
-	ImageLogoUrl  sql.NullString
-	ImagePhotoUrl sql.NullString
-	ImageRouteUrl sql.NullString
-	Description   sql.NullString
-	CreatedAt     sql.NullTime
-	UpdatedAt     sql.NullTime
-	Role          string
+	ID            int64           `json:"id"`
+	OwnerID       int64           `json:"owner_id"`
+	Name          string          `json:"name"`
+	Year          sql.NullInt64   `json:"year"`
+	EmbarkDate    sql.NullString  `json:"embark_date"`
+	DisembarkDate sql.NullString  `json:"disembark_date"`
+	Countries     sql.NullString  `json:"countries"`
+	StartPort     sql.NullString  `json:"start_port"`
+	EndPort       sql.NullString  `json:"end_port"`
+	HoursTotal    sql.NullFloat64 `json:"hours_total"`
+	HoursSail     sql.NullFloat64 `json:"hours_sail"`
+	HoursEngine   sql.NullFloat64 `json:"hours_engine"`
+	HoursOver6bf  sql.NullFloat64 `json:"hours_over_6bf"`
+	Miles         sql.NullFloat64 `json:"miles"`
+	Days          sql.NullInt64   `json:"days"`
+	CaptainName   sql.NullString  `json:"captain_name"`
+	YachtID       sql.NullInt64   `json:"yacht_id"`
+	TidalWaters   sql.NullInt64   `json:"tidal_waters"`
+	CostTotal     sql.NullFloat64 `json:"cost_total"`
+	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
+	ImageRouteUrl sql.NullString  `json:"image_route_url"`
+	Description   sql.NullString  `json:"description"`
+	CreatedAt     sql.NullTime    `json:"created_at"`
+	UpdatedAt     sql.NullTime    `json:"updated_at"`
+	Role          string          `json:"role"`
 }
 
 func (q *Queries) GetCrewMemberCruises(ctx context.Context, crewMemberID int64) ([]GetCrewMemberCruisesRow, error) {
@@ -157,10 +157,10 @@ WHERE ca.crew_member_id = $1
 `
 
 type GetCrewMemberStatsRow struct {
-	CruiseCount int64
-	TotalHours  float64
-	TotalMiles  float64
-	TotalDays   int64
+	CruiseCount int64   `json:"cruise_count"`
+	TotalHours  float64 `json:"total_hours"`
+	TotalMiles  float64 `json:"total_miles"`
+	TotalDays   int64   `json:"total_days"`
 }
 
 func (q *Queries) GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error) {
@@ -186,19 +186,19 @@ ORDER BY cm.full_name
 `
 
 type ListCruiseCrewAssignmentsParams struct {
-	CruiseID int64
-	OwnerID  int64
+	CruiseID int64 `json:"cruise_id"`
+	OwnerID  int64 `json:"owner_id"`
 }
 
 type ListCruiseCrewAssignmentsRow struct {
-	ID           int64
-	CruiseID     int64
-	CrewMemberID int64
-	Role         string
-	PatentNumber sql.NullString
-	CreatedAt    sql.NullTime
-	FullName     string
-	Email        sql.NullString
+	ID           int64          `json:"id"`
+	CruiseID     int64          `json:"cruise_id"`
+	CrewMemberID int64          `json:"crew_member_id"`
+	Role         string         `json:"role"`
+	PatentNumber sql.NullString `json:"patent_number"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	FullName     string         `json:"full_name"`
+	Email        sql.NullString `json:"email"`
 }
 
 func (q *Queries) ListCruiseCrewAssignments(ctx context.Context, arg ListCruiseCrewAssignmentsParams) ([]ListCruiseCrewAssignmentsRow, error) {

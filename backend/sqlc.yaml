@@ -8,3 +8,4 @@ sql:
         package: "sqlcdb"
         out: "internal/db/sqlcdb"
         emit_interface: true
+        emit_json_tags: true

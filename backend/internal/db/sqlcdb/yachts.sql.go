@@ -15,10 +15,10 @@ INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2,
 `
 
 type CreateYachtParams struct {
-	OwnerID        int64
-	Name           string
-	RegistrationNo sql.NullString
-	YachtType      sql.NullString
+	OwnerID        int64          `json:"owner_id"`
+	Name           string         `json:"name"`
+	RegistrationNo sql.NullString `json:"registration_no"`
+	YachtType      sql.NullString `json:"yacht_type"`
 }
 
 func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error) {
@@ -46,8 +46,8 @@ DELETE FROM yachts WHERE id = $1 AND owner_id = $2
 `
 
 type DeleteYachtParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) DeleteYacht(ctx context.Context, arg DeleteYachtParams) error {
@@ -60,8 +60,8 @@ SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at F
 `
 
 type GetYachtParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error) {
@@ -84,8 +84,8 @@ SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at F
 `
 
 type GetYachtByNameParams struct {
-	OwnerID int64
-	Name    string
+	OwnerID int64  `json:"owner_id"`
+	Name    string `json:"name"`
 }
 
 func (q *Queries) GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error) {
@@ -143,11 +143,11 @@ UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at =
 `
 
 type UpdateYachtParams struct {
-	Name           string
-	RegistrationNo sql.NullString
-	YachtType      sql.NullString
-	ID             int64
-	OwnerID        int64
+	Name           string         `json:"name"`
+	RegistrationNo sql.NullString `json:"registration_no"`
+	YachtType      sql.NullString `json:"yacht_type"`
+	ID             int64          `json:"id"`
+	OwnerID        int64          `json:"owner_id"`
 }
 
 func (q *Queries) UpdateYacht(ctx context.Context, arg UpdateYachtParams) error {

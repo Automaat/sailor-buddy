@@ -15,11 +15,11 @@ INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VA
 `
 
 type CreateCrewMemberParams struct {
-	OwnerID      int64
-	UserID       sql.NullInt64
-	FullName     string
-	Email        sql.NullString
-	PatentNumber sql.NullString
+	OwnerID      int64          `json:"owner_id"`
+	UserID       sql.NullInt64  `json:"user_id"`
+	FullName     string         `json:"full_name"`
+	Email        sql.NullString `json:"email"`
+	PatentNumber sql.NullString `json:"patent_number"`
 }
 
 func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error) {
@@ -49,8 +49,8 @@ DELETE FROM crew_members WHERE id = $1 AND owner_id = $2
 `
 
 type DeleteCrewMemberParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberParams) error {
@@ -63,8 +63,8 @@ SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updat
 `
 
 type GetCrewMemberParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) GetCrewMember(ctx context.Context, arg GetCrewMemberParams) (CrewMember, error) {
@@ -88,8 +88,8 @@ SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updat
 `
 
 type GetCrewMemberByNameParams struct {
-	OwnerID  int64
-	FullName string
+	OwnerID  int64  `json:"owner_id"`
+	FullName string `json:"full_name"`
 }
 
 func (q *Queries) GetCrewMemberByName(ctx context.Context, arg GetCrewMemberByNameParams) (CrewMember, error) {
@@ -149,11 +149,11 @@ UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_
 `
 
 type UpdateCrewMemberParams struct {
-	FullName     string
-	Email        sql.NullString
-	PatentNumber sql.NullString
-	ID           int64
-	OwnerID      int64
+	FullName     string         `json:"full_name"`
+	Email        sql.NullString `json:"email"`
+	PatentNumber sql.NullString `json:"patent_number"`
+	ID           int64          `json:"id"`
+	OwnerID      int64          `json:"owner_id"`
 }
 
 func (q *Queries) UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error {

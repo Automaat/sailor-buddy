@@ -20,29 +20,29 @@ INSERT INTO cruises (
 `
 
 type CreateCruiseParams struct {
-	OwnerID       int64
-	Name          string
-	Year          sql.NullInt64
-	EmbarkDate    sql.NullString
-	DisembarkDate sql.NullString
-	Countries     sql.NullString
-	StartPort     sql.NullString
-	EndPort       sql.NullString
-	HoursTotal    sql.NullFloat64
-	HoursSail     sql.NullFloat64
-	HoursEngine   sql.NullFloat64
-	HoursOver6bf  sql.NullFloat64
-	Miles         sql.NullFloat64
-	Days          sql.NullInt64
-	CaptainName   sql.NullString
-	YachtID       sql.NullInt64
-	TidalWaters   sql.NullInt64
-	CostTotal     sql.NullFloat64
-	CostPerPerson sql.NullFloat64
-	ImageLogoUrl  sql.NullString
-	ImagePhotoUrl sql.NullString
-	ImageRouteUrl sql.NullString
-	Description   sql.NullString
+	OwnerID       int64           `json:"owner_id"`
+	Name          string          `json:"name"`
+	Year          sql.NullInt64   `json:"year"`
+	EmbarkDate    sql.NullString  `json:"embark_date"`
+	DisembarkDate sql.NullString  `json:"disembark_date"`
+	Countries     sql.NullString  `json:"countries"`
+	StartPort     sql.NullString  `json:"start_port"`
+	EndPort       sql.NullString  `json:"end_port"`
+	HoursTotal    sql.NullFloat64 `json:"hours_total"`
+	HoursSail     sql.NullFloat64 `json:"hours_sail"`
+	HoursEngine   sql.NullFloat64 `json:"hours_engine"`
+	HoursOver6bf  sql.NullFloat64 `json:"hours_over_6bf"`
+	Miles         sql.NullFloat64 `json:"miles"`
+	Days          sql.NullInt64   `json:"days"`
+	CaptainName   sql.NullString  `json:"captain_name"`
+	YachtID       sql.NullInt64   `json:"yacht_id"`
+	TidalWaters   sql.NullInt64   `json:"tidal_waters"`
+	CostTotal     sql.NullFloat64 `json:"cost_total"`
+	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
+	ImageRouteUrl sql.NullString  `json:"image_route_url"`
+	Description   sql.NullString  `json:"description"`
 }
 
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
@@ -108,8 +108,8 @@ DELETE FROM cruises WHERE id = $1 AND owner_id = $2
 `
 
 type DeleteCruiseParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) DeleteCruise(ctx context.Context, arg DeleteCruiseParams) error {
@@ -122,8 +122,8 @@ SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_p
 `
 
 type GetCruiseParams struct {
-	ID      int64
-	OwnerID int64
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
 }
 
 func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error) {
@@ -171,11 +171,11 @@ FROM cruises WHERE owner_id = $1 GROUP BY year ORDER BY year
 `
 
 type GetCruisesByYearRow struct {
-	Year        sql.NullInt64
-	CruiseCount int64
-	TotalHours  float64
-	TotalMiles  float64
-	TotalDays   int64
+	Year        sql.NullInt64 `json:"year"`
+	CruiseCount int64         `json:"cruise_count"`
+	TotalHours  float64       `json:"total_hours"`
+	TotalMiles  float64       `json:"total_miles"`
+	TotalDays   int64         `json:"total_days"`
 }
 
 func (q *Queries) GetCruisesByYear(ctx context.Context, ownerID int64) ([]GetCruisesByYearRow, error) {
@@ -219,12 +219,12 @@ FROM cruises WHERE owner_id = $1
 `
 
 type GetDashboardStatsRow struct {
-	CruiseCount      int64
-	TotalHours       float64
-	TotalMiles       float64
-	TotalDays        int64
-	TotalHoursSail   float64
-	TotalHoursEngine float64
+	CruiseCount      int64   `json:"cruise_count"`
+	TotalHours       float64 `json:"total_hours"`
+	TotalMiles       float64 `json:"total_miles"`
+	TotalDays        int64   `json:"total_days"`
+	TotalHoursSail   float64 `json:"total_hours_sail"`
+	TotalHoursEngine float64 `json:"total_hours_engine"`
 }
 
 func (q *Queries) GetDashboardStats(ctx context.Context, ownerID int64) (GetDashboardStatsRow, error) {
@@ -307,30 +307,30 @@ WHERE id = $23 AND owner_id = $24
 `
 
 type UpdateCruiseParams struct {
-	Name          string
-	Year          sql.NullInt64
-	EmbarkDate    sql.NullString
-	DisembarkDate sql.NullString
-	Countries     sql.NullString
-	StartPort     sql.NullString
-	EndPort       sql.NullString
-	HoursTotal    sql.NullFloat64
-	HoursSail     sql.NullFloat64
-	HoursEngine   sql.NullFloat64
-	HoursOver6bf  sql.NullFloat64
-	Miles         sql.NullFloat64
-	Days          sql.NullInt64
-	CaptainName   sql.NullString
-	YachtID       sql.NullInt64
-	TidalWaters   sql.NullInt64
-	CostTotal     sql.NullFloat64
-	CostPerPerson sql.NullFloat64
-	ImageLogoUrl  sql.NullString
-	ImagePhotoUrl sql.NullString
-	ImageRouteUrl sql.NullString
-	Description   sql.NullString
-	ID            int64
-	OwnerID       int64
+	Name          string          `json:"name"`
+	Year          sql.NullInt64   `json:"year"`
+	EmbarkDate    sql.NullString  `json:"embark_date"`
+	DisembarkDate sql.NullString  `json:"disembark_date"`
+	Countries     sql.NullString  `json:"countries"`
+	StartPort     sql.NullString  `json:"start_port"`
+	EndPort       sql.NullString  `json:"end_port"`
+	HoursTotal    sql.NullFloat64 `json:"hours_total"`
+	HoursSail     sql.NullFloat64 `json:"hours_sail"`
+	HoursEngine   sql.NullFloat64 `json:"hours_engine"`
+	HoursOver6bf  sql.NullFloat64 `json:"hours_over_6bf"`
+	Miles         sql.NullFloat64 `json:"miles"`
+	Days          sql.NullInt64   `json:"days"`
+	CaptainName   sql.NullString  `json:"captain_name"`
+	YachtID       sql.NullInt64   `json:"yacht_id"`
+	TidalWaters   sql.NullInt64   `json:"tidal_waters"`
+	CostTotal     sql.NullFloat64 `json:"cost_total"`
+	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
+	ImageRouteUrl sql.NullString  `json:"image_route_url"`
+	Description   sql.NullString  `json:"description"`
+	ID            int64           `json:"id"`
+	OwnerID       int64           `json:"owner_id"`
 }
 
 func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error {
