@@ -1,9 +1,8 @@
 <script lang="ts">
 	import '../app.css';
-	import { auth } from '$lib/stores/auth';
-	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
-	import { onMount } from 'svelte';
+	import { auth } from '$lib/stores/auth.svelte';
+	import { goto, afterNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let { children } = $props();
 
@@ -21,14 +20,14 @@
 		goto('/login');
 	}
 
-	onMount(() => {
-		if (!auth.isAuthenticated && !page.url.pathname.startsWith('/login')) {
+	afterNavigate(() => {
+		if (!auth.isAuthenticated && !$page.url.pathname.startsWith('/login')) {
 			goto('/login');
 		}
 	});
 </script>
 
-{#if page.url.pathname.startsWith('/login')}
+{#if $page.url.pathname.startsWith('/login')}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">
@@ -40,10 +39,11 @@
 			<div class="mt-4 flex flex-1 flex-col gap-1 px-2">
 				{#each navItems as item}
 					{@const active =
-						page.url.pathname === item.href ||
-						(item.href !== '/' && page.url.pathname.startsWith(item.href))}
+						$page.url.pathname === item.href ||
+						(item.href !== '/' && $page.url.pathname.startsWith(item.href))}
 					<a
 						href={item.href}
+						onclick={(e) => { e.preventDefault(); goto(item.href); }}
 						class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
 							? 'bg-white/15'
 							: ''}"

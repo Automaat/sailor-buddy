@@ -17,7 +17,10 @@ function createAuthStore() {
 		const saved = localStorage.getItem('auth');
 		if (saved) {
 			try {
-				state = JSON.parse(saved);
+				const parsed = JSON.parse(saved);
+				state.user = parsed.user;
+				state.accessToken = parsed.accessToken;
+				state.refreshToken = parsed.refreshToken;
 			} catch {
 				localStorage.removeItem('auth');
 			}
@@ -49,11 +52,15 @@ function createAuthStore() {
 			persist();
 		},
 		login(user: User, accessToken: string, refreshToken: string) {
-			state = { user, accessToken, refreshToken };
+			state.user = user;
+			state.accessToken = accessToken;
+			state.refreshToken = refreshToken;
 			persist();
 		},
 		logout() {
-			state = { user: null, accessToken: null, refreshToken: null };
+			state.user = null;
+			state.accessToken = null;
+			state.refreshToken = null;
 			if (typeof window !== 'undefined') {
 				localStorage.removeItem('auth');
 			}

@@ -1,4 +1,4 @@
-import { auth } from '$lib/stores/auth';
+import { auth } from '$lib/stores/auth.svelte';
 import type { AuthResponse } from './types';
 
 const BASE = '/api';

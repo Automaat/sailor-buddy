@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
-	import { auth } from '$lib/stores/auth';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
 	import type { AuthResponse } from '$lib/api/types';
 
