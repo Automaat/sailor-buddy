@@ -263,6 +263,106 @@ func TestExcelSerialToTime(t *testing.T) {
 
 // --- respond helpers (respond.go) ---
 
+func TestFlattenNulls(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		in   any
+		want any
+	}{
+		{
+			"valid NullString flattened to string value",
+			map[string]any{"String": "x", "Valid": true},
+			"x",
+		},
+		{
+			"invalid NullString flattened to nil",
+			map[string]any{"String": "", "Valid": false},
+			nil,
+		},
+		{
+			"valid NullInt64 flattened to int value",
+			map[string]any{"Int64": float64(42), "Valid": true},
+			float64(42),
+		},
+		{
+			"invalid NullInt64 flattened to nil",
+			map[string]any{"Int64": float64(0), "Valid": false},
+			nil,
+		},
+		{
+			"struct with NullString field",
+			map[string]any{
+				"name": map[string]any{"String": "Alice", "Valid": true},
+				"note": map[string]any{"String": "", "Valid": false},
+			},
+			map[string]any{"name": "Alice", "note": nil},
+		},
+		{
+			"non-null-struct map unchanged",
+			map[string]any{"foo": "bar", "baz": float64(1)},
+			map[string]any{"foo": "bar", "baz": float64(1)},
+		},
+		{
+			"slice with null structs",
+			[]any{
+				map[string]any{"String": "a", "Valid": true},
+				map[string]any{"String": "", "Valid": false},
+			},
+			[]any{"a", nil},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := flattenNulls(tt.in)
+			gotJSON, _ := json.Marshal(got)
+			wantJSON, _ := json.Marshal(tt.want)
+			if string(gotJSON) != string(wantJSON) {
+				t.Errorf("got %s, want %s", gotJSON, wantJSON)
+			}
+		})
+	}
+}
+
+func TestRespondJSONFlattenNulls(t *testing.T) {
+	t.Parallel()
+	type row struct {
+		Name sql.NullString
+		Age  sql.NullInt64
+	}
+	tests := []struct {
+		name     string
+		data     row
+		wantBody string
+	}{
+		{
+			"valid fields flattened",
+			row{
+				Name: sql.NullString{String: "Alice", Valid: true},
+				Age:  sql.NullInt64{Int64: 30, Valid: true},
+			},
+			`{"Age":30,"Name":"Alice"}` + "\n",
+		},
+		{
+			"invalid fields become null",
+			row{
+				Name: sql.NullString{},
+				Age:  sql.NullInt64{},
+			},
+			`{"Age":null,"Name":null}` + "\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			respondJSON(w, http.StatusOK, tt.data)
+			if got := w.Body.String(); got != tt.wantBody {
+				t.Errorf("body: got %q, want %q", got, tt.wantBody)
+			}
+		})
+	}
+}
+
 func TestRespondJSON(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

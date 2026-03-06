@@ -18,6 +18,7 @@
 
 		try {
 			const token = await auth.getIdToken();
+			if (!token) throw new Error('Not authenticated');
 			const formData = new FormData();
 			formData.append('file', file);
 
@@ -46,6 +47,7 @@
 		status = 'confirming';
 		try {
 			const token = await auth.getIdToken();
+			if (!token) throw new Error('Not authenticated');
 			const res = await fetch('/api/import/confirm', {
 				method: 'POST',
 				headers: {
