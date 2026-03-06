@@ -135,6 +135,7 @@ func TestServeFile_PathTraversal(t *testing.T) {
 	h := NewUploadHandler(dir)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/uploads/../etc/passwd", nil)
+	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("*", "../etc/passwd")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -142,7 +143,7 @@ func TestServeFile_PathTraversal(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.ServeFile(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", rr.Code)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
 	}
 }
