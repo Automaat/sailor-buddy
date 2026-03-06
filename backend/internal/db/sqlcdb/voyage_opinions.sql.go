@@ -15,10 +15,10 @@ INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format) 
 `
 
 type CreateVoyageOpinionParams struct {
-	CruiseID     int64
-	CrewMemberID int64
-	FilePath     string
-	FileFormat   string
+	CruiseID     int64  `json:"cruise_id"`
+	CrewMemberID int64  `json:"crew_member_id"`
+	FilePath     string `json:"file_path"`
+	FileFormat   string `json:"file_format"`
 }
 
 func (q *Queries) CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpinionParams) (VoyageOpinion, error) {
@@ -76,13 +76,13 @@ ORDER BY cm.full_name
 `
 
 type ListCruiseVoyageOpinionsRow struct {
-	ID           int64
-	CruiseID     int64
-	CrewMemberID int64
-	FilePath     string
-	FileFormat   string
-	CreatedAt    sql.NullTime
-	FullName     string
+	ID           int64        `json:"id"`
+	CruiseID     int64        `json:"cruise_id"`
+	CrewMemberID int64        `json:"crew_member_id"`
+	FilePath     string       `json:"file_path"`
+	FileFormat   string       `json:"file_format"`
+	CreatedAt    sql.NullTime `json:"created_at"`
+	FullName     string       `json:"full_name"`
 }
 
 func (q *Queries) ListCruiseVoyageOpinions(ctx context.Context, cruiseID int64) ([]ListCruiseVoyageOpinionsRow, error) {

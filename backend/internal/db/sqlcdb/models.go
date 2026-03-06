@@ -10,101 +10,101 @@ import (
 )
 
 type CrewAssignment struct {
-	ID           int64
-	CruiseID     int64
-	CrewMemberID int64
-	Role         string
-	PatentNumber sql.NullString
-	CreatedAt    sql.NullTime
+	ID           int64          `json:"id"`
+	CruiseID     int64          `json:"cruise_id"`
+	CrewMemberID int64          `json:"crew_member_id"`
+	Role         string         `json:"role"`
+	PatentNumber sql.NullString `json:"patent_number"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
 }
 
 type CrewMember struct {
-	ID           int64
-	OwnerID      int64
-	UserID       sql.NullInt64
-	FullName     string
-	Email        sql.NullString
-	PatentNumber sql.NullString
-	CreatedAt    sql.NullTime
-	UpdatedAt    sql.NullTime
+	ID           int64          `json:"id"`
+	OwnerID      int64          `json:"owner_id"`
+	UserID       sql.NullInt64  `json:"user_id"`
+	FullName     string         `json:"full_name"`
+	Email        sql.NullString `json:"email"`
+	PatentNumber sql.NullString `json:"patent_number"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	UpdatedAt    sql.NullTime   `json:"updated_at"`
 }
 
 type Cruise struct {
-	ID            int64
-	OwnerID       int64
-	Name          string
-	Year          sql.NullInt64
-	EmbarkDate    sql.NullString
-	DisembarkDate sql.NullString
-	Countries     sql.NullString
-	StartPort     sql.NullString
-	EndPort       sql.NullString
-	HoursTotal    sql.NullFloat64
-	HoursSail     sql.NullFloat64
-	HoursEngine   sql.NullFloat64
-	HoursOver6bf  sql.NullFloat64
-	Miles         sql.NullFloat64
-	Days          sql.NullInt64
-	CaptainName   sql.NullString
-	YachtID       sql.NullInt64
-	TidalWaters   sql.NullInt64
-	CostTotal     sql.NullFloat64
-	CostPerPerson sql.NullFloat64
-	ImageLogoUrl  sql.NullString
-	ImagePhotoUrl sql.NullString
-	ImageRouteUrl sql.NullString
-	Description   sql.NullString
-	CreatedAt     sql.NullTime
-	UpdatedAt     sql.NullTime
+	ID            int64           `json:"id"`
+	OwnerID       int64           `json:"owner_id"`
+	Name          string          `json:"name"`
+	Year          sql.NullInt64   `json:"year"`
+	EmbarkDate    sql.NullString  `json:"embark_date"`
+	DisembarkDate sql.NullString  `json:"disembark_date"`
+	Countries     sql.NullString  `json:"countries"`
+	StartPort     sql.NullString  `json:"start_port"`
+	EndPort       sql.NullString  `json:"end_port"`
+	HoursTotal    sql.NullFloat64 `json:"hours_total"`
+	HoursSail     sql.NullFloat64 `json:"hours_sail"`
+	HoursEngine   sql.NullFloat64 `json:"hours_engine"`
+	HoursOver6bf  sql.NullFloat64 `json:"hours_over_6bf"`
+	Miles         sql.NullFloat64 `json:"miles"`
+	Days          sql.NullInt64   `json:"days"`
+	CaptainName   sql.NullString  `json:"captain_name"`
+	YachtID       sql.NullInt64   `json:"yacht_id"`
+	TidalWaters   sql.NullInt64   `json:"tidal_waters"`
+	CostTotal     sql.NullFloat64 `json:"cost_total"`
+	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
+	ImageRouteUrl sql.NullString  `json:"image_route_url"`
+	Description   sql.NullString  `json:"description"`
+	CreatedAt     sql.NullTime    `json:"created_at"`
+	UpdatedAt     sql.NullTime    `json:"updated_at"`
 }
 
 type RefreshToken struct {
-	ID        int64
-	UserID    int64
-	TokenHash string
-	ExpiresAt time.Time
-	Revoked   int64
-	CreatedAt sql.NullTime
+	ID        int64        `json:"id"`
+	UserID    int64        `json:"user_id"`
+	TokenHash string       `json:"token_hash"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	Revoked   int64        `json:"revoked"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 type Training struct {
-	ID        int64
-	UserID    int64
-	Date      sql.NullString
-	Name      string
-	Organizer sql.NullString
-	Cost      sql.NullFloat64
-	Url       sql.NullString
-	CreatedAt sql.NullTime
-	UpdatedAt sql.NullTime
+	ID        int64           `json:"id"`
+	UserID    int64           `json:"user_id"`
+	Date      sql.NullString  `json:"date"`
+	Name      string          `json:"name"`
+	Organizer sql.NullString  `json:"organizer"`
+	Cost      sql.NullFloat64 `json:"cost"`
+	Url       sql.NullString  `json:"url"`
+	CreatedAt sql.NullTime    `json:"created_at"`
+	UpdatedAt sql.NullTime    `json:"updated_at"`
 }
 
 type User struct {
-	ID           int64
-	Email        string
-	Name         string
-	PasswordHash string
-	AvatarUrl    sql.NullString
-	CreatedAt    sql.NullTime
-	UpdatedAt    sql.NullTime
-	FirebaseUid  sql.NullString
+	ID           int64          `json:"id"`
+	Email        string         `json:"email"`
+	Name         string         `json:"name"`
+	PasswordHash string         `json:"password_hash"`
+	AvatarUrl    sql.NullString `json:"avatar_url"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	FirebaseUid  sql.NullString `json:"firebase_uid"`
 }
 
 type VoyageOpinion struct {
-	ID           int64
-	CruiseID     int64
-	CrewMemberID int64
-	FilePath     string
-	FileFormat   string
-	CreatedAt    sql.NullTime
+	ID           int64        `json:"id"`
+	CruiseID     int64        `json:"cruise_id"`
+	CrewMemberID int64        `json:"crew_member_id"`
+	FilePath     string       `json:"file_path"`
+	FileFormat   string       `json:"file_format"`
+	CreatedAt    sql.NullTime `json:"created_at"`
 }
 
 type Yacht struct {
-	ID             int64
-	OwnerID        int64
-	Name           string
-	RegistrationNo sql.NullString
-	YachtType      sql.NullString
-	CreatedAt      sql.NullTime
-	UpdatedAt      sql.NullTime
+	ID             int64          `json:"id"`
+	OwnerID        int64          `json:"owner_id"`
+	Name           string         `json:"name"`
+	RegistrationNo sql.NullString `json:"registration_no"`
+	YachtType      sql.NullString `json:"yacht_type"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
 }

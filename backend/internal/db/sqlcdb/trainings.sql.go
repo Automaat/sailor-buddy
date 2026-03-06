@@ -15,12 +15,12 @@ INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2
 `
 
 type CreateTrainingParams struct {
-	UserID    int64
-	Date      sql.NullString
-	Name      string
-	Organizer sql.NullString
-	Cost      sql.NullFloat64
-	Url       sql.NullString
+	UserID    int64           `json:"user_id"`
+	Date      sql.NullString  `json:"date"`
+	Name      string          `json:"name"`
+	Organizer sql.NullString  `json:"organizer"`
+	Cost      sql.NullFloat64 `json:"cost"`
+	Url       sql.NullString  `json:"url"`
 }
 
 func (q *Queries) CreateTraining(ctx context.Context, arg CreateTrainingParams) (Training, error) {
@@ -52,8 +52,8 @@ DELETE FROM trainings WHERE id = $1 AND user_id = $2
 `
 
 type DeleteTrainingParams struct {
-	ID     int64
-	UserID int64
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
 }
 
 func (q *Queries) DeleteTraining(ctx context.Context, arg DeleteTrainingParams) error {
@@ -66,8 +66,8 @@ SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FRO
 `
 
 type GetTrainingParams struct {
-	ID     int64
-	UserID int64
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
 }
 
 func (q *Queries) GetTraining(ctx context.Context, arg GetTrainingParams) (Training, error) {
@@ -129,13 +129,13 @@ UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, 
 `
 
 type UpdateTrainingParams struct {
-	Date      sql.NullString
-	Name      string
-	Organizer sql.NullString
-	Cost      sql.NullFloat64
-	Url       sql.NullString
-	ID        int64
-	UserID    int64
+	Date      sql.NullString  `json:"date"`
+	Name      string          `json:"name"`
+	Organizer sql.NullString  `json:"organizer"`
+	Cost      sql.NullFloat64 `json:"cost"`
+	Url       sql.NullString  `json:"url"`
+	ID        int64           `json:"id"`
+	UserID    int64           `json:"user_id"`
 }
 
 func (q *Queries) UpdateTraining(ctx context.Context, arg UpdateTrainingParams) error {

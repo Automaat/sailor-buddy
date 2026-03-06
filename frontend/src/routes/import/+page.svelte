@@ -1,27 +1,31 @@
 <script lang="ts">
-	let file = $state<File | null>(null);
+	import { auth } from '$lib/stores/auth.svelte';
+
+	let fileInput = $state<HTMLInputElement | null>(null);
 	let status = $state<'idle' | 'uploading' | 'preview' | 'confirming' | 'done' | 'error'>('idle');
 	let error = $state('');
 	let preview = $state<any>(null);
 
 	function handleFileChange(e: Event) {
 		const input = e.target as HTMLInputElement;
-		file = input.files?.[0] ?? null;
+		const file = input.files?.[0];
+		if (file) upload(file);
 	}
 
-	async function handleUpload() {
-		if (!file) return;
+	async function upload(file: File) {
 		status = 'uploading';
 		error = '';
 
 		try {
+			const token = await auth.getIdToken();
+			if (!token) throw new Error('Not authenticated');
 			const formData = new FormData();
 			formData.append('file', file);
 
 			const res = await fetch('/api/import/xlsx', {
 				method: 'POST',
 				headers: {
-					Authorization: `Bearer ${localStorage.getItem('auth') ? JSON.parse(localStorage.getItem('auth')!).accessToken : ''}`
+					Authorization: `Bearer ${token}`
 				},
 				body: formData
 			});
@@ -42,11 +46,13 @@
 	async function handleConfirm() {
 		status = 'confirming';
 		try {
+			const token = await auth.getIdToken();
+			if (!token) throw new Error('Not authenticated');
 			const res = await fetch('/api/import/confirm', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					Authorization: `Bearer ${localStorage.getItem('auth') ? JSON.parse(localStorage.getItem('auth')!).accessToken : ''}`
+					Authorization: `Bearer ${token}`
 				},
 				body: JSON.stringify(preview)
 			});
@@ -59,6 +65,8 @@
 		}
 	}
 </script>
+
+<input bind:this={fileInput} type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" onchange={handleFileChange} class="hidden" />
 
 <div class="mx-auto max-w-2xl">
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Import from XLSX</h1>
@@ -73,14 +81,11 @@
 				<p class="mb-4 text-[var(--text-muted)]">
 					Upload your sailing spreadsheet (XLSX) to import cruises, trainings, and crew data.
 				</p>
-				<input type="file" accept=".xlsx" onchange={handleFileChange} class="mb-4" />
-				<br />
 				<button
-					onclick={handleUpload}
-					disabled={!file}
-					class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+					onclick={() => fileInput?.click()}
+					class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)]"
 				>
-					Upload & Parse
+					Choose File & Upload
 				</button>
 			</div>
 		</div>
