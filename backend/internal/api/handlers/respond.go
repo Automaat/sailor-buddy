@@ -3,12 +3,17 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"reflect"
 )
 
 func respondJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if data != nil {
+		if rv := reflect.ValueOf(data); rv.Kind() == reflect.Slice && rv.IsNil() {
+			_, _ = w.Write([]byte("[]\n"))
+			return
+		}
 		_ = json.NewEncoder(w).Encode(data)
 	}
 }

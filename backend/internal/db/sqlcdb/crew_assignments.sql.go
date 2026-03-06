@@ -11,7 +11,7 @@ import (
 )
 
 const createCrewAssignment = `-- name: CreateCrewAssignment :one
-INSERT INTO crew_assignments (cruise_id, crew_member_id, role, patent_number) VALUES (?, ?, ?, ?) RETURNING id, cruise_id, crew_member_id, role, patent_number, created_at
+INSERT INTO crew_assignments (cruise_id, crew_member_id, role, patent_number) VALUES ($1, $2, $3, $4) RETURNING id, cruise_id, crew_member_id, role, patent_number, created_at
 `
 
 type CreateCrewAssignmentParams struct {
@@ -41,11 +41,18 @@ func (q *Queries) CreateCrewAssignment(ctx context.Context, arg CreateCrewAssign
 }
 
 const deleteCrewAssignment = `-- name: DeleteCrewAssignment :exec
-DELETE FROM crew_assignments WHERE id = ?
+DELETE FROM crew_assignments
+WHERE crew_assignments.id = $1
+  AND crew_assignments.cruise_id IN (SELECT cruises.id FROM cruises WHERE cruises.owner_id = $2)
 `
 
-func (q *Queries) DeleteCrewAssignment(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteCrewAssignment, id)
+type DeleteCrewAssignmentParams struct {
+	ID      int64
+	OwnerID int64
+}
+
+func (q *Queries) DeleteCrewAssignment(ctx context.Context, arg DeleteCrewAssignmentParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCrewAssignment, arg.ID, arg.OwnerID)
 	return err
 }
 
@@ -53,7 +60,7 @@ const getCrewMemberCruises = `-- name: GetCrewMemberCruises :many
 SELECT c.id, c.owner_id, c.name, c.year, c.embark_date, c.disembark_date, c.countries, c.start_port, c.end_port, c.hours_total, c.hours_sail, c.hours_engine, c.hours_over_6bf, c.miles, c.days, c.captain_name, c.yacht_id, c.tidal_waters, c.cost_total, c.cost_per_person, c.image_logo_url, c.image_photo_url, c.image_route_url, c.description, c.created_at, c.updated_at, ca.role
 FROM crew_assignments ca
 JOIN cruises c ON c.id = ca.cruise_id
-WHERE ca.crew_member_id = ?
+WHERE ca.crew_member_id = $1
 ORDER BY c.year DESC, c.embark_date DESC
 `
 
@@ -140,20 +147,20 @@ func (q *Queries) GetCrewMemberCruises(ctx context.Context, crewMemberID int64) 
 
 const getCrewMemberStats = `-- name: GetCrewMemberStats :one
 SELECT
-    COUNT(*) AS cruise_count,
-    COALESCE(SUM(c.hours_total), 0) AS total_hours,
-    COALESCE(SUM(c.miles), 0) AS total_miles,
-    COALESCE(SUM(c.days), 0) AS total_days
+    COUNT(*)::BIGINT AS cruise_count,
+    COALESCE(SUM(c.hours_total), 0)::DOUBLE PRECISION AS total_hours,
+    COALESCE(SUM(c.miles), 0)::DOUBLE PRECISION AS total_miles,
+    COALESCE(SUM(c.days), 0)::BIGINT AS total_days
 FROM crew_assignments ca
 JOIN cruises c ON c.id = ca.cruise_id
-WHERE ca.crew_member_id = ?
+WHERE ca.crew_member_id = $1
 `
 
 type GetCrewMemberStatsRow struct {
 	CruiseCount int64
-	TotalHours  interface{}
-	TotalMiles  interface{}
-	TotalDays   interface{}
+	TotalHours  float64
+	TotalMiles  float64
+	TotalDays   int64
 }
 
 func (q *Queries) GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error) {
@@ -172,9 +179,16 @@ const listCruiseCrewAssignments = `-- name: ListCruiseCrewAssignments :many
 SELECT ca.id, ca.cruise_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.email
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
-WHERE ca.cruise_id = ?
+JOIN cruises c ON c.id = ca.cruise_id
+WHERE ca.cruise_id = $1
+  AND c.owner_id = $2
 ORDER BY cm.full_name
 `
+
+type ListCruiseCrewAssignmentsParams struct {
+	CruiseID int64
+	OwnerID  int64
+}
 
 type ListCruiseCrewAssignmentsRow struct {
 	ID           int64
@@ -187,8 +201,8 @@ type ListCruiseCrewAssignmentsRow struct {
 	Email        sql.NullString
 }
 
-func (q *Queries) ListCruiseCrewAssignments(ctx context.Context, cruiseID int64) ([]ListCruiseCrewAssignmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseCrewAssignments, cruiseID)
+func (q *Queries) ListCruiseCrewAssignments(ctx context.Context, arg ListCruiseCrewAssignmentsParams) ([]ListCruiseCrewAssignmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseCrewAssignments, arg.CruiseID, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}

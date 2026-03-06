@@ -11,7 +11,7 @@ import (
 )
 
 const createTraining = `-- name: CreateTraining :one
-INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, user_id, date, name, organizer, cost, url, created_at, updated_at
+INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, date, name, organizer, cost, url, created_at, updated_at
 `
 
 type CreateTrainingParams struct {
@@ -48,7 +48,7 @@ func (q *Queries) CreateTraining(ctx context.Context, arg CreateTrainingParams) 
 }
 
 const deleteTraining = `-- name: DeleteTraining :exec
-DELETE FROM trainings WHERE id = ? AND user_id = ?
+DELETE FROM trainings WHERE id = $1 AND user_id = $2
 `
 
 type DeleteTrainingParams struct {
@@ -62,7 +62,7 @@ func (q *Queries) DeleteTraining(ctx context.Context, arg DeleteTrainingParams) 
 }
 
 const getTraining = `-- name: GetTraining :one
-SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE id = ? AND user_id = ?
+SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE id = $1 AND user_id = $2
 `
 
 type GetTrainingParams struct {
@@ -88,7 +88,7 @@ func (q *Queries) GetTraining(ctx context.Context, arg GetTrainingParams) (Train
 }
 
 const listTrainings = `-- name: ListTrainings :many
-SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = ? ORDER BY date DESC
+SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
 `
 
 func (q *Queries) ListTrainings(ctx context.Context, userID int64) ([]Training, error) {
@@ -125,7 +125,7 @@ func (q *Queries) ListTrainings(ctx context.Context, userID int64) ([]Training, 
 }
 
 const updateTraining = `-- name: UpdateTraining :exec
-UPDATE trainings SET date = ?, name = ?, organizer = ?, cost = ?, url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?
+UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 AND user_id = $7
 `
 
 type UpdateTrainingParams struct {

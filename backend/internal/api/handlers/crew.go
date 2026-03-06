@@ -133,9 +133,21 @@ func (h *CrewHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CrewHandler) AssignCrew(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
 	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{
+		ID:      cruiseID,
+		OwnerID: user.UserID,
+	}); err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
 		return
 	}
 	var req crewAssignmentRequest
@@ -161,12 +173,16 @@ func (h *CrewHandler) AssignCrew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CrewHandler) ListCruiseCrew(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
 	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid cruise id")
 		return
 	}
-	assignments, err := h.q.ListCruiseCrewAssignments(r.Context(), cruiseID)
+	assignments, err := h.q.ListCruiseCrewAssignments(r.Context(), sqlcdb.ListCruiseCrewAssignmentsParams{
+		CruiseID: cruiseID,
+		OwnerID:  user.UserID,
+	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to list cruise crew")
 		return
@@ -175,12 +191,16 @@ func (h *CrewHandler) ListCruiseCrew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CrewHandler) RemoveCruiseCrew(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
 	assignmentID, err := strconv.ParseInt(chi.URLParam(r, "assignmentID"), 10, 64)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid assignment id")
 		return
 	}
-	if err := h.q.DeleteCrewAssignment(r.Context(), assignmentID); err != nil {
+	if err := h.q.DeleteCrewAssignment(r.Context(), sqlcdb.DeleteCrewAssignmentParams{
+		ID:      assignmentID,
+		OwnerID: user.UserID,
+	}); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to remove crew assignment")
 		return
 	}

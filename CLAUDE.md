@@ -4,7 +4,7 @@ Sailing cruise tracker and crew document generator.
 
 ## Stack
 
-- **Backend**: Go 1.23 + chi router + SQLite (modernc.org/sqlite) + sqlc
+- **Backend**: Go 1.25 + chi router + PostgreSQL 18 (pgx/v5) + sqlc
 - **Frontend**: SvelteKit 5 (Svelte 5 runes) + Tailwind CSS
 - **Auth**: JWT access (15min) + refresh tokens (30d) + bcrypt
 
@@ -20,8 +20,8 @@ backend/
     api/middleware/auth.go   # JWT middleware
     auth/jwt.go             # JWT + bcrypt helpers
     config/config.go         # env-based config
-    db/db.go                # SQLite connection + migration runner
-    db/migrations/           # SQL migration files (001-007)
+    db/db.go                # PostgreSQL connection + migration runner
+    db/migrations/           # SQL migration files (001-008)
     db/queries/              # sqlc SQL query files
     db/sqlcdb/               # generated sqlc Go code (DO NOT EDIT)
 frontend/
@@ -60,4 +60,4 @@ mise run dev-frontend  # frontend dev
 - Owner-scoped data: cruises, yachts, crew_members filtered by `owner_id`
 - crew_members decoupled from users (crew may not have accounts)
 - Go code must pass `gofumpt` formatting
-- Env vars: SAILOR_DB_PATH, SAILOR_JWT_SECRET, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR
+- Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
