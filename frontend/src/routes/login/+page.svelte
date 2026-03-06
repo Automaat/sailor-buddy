@@ -1,8 +1,12 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
-	import type { AuthResponse } from '$lib/api/types';
+	import {
+		signInWithEmailAndPassword,
+		createUserWithEmailAndPassword,
+		updateProfile
+	} from 'firebase/auth';
+	import { firebaseAuth } from '$lib/firebase';
 
 	let isRegister = $state(false);
 	let email = $state('');
@@ -17,10 +21,12 @@
 		loading = true;
 
 		try {
-			const endpoint = isRegister ? '/auth/register' : '/auth/login';
-			const body = isRegister ? { email, password, name } : { email, password };
-			const data = await api.post<AuthResponse>(endpoint, body);
-			auth.login(data.user, data.access_token, data.refresh_token);
+			if (isRegister) {
+				const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+				await updateProfile(cred.user, { displayName: name });
+			} else {
+				await signInWithEmailAndPassword(firebaseAuth, email, password);
+			}
 			goto('/');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Something went wrong';
@@ -28,6 +34,12 @@
 			loading = false;
 		}
 	}
+
+	$effect(() => {
+		if (auth.isAuthenticated) {
+			goto('/');
+		}
+	});
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">

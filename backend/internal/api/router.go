@@ -6,13 +6,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+
+	fbauth "firebase.google.com/go/v4/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/handlers"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-func NewRouter(db *sql.DB, cfg *config.Config) *chi.Mux {
+func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
@@ -27,17 +29,12 @@ func NewRouter(db *sql.DB, cfg *config.Config) *chi.Mux {
 
 	q := sqlcdb.New(db)
 
-	authH := handlers.NewAuthHandler(q, cfg.JWTSecret)
 	r.Route("/api", func(r chi.Router) {
-		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", authH.Register)
-			r.Post("/login", authH.Login)
-			r.Post("/refresh", authH.Refresh)
-			r.Post("/logout", authH.Logout)
-		})
-
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.Auth(cfg.JWTSecret))
+			r.Use(middleware.Auth(fbClient, q))
+
+			authH := handlers.NewAuthHandler()
+			r.Get("/auth/me", authH.Me)
 
 			dashH := handlers.NewDashboardHandler(q)
 			r.Get("/dashboard", dashH.Get)

@@ -11,17 +11,17 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at
+INSERT INTO users (email, name, password_hash, firebase_uid) VALUES (?, ?, '', ?) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 `
 
 type CreateUserParams struct {
-	Email        string
-	Name         string
-	PasswordHash string
+	Email       string
+	Name        string
+	FirebaseUid sql.NullString
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.PasswordHash)
+	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.FirebaseUid)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -31,12 +31,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirebaseUid,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at FROM users WHERE email = ?
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = ?
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -50,12 +51,33 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirebaseUid,
+	)
+	return i, err
+}
+
+const getUserByFirebaseUID = `-- name: GetUserByFirebaseUID :one
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = ?
+`
+
+func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByFirebaseUID, firebaseUid)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FirebaseUid,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at FROM users WHERE id = ?
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = ?
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
@@ -69,6 +91,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FirebaseUid,
 	)
 	return i, err
 }
@@ -94,16 +117,34 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 	return err
 }
 
-const updateUserPassword = `-- name: UpdateUserPassword :exec
-UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+const upsertUserByFirebaseUID = `-- name: UpsertUserByFirebaseUID :one
+INSERT INTO users (email, name, password_hash, firebase_uid)
+VALUES (?, ?, '', ?)
+ON CONFLICT(firebase_uid) DO UPDATE SET
+  email = excluded.email,
+  name = CASE WHEN excluded.name = '' THEN users.name ELSE excluded.name END,
+  updated_at = CURRENT_TIMESTAMP
+RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 `
 
-type UpdateUserPasswordParams struct {
-	PasswordHash string
-	ID           int64
+type UpsertUserByFirebaseUIDParams struct {
+	Email       string
+	Name        string
+	FirebaseUid sql.NullString
 }
 
-func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserPassword, arg.PasswordHash, arg.ID)
-	return err
+func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserByFirebaseUID, arg.Email, arg.Name, arg.FirebaseUid)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FirebaseUid,
+	)
+	return i, err
 }

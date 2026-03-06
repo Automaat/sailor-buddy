@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
 )
@@ -26,7 +28,13 @@ func main() {
 		log.Fatalf("failed to run migrations: %v", err)
 	}
 
-	router := api.NewRouter(database, cfg)
+	ctx := context.Background()
+	fbClient, err := auth.NewFirebaseAuth(ctx, cfg.FirebaseProjectID)
+	if err != nil {
+		log.Fatalf("failed to init firebase auth: %v", err)
+	}
+
+	router := api.NewRouter(database, cfg, fbClient)
 
 	log.Printf("listening on %s", cfg.ListenAddr)
 	if err := http.ListenAndServe(cfg.ListenAddr, router); err != nil {

@@ -1,10 +1,9 @@
 import { auth } from '$lib/stores/auth.svelte';
-import type { AuthResponse } from './types';
 
 const BASE = '/api';
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-	const token = auth.getAccessToken();
+	const token = await auth.getIdToken();
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 		...((opts.headers as Record<string, string>) || {})
@@ -13,17 +12,11 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 		headers['Authorization'] = `Bearer ${token}`;
 	}
 
-	let res = await fetch(`${BASE}${path}`, { ...opts, headers });
+	const res = await fetch(`${BASE}${path}`, { ...opts, headers });
 
-	if (res.status === 401 && token) {
-		const refreshed = await refreshTokens();
-		if (refreshed) {
-			headers['Authorization'] = `Bearer ${auth.getAccessToken()}`;
-			res = await fetch(`${BASE}${path}`, { ...opts, headers });
-		} else {
-			auth.logout();
-			throw new Error('Session expired');
-		}
+	if (res.status === 401) {
+		await auth.logout();
+		throw new Error('Session expired');
 	}
 
 	if (!res.ok) {
@@ -33,25 +26,6 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 	if (res.status === 204) return undefined as T;
 	return res.json();
-}
-
-async function refreshTokens(): Promise<boolean> {
-	const refreshToken = auth.getRefreshToken();
-	if (!refreshToken) return false;
-
-	try {
-		const res = await fetch(`${BASE}/auth/refresh`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ refresh_token: refreshToken })
-		});
-		if (!res.ok) return false;
-		const data: AuthResponse = await res.json();
-		auth.setTokens(data.access_token, data.refresh_token);
-		return true;
-	} catch {
-		return false;
-	}
 }
 
 export const api = {

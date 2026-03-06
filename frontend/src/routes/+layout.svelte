@@ -1,8 +1,10 @@
 <script lang="ts">
 	import '../app.css';
 	import { auth } from '$lib/stores/auth.svelte';
-	import { goto, afterNavigate } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { api } from '$lib/api/client';
+	import type { User } from '$lib/api/types';
 
 	let { children } = $props();
 
@@ -15,19 +17,50 @@
 		{ href: '/import', label: 'Import', icon: '📥' }
 	];
 
-	function handleLogout() {
-		auth.logout();
+	async function handleLogout() {
+		await auth.logout();
 		goto('/login');
 	}
 
-	afterNavigate(() => {
-		if (!auth.isAuthenticated && !$page.url.pathname.startsWith('/login')) {
+	$effect(() => {
+		if (!auth.loading && !auth.isAuthenticated && !$page.url.pathname.startsWith('/login')) {
 			goto('/login');
+		}
+	});
+
+	$effect(() => {
+		if (auth.isAuthenticated && !auth.user) {
+			const currentUid = auth.firebaseUser?.uid;
+			let cancelled = false;
+
+			(async () => {
+				try {
+					const u = await api.get<User>('/auth/me');
+
+					if (
+						!cancelled &&
+						auth.isAuthenticated &&
+						auth.firebaseUser?.uid === currentUid
+					) {
+						auth.user = u;
+					}
+				} catch (err) {
+					console.error('Failed to fetch authenticated user via /auth/me', err);
+				}
+			})();
+
+			return () => {
+				cancelled = true;
+			};
 		}
 	});
 </script>
 
-{#if $page.url.pathname.startsWith('/login')}
+{#if auth.loading}
+	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
+		<span class="text-4xl">⚓</span>
+	</div>
+{:else if $page.url.pathname.startsWith('/login')}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">
@@ -53,7 +86,9 @@
 				{/each}
 			</div>
 			<div class="border-t border-white/10 p-4">
-				<div class="mb-2 text-sm text-white/70">{auth.user?.name}</div>
+				<div class="mb-2 text-sm text-white/70">
+					{auth.user?.name || auth.firebaseUser?.displayName || ''}
+				</div>
 				<button
 					onclick={handleLogout}
 					class="text-sm text-white/50 transition-colors hover:text-white"

@@ -1,69 +1,46 @@
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { firebaseAuth } from '$lib/firebase';
 import type { User } from '$lib/api/types';
 
-interface AuthState {
-	user: User | null;
-	accessToken: string | null;
-	refreshToken: string | null;
-}
-
 function createAuthStore() {
-	let state = $state<AuthState>({
-		user: null,
-		accessToken: null,
-		refreshToken: null
-	});
+	let firebaseUser = $state<FirebaseUser | null>(null);
+	let dbUser = $state<User | null>(null);
+	let loading = $state(true);
 
 	if (typeof window !== 'undefined') {
-		const saved = localStorage.getItem('auth');
-		if (saved) {
-			try {
-				const parsed = JSON.parse(saved);
-				state.user = parsed.user;
-				state.accessToken = parsed.accessToken;
-				state.refreshToken = parsed.refreshToken;
-			} catch {
-				localStorage.removeItem('auth');
+		onAuthStateChanged(firebaseAuth, (user) => {
+			firebaseUser = user;
+			if (!user) {
+				dbUser = null;
 			}
-		}
-	}
-
-	function persist() {
-		if (typeof window !== 'undefined') {
-			localStorage.setItem('auth', JSON.stringify(state));
-		}
+			loading = false;
+		});
 	}
 
 	return {
 		get user() {
-			return state.user;
+			return dbUser;
+		},
+		set user(u: User | null) {
+			dbUser = u;
+		},
+		get firebaseUser() {
+			return firebaseUser;
 		},
 		get isAuthenticated() {
-			return !!state.accessToken;
+			return !!firebaseUser;
 		},
-		getAccessToken() {
-			return state.accessToken;
+		get loading() {
+			return loading;
 		},
-		getRefreshToken() {
-			return state.refreshToken;
+		async getIdToken(): Promise<string | null> {
+			if (!firebaseUser) return null;
+			return firebaseUser.getIdToken();
 		},
-		setTokens(access: string, refresh: string) {
-			state.accessToken = access;
-			state.refreshToken = refresh;
-			persist();
-		},
-		login(user: User, accessToken: string, refreshToken: string) {
-			state.user = user;
-			state.accessToken = accessToken;
-			state.refreshToken = refreshToken;
-			persist();
-		},
-		logout() {
-			state.user = null;
-			state.accessToken = null;
-			state.refreshToken = null;
-			if (typeof window !== 'undefined') {
-				localStorage.removeItem('auth');
-			}
+		async logout() {
+			await firebaseAuth.signOut();
+			firebaseUser = null;
+			dbUser = null;
 		}
 	};
 }
