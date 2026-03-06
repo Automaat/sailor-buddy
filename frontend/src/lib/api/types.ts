@@ -5,12 +5,6 @@ export interface User {
 	avatar_url?: string;
 }
 
-export interface AuthResponse {
-	access_token: string;
-	refresh_token: string;
-	user: User;
-}
-
 export interface Cruise {
 	id: number;
 	owner_id: number;

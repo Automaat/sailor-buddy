@@ -87,6 +87,7 @@ type User struct {
 	AvatarUrl    sql.NullString
 	CreatedAt    sql.NullTime
 	UpdatedAt    sql.NullTime
+	FirebaseUid  sql.NullString
 }
 
 type VoyageOpinion struct {
