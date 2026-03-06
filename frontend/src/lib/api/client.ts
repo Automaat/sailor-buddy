@@ -28,11 +28,34 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 	return res.json();
 }
 
+async function upload<T>(path: string, formData: FormData): Promise<T> {
+	const token = await auth.getIdToken();
+	const headers: Record<string, string> = {};
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const res = await fetch(`${BASE}${path}`, { method: 'POST', headers, body: formData });
+
+	if (res.status === 401) {
+		await auth.logout();
+		throw new Error('Session expired');
+	}
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		throw new Error(body.error || `Request failed: ${res.status}`);
+	}
+
+	return res.json();
+}
+
 export const api = {
 	get: <T>(path: string) => request<T>(path),
 	post: <T>(path: string, body?: unknown) =>
 		request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
 	put: <T>(path: string, body?: unknown) =>
 		request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
-	del: <T>(path: string) => request<T>(path, { method: 'DELETE' })
+	del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+	upload: <T>(path: string, formData: FormData) => upload<T>(path, formData)
 };

@@ -88,3 +88,7 @@ export interface YearStats {
 	total_miles: number;
 	total_days: number;
 }
+
+export interface UploadResponse {
+	url: string;
+}

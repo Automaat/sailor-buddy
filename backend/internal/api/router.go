@@ -89,6 +89,10 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 				})
 			})
 
+			uploadH := handlers.NewUploadHandler(cfg.UploadDir)
+			r.Post("/upload/image", uploadH.UploadImage)
+			r.Get("/uploads/*", uploadH.ServeFile)
+
 			importH := handlers.NewImportHandler(q)
 			r.Post("/import/xlsx", importH.Upload)
 			r.Post("/import/confirm", importH.Confirm)
