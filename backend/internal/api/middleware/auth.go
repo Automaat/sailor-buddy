@@ -18,7 +18,7 @@ type ctxKey string
 
 const UserCtxKey ctxKey = "user"
 
-func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Handler {
+func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")

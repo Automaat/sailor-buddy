@@ -11,10 +11,10 @@ import (
 )
 
 type TrainingHandler struct {
-	q *sqlcdb.Queries
+	q sqlcdb.Querier
 }
 
-func NewTrainingHandler(q *sqlcdb.Queries) *TrainingHandler {
+func NewTrainingHandler(q sqlcdb.Querier) *TrainingHandler {
 	return &TrainingHandler{q: q}
 }
 

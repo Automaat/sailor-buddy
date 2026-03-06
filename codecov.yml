@@ -1,11 +1,30 @@
 coverage:
   status:
     project:
-      default:
+      backend:
         target: 80%
+        flags:
+          - backend
+      frontend:
+        target: 0%
+        flags:
+          - frontend
     patch:
-      default:
+      backend:
         target: 80%
+        flags:
+          - backend
+      frontend:
+        target: 0%
+        flags:
+          - frontend
+
+ignore:
+  - "backend/internal/db/sqlcdb/**"
+  - "backend/cmd/**"
+  - "backend/internal/db/db.go"
+  - "backend/internal/auth/firebase.go"
+  - "backend/internal/api/router.go"
 
 flags:
   backend:
