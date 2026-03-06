@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: sailor
+      POSTGRES_PASSWORD: sailor
+      POSTGRES_DB: sailor
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sailor"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
   firebase-emulator:
     build:
       context: .
@@ -15,15 +31,16 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8081:8080"
-    volumes:
-      - backend-data:/app/data
     environment:
-      - SAILOR_DB_PATH=/app/data/sailor.db
+      - SAILOR_DATABASE_URL=postgres://sailor:sailor@postgres:5432/sailor?sslmode=disable
       - SAILOR_FIREBASE_PROJECT_ID=sailor-buddy-dev
       - SAILOR_LISTEN_ADDR=:8080
       - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
     depends_on:
-      - firebase-emulator
+      postgres:
+        condition: service_healthy
+      firebase-emulator:
+        condition: service_started
 
   frontend:
     build:
@@ -41,5 +58,5 @@ services:
       - VITE_FIREBASE_PROJECT_ID=sailor-buddy-dev
 
 volumes:
-  backend-data:
+  postgres-data:
   firebase-data:

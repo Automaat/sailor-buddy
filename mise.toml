@@ -11,7 +11,7 @@ run = "docker compose up --build"
 
 [tasks.dev-backend]
 description = "Run backend with hot reload (needs: mise run dev-emulator)"
-run = "cd backend && FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 air"
+run = "cd backend && SAILOR_DATABASE_URL=postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 air"
 
 [tasks.dev-frontend]
 description = "Run frontend dev server"

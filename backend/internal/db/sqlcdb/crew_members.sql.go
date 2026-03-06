@@ -11,7 +11,7 @@ import (
 )
 
 const createCrewMember = `-- name: CreateCrewMember :one
-INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES (?, ?, ?, ?, ?) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at
+INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at
 `
 
 type CreateCrewMemberParams struct {
@@ -45,7 +45,7 @@ func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberPara
 }
 
 const deleteCrewMember = `-- name: DeleteCrewMember :exec
-DELETE FROM crew_members WHERE id = ? AND owner_id = ?
+DELETE FROM crew_members WHERE id = $1 AND owner_id = $2
 `
 
 type DeleteCrewMemberParams struct {
@@ -59,7 +59,7 @@ func (q *Queries) DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberPara
 }
 
 const getCrewMember = `-- name: GetCrewMember :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE id = ? AND owner_id = ?
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE id = $1 AND owner_id = $2
 `
 
 type GetCrewMemberParams struct {
@@ -84,7 +84,7 @@ func (q *Queries) GetCrewMember(ctx context.Context, arg GetCrewMemberParams) (C
 }
 
 const getCrewMemberByName = `-- name: GetCrewMemberByName :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE owner_id = ? AND full_name = ?
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE owner_id = $1 AND full_name = $2
 `
 
 type GetCrewMemberByNameParams struct {
@@ -109,7 +109,7 @@ func (q *Queries) GetCrewMemberByName(ctx context.Context, arg GetCrewMemberByNa
 }
 
 const listCrewMembers = `-- name: ListCrewMembers :many
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE owner_id = ? ORDER BY full_name
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE owner_id = $1 ORDER BY full_name
 `
 
 func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error) {
@@ -145,7 +145,7 @@ func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMem
 }
 
 const updateCrewMember = `-- name: UpdateCrewMember :exec
-UPDATE crew_members SET full_name = ?, email = ?, patent_number = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?
+UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5
 `
 
 type UpdateCrewMemberParams struct {

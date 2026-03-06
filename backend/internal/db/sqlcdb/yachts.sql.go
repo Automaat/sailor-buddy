@@ -11,7 +11,7 @@ import (
 )
 
 const createYacht = `-- name: CreateYacht :one
-INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES (?, ?, ?, ?) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at
+INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at
 `
 
 type CreateYachtParams struct {
@@ -42,7 +42,7 @@ func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht
 }
 
 const deleteYacht = `-- name: DeleteYacht :exec
-DELETE FROM yachts WHERE id = ? AND owner_id = ?
+DELETE FROM yachts WHERE id = $1 AND owner_id = $2
 `
 
 type DeleteYachtParams struct {
@@ -56,7 +56,7 @@ func (q *Queries) DeleteYacht(ctx context.Context, arg DeleteYachtParams) error 
 }
 
 const getYacht = `-- name: GetYacht :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE id = ? AND owner_id = ?
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE id = $1 AND owner_id = $2
 `
 
 type GetYachtParams struct {
@@ -80,7 +80,7 @@ func (q *Queries) GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, erro
 }
 
 const getYachtByName = `-- name: GetYachtByName :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE owner_id = ? AND name = ?
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE owner_id = $1 AND name = $2
 `
 
 type GetYachtByNameParams struct {
@@ -104,7 +104,7 @@ func (q *Queries) GetYachtByName(ctx context.Context, arg GetYachtByNameParams) 
 }
 
 const listYachts = `-- name: ListYachts :many
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE owner_id = ? ORDER BY name
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE owner_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error) {
@@ -139,7 +139,7 @@ func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error
 }
 
 const updateYacht = `-- name: UpdateYacht :exec
-UPDATE yachts SET name = ?, registration_no = ?, yacht_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?
+UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5
 `
 
 type UpdateYachtParams struct {

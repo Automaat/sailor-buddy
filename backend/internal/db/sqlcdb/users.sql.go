@@ -11,7 +11,7 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, firebase_uid) VALUES (?, ?, '', ?) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 `
 
 type CreateUserParams struct {
@@ -37,7 +37,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = ?
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -57,7 +57,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByFirebaseUID = `-- name: GetUserByFirebaseUID :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = ?
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = $1
 `
 
 func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid sql.NullString) (User, error) {
@@ -77,7 +77,7 @@ func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid sql.Null
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = ?
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
@@ -98,17 +98,17 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 
 const linkFirebaseUIDByEmail = `-- name: LinkFirebaseUIDByEmail :one
 UPDATE users SET
-  firebase_uid = ?1,
-  name = COALESCE(NULLIF(?2, ''), name),
+  firebase_uid = $1,
+  name = COALESCE(NULLIF($2, ''), name),
   updated_at = CURRENT_TIMESTAMP
-WHERE email = ?3
-  AND (firebase_uid IS NULL OR firebase_uid = ?1)
+WHERE email = $3
+  AND (firebase_uid IS NULL OR firebase_uid = $1)
 RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 `
 
 type LinkFirebaseUIDByEmailParams struct {
 	FirebaseUid sql.NullString
-	NewName     string
+	NewName     interface{}
 	Email       string
 }
 
@@ -129,7 +129,7 @@ func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUI
 }
 
 const updateUser = `-- name: UpdateUser :exec
-UPDATE users SET name = ?, email = ?, avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4
 `
 
 type UpdateUserParams struct {
@@ -151,10 +151,10 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 
 const upsertUserByFirebaseUID = `-- name: UpsertUserByFirebaseUID :one
 INSERT INTO users (email, name, password_hash, firebase_uid)
-VALUES (?, ?, '', ?)
+VALUES ($1, $2, '', $3)
 ON CONFLICT(firebase_uid) DO UPDATE SET
-  email = excluded.email,
-  name = CASE WHEN excluded.name = '' THEN users.name ELSE excluded.name END,
+  email = EXCLUDED.email,
+  name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
   updated_at = CURRENT_TIMESTAMP
 RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 `

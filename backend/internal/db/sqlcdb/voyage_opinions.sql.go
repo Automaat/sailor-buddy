@@ -11,7 +11,7 @@ import (
 )
 
 const createVoyageOpinion = `-- name: CreateVoyageOpinion :one
-INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format) VALUES (?, ?, ?, ?) RETURNING id, cruise_id, crew_member_id, file_path, file_format, created_at
+INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format) VALUES ($1, $2, $3, $4) RETURNING id, cruise_id, crew_member_id, file_path, file_format, created_at
 `
 
 type CreateVoyageOpinionParams struct {
@@ -41,7 +41,7 @@ func (q *Queries) CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpini
 }
 
 const deleteVoyageOpinion = `-- name: DeleteVoyageOpinion :exec
-DELETE FROM voyage_opinions WHERE id = ?
+DELETE FROM voyage_opinions WHERE id = $1
 `
 
 func (q *Queries) DeleteVoyageOpinion(ctx context.Context, id int64) error {
@@ -50,7 +50,7 @@ func (q *Queries) DeleteVoyageOpinion(ctx context.Context, id int64) error {
 }
 
 const getVoyageOpinion = `-- name: GetVoyageOpinion :one
-SELECT id, cruise_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE id = ?
+SELECT id, cruise_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE id = $1
 `
 
 func (q *Queries) GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion, error) {
@@ -71,7 +71,7 @@ const listCruiseVoyageOpinions = `-- name: ListCruiseVoyageOpinions :many
 SELECT vo.id, vo.cruise_id, vo.crew_member_id, vo.file_path, vo.file_format, vo.created_at, cm.full_name
 FROM voyage_opinions vo
 JOIN crew_members cm ON cm.id = vo.crew_member_id
-WHERE vo.cruise_id = ?
+WHERE vo.cruise_id = $1
 ORDER BY cm.full_name
 `
 

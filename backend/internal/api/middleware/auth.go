@@ -3,11 +3,13 @@ package middleware
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 
 	fbauth "firebase.google.com/go/v4/auth"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
@@ -52,7 +54,8 @@ func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Ha
 				FirebaseUid: fbUID,
 			})
 			if err != nil {
-				if !strings.Contains(err.Error(), "UNIQUE constraint failed: users.email") {
+				var pgErr *pgconn.PgError
+				if !(errors.As(err, &pgErr) && pgErr.Code == "23505") {
 					log.Printf("upsert failed (email=%s uid=%s): %v", email, fbToken.UID, err)
 					http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 					return
