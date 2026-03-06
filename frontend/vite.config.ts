@@ -13,6 +13,13 @@ export default defineConfig(({ mode }) => {
 			proxy: {
 				'/api': env.VITE_BACKEND_URL || 'http://localhost:8080'
 			}
+		},
+		test: {
+			environment: 'jsdom',
+			coverage: {
+				provider: 'v8',
+				reporter: ['text', 'cobertura']
+			}
 		}
 	};
 });
