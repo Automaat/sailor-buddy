@@ -11,10 +11,10 @@ import (
 )
 
 type YachtHandler struct {
-	q *sqlcdb.Queries
+	q sqlcdb.Querier
 }
 
-func NewYachtHandler(q *sqlcdb.Queries) *YachtHandler {
+func NewYachtHandler(q sqlcdb.Querier) *YachtHandler {
 	return &YachtHandler{q: q}
 }
 

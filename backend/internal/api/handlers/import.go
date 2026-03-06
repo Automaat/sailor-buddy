@@ -16,10 +16,10 @@ import (
 )
 
 type ImportHandler struct {
-	q *sqlcdb.Queries
+	q sqlcdb.Querier
 }
 
-func NewImportHandler(q *sqlcdb.Queries) *ImportHandler {
+func NewImportHandler(q sqlcdb.Querier) *ImportHandler {
 	return &ImportHandler{q: q}
 }
 

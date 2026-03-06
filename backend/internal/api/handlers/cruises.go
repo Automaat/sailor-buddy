@@ -11,10 +11,10 @@ import (
 )
 
 type CruiseHandler struct {
-	q *sqlcdb.Queries
+	q sqlcdb.Querier
 }
 
-func NewCruiseHandler(q *sqlcdb.Queries) *CruiseHandler {
+func NewCruiseHandler(q sqlcdb.Querier) *CruiseHandler {
 	return &CruiseHandler{q: q}
 }
 

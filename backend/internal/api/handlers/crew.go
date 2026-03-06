@@ -11,10 +11,10 @@ import (
 )
 
 type CrewHandler struct {
-	q *sqlcdb.Queries
+	q sqlcdb.Querier
 }
 
-func NewCrewHandler(q *sqlcdb.Queries) *CrewHandler {
+func NewCrewHandler(q sqlcdb.Querier) *CrewHandler {
 	return &CrewHandler{q: q}
 }
 
