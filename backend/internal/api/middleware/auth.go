@@ -55,7 +55,7 @@ func Auth(fbClient *fbauth.Client, q *sqlcdb.Queries) func(http.Handler) http.Ha
 			})
 			if err != nil {
 				var pgErr *pgconn.PgError
-				if !(errors.As(err, &pgErr) && pgErr.Code == "23505") {
+				if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
 					log.Printf("upsert failed (email=%s uid=%s): %v", email, fbToken.UID, err)
 					http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 					return
