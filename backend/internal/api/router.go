@@ -40,6 +40,8 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 			r.Get("/dashboard", dashH.Get)
 
 			cruiseH := handlers.NewCruiseHandler(q)
+			crewH := handlers.NewCrewHandler(q)
+			opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
 			r.Route("/cruises", func(r chi.Router) {
 				r.Get("/", cruiseH.List)
 				r.Post("/", cruiseH.Create)
@@ -47,6 +49,17 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 					r.Get("/", cruiseH.Get)
 					r.Put("/", cruiseH.Update)
 					r.Delete("/", cruiseH.Delete)
+				})
+				r.Route("/{cruiseID}/crew", func(r chi.Router) {
+					r.Get("/", crewH.ListCruiseCrew)
+					r.Post("/", crewH.AssignCrew)
+					r.Delete("/{assignmentID}", crewH.RemoveCruiseCrew)
+				})
+				r.Route("/{cruiseID}/opinions", func(r chi.Router) {
+					r.Get("/", opinH.List)
+					r.Post("/", opinH.Generate)
+					r.Get("/{id}/download", opinH.Download)
+					r.Delete("/{id}", opinH.Delete)
 				})
 			})
 
@@ -61,7 +74,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 				})
 			})
 
-			crewH := handlers.NewCrewHandler(q)
 			r.Route("/crew", func(r chi.Router) {
 				r.Get("/", crewH.List)
 				r.Post("/", crewH.Create)
@@ -70,20 +82,6 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 					r.Put("/", crewH.Update)
 					r.Delete("/", crewH.Delete)
 				})
-			})
-
-			r.Route("/cruises/{cruiseID}/crew", func(r chi.Router) {
-				r.Get("/", crewH.ListCruiseCrew)
-				r.Post("/", crewH.AssignCrew)
-				r.Delete("/{assignmentID}", crewH.RemoveCruiseCrew)
-			})
-
-			opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
-			r.Route("/cruises/{cruiseID}/opinions", func(r chi.Router) {
-				r.Get("/", opinH.List)
-				r.Post("/", opinH.Generate)
-				r.Get("/{id}/download", opinH.Download)
-				r.Delete("/{id}", opinH.Delete)
 			})
 
 			trainingH := handlers.NewTrainingHandler(q)
