@@ -6,7 +6,7 @@ RUN go mod download
 COPY . .
 RUN go build -o /app/sailor-buddy ./cmd/api
 
-FROM alpine:3.22
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/sailor-buddy .
