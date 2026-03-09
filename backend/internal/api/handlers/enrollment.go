@@ -36,7 +36,7 @@ func (h *EnrollmentHandler) GetCruiseByToken(w http.ResponseWriter, r *http.Requ
 	}
 
 	user := middleware.GetUser(r.Context())
-	enrollment, err := h.q.GetUserEnrollment(r.Context(), sqlcdb.GetUserEnrollmentParams{
+	enrollment, enrollmentErr := h.q.GetUserEnrollment(r.Context(), sqlcdb.GetUserEnrollmentParams{
 		CruiseID: cruise.ID,
 		UserID:   user.UserID,
 	})
@@ -59,7 +59,7 @@ func (h *EnrollmentHandler) GetCruiseByToken(w http.ResponseWriter, r *http.Requ
 		Accepted: counts.Accepted,
 		Total:    counts.Total,
 	}
-	if err == nil {
+	if enrollmentErr == nil {
 		resp.Enrolled = true
 		resp.Enrollment = enrollment
 	}
