@@ -33,7 +33,7 @@
 			}
 			goto('/');
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Something went wrong';
+			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
 			loading = false;
 		}
@@ -46,7 +46,7 @@
 			await signInWithPopup(firebaseAuth, googleProvider);
 			goto('/');
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Something went wrong';
+			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
 			loading = false;
 		}
@@ -65,7 +65,7 @@
 			<span class="text-5xl">⚓</span>
 			<h1 class="mt-4 text-2xl font-bold text-[var(--navy)]">Sailor Buddy</h1>
 			<p class="mt-1 text-[var(--text-muted)]">
-				{isRegister ? 'Create your account' : 'Welcome back, Captain'}
+				{isRegister ? 'Utwórz konto' : 'Witaj z powrotem, Kapitanie'}
 			</p>
 		</div>
 
@@ -76,7 +76,7 @@
 		<form onsubmit={handleSubmit} class="space-y-4">
 			{#if isRegister}
 				<div>
-					<label for="name" class="mb-1 block text-sm font-medium">Name</label>
+					<label for="name" class="mb-1 block text-sm font-medium">Imię</label>
 					<input
 						id="name"
 						type="text"
@@ -97,7 +97,7 @@
 				/>
 			</div>
 			<div>
-				<label for="password" class="mb-1 block text-sm font-medium">Password</label>
+				<label for="password" class="mb-1 block text-sm font-medium">Hasło</label>
 				<input
 					id="password"
 					type="password"
@@ -112,7 +112,7 @@
 				disabled={loading}
 				class="w-full rounded-lg bg-[var(--ocean)] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 			>
-				{loading ? '...' : isRegister ? 'Register' : 'Login'}
+				{loading ? '...' : isRegister ? 'Zarejestruj' : 'Zaloguj'}
 			</button>
 		</form>
 
@@ -121,7 +121,7 @@
 				<div class="w-full border-t border-gray-300"></div>
 			</div>
 			<div class="relative flex justify-center text-sm">
-				<span class="bg-white px-2 text-[var(--text-muted)]">or</span>
+				<span class="bg-white px-2 text-[var(--text-muted)]">lub</span>
 			</div>
 		</div>
 
@@ -148,11 +148,11 @@
 					fill="#EA4335"
 				/>
 			</svg>
-			Continue with Google
+			Kontynuuj z Google
 		</button>
 
 		<p class="mt-6 text-center text-sm text-[var(--text-muted)]">
-			{isRegister ? 'Already have an account?' : "Don't have an account?"}
+			{isRegister ? 'Masz już konto?' : 'Nie masz konta?'}
 			<button
 				onclick={() => {
 					isRegister = !isRegister;
@@ -160,7 +160,7 @@
 				}}
 				class="font-medium text-[var(--ocean)] hover:underline"
 			>
-				{isRegister ? 'Login' : 'Register'}
+				{isRegister ? 'Zaloguj' : 'Zarejestruj'}
 			</button>
 		</p>
 	</div>

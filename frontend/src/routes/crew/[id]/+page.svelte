@@ -21,20 +21,20 @@
 	});
 
 	async function handleDelete() {
-		if (!confirm('Delete this crew member?')) return;
+		if (!confirm('Usunąć tego załoganta?')) return;
 		await api.del(`/crew/${id}`);
 		goto('/crew');
 	}
 </script>
 
 {#if loading}
-	<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if member}
 	<div class="mx-auto max-w-2xl">
 		<div class="mb-6 flex items-center justify-between">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">{member.full_name}</h1>
 			<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-				Delete
+				Usuń
 			</button>
 		</div>
 
@@ -45,7 +45,7 @@
 					<dd>{member.email}</dd>
 				{/if}
 				{#if member.patent_number}
-					<dt class="text-[var(--text-muted)]">Patent Number</dt>
+					<dt class="text-[var(--text-muted)]">Numer patentu</dt>
 					<dd>{member.patent_number}</dd>
 				{/if}
 			</dl>

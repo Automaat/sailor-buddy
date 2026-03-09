@@ -35,7 +35,7 @@
 	}
 
 	async function handleDelete(id: number) {
-		if (!confirm('Delete this yacht?')) return;
+		if (!confirm('Usunąć ten jacht?')) return;
 		await api.del(`/yachts/${id}`);
 		yachts = yachts.filter((y) => y.id !== id);
 	}
@@ -43,9 +43,9 @@
 
 <div>
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-3xl font-bold text-[var(--navy)]">Yachts</h1>
+		<h1 class="text-3xl font-bold text-[var(--navy)]">Jachty</h1>
 		<button onclick={() => (showForm = !showForm)} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]">
-			{showForm ? 'Cancel' : '+ Add Yacht'}
+			{showForm ? 'Anuluj' : '+ Dodaj jacht'}
 		</button>
 	</div>
 
@@ -53,30 +53,30 @@
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-3 gap-4">
 				<div>
-					<label for="name" class="mb-1 block text-sm font-medium">Name *</label>
+					<label for="name" class="mb-1 block text-sm font-medium">Nazwa *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
-					<label for="reg" class="mb-1 block text-sm font-medium">Registration No</label>
+					<label for="reg" class="mb-1 block text-sm font-medium">Nr rejestracyjny</label>
 					<input id="reg" type="text" bind:value={form.registration_no} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
-					<label for="type" class="mb-1 block text-sm font-medium">Type</label>
+					<label for="type" class="mb-1 block text-sm font-medium">Typ</label>
 					<input id="type" type="text" bind:value={form.yacht_type} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 			</div>
 			<button type="submit" disabled={saving} class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
-				{saving ? 'Adding...' : 'Add'}
+				{saving ? 'Dodawanie...' : 'Dodaj'}
 			</button>
 		</form>
 	{/if}
 
 	{#if loading}
-		<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if yachts.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<p class="text-5xl">🚢</p>
-			<p class="mt-4 text-lg text-[var(--text-muted)]">No yachts yet</p>
+			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak jachtów</p>
 		</div>
 	{:else}
 		<div class="grid gap-3">
@@ -92,7 +92,7 @@
 						{#if yacht.registration_no}
 							<span class="text-sm text-[var(--text-muted)]">{yacht.registration_no}</span>
 						{/if}
-						<button onclick={() => handleDelete(yacht.id)} class="text-sm text-red-400 hover:text-red-600">Delete</button>
+						<button onclick={() => handleDelete(yacht.id)} class="text-sm text-red-400 hover:text-red-600">Usuń</button>
 					</div>
 				</div>
 			{/each}

@@ -9,11 +9,11 @@
 	let { children } = $props();
 
 	const navItems = [
-		{ href: '/', label: 'Dashboard', icon: '⚓' },
-		{ href: '/cruises', label: 'Cruises', icon: '⛵' },
-		{ href: '/crew', label: 'Crew', icon: '👥' },
-		{ href: '/yachts', label: 'Yachts', icon: '🚢' },
-		{ href: '/trainings', label: 'Trainings', icon: '📋' },
+		{ href: '/', label: 'Pulpit', icon: '⚓' },
+		{ href: '/cruises', label: 'Rejsy', icon: '⛵' },
+		{ href: '/crew', label: 'Załoga', icon: '👥' },
+		{ href: '/yachts', label: 'Jachty', icon: '🚢' },
+		{ href: '/trainings', label: 'Szkolenia', icon: '📋' },
 		{ href: '/import', label: 'Import', icon: '📥' }
 	];
 
@@ -93,7 +93,7 @@
 					onclick={handleLogout}
 					class="text-sm text-white/50 transition-colors hover:text-white"
 				>
-					Logout
+					Wyloguj
 				</button>
 			</div>
 		</nav>
