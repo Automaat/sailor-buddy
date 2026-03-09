@@ -1,19 +1,25 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
-	import type { DashboardStats } from '$lib/api/types';
-	import { onMount } from 'svelte';
+	import { orgStore } from '$lib/stores/org.svelte';
+	import type { DashboardStats, OrgDashboardStats } from '$lib/api/types';
 
-	let stats = $state<DashboardStats | null>(null);
+	let stats = $state<DashboardStats | OrgDashboardStats | null>(null);
 	let loading = $state(true);
 
-	onMount(async () => {
+	async function load() {
+		loading = true;
 		try {
-			stats = await api.get<DashboardStats>('/dashboard');
+			stats = await api.get<DashboardStats>(`${orgStore.apiPrefix()}/dashboard`);
 		} catch (err) {
 			console.error('Failed to load dashboard:', err);
 		} finally {
 			loading = false;
 		}
+	}
+
+	$effect(() => {
+		orgStore.currentSlug;
+		load();
 	});
 </script>
 

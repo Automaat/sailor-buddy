@@ -30,6 +30,14 @@ backend/uploads/
 # klaudiush
 .klaudiush/
 
+# Coverage
+coverage.out
+coverage/
+
 # Firebase
 firebase-debug.log
 ui-debug.log
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/

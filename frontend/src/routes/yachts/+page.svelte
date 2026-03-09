@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Yacht } from '$lib/api/types';
-	import { onMount } from 'svelte';
 
 	let yachts = $state<Yacht[]>([]);
 	let loading = $state(true);
@@ -9,21 +9,27 @@
 	let form = $state({ name: '', registration_no: '', yacht_type: '' });
 	let saving = $state(false);
 
-	onMount(async () => {
+	async function load() {
+		loading = true;
 		try {
-			yachts = await api.get<Yacht[]>('/yachts');
+			yachts = await api.get<Yacht[]>(`${orgStore.apiPrefix()}/yachts`);
 		} catch (err) {
 			console.error('Failed to load yachts:', err);
 		} finally {
 			loading = false;
 		}
+	}
+
+	$effect(() => {
+		orgStore.currentSlug;
+		load();
 	});
 
 	async function handleAdd(e: Event) {
 		e.preventDefault();
 		saving = true;
 		try {
-			const yacht = await api.post<Yacht>('/yachts', form);
+			const yacht = await api.post<Yacht>(`${orgStore.apiPrefix()}/yachts`, form);
 			yachts = [...yachts, yacht];
 			form = { name: '', registration_no: '', yacht_type: '' };
 			showForm = false;
@@ -36,7 +42,7 @@
 
 	async function handleDelete(id: number) {
 		if (!confirm('Usunąć ten jacht?')) return;
-		await api.del(`/yachts/${id}`);
+		await api.del(`${orgStore.apiPrefix()}/yachts/${id}`);
 		yachts = yachts.filter((y) => y.id !== id);
 	}
 </script>

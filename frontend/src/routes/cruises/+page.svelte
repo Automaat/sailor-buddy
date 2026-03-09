@@ -1,19 +1,25 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Cruise } from '$lib/api/types';
-	import { onMount } from 'svelte';
 
 	let cruises = $state<Cruise[]>([]);
 	let loading = $state(true);
 
-	onMount(async () => {
+	async function load() {
+		loading = true;
 		try {
-			cruises = await api.get<Cruise[]>('/cruises');
+			cruises = await api.get<Cruise[]>(`${orgStore.apiPrefix()}/cruises`);
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {
 			loading = false;
 		}
+	}
+
+	$effect(() => {
+		orgStore.currentSlug;
+		load();
 	});
 </script>
 

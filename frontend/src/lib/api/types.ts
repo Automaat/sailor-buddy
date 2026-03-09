@@ -139,3 +139,60 @@ export interface VoyageOpinion {
 	full_name: string;
 	created_at: string;
 }
+
+export interface Organization {
+	id: number;
+	name: string;
+	slug: string;
+	description?: string;
+	logo_url?: string;
+	pzz_club_number?: string;
+	city?: string;
+	website?: string;
+	role?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface OrgMember {
+	id: number;
+	org_id: number;
+	user_id: number;
+	role: string;
+	joined_at: string;
+	user_name: string;
+	user_email: string;
+	user_avatar_url?: string;
+}
+
+export interface OrgInvite {
+	id: number;
+	org_id: number;
+	token: string;
+	role: string;
+	created_by: number;
+	expires_at?: string;
+	max_uses?: number;
+	use_count: number;
+	created_at: string;
+	creator_name?: string;
+}
+
+export interface OrgInviteInfo {
+	org_name: string;
+	org_slug: string;
+	role: string;
+	already_member: boolean;
+}
+
+export interface OrgDashboardStats {
+	cruise_count: number;
+	total_hours: number;
+	total_miles: number;
+	total_days: number;
+	total_hours_sail: number;
+	total_hours_engine: number;
+	member_count: number;
+	yacht_count: number;
+	by_year: YearStats[];
+}

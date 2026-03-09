@@ -1,0 +1,64 @@
+import type { Organization } from '$lib/api/types';
+import { api } from '$lib/api/client';
+
+const LS_KEY = 'sailor-buddy-org';
+
+function createOrgStore() {
+	let orgs = $state<Organization[]>([]);
+	let currentSlug = $state<string | null>(null);
+	let loading = $state(false);
+
+	if (typeof window !== 'undefined') {
+		currentSlug = localStorage.getItem(LS_KEY);
+	}
+
+	return {
+		get orgs() {
+			return orgs;
+		},
+		get current(): Organization | null {
+			if (!currentSlug) return null;
+			return orgs.find((o) => o.slug === currentSlug) ?? null;
+		},
+		get currentSlug() {
+			return currentSlug;
+		},
+		get loading() {
+			return loading;
+		},
+		get isOrgMode() {
+			return currentSlug !== null;
+		},
+		select(slug: string | null) {
+			currentSlug = slug;
+			if (slug) {
+				localStorage.setItem(LS_KEY, slug);
+			} else {
+				localStorage.removeItem(LS_KEY);
+			}
+		},
+		async refresh() {
+			loading = true;
+			try {
+				orgs = await api.get<Organization[]>('/orgs');
+				if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
+					currentSlug = null;
+					localStorage.removeItem(LS_KEY);
+				}
+			} finally {
+				loading = false;
+			}
+		},
+		clear() {
+			orgs = [];
+			currentSlug = null;
+			localStorage.removeItem(LS_KEY);
+		},
+		apiPrefix(): string {
+			if (!currentSlug) return '';
+			return `/orgs/${currentSlug}`;
+		}
+	};
+}
+
+export const orgStore = createOrgStore();

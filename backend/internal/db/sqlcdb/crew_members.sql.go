@@ -11,7 +11,7 @@ import (
 )
 
 const createCrewMember = `-- name: CreateCrewMember :one
-INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at
+INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
 `
 
 type CreateCrewMemberParams struct {
@@ -40,12 +40,71 @@ func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberPara
 		&i.PatentNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
+	)
+	return i, err
+}
+
+const createOrgCrewMember = `-- name: CreateOrgCrewMember :one
+INSERT INTO crew_members (owner_id, org_id, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
+`
+
+type CreateOrgCrewMemberParams struct {
+	OwnerID               int64          `json:"owner_id"`
+	OrgID                 sql.NullInt64  `json:"org_id"`
+	UserID                sql.NullInt64  `json:"user_id"`
+	FullName              string         `json:"full_name"`
+	Email                 sql.NullString `json:"email"`
+	PatentNumber          sql.NullString `json:"patent_number"`
+	Phone                 sql.NullString `json:"phone"`
+	PzzLicenseType        sql.NullString `json:"pzz_license_type"`
+	PzzLicenseNumber      sql.NullString `json:"pzz_license_number"`
+	EmergencyContactName  sql.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone sql.NullString `json:"emergency_contact_phone"`
+}
+
+func (q *Queries) CreateOrgCrewMember(ctx context.Context, arg CreateOrgCrewMemberParams) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, createOrgCrewMember,
+		arg.OwnerID,
+		arg.OrgID,
+		arg.UserID,
+		arg.FullName,
+		arg.Email,
+		arg.PatentNumber,
+		arg.Phone,
+		arg.PzzLicenseType,
+		arg.PzzLicenseNumber,
+		arg.EmergencyContactName,
+		arg.EmergencyContactPhone,
+	)
+	var i CrewMember
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.UserID,
+		&i.FullName,
+		&i.Email,
+		&i.PatentNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrgID,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
 	)
 	return i, err
 }
 
 const deleteCrewMember = `-- name: DeleteCrewMember :exec
-DELETE FROM crew_members WHERE id = $1 AND owner_id = $2
+DELETE FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type DeleteCrewMemberParams struct {
@@ -58,8 +117,22 @@ func (q *Queries) DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberPara
 	return err
 }
 
+const deleteOrgCrewMember = `-- name: DeleteOrgCrewMember :exec
+DELETE FROM crew_members WHERE id = $1 AND org_id = $2
+`
+
+type DeleteOrgCrewMemberParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) DeleteOrgCrewMember(ctx context.Context, arg DeleteOrgCrewMemberParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrgCrewMember, arg.ID, arg.OrgID)
+	return err
+}
+
 const getCrewMember = `-- name: GetCrewMember :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE id = $1 AND owner_id = $2
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type GetCrewMemberParams struct {
@@ -79,12 +152,18 @@ func (q *Queries) GetCrewMember(ctx context.Context, arg GetCrewMemberParams) (C
 		&i.PatentNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
 	)
 	return i, err
 }
 
 const getCrewMemberByName = `-- name: GetCrewMemberByName :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE owner_id = $1 AND full_name = $2
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND full_name = $2 AND org_id IS NULL
 `
 
 type GetCrewMemberByNameParams struct {
@@ -104,12 +183,49 @@ func (q *Queries) GetCrewMemberByName(ctx context.Context, arg GetCrewMemberByNa
 		&i.PatentNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
+	)
+	return i, err
+}
+
+const getOrgCrewMember = `-- name: GetOrgCrewMember :one
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND org_id = $2
+`
+
+type GetOrgCrewMemberParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberParams) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, getOrgCrewMember, arg.ID, arg.OrgID)
+	var i CrewMember
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.UserID,
+		&i.FullName,
+		&i.Email,
+		&i.PatentNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrgID,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
 	)
 	return i, err
 }
 
 const listCrewMembers = `-- name: ListCrewMembers :many
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at FROM crew_members WHERE owner_id = $1 ORDER BY full_name
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name
 `
 
 func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error) {
@@ -130,6 +246,54 @@ func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMem
 			&i.PatentNumber,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrgID,
+			&i.Phone,
+			&i.PzzLicenseType,
+			&i.PzzLicenseNumber,
+			&i.EmergencyContactName,
+			&i.EmergencyContactPhone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrgCrewMembers = `-- name: ListOrgCrewMembers :many
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name
+`
+
+func (q *Queries) ListOrgCrewMembers(ctx context.Context, orgID sql.NullInt64) ([]CrewMember, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgCrewMembers, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CrewMember
+	for rows.Next() {
+		var i CrewMember
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.UserID,
+			&i.FullName,
+			&i.Email,
+			&i.PatentNumber,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrgID,
+			&i.Phone,
+			&i.PzzLicenseType,
+			&i.PzzLicenseNumber,
+			&i.EmergencyContactName,
+			&i.EmergencyContactPhone,
 		); err != nil {
 			return nil, err
 		}
@@ -145,7 +309,7 @@ func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMem
 }
 
 const updateCrewMember = `-- name: UpdateCrewMember :exec
-UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5
+UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
 `
 
 type UpdateCrewMemberParams struct {
@@ -163,6 +327,44 @@ func (q *Queries) UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberPara
 		arg.PatentNumber,
 		arg.ID,
 		arg.OwnerID,
+	)
+	return err
+}
+
+const updateOrgCrewMember = `-- name: UpdateOrgCrewMember :exec
+UPDATE crew_members SET
+    full_name = $1, email = $2, patent_number = $3,
+    phone = $4, pzz_license_type = $5, pzz_license_number = $6,
+    emergency_contact_name = $7, emergency_contact_phone = $8,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $9 AND org_id = $10
+`
+
+type UpdateOrgCrewMemberParams struct {
+	FullName              string         `json:"full_name"`
+	Email                 sql.NullString `json:"email"`
+	PatentNumber          sql.NullString `json:"patent_number"`
+	Phone                 sql.NullString `json:"phone"`
+	PzzLicenseType        sql.NullString `json:"pzz_license_type"`
+	PzzLicenseNumber      sql.NullString `json:"pzz_license_number"`
+	EmergencyContactName  sql.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone sql.NullString `json:"emergency_contact_phone"`
+	ID                    int64          `json:"id"`
+	OrgID                 sql.NullInt64  `json:"org_id"`
+}
+
+func (q *Queries) UpdateOrgCrewMember(ctx context.Context, arg UpdateOrgCrewMemberParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrgCrewMember,
+		arg.FullName,
+		arg.Email,
+		arg.PatentNumber,
+		arg.Phone,
+		arg.PzzLicenseType,
+		arg.PzzLicenseNumber,
+		arg.EmergencyContactName,
+		arg.EmergencyContactPhone,
+		arg.ID,
+		arg.OrgID,
 	)
 	return err
 }

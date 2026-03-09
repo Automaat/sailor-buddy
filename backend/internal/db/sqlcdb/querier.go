@@ -10,12 +10,19 @@ import (
 )
 
 type Querier interface {
+	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
 	ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnrollTokenParams) error
 	CountCruiseEnrollments(ctx context.Context, cruiseID int64) (CountCruiseEnrollmentsRow, error)
+	CountOrgAdmins(ctx context.Context, orgID int64) (int64, error)
 	CreateCrewAssignment(ctx context.Context, arg CreateCrewAssignmentParams) (CrewAssignment, error)
 	CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error)
 	CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error)
 	CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error)
+	CreateOrgCrewMember(ctx context.Context, arg CreateOrgCrewMemberParams) (CrewMember, error)
+	CreateOrgCruise(ctx context.Context, arg CreateOrgCruiseParams) (Cruise, error)
+	CreateOrgInvite(ctx context.Context, arg CreateOrgInviteParams) (OrgInvite, error)
+	CreateOrgYacht(ctx context.Context, arg CreateOrgYachtParams) (Yacht, error)
+	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error)
 	CreateTraining(ctx context.Context, arg CreateTrainingParams) (Training, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpinionParams) (VoyageOpinion, error)
@@ -24,6 +31,11 @@ type Querier interface {
 	DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberParams) error
 	DeleteCruise(ctx context.Context, arg DeleteCruiseParams) error
 	DeleteCruiseEnrollment(ctx context.Context, arg DeleteCruiseEnrollmentParams) error
+	DeleteOrgCrewMember(ctx context.Context, arg DeleteOrgCrewMemberParams) error
+	DeleteOrgCruise(ctx context.Context, arg DeleteOrgCruiseParams) error
+	DeleteOrgInvite(ctx context.Context, arg DeleteOrgInviteParams) error
+	DeleteOrgYacht(ctx context.Context, arg DeleteOrgYachtParams) error
+	DeleteOrganization(ctx context.Context, id int64) error
 	DeleteTraining(ctx context.Context, arg DeleteTrainingParams) error
 	DeleteVoyageOpinion(ctx context.Context, id int64) error
 	DeleteYacht(ctx context.Context, arg DeleteYachtParams) error
@@ -36,6 +48,16 @@ type Querier interface {
 	GetCruiseByEnrollToken(ctx context.Context, enrollToken sql.NullString) (GetCruiseByEnrollTokenRow, error)
 	GetCruisesByYear(ctx context.Context, ownerID int64) ([]GetCruisesByYearRow, error)
 	GetDashboardStats(ctx context.Context, ownerID int64) (GetDashboardStatsRow, error)
+	GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberParams) (CrewMember, error)
+	GetOrgCruise(ctx context.Context, arg GetOrgCruiseParams) (Cruise, error)
+	GetOrgCruisesByYear(ctx context.Context, orgID sql.NullInt64) ([]GetOrgCruisesByYearRow, error)
+	GetOrgDashboardStats(ctx context.Context, orgID sql.NullInt64) (GetOrgDashboardStatsRow, error)
+	GetOrgInviteByToken(ctx context.Context, token string) (GetOrgInviteByTokenRow, error)
+	GetOrgMembership(ctx context.Context, arg GetOrgMembershipParams) (GetOrgMembershipRow, error)
+	GetOrgMembershipBySlug(ctx context.Context, arg GetOrgMembershipBySlugParams) (OrgMember, error)
+	GetOrgYacht(ctx context.Context, arg GetOrgYachtParams) (Yacht, error)
+	GetOrganizationByID(ctx context.Context, id int64) (Organization, error)
+	GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error)
 	GetTraining(ctx context.Context, arg GetTrainingParams) (Training, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByFirebaseUID(ctx context.Context, firebaseUid sql.NullString) (User, error)
@@ -44,18 +66,31 @@ type Querier interface {
 	GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion, error)
 	GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error)
 	GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error)
+	IncrementInviteUseCount(ctx context.Context, id int64) error
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error)
 	ListCruiseCrewAssignments(ctx context.Context, arg ListCruiseCrewAssignmentsParams) ([]ListCruiseCrewAssignmentsRow, error)
 	ListCruiseEnrollments(ctx context.Context, arg ListCruiseEnrollmentsParams) ([]ListCruiseEnrollmentsRow, error)
 	ListCruiseVoyageOpinions(ctx context.Context, cruiseID int64) ([]ListCruiseVoyageOpinionsRow, error)
 	ListCruises(ctx context.Context, ownerID int64) ([]Cruise, error)
+	ListOrgCrewMembers(ctx context.Context, orgID sql.NullInt64) ([]CrewMember, error)
+	ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error)
+	ListOrgInvites(ctx context.Context, orgID int64) ([]ListOrgInvitesRow, error)
+	ListOrgMembers(ctx context.Context, orgID int64) ([]ListOrgMembersRow, error)
+	ListOrgYachts(ctx context.Context, orgID sql.NullInt64) ([]Yacht, error)
 	ListTrainings(ctx context.Context, userID int64) ([]Training, error)
+	ListUserOrganizations(ctx context.Context, userID int64) ([]ListUserOrganizationsRow, error)
 	ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error)
+	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
 	SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error
 	UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error
 	UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error
 	UpdateEnrollmentStatus(ctx context.Context, arg UpdateEnrollmentStatusParams) error
+	UpdateOrgCrewMember(ctx context.Context, arg UpdateOrgCrewMemberParams) error
+	UpdateOrgCruise(ctx context.Context, arg UpdateOrgCruiseParams) error
+	UpdateOrgMemberRole(ctx context.Context, arg UpdateOrgMemberRoleParams) error
+	UpdateOrgYacht(ctx context.Context, arg UpdateOrgYachtParams) error
+	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) error
 	UpdateTraining(ctx context.Context, arg UpdateTrainingParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 	UpdateYacht(ctx context.Context, arg UpdateYachtParams) error

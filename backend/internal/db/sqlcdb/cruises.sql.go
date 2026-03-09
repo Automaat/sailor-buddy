@@ -31,7 +31,7 @@ INSERT INTO cruises (
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
     captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
     image_logo_url, image_photo_url, image_route_url, description, max_crew
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id
 `
 
 type CreateCruiseParams struct {
@@ -118,12 +118,113 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.UpdatedAt,
 		&i.EnrollToken,
 		&i.MaxCrew,
+		&i.OrgID,
+	)
+	return i, err
+}
+
+const createOrgCruise = `-- name: CreateOrgCruise :one
+INSERT INTO cruises (
+    owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
+    hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
+    captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
+    image_logo_url, image_photo_url, image_route_url, description, max_crew
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id
+`
+
+type CreateOrgCruiseParams struct {
+	OwnerID       int64           `json:"owner_id"`
+	OrgID         sql.NullInt64   `json:"org_id"`
+	Name          string          `json:"name"`
+	Year          sql.NullInt64   `json:"year"`
+	EmbarkDate    sql.NullString  `json:"embark_date"`
+	DisembarkDate sql.NullString  `json:"disembark_date"`
+	Countries     sql.NullString  `json:"countries"`
+	StartPort     sql.NullString  `json:"start_port"`
+	EndPort       sql.NullString  `json:"end_port"`
+	HoursTotal    sql.NullFloat64 `json:"hours_total"`
+	HoursSail     sql.NullFloat64 `json:"hours_sail"`
+	HoursEngine   sql.NullFloat64 `json:"hours_engine"`
+	HoursOver6bf  sql.NullFloat64 `json:"hours_over_6bf"`
+	Miles         sql.NullFloat64 `json:"miles"`
+	Days          sql.NullInt64   `json:"days"`
+	CaptainName   sql.NullString  `json:"captain_name"`
+	YachtID       sql.NullInt64   `json:"yacht_id"`
+	TidalWaters   sql.NullInt64   `json:"tidal_waters"`
+	CostTotal     sql.NullFloat64 `json:"cost_total"`
+	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
+	ImageRouteUrl sql.NullString  `json:"image_route_url"`
+	Description   sql.NullString  `json:"description"`
+	MaxCrew       sql.NullInt64   `json:"max_crew"`
+}
+
+func (q *Queries) CreateOrgCruise(ctx context.Context, arg CreateOrgCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, createOrgCruise,
+		arg.OwnerID,
+		arg.OrgID,
+		arg.Name,
+		arg.Year,
+		arg.EmbarkDate,
+		arg.DisembarkDate,
+		arg.Countries,
+		arg.StartPort,
+		arg.EndPort,
+		arg.HoursTotal,
+		arg.HoursSail,
+		arg.HoursEngine,
+		arg.HoursOver6bf,
+		arg.Miles,
+		arg.Days,
+		arg.CaptainName,
+		arg.YachtID,
+		arg.TidalWaters,
+		arg.CostTotal,
+		arg.CostPerPerson,
+		arg.ImageLogoUrl,
+		arg.ImagePhotoUrl,
+		arg.ImageRouteUrl,
+		arg.Description,
+		arg.MaxCrew,
+	)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
 	)
 	return i, err
 }
 
 const deleteCruise = `-- name: DeleteCruise :exec
-DELETE FROM cruises WHERE id = $1 AND owner_id = $2
+DELETE FROM cruises WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type DeleteCruiseParams struct {
@@ -136,8 +237,22 @@ func (q *Queries) DeleteCruise(ctx context.Context, arg DeleteCruiseParams) erro
 	return err
 }
 
+const deleteOrgCruise = `-- name: DeleteOrgCruise :exec
+DELETE FROM cruises WHERE id = $1 AND org_id = $2
+`
+
+type DeleteOrgCruiseParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) DeleteOrgCruise(ctx context.Context, arg DeleteOrgCruiseParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrgCruise, arg.ID, arg.OrgID)
+	return err
+}
+
 const getCruise = `-- name: GetCruise :one
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew FROM cruises WHERE id = $1 AND owner_id = $2
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type GetCruiseParams struct {
@@ -177,6 +292,7 @@ func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, e
 		&i.UpdatedAt,
 		&i.EnrollToken,
 		&i.MaxCrew,
+		&i.OrgID,
 	)
 	return i, err
 }
@@ -188,7 +304,7 @@ SELECT
     COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
     COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(days), 0)::BIGINT AS total_days
-FROM cruises WHERE owner_id = $1 GROUP BY year ORDER BY year
+FROM cruises WHERE owner_id = $1 AND org_id IS NULL GROUP BY year ORDER BY year
 `
 
 type GetCruisesByYearRow struct {
@@ -236,7 +352,7 @@ SELECT
     COALESCE(SUM(days), 0)::BIGINT AS total_days,
     COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
     COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
-FROM cruises WHERE owner_id = $1
+FROM cruises WHERE owner_id = $1 AND org_id IS NULL
 `
 
 type GetDashboardStatsRow struct {
@@ -262,8 +378,135 @@ func (q *Queries) GetDashboardStats(ctx context.Context, ownerID int64) (GetDash
 	return i, err
 }
 
+const getOrgCruise = `-- name: GetOrgCruise :one
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE id = $1 AND org_id = $2
+`
+
+type GetOrgCruiseParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) GetOrgCruise(ctx context.Context, arg GetOrgCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, getOrgCruise, arg.ID, arg.OrgID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+	)
+	return i, err
+}
+
+const getOrgCruisesByYear = `-- name: GetOrgCruisesByYear :many
+SELECT
+    year,
+    COUNT(*)::BIGINT AS cruise_count,
+    COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
+    COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
+    COALESCE(SUM(days), 0)::BIGINT AS total_days
+FROM cruises WHERE org_id = $1 GROUP BY year ORDER BY year
+`
+
+type GetOrgCruisesByYearRow struct {
+	Year        sql.NullInt64 `json:"year"`
+	CruiseCount int64         `json:"cruise_count"`
+	TotalHours  float64       `json:"total_hours"`
+	TotalMiles  float64       `json:"total_miles"`
+	TotalDays   int64         `json:"total_days"`
+}
+
+func (q *Queries) GetOrgCruisesByYear(ctx context.Context, orgID sql.NullInt64) ([]GetOrgCruisesByYearRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrgCruisesByYear, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrgCruisesByYearRow
+	for rows.Next() {
+		var i GetOrgCruisesByYearRow
+		if err := rows.Scan(
+			&i.Year,
+			&i.CruiseCount,
+			&i.TotalHours,
+			&i.TotalMiles,
+			&i.TotalDays,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrgDashboardStats = `-- name: GetOrgDashboardStats :one
+SELECT
+    COUNT(*)::BIGINT AS cruise_count,
+    COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
+    COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
+    COALESCE(SUM(days), 0)::BIGINT AS total_days,
+    COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
+    COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
+FROM cruises WHERE org_id = $1
+`
+
+type GetOrgDashboardStatsRow struct {
+	CruiseCount      int64   `json:"cruise_count"`
+	TotalHours       float64 `json:"total_hours"`
+	TotalMiles       float64 `json:"total_miles"`
+	TotalDays        int64   `json:"total_days"`
+	TotalHoursSail   float64 `json:"total_hours_sail"`
+	TotalHoursEngine float64 `json:"total_hours_engine"`
+}
+
+func (q *Queries) GetOrgDashboardStats(ctx context.Context, orgID sql.NullInt64) (GetOrgDashboardStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getOrgDashboardStats, orgID)
+	var i GetOrgDashboardStatsRow
+	err := row.Scan(
+		&i.CruiseCount,
+		&i.TotalHours,
+		&i.TotalMiles,
+		&i.TotalDays,
+		&i.TotalHoursSail,
+		&i.TotalHoursEngine,
+	)
+	return i, err
+}
+
 const listCruises = `-- name: ListCruises :many
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew FROM cruises WHERE owner_id = $1 ORDER BY year DESC, embark_date DESC
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
 `
 
 func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, error) {
@@ -304,6 +547,64 @@ func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, err
 			&i.UpdatedAt,
 			&i.EnrollToken,
 			&i.MaxCrew,
+			&i.OrgID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrgCruises = `-- name: ListOrgCruises :many
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
+`
+
+func (q *Queries) ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgCruises, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Cruise
+	for rows.Next() {
+		var i Cruise
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Year,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.Countries,
+			&i.StartPort,
+			&i.EndPort,
+			&i.HoursTotal,
+			&i.HoursSail,
+			&i.HoursEngine,
+			&i.HoursOver6bf,
+			&i.Miles,
+			&i.Days,
+			&i.CaptainName,
+			&i.YachtID,
+			&i.TidalWaters,
+			&i.CostTotal,
+			&i.CostPerPerson,
+			&i.ImageLogoUrl,
+			&i.ImagePhotoUrl,
+			&i.ImageRouteUrl,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnrollToken,
+			&i.MaxCrew,
+			&i.OrgID,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +643,7 @@ UPDATE cruises SET
     tidal_waters = $16, cost_total = $17, cost_per_person = $18,
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
     max_crew = $23, updated_at = CURRENT_TIMESTAMP
-WHERE id = $24 AND owner_id = $25
+WHERE id = $24 AND owner_id = $25 AND org_id IS NULL
 `
 
 type UpdateCruiseParams struct {
@@ -400,6 +701,76 @@ func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) erro
 		arg.MaxCrew,
 		arg.ID,
 		arg.OwnerID,
+	)
+	return err
+}
+
+const updateOrgCruise = `-- name: UpdateOrgCruise :exec
+UPDATE cruises SET
+    name = $1, year = $2, embark_date = $3, disembark_date = $4, countries = $5,
+    start_port = $6, end_port = $7, hours_total = $8, hours_sail = $9, hours_engine = $10,
+    hours_over_6bf = $11, miles = $12, days = $13, captain_name = $14, yacht_id = $15,
+    tidal_waters = $16, cost_total = $17, cost_per_person = $18,
+    image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
+    max_crew = $23, updated_at = CURRENT_TIMESTAMP
+WHERE id = $24 AND org_id = $25
+`
+
+type UpdateOrgCruiseParams struct {
+	Name          string          `json:"name"`
+	Year          sql.NullInt64   `json:"year"`
+	EmbarkDate    sql.NullString  `json:"embark_date"`
+	DisembarkDate sql.NullString  `json:"disembark_date"`
+	Countries     sql.NullString  `json:"countries"`
+	StartPort     sql.NullString  `json:"start_port"`
+	EndPort       sql.NullString  `json:"end_port"`
+	HoursTotal    sql.NullFloat64 `json:"hours_total"`
+	HoursSail     sql.NullFloat64 `json:"hours_sail"`
+	HoursEngine   sql.NullFloat64 `json:"hours_engine"`
+	HoursOver6bf  sql.NullFloat64 `json:"hours_over_6bf"`
+	Miles         sql.NullFloat64 `json:"miles"`
+	Days          sql.NullInt64   `json:"days"`
+	CaptainName   sql.NullString  `json:"captain_name"`
+	YachtID       sql.NullInt64   `json:"yacht_id"`
+	TidalWaters   sql.NullInt64   `json:"tidal_waters"`
+	CostTotal     sql.NullFloat64 `json:"cost_total"`
+	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
+	ImageRouteUrl sql.NullString  `json:"image_route_url"`
+	Description   sql.NullString  `json:"description"`
+	MaxCrew       sql.NullInt64   `json:"max_crew"`
+	ID            int64           `json:"id"`
+	OrgID         sql.NullInt64   `json:"org_id"`
+}
+
+func (q *Queries) UpdateOrgCruise(ctx context.Context, arg UpdateOrgCruiseParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrgCruise,
+		arg.Name,
+		arg.Year,
+		arg.EmbarkDate,
+		arg.DisembarkDate,
+		arg.Countries,
+		arg.StartPort,
+		arg.EndPort,
+		arg.HoursTotal,
+		arg.HoursSail,
+		arg.HoursEngine,
+		arg.HoursOver6bf,
+		arg.Miles,
+		arg.Days,
+		arg.CaptainName,
+		arg.YachtID,
+		arg.TidalWaters,
+		arg.CostTotal,
+		arg.CostPerPerson,
+		arg.ImageLogoUrl,
+		arg.ImagePhotoUrl,
+		arg.ImageRouteUrl,
+		arg.Description,
+		arg.MaxCrew,
+		arg.ID,
+		arg.OrgID,
 	)
 	return err
 }

@@ -19,14 +19,20 @@ type CrewAssignment struct {
 }
 
 type CrewMember struct {
-	ID           int64          `json:"id"`
-	OwnerID      int64          `json:"owner_id"`
-	UserID       sql.NullInt64  `json:"user_id"`
-	FullName     string         `json:"full_name"`
-	Email        sql.NullString `json:"email"`
-	PatentNumber sql.NullString `json:"patent_number"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	UpdatedAt    sql.NullTime   `json:"updated_at"`
+	ID                    int64          `json:"id"`
+	OwnerID               int64          `json:"owner_id"`
+	UserID                sql.NullInt64  `json:"user_id"`
+	FullName              string         `json:"full_name"`
+	Email                 sql.NullString `json:"email"`
+	PatentNumber          sql.NullString `json:"patent_number"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
+	UpdatedAt             sql.NullTime   `json:"updated_at"`
+	OrgID                 sql.NullInt64  `json:"org_id"`
+	Phone                 sql.NullString `json:"phone"`
+	PzzLicenseType        sql.NullString `json:"pzz_license_type"`
+	PzzLicenseNumber      sql.NullString `json:"pzz_license_number"`
+	EmergencyContactName  sql.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone sql.NullString `json:"emergency_contact_phone"`
 }
 
 type Cruise struct {
@@ -58,6 +64,7 @@ type Cruise struct {
 	UpdatedAt     sql.NullTime    `json:"updated_at"`
 	EnrollToken   sql.NullString  `json:"enroll_token"`
 	MaxCrew       sql.NullInt64   `json:"max_crew"`
+	OrgID         sql.NullInt64   `json:"org_id"`
 }
 
 type CruiseEnrollment struct {
@@ -68,6 +75,39 @@ type CruiseEnrollment struct {
 	Status    string         `json:"status"`
 	CreatedAt sql.NullTime   `json:"created_at"`
 	UpdatedAt sql.NullTime   `json:"updated_at"`
+}
+
+type OrgInvite struct {
+	ID        int64         `json:"id"`
+	OrgID     int64         `json:"org_id"`
+	Token     string        `json:"token"`
+	Role      string        `json:"role"`
+	CreatedBy int64         `json:"created_by"`
+	ExpiresAt sql.NullTime  `json:"expires_at"`
+	MaxUses   sql.NullInt64 `json:"max_uses"`
+	UseCount  int64         `json:"use_count"`
+	CreatedAt sql.NullTime  `json:"created_at"`
+}
+
+type OrgMember struct {
+	ID       int64        `json:"id"`
+	OrgID    int64        `json:"org_id"`
+	UserID   int64        `json:"user_id"`
+	Role     string       `json:"role"`
+	JoinedAt sql.NullTime `json:"joined_at"`
+}
+
+type Organization struct {
+	ID            int64          `json:"id"`
+	Name          string         `json:"name"`
+	Slug          string         `json:"slug"`
+	Description   sql.NullString `json:"description"`
+	LogoUrl       sql.NullString `json:"logo_url"`
+	PzzClubNumber sql.NullString `json:"pzz_club_number"`
+	City          sql.NullString `json:"city"`
+	Website       sql.NullString `json:"website"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
 }
 
 type RefreshToken struct {
@@ -119,4 +159,5 @@ type Yacht struct {
 	YachtType      sql.NullString `json:"yacht_type"`
 	CreatedAt      sql.NullTime   `json:"created_at"`
 	UpdatedAt      sql.NullTime   `json:"updated_at"`
+	OrgID          sql.NullInt64  `json:"org_id"`
 }
