@@ -468,7 +468,7 @@ func (m *mockQuerier) GetOrganizationBySlug(context.Context, string) (sqlcdb.Org
 	panic("unexpected call")
 }
 
-func (m *mockQuerier) IncrementInviteUseCount(context.Context, int64) error {
+func (m *mockQuerier) IncrementInviteUseCount(context.Context, int64) (int64, error) {
 	panic("unexpected call")
 }
 
