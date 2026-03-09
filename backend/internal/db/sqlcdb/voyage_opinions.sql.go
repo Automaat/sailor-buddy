@@ -125,10 +125,10 @@ RETURNING id, cruise_id, crew_member_id, file_path, file_format, created_at
 `
 
 type UpsertVoyageOpinionParams struct {
-	CruiseID     int64
-	CrewMemberID int64
-	FilePath     string
-	FileFormat   string
+	CruiseID     int64  `json:"cruise_id"`
+	CrewMemberID int64  `json:"crew_member_id"`
+	FilePath     string `json:"file_path"`
+	FileFormat   string `json:"file_format"`
 }
 
 func (q *Queries) UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (VoyageOpinion, error) {

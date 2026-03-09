@@ -3,8 +3,8 @@ INSERT INTO cruises (
     owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
     captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *;
+    image_logo_url, image_photo_url, image_route_url, description, max_crew
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *;
 
 -- name: GetCruise :one
 SELECT * FROM cruises WHERE id = $1 AND owner_id = $2;
@@ -19,11 +19,19 @@ UPDATE cruises SET
     hours_over_6bf = $11, miles = $12, days = $13, captain_name = $14, yacht_id = $15,
     tidal_waters = $16, cost_total = $17, cost_per_person = $18,
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $23 AND owner_id = $24;
+    max_crew = $23, updated_at = CURRENT_TIMESTAMP
+WHERE id = $24 AND owner_id = $25;
 
 -- name: DeleteCruise :exec
 DELETE FROM cruises WHERE id = $1 AND owner_id = $2;
+
+-- name: SetCruiseEnrollToken :exec
+UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
+WHERE id = $2 AND owner_id = $3;
+
+-- name: ClearCruiseEnrollToken :exec
+UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_id = $2;
 
 -- name: GetDashboardStats :one
 SELECT

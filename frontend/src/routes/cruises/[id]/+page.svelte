@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
-	import type { Cruise, CrewAssignment, VoyageOpinion } from '$lib/api/types';
+	import type { Cruise, CrewAssignment, CrewMember, VoyageOpinion } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -8,21 +8,31 @@
 	let cruise = $state<Cruise | null>(null);
 	let crew = $state<CrewAssignment[]>([]);
 	let opinions = $state<VoyageOpinion[]>([]);
+	let allCrewMembers = $state<CrewMember[]>([]);
 	let loading = $state(true);
 
 	let genCrewId = $state('');
 	let genFormat = $state('pdf');
 	let generating = $state(false);
 
+	let assignCrewId = $state('');
+	let assignRole = $state('');
+	let assigning = $state(false);
+
+	let enrollToken = $state<string | null>(null);
+	let togglingEnroll = $state(false);
+
 	const id = $derived(page.params.id);
 
 	onMount(async () => {
 		try {
-			[cruise, crew, opinions] = await Promise.all([
+			[cruise, crew, opinions, allCrewMembers] = await Promise.all([
 				api.get<Cruise>(`/cruises/${id}`),
 				api.get<CrewAssignment[]>(`/cruises/${id}/crew`),
-				api.get<VoyageOpinion[]>(`/cruises/${id}/opinions`)
+				api.get<VoyageOpinion[]>(`/cruises/${id}/opinions`),
+				api.get<CrewMember[]>('/crew')
 			]);
+			enrollToken = cruise?.enroll_token ?? null;
 		} catch (err) {
 			console.error('Failed to load cruise:', err);
 		} finally {
@@ -57,6 +67,53 @@
 		if (!confirm('Delete this opinion?')) return;
 		await api.del(`/cruises/${id}/opinions/${opId}`);
 		opinions = opinions.filter((o) => o.id !== opId);
+	}
+
+	async function toggleEnrollment() {
+		togglingEnroll = true;
+		try {
+			if (enrollToken) {
+				await api.del(`/cruises/${id}/enroll-token`);
+				enrollToken = null;
+			} else {
+				const res = await api.post<{ token: string }>(`/cruises/${id}/enroll-token`);
+				enrollToken = res.token;
+			}
+		} catch (err) {
+			console.error('Failed to toggle enrollment:', err);
+		} finally {
+			togglingEnroll = false;
+		}
+	}
+
+	function copyEnrollLink() {
+		if (!enrollToken) return;
+		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
+	}
+
+	async function assignCrew(e: Event) {
+		e.preventDefault();
+		if (!assignCrewId || !assignRole) return;
+		assigning = true;
+		try {
+			await api.post(`/cruises/${id}/crew`, {
+				crew_member_id: Number(assignCrewId),
+				role: assignRole
+			});
+			crew = await api.get<CrewAssignment[]>(`/cruises/${id}/crew`);
+			assignCrewId = '';
+			assignRole = '';
+		} catch (err) {
+			console.error('Failed to assign crew:', err);
+		} finally {
+			assigning = false;
+		}
+	}
+
+	async function removeCrew(assignmentId: number) {
+		if (!confirm('Remove this crew assignment?')) return;
+		await api.del(`/cruises/${id}/crew/${assignmentId}`);
+		crew = crew.filter((c) => c.id !== assignmentId);
 	}
 </script>
 
@@ -147,21 +204,88 @@
 		{/if}
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+			<h2 class="mb-3 font-semibold text-[var(--navy)]">Enrollment</h2>
+			<div class="flex flex-wrap items-center gap-3">
+				<button
+					onclick={toggleEnrollment}
+					disabled={togglingEnroll}
+					class="rounded-lg px-4 py-2 text-sm font-medium {enrollToken
+						? 'border border-red-200 text-red-600 hover:bg-red-50'
+						: 'bg-[var(--ocean)] text-white hover:bg-[var(--ocean-dark)]'} disabled:opacity-50"
+				>
+					{enrollToken ? 'Disable Enrollment' : 'Enable Enrollment'}
+				</button>
+				{#if enrollToken}
+					<button
+						onclick={copyEnrollLink}
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+					>
+						Copy Link
+					</button>
+					<a
+						href="/cruises/{id}/enrollments"
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+					>
+						Manage Enrollments
+					</a>
+				{/if}
+			</div>
+		</div>
+
+		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">
 				<h2 class="font-semibold text-[var(--navy)]">Crew ({crew.length})</h2>
 			</div>
+
+			{#if allCrewMembers.length > 0}
+				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
+					<div>
+						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Crew Member</label>
+						<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+							<option value="">Select...</option>
+							{#each allCrewMembers as member}
+								<option value={member.id}>{member.full_name}</option>
+							{/each}
+						</select>
+					</div>
+					<div>
+						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Role</label>
+						<input
+							id="assign-role"
+							type="text"
+							bind:value={assignRole}
+							placeholder="e.g. Helmsman"
+							class="rounded-lg border px-3 py-1.5 text-sm"
+						/>
+					</div>
+					<button
+						type="submit"
+						disabled={!assignCrewId || !assignRole || assigning}
+						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
+					>
+						{assigning ? 'Adding...' : 'Add'}
+					</button>
+				</form>
+			{/if}
+
 			{#if crew.length === 0}
 				<p class="text-sm text-[var(--text-muted)]">No crew assigned yet.</p>
 			{:else}
 				<div class="space-y-2">
 					{#each crew as member}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-							<span class="font-medium">{member.full_name}</span>
-							<span
-								class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+							<div class="flex items-center gap-2">
+								<span class="font-medium">{member.full_name}</span>
+								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+									{member.role}
+								</span>
+							</div>
+							<button
+								onclick={() => removeCrew(member.id)}
+								class="text-sm text-red-500 hover:underline"
 							>
-								{member.role}
-							</span>
+								Remove
+							</button>
 						</div>
 					{/each}
 				</div>

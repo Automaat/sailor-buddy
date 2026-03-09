@@ -41,6 +41,7 @@ type cruiseRequest struct {
 	ImagePhotoUrl *string  `json:"image_photo_url"`
 	ImageRouteUrl *string  `json:"image_route_url"`
 	Description   *string  `json:"description"`
+	MaxCrew       *int64   `json:"max_crew"`
 }
 
 func (h *CruiseHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +111,7 @@ func (h *CruiseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ImagePhotoUrl: nullString(req.ImagePhotoUrl),
 		ImageRouteUrl: nullString(req.ImageRouteUrl),
 		Description:   nullString(req.Description),
+		MaxCrew:       nullInt64(req.MaxCrew),
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create cruise")
@@ -157,6 +159,7 @@ func (h *CruiseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ImagePhotoUrl: nullString(req.ImagePhotoUrl),
 		ImageRouteUrl: nullString(req.ImageRouteUrl),
 		Description:   nullString(req.Description),
+		MaxCrew:       nullInt64(req.MaxCrew),
 		ID:            id,
 		OwnerID:       user.UserID,
 	}); err != nil {

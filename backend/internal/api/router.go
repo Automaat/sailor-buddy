@@ -42,6 +42,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 			cruiseH := handlers.NewCruiseHandler(q)
 			crewH := handlers.NewCrewHandler(q)
 			opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
+			enrollH := handlers.NewEnrollmentHandler(q)
+			r.Route("/enroll/{token}", func(r chi.Router) {
+				r.Get("/", enrollH.GetCruiseByToken)
+				r.Post("/", enrollH.Enroll)
+			})
 			r.Route("/cruises", func(r chi.Router) {
 				r.Get("/", cruiseH.List)
 				r.Post("/", cruiseH.Create)
@@ -56,6 +61,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 					r.Get("/{id}/download", opinH.Download)
 					r.Delete("/{id}", opinH.Delete)
 				})
+				r.Post("/{cruiseID}/enroll-token", enrollH.GenerateToken)
+				r.Delete("/{cruiseID}/enroll-token", enrollH.ClearToken)
+				r.Get("/{cruiseID}/enrollments", enrollH.ListEnrollments)
+				r.Put("/{cruiseID}/enrollments/{id}/status", enrollH.UpdateStatus)
+				r.Delete("/{cruiseID}/enrollments/{id}", enrollH.DeleteEnrollment)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", cruiseH.Get)
 					r.Put("/", cruiseH.Update)

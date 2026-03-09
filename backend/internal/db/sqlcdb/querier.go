@@ -10,9 +10,12 @@ import (
 )
 
 type Querier interface {
+	ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnrollTokenParams) error
+	CountCruiseEnrollments(ctx context.Context, cruiseID int64) (CountCruiseEnrollmentsRow, error)
 	CreateCrewAssignment(ctx context.Context, arg CreateCrewAssignmentParams) (CrewAssignment, error)
 	CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error)
 	CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error)
+	CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error)
 	CreateTraining(ctx context.Context, arg CreateTrainingParams) (Training, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpinionParams) (VoyageOpinion, error)
@@ -20,6 +23,7 @@ type Querier interface {
 	DeleteCrewAssignment(ctx context.Context, arg DeleteCrewAssignmentParams) error
 	DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberParams) error
 	DeleteCruise(ctx context.Context, arg DeleteCruiseParams) error
+	DeleteCruiseEnrollment(ctx context.Context, arg DeleteCruiseEnrollmentParams) error
 	DeleteTraining(ctx context.Context, arg DeleteTrainingParams) error
 	DeleteVoyageOpinion(ctx context.Context, id int64) error
 	DeleteYacht(ctx context.Context, arg DeleteYachtParams) error
@@ -29,24 +33,29 @@ type Querier interface {
 	GetCrewMemberCruises(ctx context.Context, crewMemberID int64) ([]GetCrewMemberCruisesRow, error)
 	GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error)
 	GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error)
+	GetCruiseByEnrollToken(ctx context.Context, enrollToken sql.NullString) (GetCruiseByEnrollTokenRow, error)
 	GetCruisesByYear(ctx context.Context, ownerID int64) ([]GetCruisesByYearRow, error)
 	GetDashboardStats(ctx context.Context, ownerID int64) (GetDashboardStatsRow, error)
 	GetTraining(ctx context.Context, arg GetTrainingParams) (Training, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByFirebaseUID(ctx context.Context, firebaseUid sql.NullString) (User, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
+	GetUserEnrollment(ctx context.Context, arg GetUserEnrollmentParams) (CruiseEnrollment, error)
 	GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion, error)
 	GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error)
 	GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error)
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error)
 	ListCruiseCrewAssignments(ctx context.Context, arg ListCruiseCrewAssignmentsParams) ([]ListCruiseCrewAssignmentsRow, error)
+	ListCruiseEnrollments(ctx context.Context, arg ListCruiseEnrollmentsParams) ([]ListCruiseEnrollmentsRow, error)
 	ListCruiseVoyageOpinions(ctx context.Context, cruiseID int64) ([]ListCruiseVoyageOpinionsRow, error)
 	ListCruises(ctx context.Context, ownerID int64) ([]Cruise, error)
 	ListTrainings(ctx context.Context, userID int64) ([]Training, error)
 	ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error)
+	SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error
 	UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error
 	UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error
+	UpdateEnrollmentStatus(ctx context.Context, arg UpdateEnrollmentStatusParams) error
 	UpdateTraining(ctx context.Context, arg UpdateTrainingParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 	UpdateYacht(ctx context.Context, arg UpdateYachtParams) error

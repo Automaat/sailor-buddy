@@ -10,29 +10,29 @@ import (
 )
 
 type mockQuerier struct {
-	listCruisesFn          func(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error)
-	getCruiseFn            func(ctx context.Context, arg sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error)
-	createCruiseFn         func(ctx context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error)
-	updateCruiseFn         func(ctx context.Context, arg sqlcdb.UpdateCruiseParams) error
-	deleteCruiseFn         func(ctx context.Context, arg sqlcdb.DeleteCruiseParams) error
-	listYachtsFn           func(ctx context.Context, ownerID int64) ([]sqlcdb.Yacht, error)
-	getYachtFn             func(ctx context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error)
-	createYachtFn          func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
-	updateYachtFn          func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
-	deleteYachtFn          func(ctx context.Context, arg sqlcdb.DeleteYachtParams) error
-	listTrainingsFn        func(ctx context.Context, userID int64) ([]sqlcdb.Training, error)
-	getTrainingFn          func(ctx context.Context, arg sqlcdb.GetTrainingParams) (sqlcdb.Training, error)
-	createTrainingFn       func(ctx context.Context, arg sqlcdb.CreateTrainingParams) (sqlcdb.Training, error)
-	updateTrainingFn       func(ctx context.Context, arg sqlcdb.UpdateTrainingParams) error
-	deleteTrainingFn       func(ctx context.Context, arg sqlcdb.DeleteTrainingParams) error
-	listCrewMembersFn      func(ctx context.Context, ownerID int64) ([]sqlcdb.CrewMember, error)
-	getCrewMemberFn        func(ctx context.Context, arg sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error)
-	createCrewMemberFn     func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
-	updateCrewMemberFn     func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
-	deleteCrewMemberFn     func(ctx context.Context, arg sqlcdb.DeleteCrewMemberParams) error
-	createCrewAssignmentFn func(ctx context.Context, arg sqlcdb.CreateCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
-	listCruiseCrewFn       func(ctx context.Context, arg sqlcdb.ListCruiseCrewAssignmentsParams) ([]sqlcdb.ListCruiseCrewAssignmentsRow, error)
-	deleteCrewAssignmentFn func(ctx context.Context, arg sqlcdb.DeleteCrewAssignmentParams) error
+	listCruisesFn                        func(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error)
+	getCruiseFn                          func(ctx context.Context, arg sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error)
+	createCruiseFn                       func(ctx context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error)
+	updateCruiseFn                       func(ctx context.Context, arg sqlcdb.UpdateCruiseParams) error
+	deleteCruiseFn                       func(ctx context.Context, arg sqlcdb.DeleteCruiseParams) error
+	listYachtsFn                         func(ctx context.Context, ownerID int64) ([]sqlcdb.Yacht, error)
+	getYachtFn                           func(ctx context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error)
+	createYachtFn                        func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
+	updateYachtFn                        func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
+	deleteYachtFn                        func(ctx context.Context, arg sqlcdb.DeleteYachtParams) error
+	listTrainingsFn                      func(ctx context.Context, userID int64) ([]sqlcdb.Training, error)
+	getTrainingFn                        func(ctx context.Context, arg sqlcdb.GetTrainingParams) (sqlcdb.Training, error)
+	createTrainingFn                     func(ctx context.Context, arg sqlcdb.CreateTrainingParams) (sqlcdb.Training, error)
+	updateTrainingFn                     func(ctx context.Context, arg sqlcdb.UpdateTrainingParams) error
+	deleteTrainingFn                     func(ctx context.Context, arg sqlcdb.DeleteTrainingParams) error
+	listCrewMembersFn                    func(ctx context.Context, ownerID int64) ([]sqlcdb.CrewMember, error)
+	getCrewMemberFn                      func(ctx context.Context, arg sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error)
+	createCrewMemberFn                   func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
+	updateCrewMemberFn                   func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
+	deleteCrewMemberFn                   func(ctx context.Context, arg sqlcdb.DeleteCrewMemberParams) error
+	createCrewAssignmentFn               func(ctx context.Context, arg sqlcdb.CreateCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
+	listCruiseCrewFn                     func(ctx context.Context, arg sqlcdb.ListCruiseCrewAssignmentsParams) ([]sqlcdb.ListCruiseCrewAssignmentsRow, error)
+	deleteCrewAssignmentFn               func(ctx context.Context, arg sqlcdb.DeleteCrewAssignmentParams) error
 	getDashboardStatsFn                  func(ctx context.Context, ownerID int64) (sqlcdb.GetDashboardStatsRow, error)
 	getCruisesByYearFn                   func(ctx context.Context, ownerID int64) ([]sqlcdb.GetCruisesByYearRow, error)
 	getYachtByNameFn                     func(ctx context.Context, arg sqlcdb.GetYachtByNameParams) (sqlcdb.Yacht, error)
@@ -42,6 +42,15 @@ type mockQuerier struct {
 	listCruiseVoyageOpinionsFn           func(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseVoyageOpinionsRow, error)
 	getVoyageOpinionFn                   func(ctx context.Context, id int64) (sqlcdb.VoyageOpinion, error)
 	deleteVoyageOpinionFn                func(ctx context.Context, id int64) error
+	getCruiseByEnrollTokenFn             func(ctx context.Context, token sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error)
+	getUserEnrollmentFn                  func(ctx context.Context, arg sqlcdb.GetUserEnrollmentParams) (sqlcdb.CruiseEnrollment, error)
+	countCruiseEnrollmentsFn             func(ctx context.Context, cruiseID int64) (sqlcdb.CountCruiseEnrollmentsRow, error)
+	createCruiseEnrollmentFn             func(ctx context.Context, arg sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error)
+	setCruiseEnrollTokenFn               func(ctx context.Context, arg sqlcdb.SetCruiseEnrollTokenParams) error
+	clearCruiseEnrollTokenFn             func(ctx context.Context, arg sqlcdb.ClearCruiseEnrollTokenParams) error
+	listCruiseEnrollmentsFn              func(ctx context.Context, arg sqlcdb.ListCruiseEnrollmentsParams) ([]sqlcdb.ListCruiseEnrollmentsRow, error)
+	updateEnrollmentStatusFn             func(ctx context.Context, arg sqlcdb.UpdateEnrollmentStatusParams) error
+	deleteCruiseEnrollmentFn             func(ctx context.Context, arg sqlcdb.DeleteCruiseEnrollmentParams) error
 }
 
 func (m *mockQuerier) ListCruises(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error) {
@@ -306,6 +315,69 @@ func (m *mockQuerier) UpsertVoyageOpinion(ctx context.Context, arg sqlcdb.Upsert
 		return m.upsertVoyageOpinionFn(ctx, arg)
 	}
 	panic("unexpected call to UpsertVoyageOpinion")
+}
+
+func (m *mockQuerier) ClearCruiseEnrollToken(ctx context.Context, arg sqlcdb.ClearCruiseEnrollTokenParams) error {
+	if m.clearCruiseEnrollTokenFn != nil {
+		return m.clearCruiseEnrollTokenFn(ctx, arg)
+	}
+	panic("unexpected call to ClearCruiseEnrollToken")
+}
+
+func (m *mockQuerier) CountCruiseEnrollments(ctx context.Context, cruiseID int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
+	if m.countCruiseEnrollmentsFn != nil {
+		return m.countCruiseEnrollmentsFn(ctx, cruiseID)
+	}
+	panic("unexpected call to CountCruiseEnrollments")
+}
+
+func (m *mockQuerier) CreateCruiseEnrollment(ctx context.Context, arg sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
+	if m.createCruiseEnrollmentFn != nil {
+		return m.createCruiseEnrollmentFn(ctx, arg)
+	}
+	panic("unexpected call to CreateCruiseEnrollment")
+}
+
+func (m *mockQuerier) DeleteCruiseEnrollment(ctx context.Context, arg sqlcdb.DeleteCruiseEnrollmentParams) error {
+	if m.deleteCruiseEnrollmentFn != nil {
+		return m.deleteCruiseEnrollmentFn(ctx, arg)
+	}
+	panic("unexpected call to DeleteCruiseEnrollment")
+}
+
+func (m *mockQuerier) GetCruiseByEnrollToken(ctx context.Context, token sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
+	if m.getCruiseByEnrollTokenFn != nil {
+		return m.getCruiseByEnrollTokenFn(ctx, token)
+	}
+	panic("unexpected call to GetCruiseByEnrollToken")
+}
+
+func (m *mockQuerier) GetUserEnrollment(ctx context.Context, arg sqlcdb.GetUserEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
+	if m.getUserEnrollmentFn != nil {
+		return m.getUserEnrollmentFn(ctx, arg)
+	}
+	panic("unexpected call to GetUserEnrollment")
+}
+
+func (m *mockQuerier) ListCruiseEnrollments(ctx context.Context, arg sqlcdb.ListCruiseEnrollmentsParams) ([]sqlcdb.ListCruiseEnrollmentsRow, error) {
+	if m.listCruiseEnrollmentsFn != nil {
+		return m.listCruiseEnrollmentsFn(ctx, arg)
+	}
+	panic("unexpected call to ListCruiseEnrollments")
+}
+
+func (m *mockQuerier) SetCruiseEnrollToken(ctx context.Context, arg sqlcdb.SetCruiseEnrollTokenParams) error {
+	if m.setCruiseEnrollTokenFn != nil {
+		return m.setCruiseEnrollTokenFn(ctx, arg)
+	}
+	panic("unexpected call to SetCruiseEnrollToken")
+}
+
+func (m *mockQuerier) UpdateEnrollmentStatus(ctx context.Context, arg sqlcdb.UpdateEnrollmentStatusParams) error {
+	if m.updateEnrollmentStatusFn != nil {
+		return m.updateEnrollmentStatusFn(ctx, arg)
+	}
+	panic("unexpected call to UpdateEnrollmentStatus")
 }
 
 func userCtx(ctx context.Context) context.Context {
