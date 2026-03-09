@@ -14,8 +14,11 @@
 
 	async function load() {
 		loading = true;
+		error = '';
 		try {
 			orgs = await api.get<Organization[]>('/orgs');
+		} catch (e: any) {
+			error = e.message;
 		} finally {
 			loading = false;
 		}
@@ -75,6 +78,10 @@
 			{showCreate ? 'Anuluj' : 'Nowy klub'}
 		</button>
 	</div>
+
+	{#if error && !showCreate}
+		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
+	{/if}
 
 	{#if showCreate}
 		<div class="mb-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

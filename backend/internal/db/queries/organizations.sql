@@ -75,8 +75,8 @@ JOIN users u ON u.id = oi.created_by
 WHERE oi.org_id = $1
 ORDER BY oi.created_at DESC;
 
--- name: IncrementInviteUseCount :exec
-UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1;
+-- name: IncrementInviteUseCount :execrows
+UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1 AND (max_uses IS NULL OR use_count < max_uses);
 
 -- name: DeleteOrgInvite :exec
 DELETE FROM org_invites WHERE id = $1 AND org_id = $2;

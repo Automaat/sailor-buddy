@@ -16,6 +16,7 @@
 
 	async function load() {
 		loading = true;
+		error = '';
 		try {
 			org = await api.get<Organization>(`/orgs/${slug}`);
 			form = {
@@ -26,6 +27,8 @@
 				pzz_club_number: org.pzz_club_number ?? '',
 				logo_url: org.logo_url ?? ''
 			};
+		} catch (e: any) {
+			error = e.message;
 		} finally {
 			loading = false;
 		}
@@ -75,6 +78,9 @@
 <div class="mx-auto max-w-2xl">
 	<h1 class="mb-6 text-2xl font-bold text-[var(--navy)]">Ustawienia klubu</h1>
 
+	{#if error && !loading}
+		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
+	{/if}
 	{#if loading}
 		<p class="text-gray-500">Ładowanie...</p>
 	{:else if org}

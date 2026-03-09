@@ -31,10 +31,12 @@ function createOrgStore() {
 		},
 		select(slug: string | null) {
 			currentSlug = slug;
-			if (slug) {
-				localStorage.setItem(LS_KEY, slug);
-			} else {
-				localStorage.removeItem(LS_KEY);
+			if (typeof window !== 'undefined') {
+				if (slug) {
+					localStorage.setItem(LS_KEY, slug);
+				} else {
+					localStorage.removeItem(LS_KEY);
+				}
 			}
 		},
 		async refresh() {
@@ -43,7 +45,9 @@ function createOrgStore() {
 				orgs = await api.get<Organization[]>('/orgs');
 				if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
 					currentSlug = null;
-					localStorage.removeItem(LS_KEY);
+					if (typeof window !== 'undefined') {
+						localStorage.removeItem(LS_KEY);
+					}
 				}
 			} finally {
 				loading = false;
@@ -52,7 +56,9 @@ function createOrgStore() {
 		clear() {
 			orgs = [];
 			currentSlug = null;
-			localStorage.removeItem(LS_KEY);
+			if (typeof window !== 'undefined') {
+				localStorage.removeItem(LS_KEY);
+			}
 		},
 		apiPrefix(): string {
 			if (!currentSlug) return '';

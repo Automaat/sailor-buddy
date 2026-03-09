@@ -181,6 +181,31 @@ func (h *OrgHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid role")
 		return
 	}
+	if req.Role != "admin" {
+		members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to check members")
+			return
+		}
+		var isAdmin bool
+		for _, m := range members {
+			if m.ID == memberID && m.Role == "admin" {
+				isAdmin = true
+				break
+			}
+		}
+		if isAdmin {
+			count, err := h.q.CountOrgAdmins(r.Context(), octx.OrgID)
+			if err != nil {
+				respondError(w, http.StatusInternalServerError, "failed to check admins")
+				return
+			}
+			if count <= 1 {
+				respondError(w, http.StatusBadRequest, "cannot demote the last admin")
+				return
+			}
+		}
+	}
 	if err := h.q.UpdateOrgMemberRole(r.Context(), sqlcdb.UpdateOrgMemberRoleParams{
 		Role:  req.Role,
 		ID:    memberID,
@@ -246,6 +271,14 @@ func (h *OrgHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	case "admin", "captain", "crew":
 	default:
 		req.Role = "crew"
+	}
+	if req.ExpiresIn != nil && *req.ExpiresIn <= 0 {
+		respondError(w, http.StatusBadRequest, "expires_in_hours must be greater than 0")
+		return
+	}
+	if req.MaxUses != nil && *req.MaxUses <= 0 {
+		respondError(w, http.StatusBadRequest, "max_uses must be greater than 0")
+		return
 	}
 
 	b := make([]byte, 16)
@@ -323,9 +356,17 @@ func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusGone, "invite has expired")
 		return
 	}
-	if invite.MaxUses.Valid && invite.UseCount >= invite.MaxUses.Int64 {
-		respondError(w, http.StatusGone, "invite has reached maximum uses")
-		return
+
+	if invite.MaxUses.Valid {
+		rows, err := h.q.IncrementInviteUseCount(r.Context(), invite.ID)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to claim invite")
+			return
+		}
+		if rows == 0 {
+			respondError(w, http.StatusGone, "invite has reached maximum uses")
+			return
+		}
 	}
 
 	_, err = h.q.AddOrgMember(r.Context(), sqlcdb.AddOrgMemberParams{
@@ -342,8 +383,6 @@ func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to join organization")
 		return
 	}
-
-	_ = h.q.IncrementInviteUseCount(r.Context(), invite.ID)
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"org_name": invite.OrgName,

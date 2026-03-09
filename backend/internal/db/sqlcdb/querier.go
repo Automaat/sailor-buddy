@@ -66,7 +66,7 @@ type Querier interface {
 	GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion, error)
 	GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error)
 	GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error)
-	IncrementInviteUseCount(ctx context.Context, id int64) error
+	IncrementInviteUseCount(ctx context.Context, id int64) (int64, error)
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error)
 	ListCruiseCrewAssignments(ctx context.Context, arg ListCruiseCrewAssignmentsParams) ([]ListCruiseCrewAssignmentsRow, error)

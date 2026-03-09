@@ -26,11 +26,16 @@
 
 	async function load() {
 		loading = true;
+		error = '';
 		try {
 			members = await api.get<OrgMember[]>(`/orgs/${slug}/members`);
 			if (isAdmin) {
 				invites = await api.get<OrgInvite[]>(`/orgs/${slug}/invites`);
+			} else {
+				invites = [];
 			}
+		} catch (e: any) {
+			error = e.message;
 		} finally {
 			loading = false;
 		}
@@ -59,11 +64,23 @@
 		e.preventDefault();
 		creatingInvite = true;
 		error = '';
+		const maxUses = inviteMaxUses ? parseInt(inviteMaxUses) : undefined;
+		const expiresInHours = inviteExpiresHours ? parseInt(inviteExpiresHours) : undefined;
+		if (maxUses !== undefined && (isNaN(maxUses) || maxUses < 1)) {
+			error = 'Max użyć musi być większe od 0';
+			creatingInvite = false;
+			return;
+		}
+		if (expiresInHours !== undefined && (isNaN(expiresInHours) || expiresInHours < 1)) {
+			error = 'Czas wygaśnięcia musi być większy od 0';
+			creatingInvite = false;
+			return;
+		}
 		try {
 			await api.post(`/orgs/${slug}/invites`, {
 				role: inviteRole,
-				max_uses: inviteMaxUses ? parseInt(inviteMaxUses) : undefined,
-				expires_in_hours: inviteExpiresHours ? parseInt(inviteExpiresHours) : undefined
+				max_uses: maxUses,
+				expires_in_hours: expiresInHours
 			});
 			showInviteForm = false;
 			inviteRole = 'crew';
@@ -142,6 +159,8 @@
 							type="number"
 							bind:value={inviteMaxUses}
 							placeholder="Bez limitu"
+							min="1"
+							step="1"
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
 						/>
 					</div>
@@ -154,6 +173,8 @@
 							type="number"
 							bind:value={inviteExpiresHours}
 							placeholder="Nigdy"
+							min="1"
+							step="1"
 							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
 						/>
 					</div>

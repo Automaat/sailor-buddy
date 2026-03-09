@@ -291,13 +291,16 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 	return i, err
 }
 
-const incrementInviteUseCount = `-- name: IncrementInviteUseCount :exec
-UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1
+const incrementInviteUseCount = `-- name: IncrementInviteUseCount :execrows
+UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1 AND (max_uses IS NULL OR use_count < max_uses)
 `
 
-func (q *Queries) IncrementInviteUseCount(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, incrementInviteUseCount, id)
-	return err
+func (q *Queries) IncrementInviteUseCount(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, incrementInviteUseCount, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const listOrgInvites = `-- name: ListOrgInvites :many
