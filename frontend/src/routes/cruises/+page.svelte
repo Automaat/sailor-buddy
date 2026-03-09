@@ -19,23 +19,23 @@
 
 <div>
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-3xl font-bold text-[var(--navy)]">Cruises</h1>
+		<h1 class="text-3xl font-bold text-[var(--navy)]">Rejsy</h1>
 		<a
 			href="/cruises/new"
 			class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
 		>
-			+ New Cruise
+			+ Nowy rejs
 		</a>
 	</div>
 
 	{#if loading}
-		<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if cruises.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<p class="text-5xl">⛵</p>
-			<p class="mt-4 text-lg text-[var(--text-muted)]">No cruises yet</p>
+			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak rejsów</p>
 			<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
-				Add your first cruise
+				Dodaj pierwszy rejs
 			</a>
 		</div>
 	{:else}
@@ -68,7 +68,7 @@
 								<div class="text-lg font-bold text-[var(--ocean)]">
 									{Math.round(cruise.hours_total)}h
 								</div>
-								<div class="text-xs text-[var(--text-muted)]">hours</div>
+								<div class="text-xs text-[var(--text-muted)]">godziny</div>
 							</div>
 						{/if}
 						{#if cruise.miles}
@@ -76,13 +76,13 @@
 								<div class="text-lg font-bold text-[var(--sand)]">
 									{Math.round(cruise.miles)}
 								</div>
-								<div class="text-xs text-[var(--text-muted)]">nm</div>
+								<div class="text-xs text-[var(--text-muted)]">Mm</div>
 							</div>
 						{/if}
 						{#if cruise.days}
 							<div>
 								<div class="text-lg font-bold text-[var(--navy)]">{cruise.days}</div>
-								<div class="text-xs text-[var(--text-muted)]">days</div>
+								<div class="text-xs text-[var(--text-muted)]">dni</div>
 							</div>
 						{/if}
 					</div>

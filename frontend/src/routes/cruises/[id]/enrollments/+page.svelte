@@ -35,7 +35,7 @@
 	}
 
 	async function deleteEnrollment(enrollmentId: number) {
-		if (!confirm('Delete this enrollment?')) return;
+		if (!confirm('Usunąć ten zapis?')) return;
 		try {
 			await api.del(`/cruises/${id}/enrollments/${enrollmentId}`);
 			enrollments = enrollments.filter((e) => e.id !== enrollmentId);
@@ -43,6 +43,13 @@
 			console.error('Failed to delete enrollment:', err);
 		}
 	}
+
+	const statusLabels: Record<string, string> = {
+		pending: 'oczekujący',
+		accepted: 'zaakceptowany',
+		rejected: 'odrzucony',
+		waitlisted: 'lista rezerwowa'
+	};
 
 	const statusColors: Record<string, string> = {
 		pending: 'bg-yellow-100 text-yellow-800',
@@ -53,17 +60,17 @@
 </script>
 
 {#if loading}
-	<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else}
 	<div class="mx-auto max-w-4xl">
 		<div class="mb-6 flex items-center justify-between">
 			<div>
-				<h1 class="text-3xl font-bold text-[var(--navy)]">Enrollments</h1>
+				<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
 				{#if cruise}
 					<p class="mt-1 text-[var(--text-muted)]">
 						{cruise.name}
 						{#if cruise.max_crew}
-							· {enrollments.filter((e) => e.status === 'accepted').length} / {cruise.max_crew} accepted
+							· {enrollments.filter((e) => e.status === 'accepted').length} / {cruise.max_crew} zaakceptowanych
 						{/if}
 					</p>
 				{/if}
@@ -72,13 +79,13 @@
 				href="/cruises/{id}"
 				class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
 			>
-				Back to Cruise
+				Wróć do rejsu
 			</a>
 		</div>
 
 		{#if enrollments.length === 0}
 			<div class="rounded-2xl bg-white p-6 text-center text-sm text-[var(--text-muted)] shadow-sm">
-				No enrollments yet.
+				Brak zapisów.
 			</div>
 		{:else}
 			<div class="space-y-3">
@@ -86,10 +93,10 @@
 					<div class="rounded-xl bg-white p-4 shadow-sm">
 						<div class="flex items-center justify-between">
 							<div>
-								<span class="font-medium">{enrollment.user_name ?? 'Unknown'}</span>
+								<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
 								<span class="ml-2 text-sm text-[var(--text-muted)]">{enrollment.user_email ?? ''}</span>
 								<span class="ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}">
-									{enrollment.status}
+									{statusLabels[enrollment.status] ?? enrollment.status}
 								</span>
 							</div>
 							<div class="flex gap-1">
@@ -98,7 +105,7 @@
 										onclick={() => updateStatus(enrollment.id, 'accepted')}
 										class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-50"
 									>
-										Accept
+										Akceptuj
 									</button>
 								{/if}
 								{#if enrollment.status !== 'waitlisted'}
@@ -106,7 +113,7 @@
 										onclick={() => updateStatus(enrollment.id, 'waitlisted')}
 										class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-50"
 									>
-										Waitlist
+										Rezerwa
 									</button>
 								{/if}
 								{#if enrollment.status !== 'rejected'}
@@ -114,14 +121,14 @@
 										onclick={() => updateStatus(enrollment.id, 'rejected')}
 										class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-50"
 									>
-										Reject
+										Odrzuć
 									</button>
 								{/if}
 								<button
 									onclick={() => deleteEnrollment(enrollment.id)}
 									class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
 								>
-									Delete
+									Usuń
 								</button>
 							</div>
 						</div>
@@ -129,7 +136,7 @@
 							<p class="mt-2 text-sm text-[var(--text-muted)]">{enrollment.note}</p>
 						{/if}
 						<p class="mt-1 text-xs text-[var(--text-muted)]">
-							Enrolled: {new Date(enrollment.created_at).toLocaleDateString()}
+							Zapisano: {new Date(enrollment.created_at).toLocaleDateString('pl-PL')}
 						</p>
 					</div>
 				{/each}

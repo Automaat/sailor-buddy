@@ -43,7 +43,7 @@
 			const cruise = await api.post<{ id: number }>('/cruises', form);
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to create cruise';
+			error = err instanceof Error ? err.message : 'Nie udało się utworzyć rejsu';
 		} finally {
 			loading = false;
 		}
@@ -51,7 +51,7 @@
 </script>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">New Cruise</h1>
+	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Nowy rejs</h1>
 
 	{#if error}
 		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
@@ -60,7 +60,7 @@
 	<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
 		<div class="grid grid-cols-2 gap-4">
 			<div class="col-span-2">
-				<label for="name" class="mb-1 block text-sm font-medium">Cruise Name *</label>
+				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 				<input
 					id="name"
 					type="text"
@@ -70,7 +70,7 @@
 				/>
 			</div>
 			<div>
-				<label for="year" class="mb-1 block text-sm font-medium">Year</label>
+				<label for="year" class="mb-1 block text-sm font-medium">Rok</label>
 				<input
 					id="year"
 					type="number"
@@ -79,16 +79,16 @@
 				/>
 			</div>
 			<div>
-				<label for="yacht" class="mb-1 block text-sm font-medium">Yacht</label>
+				<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
 				<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
-					<option value={0}>-- Select --</option>
+					<option value={0}>-- Wybierz --</option>
 					{#each yachts as yacht}
 						<option value={yacht.id}>{yacht.name}</option>
 					{/each}
 				</select>
 			</div>
 			<div>
-				<label for="embark" class="mb-1 block text-sm font-medium">Embark Date</label>
+				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
 				<input
 					id="embark"
 					type="date"
@@ -97,7 +97,7 @@
 				/>
 			</div>
 			<div>
-				<label for="disembark" class="mb-1 block text-sm font-medium">Disembark Date</label>
+				<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
 				<input
 					id="disembark"
 					type="date"
@@ -106,7 +106,7 @@
 				/>
 			</div>
 			<div>
-				<label for="start_port" class="mb-1 block text-sm font-medium">Start Port</label>
+				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
 				<input
 					id="start_port"
 					type="text"
@@ -115,7 +115,7 @@
 				/>
 			</div>
 			<div>
-				<label for="end_port" class="mb-1 block text-sm font-medium">End Port</label>
+				<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
 				<input
 					id="end_port"
 					type="text"
@@ -124,7 +124,7 @@
 				/>
 			</div>
 			<div>
-				<label for="countries" class="mb-1 block text-sm font-medium">Countries</label>
+				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
 				<input
 					id="countries"
 					type="text"
@@ -133,7 +133,7 @@
 				/>
 			</div>
 			<div>
-				<label for="captain" class="mb-1 block text-sm font-medium">Captain</label>
+				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
 				<input
 					id="captain"
 					type="text"
@@ -144,10 +144,10 @@
 		</div>
 
 		<hr />
-		<h3 class="font-semibold text-[var(--navy)]">Navigation Stats</h3>
+		<h3 class="font-semibold text-[var(--navy)]">Statystyki nawigacyjne</h3>
 		<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
 			<div>
-				<label for="hours_total" class="mb-1 block text-sm font-medium">Total Hours</label>
+				<label for="hours_total" class="mb-1 block text-sm font-medium">Godziny łącznie</label>
 				<input
 					id="hours_total"
 					type="number"
@@ -157,7 +157,7 @@
 				/>
 			</div>
 			<div>
-				<label for="hours_sail" class="mb-1 block text-sm font-medium">Sail Hours</label>
+				<label for="hours_sail" class="mb-1 block text-sm font-medium">Godziny żagli</label>
 				<input
 					id="hours_sail"
 					type="number"
@@ -167,7 +167,7 @@
 				/>
 			</div>
 			<div>
-				<label for="hours_engine" class="mb-1 block text-sm font-medium">Engine Hours</label>
+				<label for="hours_engine" class="mb-1 block text-sm font-medium">Godziny silnika</label>
 				<input
 					id="hours_engine"
 					type="number"
@@ -177,7 +177,7 @@
 				/>
 			</div>
 			<div>
-				<label for="hours_6bf" class="mb-1 block text-sm font-medium">Hours &gt;6Bf</label>
+				<label for="hours_6bf" class="mb-1 block text-sm font-medium">Godziny &gt;6B</label>
 				<input
 					id="hours_6bf"
 					type="number"
@@ -187,7 +187,7 @@
 				/>
 			</div>
 			<div>
-				<label for="miles" class="mb-1 block text-sm font-medium">Miles</label>
+				<label for="miles" class="mb-1 block text-sm font-medium">Mile</label>
 				<input
 					id="miles"
 					type="number"
@@ -197,7 +197,7 @@
 				/>
 			</div>
 			<div>
-				<label for="days" class="mb-1 block text-sm font-medium">Days</label>
+				<label for="days" class="mb-1 block text-sm font-medium">Dni</label>
 				<input
 					id="days"
 					type="number"
@@ -208,16 +208,16 @@
 			<div class="flex items-end">
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" bind:checked={form.tidal_waters} />
-					Tidal Waters
+					Wody pływowe
 				</label>
 			</div>
 		</div>
 
 		<hr />
-		<h3 class="font-semibold text-[var(--navy)]">Costs</h3>
+		<h3 class="font-semibold text-[var(--navy)]">Koszty</h3>
 		<div class="grid grid-cols-2 gap-4">
 			<div>
-				<label for="cost_total" class="mb-1 block text-sm font-medium">Total Cost</label>
+				<label for="cost_total" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
 				<input
 					id="cost_total"
 					type="number"
@@ -227,7 +227,7 @@
 				/>
 			</div>
 			<div>
-				<label for="cost_pp" class="mb-1 block text-sm font-medium">Cost per Person</label>
+				<label for="cost_pp" class="mb-1 block text-sm font-medium">Koszt na osobę</label>
 				<input
 					id="cost_pp"
 					type="number"
@@ -240,20 +240,20 @@
 
 		<div class="grid grid-cols-2 gap-4">
 			<div>
-				<label for="max_crew" class="mb-1 block text-sm font-medium">Max Crew</label>
+				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. załoga</label>
 				<input
 					id="max_crew"
 					type="number"
 					bind:value={form.max_crew}
 					class="w-full rounded-lg border px-3 py-2"
 					min="0"
-					placeholder="0 = unlimited"
+					placeholder="0 = bez limitu"
 				/>
 			</div>
 		</div>
 
 		<div>
-			<label for="description" class="mb-1 block text-sm font-medium">Description</label>
+			<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
 			<textarea
 				id="description"
 				bind:value={form.description}
@@ -268,10 +268,10 @@
 				disabled={loading}
 				class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 			>
-				{loading ? 'Creating...' : 'Create Cruise'}
+				{loading ? 'Tworzenie...' : 'Utwórz rejs'}
 			</button>
 			<a href="/cruises" class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50"
-				>Cancel</a
+				>Anuluj</a
 			>
 		</div>
 	</form>

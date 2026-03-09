@@ -41,7 +41,7 @@
 	});
 
 	async function handleDelete() {
-		if (!confirm('Delete this cruise?')) return;
+		if (!confirm('Usunąć ten rejs?')) return;
 		await api.del(`/cruises/${id}`);
 		goto('/cruises');
 	}
@@ -64,7 +64,7 @@
 	}
 
 	async function deleteOpinion(opId: number) {
-		if (!confirm('Delete this opinion?')) return;
+		if (!confirm('Usunąć tę opinię?')) return;
 		await api.del(`/cruises/${id}/opinions/${opId}`);
 		opinions = opinions.filter((o) => o.id !== opId);
 	}
@@ -111,14 +111,14 @@
 	}
 
 	async function removeCrew(assignmentId: number) {
-		if (!confirm('Remove this crew assignment?')) return;
+		if (!confirm('Usunąć przypisanie załoganta?')) return;
 		await api.del(`/cruises/${id}/crew/${assignmentId}`);
 		crew = crew.filter((c) => c.id !== assignmentId);
 	}
 </script>
 
 {#if loading}
-	<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if cruise}
 	<div class="mx-auto max-w-4xl">
 		<div class="mb-6 flex items-center justify-between">
@@ -137,60 +137,60 @@
 					href="/cruises/{id}/edit"
 					class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
 				>
-					Edit
+					Edytuj
 				</a>
 				<button
 					onclick={handleDelete}
 					class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
 				>
-					Delete
+					Usuń
 				</button>
 			</div>
 		</div>
 
 		<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
 			<div class="rounded-xl bg-white p-4 shadow-sm">
-				<div class="text-xs text-[var(--text-muted)]">Total Hours</div>
+				<div class="text-xs text-[var(--text-muted)]">Godziny łącznie</div>
 				<div class="text-2xl font-bold text-[var(--ocean)]">
 					{cruise.hours_total ?? 0}
 				</div>
 				<div class="text-xs text-[var(--text-muted)]">
-					{cruise.hours_sail ?? 0}h sail / {cruise.hours_engine ?? 0}h engine
+					{cruise.hours_sail ?? 0}h żagle / {cruise.hours_engine ?? 0}h silnik
 				</div>
 			</div>
 			<div class="rounded-xl bg-white p-4 shadow-sm">
-				<div class="text-xs text-[var(--text-muted)]">Miles</div>
+				<div class="text-xs text-[var(--text-muted)]">Mile</div>
 				<div class="text-2xl font-bold text-[var(--sand)]">{cruise.miles ?? 0}</div>
 			</div>
 			<div class="rounded-xl bg-white p-4 shadow-sm">
-				<div class="text-xs text-[var(--text-muted)]">Days</div>
+				<div class="text-xs text-[var(--text-muted)]">Dni</div>
 				<div class="text-2xl font-bold text-[var(--navy)]">{cruise.days ?? 0}</div>
 			</div>
 			<div class="rounded-xl bg-white p-4 shadow-sm">
-				<div class="text-xs text-[var(--text-muted)]">Hours &gt;6Bf</div>
+				<div class="text-xs text-[var(--text-muted)]">Godziny &gt;6B</div>
 				<div class="text-2xl font-bold">{cruise.hours_over_6bf ?? 0}</div>
 			</div>
 		</div>
 
 		{#if cruise.embark_date || cruise.captain_name || cruise.tidal_waters}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-				<h2 class="mb-3 font-semibold text-[var(--navy)]">Details</h2>
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Szczegóły</h2>
 				<dl class="grid grid-cols-2 gap-2 text-sm">
 					{#if cruise.embark_date}
-						<dt class="text-[var(--text-muted)]">Dates</dt>
+						<dt class="text-[var(--text-muted)]">Daty</dt>
 						<dd>{cruise.embark_date} – {cruise.disembark_date ?? '?'}</dd>
 					{/if}
 					{#if cruise.captain_name}
-						<dt class="text-[var(--text-muted)]">Captain</dt>
+						<dt class="text-[var(--text-muted)]">Kapitan</dt>
 						<dd>{cruise.captain_name}</dd>
 					{/if}
 					{#if cruise.tidal_waters}
-						<dt class="text-[var(--text-muted)]">Tidal Waters</dt>
-						<dd>Yes</dd>
+						<dt class="text-[var(--text-muted)]">Wody pływowe</dt>
+						<dd>Tak</dd>
 					{/if}
 					{#if cruise.cost_total}
-						<dt class="text-[var(--text-muted)]">Cost</dt>
-						<dd>{cruise.cost_total} ({cruise.cost_per_person ?? '?'} pp)</dd>
+						<dt class="text-[var(--text-muted)]">Koszt</dt>
+						<dd>{cruise.cost_total} ({cruise.cost_per_person ?? '?'} /os)</dd>
 					{/if}
 				</dl>
 			</div>
@@ -198,13 +198,13 @@
 
 		{#if cruise.description}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-				<h2 class="mb-3 font-semibold text-[var(--navy)]">Description</h2>
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Opis</h2>
 				<p class="whitespace-pre-wrap text-sm">{cruise.description}</p>
 			</div>
 		{/if}
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<h2 class="mb-3 font-semibold text-[var(--navy)]">Enrollment</h2>
+			<h2 class="mb-3 font-semibold text-[var(--navy)]">Zapisy</h2>
 			<div class="flex flex-wrap items-center gap-3">
 				<button
 					onclick={toggleEnrollment}
@@ -213,20 +213,20 @@
 						? 'border border-red-200 text-red-600 hover:bg-red-50'
 						: 'bg-[var(--ocean)] text-white hover:bg-[var(--ocean-dark)]'} disabled:opacity-50"
 				>
-					{enrollToken ? 'Disable Enrollment' : 'Enable Enrollment'}
+					{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
 				</button>
 				{#if enrollToken}
 					<button
 						onclick={copyEnrollLink}
 						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
 					>
-						Copy Link
+						Kopiuj link
 					</button>
 					<a
 						href="/cruises/{id}/enrollments"
 						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
 					>
-						Manage Enrollments
+						Zarządzaj zapisami
 					</a>
 				{/if}
 			</div>
@@ -234,27 +234,27 @@
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">
-				<h2 class="font-semibold text-[var(--navy)]">Crew ({crew.length})</h2>
+				<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
 			</div>
 
 			{#if allCrewMembers.length > 0}
 				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
 					<div>
-						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Crew Member</label>
+						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
 						<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
-							<option value="">Select...</option>
+							<option value="">Wybierz...</option>
 							{#each allCrewMembers as member}
 								<option value={member.id}>{member.full_name}</option>
 							{/each}
 						</select>
 					</div>
 					<div>
-						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Role</label>
+						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
 						<input
 							id="assign-role"
 							type="text"
 							bind:value={assignRole}
-							placeholder="e.g. Helmsman"
+							placeholder="np. Sternik"
 							class="rounded-lg border px-3 py-1.5 text-sm"
 						/>
 					</div>
@@ -263,13 +263,13 @@
 						disabled={!assignCrewId || !assignRole || assigning}
 						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
 					>
-						{assigning ? 'Adding...' : 'Add'}
+						{assigning ? 'Dodawanie...' : 'Dodaj'}
 					</button>
 				</form>
 			{/if}
 
 			{#if crew.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">No crew assigned yet.</p>
+				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
 			{:else}
 				<div class="space-y-2">
 					{#each crew as member}
@@ -284,7 +284,7 @@
 								onclick={() => removeCrew(member.id)}
 								class="text-sm text-red-500 hover:underline"
 							>
-								Remove
+								Usuń
 							</button>
 						</div>
 					{/each}
@@ -293,20 +293,20 @@
 		</div>
 
 		<div class="rounded-2xl bg-white p-6 shadow-sm">
-			<h2 class="mb-3 font-semibold text-[var(--navy)]">Voyage Opinions</h2>
+			<h2 class="mb-3 font-semibold text-[var(--navy)]">Opinie z rejsu</h2>
 
 			{#if crew.length > 0}
 				<div class="mb-4 flex flex-wrap items-end gap-2">
 					<div>
 						<label for="gen-crew" class="block text-xs text-[var(--text-muted)]"
-							>Crew Member</label
+							>Załogant</label
 						>
 						<select
 							id="gen-crew"
 							bind:value={genCrewId}
 							class="rounded-lg border px-3 py-1.5 text-sm"
 						>
-							<option value="">Select...</option>
+							<option value="">Wybierz...</option>
 							{#each crew as member}
 								<option value={member.crew_member_id}>{member.full_name}</option>
 							{/each}
@@ -330,13 +330,13 @@
 						disabled={!genCrewId || generating}
 						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
 					>
-						{generating ? 'Generating...' : 'Generate'}
+						{generating ? 'Generowanie...' : 'Generuj'}
 					</button>
 				</div>
 			{/if}
 
 			{#if opinions.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">No opinions generated yet.</p>
+				<p class="text-sm text-[var(--text-muted)]">Brak wygenerowanych opinii.</p>
 			{:else}
 				<div class="space-y-2">
 					{#each opinions as op}
@@ -354,13 +354,13 @@
 									href="/api/cruises/{id}/opinions/{op.id}/download"
 									class="text-sm text-[var(--ocean)] hover:underline"
 								>
-									Download
+									Pobierz
 								</a>
 								<button
 									onclick={() => deleteOpinion(op.id)}
 									class="text-sm text-red-500 hover:underline"
 								>
-									Delete
+									Usuń
 								</button>
 							</div>
 						</div>

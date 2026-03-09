@@ -37,12 +37,12 @@
 
 <div>
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-3xl font-bold text-[var(--navy)]">Crew</h1>
+		<h1 class="text-3xl font-bold text-[var(--navy)]">Załoga</h1>
 		<button
 			onclick={() => (showForm = !showForm)}
 			class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]"
 		>
-			{showForm ? 'Cancel' : '+ Add Crew Member'}
+			{showForm ? 'Anuluj' : '+ Dodaj załoganta'}
 		</button>
 	</div>
 
@@ -50,7 +50,7 @@
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-3 gap-4">
 				<div>
-					<label for="name" class="mb-1 block text-sm font-medium">Full Name *</label>
+					<label for="name" class="mb-1 block text-sm font-medium">Imię i nazwisko *</label>
 					<input id="name" type="text" bind:value={form.full_name} required class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
@@ -58,22 +58,22 @@
 					<input id="email" type="email" bind:value={form.email} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
-					<label for="patent" class="mb-1 block text-sm font-medium">Patent Number</label>
+					<label for="patent" class="mb-1 block text-sm font-medium">Numer patentu</label>
 					<input id="patent" type="text" bind:value={form.patent_number} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 			</div>
 			<button type="submit" disabled={saving} class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
-				{saving ? 'Adding...' : 'Add'}
+				{saving ? 'Dodawanie...' : 'Dodaj'}
 			</button>
 		</form>
 	{/if}
 
 	{#if loading}
-		<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if members.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<p class="text-5xl">👥</p>
-			<p class="mt-4 text-lg text-[var(--text-muted)]">No crew members yet</p>
+			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak załogantów</p>
 		</div>
 	{:else}
 		<div class="grid gap-3">

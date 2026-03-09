@@ -13,11 +13,18 @@
 
 	const token = $derived((page.params as Record<string, string>).token);
 
+	const statusLabels: Record<string, string> = {
+		pending: 'oczekujący',
+		accepted: 'zaakceptowany',
+		rejected: 'odrzucony',
+		waitlisted: 'lista rezerwowa'
+	};
+
 	onMount(async () => {
 		try {
 			data = await api.get<EnrollPageData>(`/enroll/${token}`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Invalid enrollment link';
+			error = err instanceof Error ? err.message : 'Nieprawidłowy link zapisu';
 		} finally {
 			loading = false;
 		}
@@ -32,7 +39,7 @@
 			success = true;
 			data = await api.get<EnrollPageData>(`/enroll/${token}`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to enroll';
+			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {
 			submitting = false;
 		}
@@ -40,11 +47,11 @@
 </script>
 
 {#if loading}
-	<div class="py-12 text-center text-[var(--text-muted)]">Loading...</div>
+	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if error && !data}
 	<div class="mx-auto max-w-lg py-12 text-center">
 		<div class="rounded-2xl bg-white p-8 shadow-sm">
-			<h1 class="mb-2 text-2xl font-bold text-red-600">Invalid Link</h1>
+			<h1 class="mb-2 text-2xl font-bold text-red-600">Nieprawidłowy link</h1>
 			<p class="text-[var(--text-muted)]">{error}</p>
 		</div>
 	</div>
@@ -62,14 +69,14 @@
 
 			{#if data.cruise.embark_date}
 				<div class="mb-4 text-sm">
-					<span class="text-[var(--text-muted)]">Dates:</span>
+					<span class="text-[var(--text-muted)]">Daty:</span>
 					{data.cruise.embark_date} – {data.cruise.disembark_date ?? '?'}
 				</div>
 			{/if}
 
 			{#if data.cruise.captain_name}
 				<div class="mb-4 text-sm">
-					<span class="text-[var(--text-muted)]">Captain:</span>
+					<span class="text-[var(--text-muted)]">Kapitan:</span>
 					{data.cruise.captain_name}
 				</div>
 			{/if}
@@ -80,14 +87,14 @@
 
 			<div class="mb-6 flex gap-4 text-sm">
 				<div class="rounded-lg bg-gray-50 px-3 py-2">
-					<span class="text-[var(--text-muted)]">Enrolled:</span>
+					<span class="text-[var(--text-muted)]">Zapisanych:</span>
 					<span class="font-semibold">{data.total_count}</span>
 					{#if data.cruise.max_crew}
 						<span class="text-[var(--text-muted)]">/ {data.cruise.max_crew}</span>
 					{/if}
 				</div>
 				<div class="rounded-lg bg-gray-50 px-3 py-2">
-					<span class="text-[var(--text-muted)]">Accepted:</span>
+					<span class="text-[var(--text-muted)]">Zaakceptowanych:</span>
 					<span class="font-semibold">{data.accepted_count}</span>
 				</div>
 			</div>
@@ -98,24 +105,24 @@
 
 			{#if success}
 				<div class="rounded-lg bg-green-50 p-4 text-center text-sm text-green-700">
-					You have been enrolled successfully! The organizer will review your request.
+					Zostałeś zapisany! Organizator rozpatrzy Twoje zgłoszenie.
 				</div>
 			{:else if data.enrolled}
 				<div class="rounded-lg bg-blue-50 p-4 text-center text-sm text-blue-700">
-					You are already enrolled.
+					Jesteś już zapisany.
 					{#if data.enrollment}
-						Status: <span class="font-semibold">{data.enrollment.status}</span>
+						Status: <span class="font-semibold">{statusLabels[data.enrollment.status] ?? data.enrollment.status}</span>
 					{/if}
 				</div>
 			{:else}
 				<form onsubmit={handleEnroll} class="space-y-4">
 					<div>
-						<label for="note" class="mb-1 block text-sm font-medium">Note (optional)</label>
+						<label for="note" class="mb-1 block text-sm font-medium">Notatka (opcjonalnie)</label>
 						<textarea
 							id="note"
 							bind:value={note}
 							rows="3"
-							placeholder="Any message for the organizer..."
+							placeholder="Wiadomość dla organizatora..."
 							class="w-full rounded-lg border px-3 py-2 text-sm"
 						></textarea>
 					</div>
@@ -124,7 +131,7 @@
 						disabled={submitting}
 						class="w-full rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 					>
-						{submitting ? 'Enrolling...' : 'Enroll'}
+						{submitting ? 'Zapisywanie...' : 'Zapisz się'}
 					</button>
 				</form>
 			{/if}
