@@ -112,6 +112,73 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 			importH := handlers.NewImportHandler(q)
 			r.Post("/import/xlsx", importH.Upload)
 			r.Post("/import/confirm", importH.Confirm)
+
+			orgH := handlers.NewOrgHandler(q)
+
+			r.Route("/join/{token}", func(r chi.Router) {
+				r.Get("/", orgH.GetInviteInfo)
+				r.Post("/", orgH.AcceptInvite)
+			})
+
+			r.Route("/orgs", func(r chi.Router) {
+				r.Get("/", orgH.List)
+				r.Post("/", orgH.Create)
+
+				r.Route("/{slug}", func(r chi.Router) {
+					r.Use(middleware.OrgFromSlug(q))
+
+					r.Get("/", orgH.Get)
+
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireOrgRole("admin"))
+						r.Put("/", orgH.Update)
+						r.Delete("/", orgH.Delete)
+					})
+
+					r.Get("/members", orgH.ListMembers)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireOrgRole("admin"))
+						r.Put("/members/{memberID}/role", orgH.UpdateMemberRole)
+						r.Delete("/members/{memberID}", orgH.RemoveMember)
+						r.Post("/invites", orgH.CreateInvite)
+						r.Get("/invites", orgH.ListInvites)
+						r.Delete("/invites/{inviteID}", orgH.DeleteInvite)
+					})
+
+					orgYachtH := handlers.NewOrgYachtHandler(q)
+					r.Get("/yachts", orgYachtH.List)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireOrgRole("admin"))
+						r.Post("/yachts", orgYachtH.Create)
+						r.Put("/yachts/{id}", orgYachtH.Update)
+						r.Delete("/yachts/{id}", orgYachtH.Delete)
+					})
+					r.Get("/yachts/{id}", orgYachtH.Get)
+
+					orgCruiseH := handlers.NewOrgCruiseHandler(q)
+					r.Get("/cruises", orgCruiseH.List)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireOrgRole("admin"))
+						r.Post("/cruises", orgCruiseH.Create)
+						r.Put("/cruises/{id}", orgCruiseH.Update)
+						r.Delete("/cruises/{id}", orgCruiseH.Delete)
+					})
+					r.Get("/cruises/{id}", orgCruiseH.Get)
+
+					orgCrewH := handlers.NewOrgCrewHandler(q)
+					r.Get("/crew", orgCrewH.List)
+					r.Group(func(r chi.Router) {
+						r.Use(middleware.RequireOrgRole("admin"))
+						r.Post("/crew", orgCrewH.Create)
+						r.Put("/crew/{id}", orgCrewH.Update)
+						r.Delete("/crew/{id}", orgCrewH.Delete)
+					})
+					r.Get("/crew/{id}", orgCrewH.Get)
+
+					orgDashH := handlers.NewOrgDashboardHandler(q)
+					r.Get("/dashboard", orgDashH.Get)
+				})
+			})
 		})
 	})
 

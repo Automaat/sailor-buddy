@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { CrewMember } from '$lib/api/types';
-	import { onMount } from 'svelte';
 
 	let members = $state<CrewMember[]>([]);
 	let loading = $state(true);
@@ -9,21 +9,27 @@
 	let form = $state({ full_name: '', email: '', patent_number: '' });
 	let saving = $state(false);
 
-	onMount(async () => {
+	async function load() {
+		loading = true;
 		try {
-			members = await api.get<CrewMember[]>('/crew');
+			members = await api.get<CrewMember[]>(`${orgStore.apiPrefix()}/crew`);
 		} catch (err) {
 			console.error('Failed to load crew:', err);
 		} finally {
 			loading = false;
 		}
+	}
+
+	$effect(() => {
+		orgStore.currentSlug;
+		load();
 	});
 
 	async function handleAdd(e: Event) {
 		e.preventDefault();
 		saving = true;
 		try {
-			const member = await api.post<CrewMember>('/crew', form);
+			const member = await api.post<CrewMember>(`${orgStore.apiPrefix()}/crew`, form);
 			members = [...members, member];
 			form = { full_name: '', email: '', patent_number: '' };
 			showForm = false;

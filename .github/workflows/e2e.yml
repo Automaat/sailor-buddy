@@ -1,0 +1,110 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: sailor
+          POSTGRES_PASSWORD: sailor
+          POSTGRES_DB: sailor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sailor"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: backend/go.mod
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: frontend/package.json
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Build backend
+        working-directory: backend
+        run: go build -o server ./cmd/api
+
+      - name: Start Firebase Auth emulator
+        run: |
+          npm install -g firebase-tools@15.9.0
+          firebase emulators:start --project sailor-buddy-dev --only auth &
+          # wait for emulator to be ready
+          for i in $(seq 1 30); do
+            curl -s http://localhost:9099/ > /dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Start backend
+        working-directory: backend
+        run: ./server &
+        env:
+          SAILOR_DATABASE_URL: postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable
+          SAILOR_FIREBASE_PROJECT_ID: sailor-buddy-dev
+          SAILOR_LISTEN_ADDR: :8080
+          FIREBASE_AUTH_EMULATOR_HOST: localhost:9099
+
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:8080/api/auth/me > /dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Start frontend dev server
+        working-directory: frontend
+        run: npm run dev &
+        env:
+          VITE_BACKEND_URL: http://localhost:8080
+          VITE_FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
+          VITE_FIREBASE_PROJECT_ID: sailor-buddy-dev
+
+      - name: Wait for frontend
+        run: |
+          for i in $(seq 1 30); do
+            curl -s http://localhost:5173/ > /dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npx playwright test
+        env:
+          FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
+          FIREBASE_PROJECT_ID: sailor-buddy-dev
+          API_BASE_URL: http://localhost:5173/api
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7

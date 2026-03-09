@@ -10,8 +10,42 @@ import (
 	"database/sql"
 )
 
+const createOrgYacht = `-- name: CreateOrgYacht :one
+INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
+`
+
+type CreateOrgYachtParams struct {
+	OwnerID        int64          `json:"owner_id"`
+	OrgID          sql.NullInt64  `json:"org_id"`
+	Name           string         `json:"name"`
+	RegistrationNo sql.NullString `json:"registration_no"`
+	YachtType      sql.NullString `json:"yacht_type"`
+}
+
+func (q *Queries) CreateOrgYacht(ctx context.Context, arg CreateOrgYachtParams) (Yacht, error) {
+	row := q.db.QueryRowContext(ctx, createOrgYacht,
+		arg.OwnerID,
+		arg.OrgID,
+		arg.Name,
+		arg.RegistrationNo,
+		arg.YachtType,
+	)
+	var i Yacht
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.RegistrationNo,
+		&i.YachtType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrgID,
+	)
+	return i, err
+}
+
 const createYacht = `-- name: CreateYacht :one
-INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at
+INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
 `
 
 type CreateYachtParams struct {
@@ -37,12 +71,27 @@ func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht
 		&i.YachtType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
+const deleteOrgYacht = `-- name: DeleteOrgYacht :exec
+DELETE FROM yachts WHERE id = $1 AND org_id = $2
+`
+
+type DeleteOrgYachtParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) DeleteOrgYacht(ctx context.Context, arg DeleteOrgYachtParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrgYacht, arg.ID, arg.OrgID)
+	return err
+}
+
 const deleteYacht = `-- name: DeleteYacht :exec
-DELETE FROM yachts WHERE id = $1 AND owner_id = $2
+DELETE FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type DeleteYachtParams struct {
@@ -55,8 +104,33 @@ func (q *Queries) DeleteYacht(ctx context.Context, arg DeleteYachtParams) error 
 	return err
 }
 
+const getOrgYacht = `-- name: GetOrgYacht :one
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND org_id = $2
+`
+
+type GetOrgYachtParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) GetOrgYacht(ctx context.Context, arg GetOrgYachtParams) (Yacht, error) {
+	row := q.db.QueryRowContext(ctx, getOrgYacht, arg.ID, arg.OrgID)
+	var i Yacht
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.RegistrationNo,
+		&i.YachtType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrgID,
+	)
+	return i, err
+}
+
 const getYacht = `-- name: GetYacht :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE id = $1 AND owner_id = $2
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type GetYachtParams struct {
@@ -75,12 +149,13 @@ func (q *Queries) GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, erro
 		&i.YachtType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
 const getYachtByName = `-- name: GetYachtByName :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE owner_id = $1 AND name = $2
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 `
 
 type GetYachtByNameParams struct {
@@ -99,12 +174,49 @@ func (q *Queries) GetYachtByName(ctx context.Context, arg GetYachtByNameParams) 
 		&i.YachtType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrgID,
 	)
 	return i, err
 }
 
+const listOrgYachts = `-- name: ListOrgYachts :many
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
+`
+
+func (q *Queries) ListOrgYachts(ctx context.Context, orgID sql.NullInt64) ([]Yacht, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgYachts, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Yacht
+	for rows.Next() {
+		var i Yacht
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.RegistrationNo,
+			&i.YachtType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrgID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listYachts = `-- name: ListYachts :many
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE owner_id = $1 ORDER BY name
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
 `
 
 func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error) {
@@ -124,6 +236,7 @@ func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error
 			&i.YachtType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrgID,
 		); err != nil {
 			return nil, err
 		}
@@ -138,8 +251,31 @@ func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error
 	return items, nil
 }
 
+const updateOrgYacht = `-- name: UpdateOrgYacht :exec
+UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND org_id = $5
+`
+
+type UpdateOrgYachtParams struct {
+	Name           string         `json:"name"`
+	RegistrationNo sql.NullString `json:"registration_no"`
+	YachtType      sql.NullString `json:"yacht_type"`
+	ID             int64          `json:"id"`
+	OrgID          sql.NullInt64  `json:"org_id"`
+}
+
+func (q *Queries) UpdateOrgYacht(ctx context.Context, arg UpdateOrgYachtParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrgYacht,
+		arg.Name,
+		arg.RegistrationNo,
+		arg.YachtType,
+		arg.ID,
+		arg.OrgID,
+	)
+	return err
+}
+
 const updateYacht = `-- name: UpdateYacht :exec
-UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5
+UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
 `
 
 type UpdateYachtParams struct {
