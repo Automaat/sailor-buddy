@@ -56,6 +56,18 @@ type Cruise struct {
 	Description   sql.NullString  `json:"description"`
 	CreatedAt     sql.NullTime    `json:"created_at"`
 	UpdatedAt     sql.NullTime    `json:"updated_at"`
+	EnrollToken   sql.NullString  `json:"enroll_token"`
+	MaxCrew       sql.NullInt64   `json:"max_crew"`
+}
+
+type CruiseEnrollment struct {
+	ID        int64          `json:"id"`
+	CruiseID  int64          `json:"cruise_id"`
+	UserID    int64          `json:"user_id"`
+	Note      sql.NullString `json:"note"`
+	Status    string         `json:"status"`
+	CreatedAt sql.NullTime   `json:"created_at"`
+	UpdatedAt sql.NullTime   `json:"updated_at"`
 }
 
 type RefreshToken struct {

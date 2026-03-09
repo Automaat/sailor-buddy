@@ -30,6 +30,8 @@ export interface Cruise {
 	image_photo_url?: string;
 	image_route_url?: string;
 	description?: string;
+	max_crew?: number;
+	enroll_token?: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -91,6 +93,41 @@ export interface YearStats {
 
 export interface UploadResponse {
 	url: string;
+}
+
+export interface CruiseEnrollment {
+	id: number;
+	cruise_id: number;
+	user_id: number;
+	note?: string;
+	status: string;
+	created_at: string;
+	updated_at: string;
+	user_name?: string;
+	user_email?: string;
+}
+
+export interface PublicCruise {
+	id: number;
+	name: string;
+	year?: number;
+	embark_date?: string;
+	disembark_date?: string;
+	countries?: string;
+	start_port?: string;
+	end_port?: string;
+	description?: string;
+	max_crew?: number;
+	captain_name?: string;
+	image_photo_url?: string;
+}
+
+export interface EnrollPageData {
+	cruise: PublicCruise;
+	enrolled: boolean;
+	enrollment?: CruiseEnrollment;
+	accepted_count: number;
+	total_count: number;
 }
 
 export interface VoyageOpinion {

@@ -1,0 +1,13 @@
+ALTER TABLE cruises ADD COLUMN enroll_token TEXT UNIQUE;
+ALTER TABLE cruises ADD COLUMN max_crew BIGINT;
+
+CREATE TABLE cruise_enrollments (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    cruise_id BIGINT NOT NULL REFERENCES cruises(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(cruise_id, user_id)
+);

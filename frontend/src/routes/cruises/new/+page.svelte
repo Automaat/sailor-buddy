@@ -27,6 +27,7 @@
 		tidal_waters: false,
 		cost_total: 0,
 		cost_per_person: 0,
+		max_crew: 0,
 		description: ''
 	});
 
@@ -233,6 +234,20 @@
 					step="0.01"
 					bind:value={form.cost_per_person}
 					class="w-full rounded-lg border px-3 py-2"
+				/>
+			</div>
+		</div>
+
+		<div class="grid grid-cols-2 gap-4">
+			<div>
+				<label for="max_crew" class="mb-1 block text-sm font-medium">Max Crew</label>
+				<input
+					id="max_crew"
+					type="number"
+					bind:value={form.max_crew}
+					class="w-full rounded-lg border px-3 py-2"
+					min="0"
+					placeholder="0 = unlimited"
 				/>
 			</div>
 		</div>

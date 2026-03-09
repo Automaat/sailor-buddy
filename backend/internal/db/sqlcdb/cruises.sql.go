@@ -10,13 +10,28 @@ import (
 	"database/sql"
 )
 
+const clearCruiseEnrollToken = `-- name: ClearCruiseEnrollToken :exec
+UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_id = $2
+`
+
+type ClearCruiseEnrollTokenParams struct {
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
+}
+
+func (q *Queries) ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnrollTokenParams) error {
+	_, err := q.db.ExecContext(ctx, clearCruiseEnrollToken, arg.ID, arg.OwnerID)
+	return err
+}
+
 const createCruise = `-- name: CreateCruise :one
 INSERT INTO cruises (
     owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
     captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at
+    image_logo_url, image_photo_url, image_route_url, description, max_crew
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew
 `
 
 type CreateCruiseParams struct {
@@ -43,6 +58,7 @@ type CreateCruiseParams struct {
 	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
 	ImageRouteUrl sql.NullString  `json:"image_route_url"`
 	Description   sql.NullString  `json:"description"`
+	MaxCrew       sql.NullInt64   `json:"max_crew"`
 }
 
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
@@ -70,6 +86,7 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		arg.ImagePhotoUrl,
 		arg.ImageRouteUrl,
 		arg.Description,
+		arg.MaxCrew,
 	)
 	var i Cruise
 	err := row.Scan(
@@ -99,6 +116,8 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
 	)
 	return i, err
 }
@@ -118,7 +137,7 @@ func (q *Queries) DeleteCruise(ctx context.Context, arg DeleteCruiseParams) erro
 }
 
 const getCruise = `-- name: GetCruise :one
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at FROM cruises WHERE id = $1 AND owner_id = $2
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew FROM cruises WHERE id = $1 AND owner_id = $2
 `
 
 type GetCruiseParams struct {
@@ -156,6 +175,8 @@ func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, e
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
 	)
 	return i, err
 }
@@ -242,7 +263,7 @@ func (q *Queries) GetDashboardStats(ctx context.Context, ownerID int64) (GetDash
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at FROM cruises WHERE owner_id = $1 ORDER BY year DESC, embark_date DESC
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew FROM cruises WHERE owner_id = $1 ORDER BY year DESC, embark_date DESC
 `
 
 func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, error) {
@@ -281,6 +302,8 @@ func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, err
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EnrollToken,
+			&i.MaxCrew,
 		); err != nil {
 			return nil, err
 		}
@@ -295,6 +318,22 @@ func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, err
 	return items, nil
 }
 
+const setCruiseEnrollToken = `-- name: SetCruiseEnrollToken :exec
+UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
+WHERE id = $2 AND owner_id = $3
+`
+
+type SetCruiseEnrollTokenParams struct {
+	EnrollToken sql.NullString `json:"enroll_token"`
+	ID          int64          `json:"id"`
+	OwnerID     int64          `json:"owner_id"`
+}
+
+func (q *Queries) SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error {
+	_, err := q.db.ExecContext(ctx, setCruiseEnrollToken, arg.EnrollToken, arg.ID, arg.OwnerID)
+	return err
+}
+
 const updateCruise = `-- name: UpdateCruise :exec
 UPDATE cruises SET
     name = $1, year = $2, embark_date = $3, disembark_date = $4, countries = $5,
@@ -302,8 +341,8 @@ UPDATE cruises SET
     hours_over_6bf = $11, miles = $12, days = $13, captain_name = $14, yacht_id = $15,
     tidal_waters = $16, cost_total = $17, cost_per_person = $18,
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $23 AND owner_id = $24
+    max_crew = $23, updated_at = CURRENT_TIMESTAMP
+WHERE id = $24 AND owner_id = $25
 `
 
 type UpdateCruiseParams struct {
@@ -329,6 +368,7 @@ type UpdateCruiseParams struct {
 	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
 	ImageRouteUrl sql.NullString  `json:"image_route_url"`
 	Description   sql.NullString  `json:"description"`
+	MaxCrew       sql.NullInt64   `json:"max_crew"`
 	ID            int64           `json:"id"`
 	OwnerID       int64           `json:"owner_id"`
 }
@@ -357,6 +397,7 @@ func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) erro
 		arg.ImagePhotoUrl,
 		arg.ImageRouteUrl,
 		arg.Description,
+		arg.MaxCrew,
 		arg.ID,
 		arg.OwnerID,
 	)
