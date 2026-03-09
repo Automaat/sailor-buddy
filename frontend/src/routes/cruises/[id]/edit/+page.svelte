@@ -157,7 +157,7 @@
 					<input id="he" type="number" step="0.1" bind:value={form.hours_engine} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
-					<label for="h6" class="mb-1 block text-sm font-medium">Godziny &gt;6B</label>
+					<label for="h6" class="mb-1 block text-sm font-medium">Godziny &gt;6Bf</label>
 					<input id="h6" type="number" step="0.1" bind:value={form.hours_over_6bf} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>

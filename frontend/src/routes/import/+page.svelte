@@ -79,7 +79,7 @@
 			<div class="text-center">
 				<p class="mb-4 text-5xl">📥</p>
 				<p class="mb-4 text-[var(--text-muted)]">
-					Prześlij arkusz żeglarski (XLSX) aby zaimportować rejsy, szkolenia i dane załogi.
+					Prześlij arkusz żeglarski (XLSX), aby zaimportować rejsy, szkolenia i dane załogi.
 				</p>
 				<button
 					onclick={() => fileInput?.click()}

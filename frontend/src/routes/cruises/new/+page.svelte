@@ -177,7 +177,7 @@
 				/>
 			</div>
 			<div>
-				<label for="hours_6bf" class="mb-1 block text-sm font-medium">Godziny &gt;6B</label>
+				<label for="hours_6bf" class="mb-1 block text-sm font-medium">Godziny &gt;6Bf</label>
 				<input
 					id="hours_6bf"
 					type="number"

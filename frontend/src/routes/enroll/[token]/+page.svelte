@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import type { EnrollPageData } from '$lib/api/types';
+	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
@@ -12,13 +13,6 @@
 	let success = $state(false);
 
 	const token = $derived((page.params as Record<string, string>).token);
-
-	const statusLabels: Record<string, string> = {
-		pending: 'oczekujący',
-		accepted: 'zaakceptowany',
-		rejected: 'odrzucony',
-		waitlisted: 'lista rezerwowa'
-	};
 
 	onMount(async () => {
 		try {

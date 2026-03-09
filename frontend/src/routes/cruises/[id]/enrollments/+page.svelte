@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import type { CruiseEnrollment, Cruise } from '$lib/api/types';
+	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
@@ -43,13 +44,6 @@
 			console.error('Failed to delete enrollment:', err);
 		}
 	}
-
-	const statusLabels: Record<string, string> = {
-		pending: 'oczekujący',
-		accepted: 'zaakceptowany',
-		rejected: 'odrzucony',
-		waitlisted: 'lista rezerwowa'
-	};
 
 	const statusColors: Record<string, string> = {
 		pending: 'bg-yellow-100 text-yellow-800',

@@ -167,7 +167,7 @@
 				<div class="text-2xl font-bold text-[var(--navy)]">{cruise.days ?? 0}</div>
 			</div>
 			<div class="rounded-xl bg-white p-4 shadow-sm">
-				<div class="text-xs text-[var(--text-muted)]">Godziny &gt;6B</div>
+				<div class="text-xs text-[var(--text-muted)]">Godziny &gt;6Bf</div>
 				<div class="text-2xl font-bold">{cruise.hours_over_6bf ?? 0}</div>
 			</div>
 		</div>
