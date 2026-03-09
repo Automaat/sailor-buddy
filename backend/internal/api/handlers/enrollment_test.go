@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -185,7 +186,7 @@ func TestEnrollment_Enroll(t *testing.T) {
 				return testEnrollCruise(), nil
 			},
 			createCruiseEnrollmentFn: func(_ context.Context, _ sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
-				return sqlcdb.CruiseEnrollment{}, errDBEnroll
+				return sqlcdb.CruiseEnrollment{}, &pgconn.PgError{Code: "23505"}
 			},
 		}
 		r := enrollmentRouter(m)
@@ -197,11 +198,33 @@ func TestEnrollment_Enroll(t *testing.T) {
 			t.Fatalf("got %d, want 409", w.Code)
 		}
 	})
+
+	t.Run("generic db error on enroll", func(t *testing.T) {
+		m := &mockQuerier{
+			getCruiseByEnrollTokenFn: func(_ context.Context, _ sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
+				return testEnrollCruise(), nil
+			},
+			createCruiseEnrollmentFn: func(_ context.Context, _ sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
+				return sqlcdb.CruiseEnrollment{}, errDBEnroll
+			},
+		}
+		r := enrollmentRouter(m)
+		req := httptest.NewRequest(http.MethodPost, "/enroll/abc123", strings.NewReader(`{}`))
+		req = req.WithContext(userCtx(req.Context()))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", w.Code)
+		}
+	})
 }
 
 func TestEnrollment_GenerateToken(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
+			getCruiseFn: func(_ context.Context, _ sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{ID: 1}, nil
+			},
 			setCruiseEnrollTokenFn: func(_ context.Context, _ sqlcdb.SetCruiseEnrollTokenParams) error {
 				return nil
 			},
@@ -228,8 +251,43 @@ func TestEnrollment_GenerateToken(t *testing.T) {
 		}
 	})
 
-	t.Run("db error", func(t *testing.T) {
+	t.Run("cruise not found", func(t *testing.T) {
 		m := &mockQuerier{
+			getCruiseFn: func(_ context.Context, _ sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{}, sql.ErrNoRows
+			},
+		}
+		r := enrollmentRouter(m)
+		req := httptest.NewRequest(http.MethodPost, "/cruises/1/enroll-token", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want 404", w.Code)
+		}
+	})
+
+	t.Run("db error on cruise lookup", func(t *testing.T) {
+		m := &mockQuerier{
+			getCruiseFn: func(_ context.Context, _ sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{}, errDBEnroll
+			},
+		}
+		r := enrollmentRouter(m)
+		req := httptest.NewRequest(http.MethodPost, "/cruises/1/enroll-token", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", w.Code)
+		}
+	})
+
+	t.Run("db error on set token", func(t *testing.T) {
+		m := &mockQuerier{
+			getCruiseFn: func(_ context.Context, _ sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{ID: 1}, nil
+			},
 			setCruiseEnrollTokenFn: func(_ context.Context, _ sqlcdb.SetCruiseEnrollTokenParams) error {
 				return errDBEnroll
 			},

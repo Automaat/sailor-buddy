@@ -4,10 +4,13 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
@@ -38,7 +41,10 @@ func (h *EnrollmentHandler) GetCruiseByToken(w http.ResponseWriter, r *http.Requ
 		UserID:   user.UserID,
 	})
 
-	counts, _ := h.q.CountCruiseEnrollments(r.Context(), cruise.ID)
+	counts, err := h.q.CountCruiseEnrollments(r.Context(), cruise.ID)
+	if err != nil {
+		log.Printf("failed to count enrollments for cruise %d: %v", cruise.ID, err)
+	}
 
 	type response struct {
 		Cruise     any   `json:"cruise"`
@@ -91,7 +97,12 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		Note:     nullString(req.Note),
 	})
 	if err != nil {
-		respondError(w, http.StatusConflict, "already enrolled")
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			respondError(w, http.StatusConflict, "already enrolled")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to enroll")
 		return
 	}
 	respondJSON(w, http.StatusCreated, enrollment)
@@ -102,6 +113,15 @@ func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request
 	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+
+	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: cruiseID, OwnerID: user.UserID}); err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to get cruise")
 		return
 	}
 
