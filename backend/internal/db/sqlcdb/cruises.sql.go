@@ -10,6 +10,102 @@ import (
 	"database/sql"
 )
 
+const cancelCruise = `-- name: CancelCruise :one
+UPDATE cruises SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_id = $2 AND org_id IS NULL AND status = 'planned' RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
+`
+
+type CancelCruiseParams struct {
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
+}
+
+func (q *Queries) CancelCruise(ctx context.Context, arg CancelCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, cancelCruise, arg.ID, arg.OwnerID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const cancelOrgCruise = `-- name: CancelOrgCruise :one
+UPDATE cruises SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND org_id = $2 AND status = 'planned' RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
+`
+
+type CancelOrgCruiseParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) CancelOrgCruise(ctx context.Context, arg CancelOrgCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, cancelOrgCruise, arg.ID, arg.OrgID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+		&i.Status,
+	)
+	return i, err
+}
+
 const clearCruiseEnrollToken = `-- name: ClearCruiseEnrollToken :exec
 UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND owner_id = $2
@@ -25,13 +121,109 @@ func (q *Queries) ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnr
 	return err
 }
 
+const completeCruise = `-- name: CompleteCruise :one
+UPDATE cruises SET status = 'completed', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_id = $2 AND org_id IS NULL AND status = 'planned' RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
+`
+
+type CompleteCruiseParams struct {
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
+}
+
+func (q *Queries) CompleteCruise(ctx context.Context, arg CompleteCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, completeCruise, arg.ID, arg.OwnerID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const completeOrgCruise = `-- name: CompleteOrgCruise :one
+UPDATE cruises SET status = 'completed', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND org_id = $2 AND status = 'planned' RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
+`
+
+type CompleteOrgCruiseParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) CompleteOrgCruise(ctx context.Context, arg CompleteOrgCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, completeOrgCruise, arg.ID, arg.OrgID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+		&i.Status,
+	)
+	return i, err
+}
+
 const createCruise = `-- name: CreateCruise :one
 INSERT INTO cruises (
     owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
     captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description, max_crew
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id
+    image_logo_url, image_photo_url, image_route_url, description, max_crew, status
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
 `
 
 type CreateCruiseParams struct {
@@ -59,6 +251,7 @@ type CreateCruiseParams struct {
 	ImageRouteUrl sql.NullString  `json:"image_route_url"`
 	Description   sql.NullString  `json:"description"`
 	MaxCrew       sql.NullInt64   `json:"max_crew"`
+	Status        CruiseStatus    `json:"status"`
 }
 
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
@@ -87,6 +280,7 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		arg.ImageRouteUrl,
 		arg.Description,
 		arg.MaxCrew,
+		arg.Status,
 	)
 	var i Cruise
 	err := row.Scan(
@@ -119,6 +313,7 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.EnrollToken,
 		&i.MaxCrew,
 		&i.OrgID,
+		&i.Status,
 	)
 	return i, err
 }
@@ -128,8 +323,8 @@ INSERT INTO cruises (
     owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
     captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description, max_crew
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id
+    image_logo_url, image_photo_url, image_route_url, description, max_crew, status
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
 `
 
 type CreateOrgCruiseParams struct {
@@ -158,6 +353,7 @@ type CreateOrgCruiseParams struct {
 	ImageRouteUrl sql.NullString  `json:"image_route_url"`
 	Description   sql.NullString  `json:"description"`
 	MaxCrew       sql.NullInt64   `json:"max_crew"`
+	Status        CruiseStatus    `json:"status"`
 }
 
 func (q *Queries) CreateOrgCruise(ctx context.Context, arg CreateOrgCruiseParams) (Cruise, error) {
@@ -187,6 +383,7 @@ func (q *Queries) CreateOrgCruise(ctx context.Context, arg CreateOrgCruiseParams
 		arg.ImageRouteUrl,
 		arg.Description,
 		arg.MaxCrew,
+		arg.Status,
 	)
 	var i Cruise
 	err := row.Scan(
@@ -219,6 +416,7 @@ func (q *Queries) CreateOrgCruise(ctx context.Context, arg CreateOrgCruiseParams
 		&i.EnrollToken,
 		&i.MaxCrew,
 		&i.OrgID,
+		&i.Status,
 	)
 	return i, err
 }
@@ -252,7 +450,7 @@ func (q *Queries) DeleteOrgCruise(ctx context.Context, arg DeleteOrgCruiseParams
 }
 
 const getCruise = `-- name: GetCruise :one
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 `
 
 type GetCruiseParams struct {
@@ -293,8 +491,20 @@ func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, e
 		&i.EnrollToken,
 		&i.MaxCrew,
 		&i.OrgID,
+		&i.Status,
 	)
 	return i, err
+}
+
+const getCruiseStatus = `-- name: GetCruiseStatus :one
+SELECT status FROM cruises WHERE id = $1
+`
+
+func (q *Queries) GetCruiseStatus(ctx context.Context, id int64) (CruiseStatus, error) {
+	row := q.db.QueryRowContext(ctx, getCruiseStatus, id)
+	var status CruiseStatus
+	err := row.Scan(&status)
+	return status, err
 }
 
 const getCruisesByYear = `-- name: GetCruisesByYear :many
@@ -304,7 +514,7 @@ SELECT
     COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
     COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(days), 0)::BIGINT AS total_days
-FROM cruises WHERE owner_id = $1 AND org_id IS NULL GROUP BY year ORDER BY year
+FROM cruises WHERE owner_id = $1 AND org_id IS NULL AND status = 'completed' GROUP BY year ORDER BY year
 `
 
 type GetCruisesByYearRow struct {
@@ -352,7 +562,7 @@ SELECT
     COALESCE(SUM(days), 0)::BIGINT AS total_days,
     COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
     COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
-FROM cruises WHERE owner_id = $1 AND org_id IS NULL
+FROM cruises WHERE owner_id = $1 AND org_id IS NULL AND status = 'completed'
 `
 
 type GetDashboardStatsRow struct {
@@ -379,7 +589,7 @@ func (q *Queries) GetDashboardStats(ctx context.Context, ownerID int64) (GetDash
 }
 
 const getOrgCruise = `-- name: GetOrgCruise :one
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE id = $1 AND org_id = $2
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE id = $1 AND org_id = $2
 `
 
 type GetOrgCruiseParams struct {
@@ -420,6 +630,7 @@ func (q *Queries) GetOrgCruise(ctx context.Context, arg GetOrgCruiseParams) (Cru
 		&i.EnrollToken,
 		&i.MaxCrew,
 		&i.OrgID,
+		&i.Status,
 	)
 	return i, err
 }
@@ -431,7 +642,7 @@ SELECT
     COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
     COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(days), 0)::BIGINT AS total_days
-FROM cruises WHERE org_id = $1 GROUP BY year ORDER BY year
+FROM cruises WHERE org_id = $1 AND status = 'completed' GROUP BY year ORDER BY year
 `
 
 type GetOrgCruisesByYearRow struct {
@@ -479,7 +690,7 @@ SELECT
     COALESCE(SUM(days), 0)::BIGINT AS total_days,
     COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
     COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
-FROM cruises WHERE org_id = $1
+FROM cruises WHERE org_id = $1 AND status = 'completed'
 `
 
 type GetOrgDashboardStatsRow struct {
@@ -506,7 +717,7 @@ func (q *Queries) GetOrgDashboardStats(ctx context.Context, orgID sql.NullInt64)
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
 `
 
 func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, error) {
@@ -548,6 +759,7 @@ func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, err
 			&i.EnrollToken,
 			&i.MaxCrew,
 			&i.OrgID,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -563,7 +775,7 @@ func (q *Queries) ListCruises(ctx context.Context, ownerID int64) ([]Cruise, err
 }
 
 const listOrgCruises = `-- name: ListOrgCruises :many
-SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id FROM cruises WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
 `
 
 func (q *Queries) ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error) {
@@ -605,6 +817,7 @@ func (q *Queries) ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]Cr
 			&i.EnrollToken,
 			&i.MaxCrew,
 			&i.OrgID,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -617,6 +830,334 @@ func (q *Queries) ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]Cr
 		return nil, err
 	}
 	return items, nil
+}
+
+const listOrgTrips = `-- name: ListOrgTrips :many
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE org_id = $1 AND status = 'planned' ORDER BY embark_date ASC
+`
+
+func (q *Queries) ListOrgTrips(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgTrips, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Cruise
+	for rows.Next() {
+		var i Cruise
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Year,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.Countries,
+			&i.StartPort,
+			&i.EndPort,
+			&i.HoursTotal,
+			&i.HoursSail,
+			&i.HoursEngine,
+			&i.HoursOver6bf,
+			&i.Miles,
+			&i.Days,
+			&i.CaptainName,
+			&i.YachtID,
+			&i.TidalWaters,
+			&i.CostTotal,
+			&i.CostPerPerson,
+			&i.ImageLogoUrl,
+			&i.ImagePhotoUrl,
+			&i.ImageRouteUrl,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnrollToken,
+			&i.MaxCrew,
+			&i.OrgID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrgVoyages = `-- name: ListOrgVoyages :many
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE org_id = $1 AND status = 'completed' ORDER BY year DESC, embark_date DESC
+`
+
+func (q *Queries) ListOrgVoyages(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgVoyages, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Cruise
+	for rows.Next() {
+		var i Cruise
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Year,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.Countries,
+			&i.StartPort,
+			&i.EndPort,
+			&i.HoursTotal,
+			&i.HoursSail,
+			&i.HoursEngine,
+			&i.HoursOver6bf,
+			&i.Miles,
+			&i.Days,
+			&i.CaptainName,
+			&i.YachtID,
+			&i.TidalWaters,
+			&i.CostTotal,
+			&i.CostPerPerson,
+			&i.ImageLogoUrl,
+			&i.ImagePhotoUrl,
+			&i.ImageRouteUrl,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnrollToken,
+			&i.MaxCrew,
+			&i.OrgID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrips = `-- name: ListTrips :many
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE owner_id = $1 AND org_id IS NULL AND status = 'planned' ORDER BY embark_date ASC
+`
+
+func (q *Queries) ListTrips(ctx context.Context, ownerID int64) ([]Cruise, error) {
+	rows, err := q.db.QueryContext(ctx, listTrips, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Cruise
+	for rows.Next() {
+		var i Cruise
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Year,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.Countries,
+			&i.StartPort,
+			&i.EndPort,
+			&i.HoursTotal,
+			&i.HoursSail,
+			&i.HoursEngine,
+			&i.HoursOver6bf,
+			&i.Miles,
+			&i.Days,
+			&i.CaptainName,
+			&i.YachtID,
+			&i.TidalWaters,
+			&i.CostTotal,
+			&i.CostPerPerson,
+			&i.ImageLogoUrl,
+			&i.ImagePhotoUrl,
+			&i.ImageRouteUrl,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnrollToken,
+			&i.MaxCrew,
+			&i.OrgID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVoyages = `-- name: ListVoyages :many
+SELECT id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status FROM cruises WHERE owner_id = $1 AND org_id IS NULL AND status = 'completed' ORDER BY year DESC, embark_date DESC
+`
+
+func (q *Queries) ListVoyages(ctx context.Context, ownerID int64) ([]Cruise, error) {
+	rows, err := q.db.QueryContext(ctx, listVoyages, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Cruise
+	for rows.Next() {
+		var i Cruise
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Year,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.Countries,
+			&i.StartPort,
+			&i.EndPort,
+			&i.HoursTotal,
+			&i.HoursSail,
+			&i.HoursEngine,
+			&i.HoursOver6bf,
+			&i.Miles,
+			&i.Days,
+			&i.CaptainName,
+			&i.YachtID,
+			&i.TidalWaters,
+			&i.CostTotal,
+			&i.CostPerPerson,
+			&i.ImageLogoUrl,
+			&i.ImagePhotoUrl,
+			&i.ImageRouteUrl,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.EnrollToken,
+			&i.MaxCrew,
+			&i.OrgID,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reopenCruise = `-- name: ReopenCruise :one
+UPDATE cruises SET status = 'planned', updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_id = $2 AND org_id IS NULL AND status = 'completed' RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
+`
+
+type ReopenCruiseParams struct {
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
+}
+
+func (q *Queries) ReopenCruise(ctx context.Context, arg ReopenCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, reopenCruise, arg.ID, arg.OwnerID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const reopenOrgCruise = `-- name: ReopenOrgCruise :one
+UPDATE cruises SET status = 'planned', updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND org_id = $2 AND status = 'completed' RETURNING id, owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, enroll_token, max_crew, org_id, status
+`
+
+type ReopenOrgCruiseParams struct {
+	ID    int64         `json:"id"`
+	OrgID sql.NullInt64 `json:"org_id"`
+}
+
+func (q *Queries) ReopenOrgCruise(ctx context.Context, arg ReopenOrgCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, reopenOrgCruise, arg.ID, arg.OrgID)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EnrollToken,
+		&i.MaxCrew,
+		&i.OrgID,
+		&i.Status,
+	)
+	return i, err
 }
 
 const setCruiseEnrollToken = `-- name: SetCruiseEnrollToken :exec

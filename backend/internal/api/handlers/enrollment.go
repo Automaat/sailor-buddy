@@ -83,6 +83,12 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	status, err := h.q.GetCruiseStatus(r.Context(), cruise.ID)
+	if err == nil && status != sqlcdb.CruiseStatusPlanned {
+		respondError(w, http.StatusConflict, "enrollment closed: cruise is not planned")
+		return
+	}
+
 	user := middleware.GetUser(r.Context())
 
 	var req enrollRequest

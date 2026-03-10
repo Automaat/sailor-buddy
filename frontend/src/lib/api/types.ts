@@ -5,10 +5,13 @@ export interface User {
 	avatar_url?: string;
 }
 
+export type CruiseStatus = 'planned' | 'completed' | 'cancelled';
+
 export interface Cruise {
 	id: number;
 	owner_id: number;
 	name: string;
+	status: CruiseStatus;
 	year?: number;
 	embark_date?: string;
 	disembark_date?: string;
