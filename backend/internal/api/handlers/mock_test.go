@@ -51,6 +51,40 @@ type mockQuerier struct {
 	listCruiseEnrollmentsFn              func(ctx context.Context, arg sqlcdb.ListCruiseEnrollmentsParams) ([]sqlcdb.ListCruiseEnrollmentsRow, error)
 	updateEnrollmentStatusFn             func(ctx context.Context, arg sqlcdb.UpdateEnrollmentStatusParams) error
 	deleteCruiseEnrollmentFn             func(ctx context.Context, arg sqlcdb.DeleteCruiseEnrollmentParams) error
+	// org methods
+	listUserOrganizationsFn   func(ctx context.Context, userID int64) ([]sqlcdb.ListUserOrganizationsRow, error)
+	createOrganizationFn      func(ctx context.Context, arg sqlcdb.CreateOrganizationParams) (sqlcdb.Organization, error)
+	addOrgMemberFn            func(ctx context.Context, arg sqlcdb.AddOrgMemberParams) (sqlcdb.OrgMember, error)
+	getOrganizationBySlugFn   func(ctx context.Context, slug string) (sqlcdb.Organization, error)
+	updateOrganizationFn      func(ctx context.Context, arg sqlcdb.UpdateOrganizationParams) error
+	deleteOrganizationFn      func(ctx context.Context, id int64) error
+	listOrgMembersFn          func(ctx context.Context, orgID int64) ([]sqlcdb.ListOrgMembersRow, error)
+	updateOrgMemberRoleFn     func(ctx context.Context, arg sqlcdb.UpdateOrgMemberRoleParams) error
+	countOrgAdminsFn          func(ctx context.Context, orgID int64) (int64, error)
+	removeOrgMemberFn         func(ctx context.Context, arg sqlcdb.RemoveOrgMemberParams) error
+	createOrgInviteFn         func(ctx context.Context, arg sqlcdb.CreateOrgInviteParams) (sqlcdb.OrgInvite, error)
+	listOrgInvitesFn          func(ctx context.Context, orgID int64) ([]sqlcdb.ListOrgInvitesRow, error)
+	deleteOrgInviteFn         func(ctx context.Context, arg sqlcdb.DeleteOrgInviteParams) error
+	getOrgInviteByTokenFn     func(ctx context.Context, token string) (sqlcdb.GetOrgInviteByTokenRow, error)
+	incrementInviteUseCountFn func(ctx context.Context, id int64) (int64, error)
+	getOrgMembershipFn        func(ctx context.Context, arg sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error)
+	listOrgYachtsFn           func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.Yacht, error)
+	getOrgYachtFn             func(ctx context.Context, arg sqlcdb.GetOrgYachtParams) (sqlcdb.Yacht, error)
+	createOrgYachtFn          func(ctx context.Context, arg sqlcdb.CreateOrgYachtParams) (sqlcdb.Yacht, error)
+	updateOrgYachtFn          func(ctx context.Context, arg sqlcdb.UpdateOrgYachtParams) error
+	deleteOrgYachtFn          func(ctx context.Context, arg sqlcdb.DeleteOrgYachtParams) error
+	listOrgCruisesFn          func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.Cruise, error)
+	getOrgCruiseFn            func(ctx context.Context, arg sqlcdb.GetOrgCruiseParams) (sqlcdb.Cruise, error)
+	createOrgCruiseFn         func(ctx context.Context, arg sqlcdb.CreateOrgCruiseParams) (sqlcdb.Cruise, error)
+	updateOrgCruiseFn         func(ctx context.Context, arg sqlcdb.UpdateOrgCruiseParams) error
+	deleteOrgCruiseFn         func(ctx context.Context, arg sqlcdb.DeleteOrgCruiseParams) error
+	listOrgCrewMembersFn      func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.CrewMember, error)
+	getOrgCrewMemberFn        func(ctx context.Context, arg sqlcdb.GetOrgCrewMemberParams) (sqlcdb.CrewMember, error)
+	createOrgCrewMemberFn     func(ctx context.Context, arg sqlcdb.CreateOrgCrewMemberParams) (sqlcdb.CrewMember, error)
+	updateOrgCrewMemberFn     func(ctx context.Context, arg sqlcdb.UpdateOrgCrewMemberParams) error
+	deleteOrgCrewMemberFn     func(ctx context.Context, arg sqlcdb.DeleteOrgCrewMemberParams) error
+	getOrgDashboardStatsFn    func(ctx context.Context, orgID sql.NullInt64) (sqlcdb.GetOrgDashboardStatsRow, error)
+	getOrgCruisesByYearFn     func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.GetOrgCruisesByYearRow, error)
 }
 
 func (m *mockQuerier) ListCruises(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error) {
@@ -380,148 +414,253 @@ func (m *mockQuerier) UpdateEnrollmentStatus(ctx context.Context, arg sqlcdb.Upd
 	panic("unexpected call to UpdateEnrollmentStatus")
 }
 
-func (m *mockQuerier) AddOrgMember(context.Context, sqlcdb.AddOrgMemberParams) (sqlcdb.OrgMember, error) {
-	panic("unexpected call")
+func (m *mockQuerier) AddOrgMember(ctx context.Context, arg sqlcdb.AddOrgMemberParams) (sqlcdb.OrgMember, error) {
+	if m.addOrgMemberFn == nil {
+		panic("unexpected call to AddOrgMember")
+	}
+	return m.addOrgMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) CountOrgAdmins(context.Context, int64) (int64, error) {
-	panic("unexpected call")
+func (m *mockQuerier) CountOrgAdmins(ctx context.Context, orgID int64) (int64, error) {
+	if m.countOrgAdminsFn == nil {
+		panic("unexpected call to CountOrgAdmins")
+	}
+	return m.countOrgAdminsFn(ctx, orgID)
 }
 
-func (m *mockQuerier) CreateOrgCrewMember(context.Context, sqlcdb.CreateOrgCrewMemberParams) (sqlcdb.CrewMember, error) {
-	panic("unexpected call")
+func (m *mockQuerier) CreateOrgCrewMember(ctx context.Context, arg sqlcdb.CreateOrgCrewMemberParams) (sqlcdb.CrewMember, error) {
+	if m.createOrgCrewMemberFn == nil {
+		panic("unexpected call to CreateOrgCrewMember")
+	}
+	return m.createOrgCrewMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) CreateOrgCruise(context.Context, sqlcdb.CreateOrgCruiseParams) (sqlcdb.Cruise, error) {
-	panic("unexpected call")
+func (m *mockQuerier) CreateOrgCruise(ctx context.Context, arg sqlcdb.CreateOrgCruiseParams) (sqlcdb.Cruise, error) {
+	if m.createOrgCruiseFn == nil {
+		panic("unexpected call to CreateOrgCruise")
+	}
+	return m.createOrgCruiseFn(ctx, arg)
 }
 
-func (m *mockQuerier) CreateOrgInvite(context.Context, sqlcdb.CreateOrgInviteParams) (sqlcdb.OrgInvite, error) {
-	panic("unexpected call")
+func (m *mockQuerier) CreateOrgInvite(ctx context.Context, arg sqlcdb.CreateOrgInviteParams) (sqlcdb.OrgInvite, error) {
+	if m.createOrgInviteFn == nil {
+		panic("unexpected call to CreateOrgInvite")
+	}
+	return m.createOrgInviteFn(ctx, arg)
 }
 
-func (m *mockQuerier) CreateOrgYacht(context.Context, sqlcdb.CreateOrgYachtParams) (sqlcdb.Yacht, error) {
-	panic("unexpected call")
+func (m *mockQuerier) CreateOrgYacht(ctx context.Context, arg sqlcdb.CreateOrgYachtParams) (sqlcdb.Yacht, error) {
+	if m.createOrgYachtFn == nil {
+		panic("unexpected call to CreateOrgYacht")
+	}
+	return m.createOrgYachtFn(ctx, arg)
 }
 
-func (m *mockQuerier) CreateOrganization(context.Context, sqlcdb.CreateOrganizationParams) (sqlcdb.Organization, error) {
-	panic("unexpected call")
+func (m *mockQuerier) CreateOrganization(ctx context.Context, arg sqlcdb.CreateOrganizationParams) (sqlcdb.Organization, error) {
+	if m.createOrganizationFn == nil {
+		panic("unexpected call to CreateOrganization")
+	}
+	return m.createOrganizationFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteOrgCrewMember(context.Context, sqlcdb.DeleteOrgCrewMemberParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) DeleteOrgCrewMember(ctx context.Context, arg sqlcdb.DeleteOrgCrewMemberParams) error {
+	if m.deleteOrgCrewMemberFn == nil {
+		panic("unexpected call to DeleteOrgCrewMember")
+	}
+	return m.deleteOrgCrewMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteOrgCruise(context.Context, sqlcdb.DeleteOrgCruiseParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) DeleteOrgCruise(ctx context.Context, arg sqlcdb.DeleteOrgCruiseParams) error {
+	if m.deleteOrgCruiseFn == nil {
+		panic("unexpected call to DeleteOrgCruise")
+	}
+	return m.deleteOrgCruiseFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteOrgInvite(context.Context, sqlcdb.DeleteOrgInviteParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) DeleteOrgInvite(ctx context.Context, arg sqlcdb.DeleteOrgInviteParams) error {
+	if m.deleteOrgInviteFn == nil {
+		panic("unexpected call to DeleteOrgInvite")
+	}
+	return m.deleteOrgInviteFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteOrgYacht(context.Context, sqlcdb.DeleteOrgYachtParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) DeleteOrgYacht(ctx context.Context, arg sqlcdb.DeleteOrgYachtParams) error {
+	if m.deleteOrgYachtFn == nil {
+		panic("unexpected call to DeleteOrgYacht")
+	}
+	return m.deleteOrgYachtFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteOrganization(context.Context, int64) error {
-	panic("unexpected call")
+func (m *mockQuerier) DeleteOrganization(ctx context.Context, id int64) error {
+	if m.deleteOrganizationFn == nil {
+		panic("unexpected call to DeleteOrganization")
+	}
+	return m.deleteOrganizationFn(ctx, id)
 }
 
-func (m *mockQuerier) GetOrgCrewMember(context.Context, sqlcdb.GetOrgCrewMemberParams) (sqlcdb.CrewMember, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgCrewMember(ctx context.Context, arg sqlcdb.GetOrgCrewMemberParams) (sqlcdb.CrewMember, error) {
+	if m.getOrgCrewMemberFn == nil {
+		panic("unexpected call to GetOrgCrewMember")
+	}
+	return m.getOrgCrewMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) GetOrgCruise(context.Context, sqlcdb.GetOrgCruiseParams) (sqlcdb.Cruise, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgCruise(ctx context.Context, arg sqlcdb.GetOrgCruiseParams) (sqlcdb.Cruise, error) {
+	if m.getOrgCruiseFn == nil {
+		panic("unexpected call to GetOrgCruise")
+	}
+	return m.getOrgCruiseFn(ctx, arg)
 }
 
-func (m *mockQuerier) GetOrgCruisesByYear(context.Context, sql.NullInt64) ([]sqlcdb.GetOrgCruisesByYearRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgCruisesByYear(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.GetOrgCruisesByYearRow, error) {
+	if m.getOrgCruisesByYearFn == nil {
+		panic("unexpected call to GetOrgCruisesByYear")
+	}
+	return m.getOrgCruisesByYearFn(ctx, orgID)
 }
 
-func (m *mockQuerier) GetOrgDashboardStats(context.Context, sql.NullInt64) (sqlcdb.GetOrgDashboardStatsRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgDashboardStats(ctx context.Context, orgID sql.NullInt64) (sqlcdb.GetOrgDashboardStatsRow, error) {
+	if m.getOrgDashboardStatsFn == nil {
+		panic("unexpected call to GetOrgDashboardStats")
+	}
+	return m.getOrgDashboardStatsFn(ctx, orgID)
 }
 
-func (m *mockQuerier) GetOrgInviteByToken(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgInviteByToken(ctx context.Context, token string) (sqlcdb.GetOrgInviteByTokenRow, error) {
+	if m.getOrgInviteByTokenFn == nil {
+		panic("unexpected call to GetOrgInviteByToken")
+	}
+	return m.getOrgInviteByTokenFn(ctx, token)
 }
 
-func (m *mockQuerier) GetOrgMembership(context.Context, sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgMembership(ctx context.Context, arg sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error) {
+	if m.getOrgMembershipFn == nil {
+		panic("unexpected call to GetOrgMembership")
+	}
+	return m.getOrgMembershipFn(ctx, arg)
 }
 
 func (m *mockQuerier) GetOrgMembershipBySlug(context.Context, sqlcdb.GetOrgMembershipBySlugParams) (sqlcdb.OrgMember, error) {
 	panic("unexpected call")
 }
 
-func (m *mockQuerier) GetOrgYacht(context.Context, sqlcdb.GetOrgYachtParams) (sqlcdb.Yacht, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrgYacht(ctx context.Context, arg sqlcdb.GetOrgYachtParams) (sqlcdb.Yacht, error) {
+	if m.getOrgYachtFn == nil {
+		panic("unexpected call to GetOrgYacht")
+	}
+	return m.getOrgYachtFn(ctx, arg)
 }
 
 func (m *mockQuerier) GetOrganizationByID(context.Context, int64) (sqlcdb.Organization, error) {
 	panic("unexpected call")
 }
 
-func (m *mockQuerier) GetOrganizationBySlug(context.Context, string) (sqlcdb.Organization, error) {
-	panic("unexpected call")
+func (m *mockQuerier) GetOrganizationBySlug(ctx context.Context, slug string) (sqlcdb.Organization, error) {
+	if m.getOrganizationBySlugFn == nil {
+		panic("unexpected call to GetOrganizationBySlug")
+	}
+	return m.getOrganizationBySlugFn(ctx, slug)
 }
 
-func (m *mockQuerier) IncrementInviteUseCount(context.Context, int64) (int64, error) {
-	panic("unexpected call")
+func (m *mockQuerier) IncrementInviteUseCount(ctx context.Context, id int64) (int64, error) {
+	if m.incrementInviteUseCountFn == nil {
+		panic("unexpected call to IncrementInviteUseCount")
+	}
+	return m.incrementInviteUseCountFn(ctx, id)
 }
 
-func (m *mockQuerier) ListOrgCrewMembers(context.Context, sql.NullInt64) ([]sqlcdb.CrewMember, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListOrgCrewMembers(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.CrewMember, error) {
+	if m.listOrgCrewMembersFn == nil {
+		panic("unexpected call to ListOrgCrewMembers")
+	}
+	return m.listOrgCrewMembersFn(ctx, orgID)
 }
 
-func (m *mockQuerier) ListOrgCruises(context.Context, sql.NullInt64) ([]sqlcdb.Cruise, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.Cruise, error) {
+	if m.listOrgCruisesFn == nil {
+		panic("unexpected call to ListOrgCruises")
+	}
+	return m.listOrgCruisesFn(ctx, orgID)
 }
 
-func (m *mockQuerier) ListOrgInvites(context.Context, int64) ([]sqlcdb.ListOrgInvitesRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListOrgInvites(ctx context.Context, orgID int64) ([]sqlcdb.ListOrgInvitesRow, error) {
+	if m.listOrgInvitesFn == nil {
+		panic("unexpected call to ListOrgInvites")
+	}
+	return m.listOrgInvitesFn(ctx, orgID)
 }
 
-func (m *mockQuerier) ListOrgMembers(context.Context, int64) ([]sqlcdb.ListOrgMembersRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListOrgMembers(ctx context.Context, orgID int64) ([]sqlcdb.ListOrgMembersRow, error) {
+	if m.listOrgMembersFn == nil {
+		panic("unexpected call to ListOrgMembers")
+	}
+	return m.listOrgMembersFn(ctx, orgID)
 }
 
-func (m *mockQuerier) ListOrgYachts(context.Context, sql.NullInt64) ([]sqlcdb.Yacht, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListOrgYachts(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.Yacht, error) {
+	if m.listOrgYachtsFn == nil {
+		panic("unexpected call to ListOrgYachts")
+	}
+	return m.listOrgYachtsFn(ctx, orgID)
 }
 
-func (m *mockQuerier) ListUserOrganizations(context.Context, int64) ([]sqlcdb.ListUserOrganizationsRow, error) {
-	panic("unexpected call")
+func (m *mockQuerier) ListUserOrganizations(ctx context.Context, userID int64) ([]sqlcdb.ListUserOrganizationsRow, error) {
+	if m.listUserOrganizationsFn == nil {
+		panic("unexpected call to ListUserOrganizations")
+	}
+	return m.listUserOrganizationsFn(ctx, userID)
 }
 
-func (m *mockQuerier) RemoveOrgMember(context.Context, sqlcdb.RemoveOrgMemberParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) RemoveOrgMember(ctx context.Context, arg sqlcdb.RemoveOrgMemberParams) error {
+	if m.removeOrgMemberFn == nil {
+		panic("unexpected call to RemoveOrgMember")
+	}
+	return m.removeOrgMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateOrgCrewMember(context.Context, sqlcdb.UpdateOrgCrewMemberParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) UpdateOrgCrewMember(ctx context.Context, arg sqlcdb.UpdateOrgCrewMemberParams) error {
+	if m.updateOrgCrewMemberFn == nil {
+		panic("unexpected call to UpdateOrgCrewMember")
+	}
+	return m.updateOrgCrewMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateOrgCruise(context.Context, sqlcdb.UpdateOrgCruiseParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) UpdateOrgCruise(ctx context.Context, arg sqlcdb.UpdateOrgCruiseParams) error {
+	if m.updateOrgCruiseFn == nil {
+		panic("unexpected call to UpdateOrgCruise")
+	}
+	return m.updateOrgCruiseFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateOrgMemberRole(context.Context, sqlcdb.UpdateOrgMemberRoleParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) UpdateOrgMemberRole(ctx context.Context, arg sqlcdb.UpdateOrgMemberRoleParams) error {
+	if m.updateOrgMemberRoleFn == nil {
+		panic("unexpected call to UpdateOrgMemberRole")
+	}
+	return m.updateOrgMemberRoleFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateOrgYacht(context.Context, sqlcdb.UpdateOrgYachtParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) UpdateOrgYacht(ctx context.Context, arg sqlcdb.UpdateOrgYachtParams) error {
+	if m.updateOrgYachtFn == nil {
+		panic("unexpected call to UpdateOrgYacht")
+	}
+	return m.updateOrgYachtFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateOrganization(context.Context, sqlcdb.UpdateOrganizationParams) error {
-	panic("unexpected call")
+func (m *mockQuerier) UpdateOrganization(ctx context.Context, arg sqlcdb.UpdateOrganizationParams) error {
+	if m.updateOrganizationFn == nil {
+		panic("unexpected call to UpdateOrganization")
+	}
+	return m.updateOrganizationFn(ctx, arg)
 }
 
 func userCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, middleware.UserCtxKey, &auth.Claims{
 		UserID: 1, Email: "test@example.com", Name: "Test User",
+	})
+}
+
+func orgCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, middleware.OrgCtxKey, &middleware.OrgContext{
+		OrgID: 1, Slug: "test-org", Role: "admin",
 	})
 }
