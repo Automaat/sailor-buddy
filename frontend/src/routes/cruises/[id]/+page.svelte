@@ -28,13 +28,13 @@
 	onMount(async () => {
 		try {
 			const prefix = orgStore.apiPrefix();
-			[cruise, crew, opinions, allCrewMembers] = await Promise.all([
-				api.get<Cruise>(`${prefix}/cruises/${id}`),
-				api.get<CrewAssignment[]>(`${prefix}/cruises/${id}/crew`),
-				api.get<VoyageOpinion[]>(`${prefix}/cruises/${id}/opinions`),
-				api.get<CrewMember[]>(`${prefix}/crew`)
-			]);
+			cruise = await api.get<Cruise>(`${prefix}/cruises/${id}`);
 			enrollToken = cruise?.enroll_token ?? null;
+			[crew, opinions, allCrewMembers] = await Promise.all([
+				api.get<CrewAssignment[]>(`${prefix}/cruises/${id}/crew`).catch(() => []),
+				api.get<VoyageOpinion[]>(`${prefix}/cruises/${id}/opinions`).catch(() => []),
+				api.get<CrewMember[]>(`${prefix}/crew`).catch(() => [])
+			]);
 		} catch (err) {
 			console.error('Failed to load cruise:', err);
 		} finally {

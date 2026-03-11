@@ -66,13 +66,6 @@ test.describe.serial('Cruise Lifecycle', () => {
 		await page.getByLabel('Port docelowy').fill('Visby');
 		await page.getByLabel('Maks. załoga').fill('8');
 
-		// log all API requests for debugging
-		page.on('response', (r) => {
-			if (r.url().includes('/api/')) {
-				r.text().then((body) => console.log(`[API] ${r.request().method()} ${r.url()} → ${r.status()} ${body.substring(0, 200)}`));
-			}
-		});
-
 		await page.getByRole('button', { name: 'Utwórz rejs' }).click();
 
 		// should redirect to cruise detail
