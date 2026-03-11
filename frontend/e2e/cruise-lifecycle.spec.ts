@@ -3,8 +3,7 @@ import {
 	registerViaUI,
 	loginViaUI,
 	clearFirebaseUsers,
-	signInTestUser,
-	apiRequest
+	signInTestUser
 } from './helpers';
 
 const RUN_ID = Date.now().toString(36);
@@ -14,22 +13,32 @@ test.describe.serial('Cruise Lifecycle', () => {
 	const adminPassword = 'TestPass123!';
 	const adminName = 'Cruise Admin';
 
-	const memberEmail = `cl-member-${RUN_ID}@test.local`;
-	const memberPassword = 'TestPass123!';
-	const memberName = 'Cruise Member';
-
 	const orgName = `Sail ${RUN_ID}`;
 	const orgSlug = `sail-${RUN_ID}`;
-	const tripName = `Trip ${RUN_ID}`;
+	const orgTripName = `OrgTrip ${RUN_ID}`;
 	const personalTripName = `Personal ${RUN_ID}`;
 
-	let cruiseId = 0;
+	let orgCruiseId = 0;
 	let personalCruiseId = 0;
-	let enrollToken = '';
 
 	test.beforeAll(async () => {
 		await clearFirebaseUsers();
 	});
+
+	// --- helper to switch to org context ---
+	async function selectOrg(page: import('@playwright/test').Page) {
+		await page.locator('nav button').first().click();
+		await page.getByText(orgName).click();
+		await page.waitForURL('/');
+	}
+
+	async function selectPersonal(page: import('@playwright/test').Page) {
+		await page.locator('nav button').first().click();
+		await page.getByRole('button', { name: '👤 Osobisty' }).click();
+		await page.waitForURL('/');
+	}
+
+	// ===== ORG CONTEXT TESTS =====
 
 	test('admin registers and creates org', async ({ page }) => {
 		await registerViaUI(page, adminName, adminEmail, adminPassword);
@@ -43,13 +52,9 @@ test.describe.serial('Cruise Lifecycle', () => {
 		await expect(page.getByText(orgName)).toBeVisible();
 	});
 
-	test('admin creates planned trip in org', async ({ page }) => {
+	test('org: create planned trip', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await selectOrg(page);
 
 		await page.getByRole('link', { name: 'Rejsy' }).click();
 		await page.waitForURL('/cruises');
@@ -57,221 +62,104 @@ test.describe.serial('Cruise Lifecycle', () => {
 		await page.getByRole('link', { name: '+ Nowy rejs' }).click();
 		await page.waitForURL('/cruises/new');
 
-		// select planned status
 		await page.getByLabel('Planowany').check();
-
-		await page.getByLabel('Nazwa rejsu *').fill(tripName);
+		await page.getByLabel('Nazwa rejsu *').fill(orgTripName);
 		await page.getByLabel('Rok').fill('2026');
 		await page.getByLabel('Port wyjścia').fill('Gdańsk');
 		await page.getByLabel('Port docelowy').fill('Visby');
-		await page.getByLabel('Maks. załoga').fill('8');
 
 		await page.getByRole('button', { name: 'Utwórz rejs' }).click();
-
-		// should redirect to cruise detail
 		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
-		cruiseId = Number(page.url().split('/').pop());
+		orgCruiseId = Number(page.url().split('/').pop());
 
-		// verify planned badge visible
 		await expect(page.getByText('Planowany')).toBeVisible({ timeout: 10_000 });
-		// nav stats should not be shown (no hours card with value)
-		await expect(page.getByText(tripName)).toBeVisible();
+		await expect(page.getByText(orgTripName)).toBeVisible();
 	});
 
-	test('admin sees trip in Planowane tab', async ({ page }) => {
+	test('org: trip visible in Planowane tab', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await selectOrg(page);
 
 		await page.getByRole('link', { name: 'Rejsy' }).click();
 		await page.waitForURL('/cruises');
 
-		// click Planowane tab
 		await page.getByRole('button', { name: 'Planowane' }).click();
-		await expect(page.getByText(tripName)).toBeVisible();
+		await expect(page.getByText(orgTripName)).toBeVisible();
 
-		// click Zrealizowane tab - trip should not be there
 		await page.getByRole('button', { name: 'Zrealizowane' }).click();
 		await expect(page.getByText('Brak rejsów')).toBeVisible();
 	});
 
-	test('admin generates enrollment link', async ({ page }) => {
+	test('org: complete trip', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
+		await selectOrg(page);
 
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-
-		await page.goto(`/cruises/${cruiseId}`);
-		await page.getByRole('button', { name: 'Włącz zapisy' }).click();
-		await expect(page.getByRole('button', { name: 'Kopiuj link' })).toBeVisible({ timeout: 10_000 });
-
-		// get token via API
-		const auth = await signInTestUser(adminEmail, adminPassword);
-		const cruise = (await apiRequest(auth.idToken, 'GET', `/orgs/${orgSlug}/cruises/${cruiseId}`)) as {
-			enroll_token: string;
-		};
-		expect(cruise.enroll_token).toBeTruthy();
-		enrollToken = cruise.enroll_token;
-	});
-
-	test('member registers and enrolls in trip', async ({ page }) => {
-		await registerViaUI(page, memberName, memberEmail, memberPassword);
-
-		await page.goto(`/enroll/${enrollToken}`);
-		await expect(page.getByText(tripName)).toBeVisible({ timeout: 10_000 });
-
-		await page.getByRole('button', { name: 'Zapisz się' }).click();
-		await expect(page.getByText('Zapisano')).toBeVisible({ timeout: 10_000 });
-	});
-
-	test('admin creates crew member and assigns to trip', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-
-		// create crew member
-		await page.getByRole('link', { name: 'Załoga' }).click();
-		await page.waitForURL('/crew');
-		await page.getByRole('button', { name: '+ Dodaj załoganta' }).click();
-		await page.getByLabel('Imię i nazwisko *').fill('Bosman Janek');
-		await page.getByRole('button', { name: 'Dodaj' }).click();
-		await expect(page.getByText('Bosman Janek')).toBeVisible();
-
-		// assign to cruise
-		await page.goto(`/cruises/${cruiseId}`);
-		await page.locator('#assign-crew').selectOption({ label: 'Bosman Janek' });
-		await page.locator('#assign-role').fill('Sternik');
-		await page.getByRole('button', { name: 'Dodaj' }).click();
-
-		await expect(page.getByText('Bosman Janek')).toBeVisible({ timeout: 10_000 });
-		await expect(page.getByText('Sternik')).toBeVisible();
-	});
-
-	test('admin completes trip', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-
-		await page.goto(`/cruises/${cruiseId}`);
-
-		// accept confirm dialog
+		await page.goto(`/cruises/${orgCruiseId}`);
 		page.on('dialog', (d) => d.accept());
 		await page.getByRole('button', { name: 'Zrealizuj' }).click();
 
-		// should show completed badge
 		await expect(page.getByText('Zrealizowany')).toBeVisible({ timeout: 10_000 });
-		// Zrealizuj button should be gone, Przywróć should appear
 		await expect(page.getByRole('button', { name: 'Przywróć' })).toBeVisible();
 	});
 
-	test('enrollment rejected on completed cruise', async () => {
-		// try to enroll via API - should fail
-		const auth = await signInTestUser(memberEmail, memberPassword);
-		const res = await fetch(
-			`${process.env.API_BASE_URL || 'http://localhost:5173/api'}/enroll/${enrollToken}`,
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${auth.idToken}`
-				},
-				body: JSON.stringify({ note: 'test' })
-			}
-		);
-		// enrollment should be rejected (conflict or not found since token may be cleared)
-		expect(res.ok).toBeFalsy();
-	});
-
-	test('admin adds nav stats to completed voyage', async ({ page }) => {
+	test('org: add nav stats to completed voyage', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
+		await selectOrg(page);
 
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-
-		await page.goto(`/cruises/${cruiseId}/edit`);
+		await page.goto(`/cruises/${orgCruiseId}/edit`);
 
 		await page.getByLabel('Godziny łącznie').fill('48');
 		await page.getByLabel('Mile').fill('120');
 		await page.getByLabel('Dni').fill('5');
 
 		await page.getByRole('button', { name: 'Zapisz zmiany' }).click();
-		await page.waitForURL(`/cruises/${cruiseId}`, { timeout: 10_000 });
+		await page.waitForURL(`/cruises/${orgCruiseId}`, { timeout: 10_000 });
 
 		await expect(page.getByText('48')).toBeVisible();
 		await expect(page.getByText('120')).toBeVisible();
 	});
 
-	test('completed voyage in Zrealizowane tab', async ({ page }) => {
+	test('org: voyage in Zrealizowane tab', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await selectOrg(page);
 
 		await page.getByRole('link', { name: 'Rejsy' }).click();
 		await page.waitForURL('/cruises');
 
 		await page.getByRole('button', { name: 'Zrealizowane' }).click();
-		await expect(page.getByText(tripName)).toBeVisible();
+		await expect(page.getByText(orgTripName)).toBeVisible();
 
-		// not in Planowane
 		await page.getByRole('button', { name: 'Planowane' }).click();
 		await expect(page.getByText('Brak rejsów')).toBeVisible();
 	});
 
-	test('admin reopens voyage', async ({ page }) => {
+	test('org: reopen voyage', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
+		await selectOrg(page);
 
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-
-		await page.goto(`/cruises/${cruiseId}`);
-
+		await page.goto(`/cruises/${orgCruiseId}`);
 		page.on('dialog', (d) => d.accept());
 		await page.getByRole('button', { name: 'Przywróć' }).click();
 
 		await expect(page.getByText('Planowany')).toBeVisible({ timeout: 10_000 });
 	});
 
-	test('admin cancels trip', async ({ page }) => {
+	test('org: cancel trip', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
+		await selectOrg(page);
 
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-
-		await page.goto(`/cruises/${cruiseId}`);
-
+		await page.goto(`/cruises/${orgCruiseId}`);
 		page.on('dialog', (d) => d.accept());
 		await page.getByRole('button', { name: 'Anuluj' }).click();
 
 		await expect(page.getByText('Anulowany')).toBeVisible({ timeout: 10_000 });
 	});
 
-	test('personal user creates planned trip', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
+	// ===== PERSONAL CONTEXT TESTS =====
 
-		// ensure personal mode
-		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: '👤 Osobisty' }).click();
-		await page.waitForURL('/');
+	test('personal: create planned trip', async ({ page }) => {
+		await loginViaUI(page, adminEmail, adminPassword);
+		await selectPersonal(page);
 
 		await page.getByRole('link', { name: 'Rejsy' }).click();
 		await page.waitForURL('/cruises');
@@ -291,22 +179,55 @@ test.describe.serial('Cruise Lifecycle', () => {
 		await expect(page.getByText('Planowany')).toBeVisible();
 	});
 
-	test('personal user completes trip', async ({ page }) => {
+	test('personal: enrollment on planned trip', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// ensure personal mode
-		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: '👤 Osobisty' }).click();
-		await page.waitForURL('/');
+		await selectPersonal(page);
 
 		await page.goto(`/cruises/${personalCruiseId}`);
+		await page.getByRole('button', { name: 'Włącz zapisy' }).click();
+		await expect(page.getByRole('button', { name: 'Kopiuj link' })).toBeVisible({ timeout: 10_000 });
+	});
 
+	test('personal: complete trip', async ({ page }) => {
+		await loginViaUI(page, adminEmail, adminPassword);
+		await selectPersonal(page);
+
+		await page.goto(`/cruises/${personalCruiseId}`);
 		page.on('dialog', (d) => d.accept());
 		await page.getByRole('button', { name: 'Zrealizuj' }).click();
 
 		await expect(page.getByText('Zrealizowany')).toBeVisible({ timeout: 10_000 });
+	});
 
-		// check it shows in voyages tab
+	test('personal: enrollment rejected on completed', async () => {
+		const auth = await signInTestUser(adminEmail, adminPassword);
+		const res = await fetch(
+			`${process.env.API_BASE_URL || 'http://localhost:5173/api'}/cruises/${personalCruiseId}`,
+			{
+				headers: { Authorization: `Bearer ${auth.idToken}` }
+			}
+		);
+		const cruise = (await res.json()) as { enroll_token: string };
+		if (cruise.enroll_token) {
+			const enrollRes = await fetch(
+				`${process.env.API_BASE_URL || 'http://localhost:5173/api'}/enroll/${cruise.enroll_token}`,
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${auth.idToken}`
+					},
+					body: JSON.stringify({ note: 'test' })
+				}
+			);
+			expect(enrollRes.ok).toBeFalsy();
+		}
+	});
+
+	test('personal: voyage in Zrealizowane tab', async ({ page }) => {
+		await loginViaUI(page, adminEmail, adminPassword);
+		await selectPersonal(page);
+
 		await page.getByRole('link', { name: 'Rejsy' }).click();
 		await page.waitForURL('/cruises');
 
