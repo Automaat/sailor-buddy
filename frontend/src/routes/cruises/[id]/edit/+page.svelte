@@ -80,7 +80,11 @@
 		saving = true;
 		error = '';
 		try {
-			const payload = { ...form, tidal_waters: form.tidal_waters ? 1 : 0 };
+			const payload = {
+			...form,
+			tidal_waters: form.tidal_waters ? 1 : 0,
+			yacht_id: form.yacht_id || undefined
+		};
 		await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, payload);
 			goto(`/cruises/${id}`);
 		} catch (err) {

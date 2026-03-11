@@ -42,7 +42,11 @@
 		loading = true;
 		error = '';
 		try {
-			const payload = { ...form, tidal_waters: form.tidal_waters ? 1 : 0 };
+			const payload = {
+				...form,
+				tidal_waters: form.tidal_waters ? 1 : 0,
+				yacht_id: form.yacht_id || undefined
+			};
 			const cruise = await api.post<{ id: number }>(`${orgStore.apiPrefix()}/cruises`, payload);
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {

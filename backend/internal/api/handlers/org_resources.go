@@ -211,7 +211,7 @@ func (h *OrgCruiseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Status:        parseCruiseStatus(req.Status),
 	})
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create cruise: "+err.Error())
+		respondError(w, http.StatusInternalServerError, "failed to create cruise")
 		return
 	}
 	respondJSON(w, http.StatusCreated, cruise)
