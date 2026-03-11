@@ -42,7 +42,8 @@
 		loading = true;
 		error = '';
 		try {
-			const cruise = await api.post<{ id: number }>(`${orgStore.apiPrefix()}/cruises`, form);
+			const payload = { ...form, tidal_waters: form.tidal_waters ? 1 : 0 };
+			const cruise = await api.post<{ id: number }>(`${orgStore.apiPrefix()}/cruises`, payload);
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć rejsu';

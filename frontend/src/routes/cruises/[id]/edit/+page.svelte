@@ -80,7 +80,8 @@
 		saving = true;
 		error = '';
 		try {
-			await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, form);
+			const payload = { ...form, tidal_waters: form.tidal_waters ? 1 : 0 };
+		await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, payload);
 			goto(`/cruises/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
