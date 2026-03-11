@@ -70,6 +70,8 @@ test.describe.serial('Cruise Lifecycle', () => {
 		const responsePromise = page.waitForResponse((r) => r.url().includes('/cruises') && r.request().method() === 'POST');
 		await page.getByRole('button', { name: 'Utwórz rejs' }).click();
 		const response = await responsePromise;
+		console.log('Create cruise URL:', response.url());
+		console.log('Create cruise request body:', response.request().postData());
 		console.log('Create cruise response:', response.status(), await response.text());
 		expect(response.ok()).toBeTruthy();
 
