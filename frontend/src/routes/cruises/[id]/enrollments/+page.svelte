@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { CruiseEnrollment, Cruise } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
@@ -14,8 +15,8 @@
 	onMount(async () => {
 		try {
 			[cruise, enrollments] = await Promise.all([
-				api.get<Cruise>(`/cruises/${id}`),
-				api.get<CruiseEnrollment[]>(`/cruises/${id}/enrollments`)
+				api.get<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}`),
+				api.get<CruiseEnrollment[]>(`${orgStore.apiPrefix()}/cruises/${id}/enrollments`)
 			]);
 		} catch (err) {
 			console.error('Failed to load enrollments:', err);
@@ -26,7 +27,7 @@
 
 	async function updateStatus(enrollmentId: number, status: string) {
 		try {
-			await api.put(`/cruises/${id}/enrollments/${enrollmentId}/status`, { status });
+			await api.put(`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}/status`, { status });
 			enrollments = enrollments.map((e) =>
 				e.id === enrollmentId ? { ...e, status } : e
 			);
@@ -38,7 +39,7 @@
 	async function deleteEnrollment(enrollmentId: number) {
 		if (!confirm('Usunąć ten zapis?')) return;
 		try {
-			await api.del(`/cruises/${id}/enrollments/${enrollmentId}`);
+			await api.del(`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}`);
 			enrollments = enrollments.filter((e) => e.id !== enrollmentId);
 		} catch (err) {
 			console.error('Failed to delete enrollment:', err);

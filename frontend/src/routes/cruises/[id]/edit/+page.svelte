@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
-	import type { Cruise, Yacht } from '$lib/api/types';
+	import { orgStore } from '$lib/stores/org.svelte';
+	import type { Cruise, Yacht, CruiseStatus } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-
-	import type { CruiseStatus } from '$lib/api/types';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -40,9 +39,10 @@
 
 	onMount(async () => {
 		try {
+			const prefix = orgStore.apiPrefix();
 			const [cruise, y] = await Promise.all([
-				api.get<Cruise>(`/cruises/${id}`),
-				api.get<Yacht[]>('/yachts')
+				api.get<Cruise>(`${prefix}/cruises/${id}`),
+				api.get<Yacht[]>(`${prefix}/yachts`)
 			]);
 			yachts = y;
 			cruiseStatus = cruise.status;
@@ -80,7 +80,7 @@
 		saving = true;
 		error = '';
 		try {
-			await api.put(`/cruises/${id}`, form);
+			await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, form);
 			goto(`/cruises/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';

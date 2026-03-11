@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Cruise, CrewAssignment, CrewMember, VoyageOpinion } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -26,11 +27,12 @@
 
 	onMount(async () => {
 		try {
+			const prefix = orgStore.apiPrefix();
 			[cruise, crew, opinions, allCrewMembers] = await Promise.all([
-				api.get<Cruise>(`/cruises/${id}`),
-				api.get<CrewAssignment[]>(`/cruises/${id}/crew`),
-				api.get<VoyageOpinion[]>(`/cruises/${id}/opinions`),
-				api.get<CrewMember[]>('/crew')
+				api.get<Cruise>(`${prefix}/cruises/${id}`),
+				api.get<CrewAssignment[]>(`${prefix}/cruises/${id}/crew`),
+				api.get<VoyageOpinion[]>(`${prefix}/cruises/${id}/opinions`),
+				api.get<CrewMember[]>(`${prefix}/crew`)
 			]);
 			enrollToken = cruise?.enroll_token ?? null;
 		} catch (err) {
@@ -42,7 +44,7 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
-		await api.del(`/cruises/${id}`);
+		await api.del(`${orgStore.apiPrefix()}/cruises/${id}`);
 		goto('/cruises');
 	}
 

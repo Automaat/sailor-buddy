@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import { goto } from '$app/navigation';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Yacht } from '$lib/api/types';
 	import { onMount } from 'svelte';
 
@@ -33,7 +34,7 @@
 	});
 
 	onMount(async () => {
-		yachts = await api.get<Yacht[]>('/yachts');
+		yachts = await api.get<Yacht[]>(`${orgStore.apiPrefix()}/yachts`);
 	});
 
 	async function handleSubmit(e: Event) {
@@ -41,7 +42,7 @@
 		loading = true;
 		error = '';
 		try {
-			const cruise = await api.post<{ id: number }>('/cruises', form);
+			const cruise = await api.post<{ id: number }>(`${orgStore.apiPrefix()}/cruises`, form);
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć rejsu';
