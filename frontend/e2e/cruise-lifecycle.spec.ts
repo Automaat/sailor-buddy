@@ -66,7 +66,12 @@ test.describe.serial('Cruise Lifecycle', () => {
 		await page.getByLabel('Port docelowy').fill('Visby');
 		await page.getByLabel('Maks. załoga').fill('8');
 
+		// capture API response for debugging
+		const responsePromise = page.waitForResponse((r) => r.url().includes('/cruises') && r.request().method() === 'POST');
 		await page.getByRole('button', { name: 'Utwórz rejs' }).click();
+		const response = await responsePromise;
+		console.log('Create cruise response:', response.status(), await response.text());
+		expect(response.ok()).toBeTruthy();
 
 		// should redirect to cruise detail
 		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
