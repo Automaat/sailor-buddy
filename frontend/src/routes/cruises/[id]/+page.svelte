@@ -129,7 +129,7 @@
 		if (!confirm(labels[action])) return;
 		transitioning = true;
 		try {
-			cruise = await api.post<Cruise>(`/cruises/${id}/${action}`);
+			cruise = await api.post<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}/${action}`);
 			enrollToken = cruise?.enroll_token ?? null;
 		} catch (err) {
 			console.error(`Failed to ${action} cruise:`, err);
