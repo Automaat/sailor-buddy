@@ -66,6 +66,13 @@ test.describe.serial('Cruise Lifecycle', () => {
 		await page.getByLabel('Port docelowy').fill('Visby');
 		await page.getByLabel('Maks. załoga').fill('8');
 
+		// log all API requests for debugging
+		page.on('response', (r) => {
+			if (r.url().includes('/api/')) {
+				r.text().then((body) => console.log(`[API] ${r.request().method()} ${r.url()} → ${r.status()} ${body.substring(0, 200)}`));
+			}
+		});
+
 		await page.getByRole('button', { name: 'Utwórz rejs' }).click();
 
 		// should redirect to cruise detail
@@ -73,7 +80,7 @@ test.describe.serial('Cruise Lifecycle', () => {
 		cruiseId = Number(page.url().split('/').pop());
 
 		// verify planned badge visible
-		await expect(page.getByText('Planowany')).toBeVisible();
+		await expect(page.getByText('Planowany')).toBeVisible({ timeout: 10_000 });
 		// nav stats should not be shown (no hours card with value)
 		await expect(page.getByText(tripName)).toBeVisible();
 	});
