@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import { goto } from '$app/navigation';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Yacht } from '$lib/api/types';
 	import { onMount } from 'svelte';
 
@@ -10,6 +11,7 @@
 
 	let form = $state({
 		name: '',
+		status: 'completed' as 'planned' | 'completed',
 		year: new Date().getFullYear(),
 		embark_date: '',
 		disembark_date: '',
@@ -32,7 +34,7 @@
 	});
 
 	onMount(async () => {
-		yachts = await api.get<Yacht[]>('/yachts');
+		yachts = await api.get<Yacht[]>(`${orgStore.apiPrefix()}/yachts`);
 	});
 
 	async function handleSubmit(e: Event) {
@@ -40,7 +42,12 @@
 		loading = true;
 		error = '';
 		try {
-			const cruise = await api.post<{ id: number }>('/cruises', form);
+			const payload = {
+				...form,
+				tidal_waters: form.tidal_waters ? 1 : 0,
+				yacht_id: form.yacht_id || undefined
+			};
+			const cruise = await api.post<{ id: number }>(`${orgStore.apiPrefix()}/cruises`, payload);
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć rejsu';
@@ -58,6 +65,17 @@
 	{/if}
 
 	<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
+		<div class="mb-4 flex gap-4">
+			<label class="flex items-center gap-2 text-sm font-medium">
+				<input type="radio" bind:group={form.status} value="completed" />
+				Zrealizowany
+			</label>
+			<label class="flex items-center gap-2 text-sm font-medium">
+				<input type="radio" bind:group={form.status} value="planned" />
+				Planowany
+			</label>
+		</div>
+
 		<div class="grid grid-cols-2 gap-4">
 			<div class="col-span-2">
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
@@ -143,75 +161,77 @@
 			</div>
 		</div>
 
-		<hr />
-		<h3 class="font-semibold text-[var(--navy)]">Statystyki nawigacyjne</h3>
-		<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-			<div>
-				<label for="hours_total" class="mb-1 block text-sm font-medium">Godziny łącznie</label>
-				<input
-					id="hours_total"
-					type="number"
-					step="0.1"
-					bind:value={form.hours_total}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
+		{#if form.status === 'completed'}
+			<hr />
+			<h3 class="font-semibold text-[var(--navy)]">Statystyki nawigacyjne</h3>
+			<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+				<div>
+					<label for="hours_total" class="mb-1 block text-sm font-medium">Godziny łącznie</label>
+					<input
+						id="hours_total"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_total}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+				</div>
+				<div>
+					<label for="hours_sail" class="mb-1 block text-sm font-medium">Godziny żagli</label>
+					<input
+						id="hours_sail"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_sail}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+				</div>
+				<div>
+					<label for="hours_engine" class="mb-1 block text-sm font-medium">Godziny silnika</label>
+					<input
+						id="hours_engine"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_engine}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+				</div>
+				<div>
+					<label for="hours_6bf" class="mb-1 block text-sm font-medium">Godziny &gt;6Bf</label>
+					<input
+						id="hours_6bf"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_over_6bf}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+				</div>
+				<div>
+					<label for="miles" class="mb-1 block text-sm font-medium">Mile</label>
+					<input
+						id="miles"
+						type="number"
+						step="0.1"
+						bind:value={form.miles}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+				</div>
+				<div>
+					<label for="days" class="mb-1 block text-sm font-medium">Dni</label>
+					<input
+						id="days"
+						type="number"
+						bind:value={form.days}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+				</div>
+				<div class="flex items-end">
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={form.tidal_waters} />
+						Wody pływowe
+					</label>
+				</div>
 			</div>
-			<div>
-				<label for="hours_sail" class="mb-1 block text-sm font-medium">Godziny żagli</label>
-				<input
-					id="hours_sail"
-					type="number"
-					step="0.1"
-					bind:value={form.hours_sail}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="hours_engine" class="mb-1 block text-sm font-medium">Godziny silnika</label>
-				<input
-					id="hours_engine"
-					type="number"
-					step="0.1"
-					bind:value={form.hours_engine}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="hours_6bf" class="mb-1 block text-sm font-medium">Godziny &gt;6Bf</label>
-				<input
-					id="hours_6bf"
-					type="number"
-					step="0.1"
-					bind:value={form.hours_over_6bf}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="miles" class="mb-1 block text-sm font-medium">Mile</label>
-				<input
-					id="miles"
-					type="number"
-					step="0.1"
-					bind:value={form.miles}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="days" class="mb-1 block text-sm font-medium">Dni</label>
-				<input
-					id="days"
-					type="number"
-					bind:value={form.days}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div class="flex items-end">
-				<label class="flex items-center gap-2 text-sm">
-					<input type="checkbox" bind:checked={form.tidal_waters} />
-					Wody pływowe
-				</label>
-			</div>
-		</div>
+		{/if}
 
 		<hr />
 		<h3 class="font-semibold text-[var(--navy)]">Koszty</h3>

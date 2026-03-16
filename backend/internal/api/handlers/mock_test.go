@@ -15,6 +15,12 @@ type mockQuerier struct {
 	createCruiseFn                       func(ctx context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error)
 	updateCruiseFn                       func(ctx context.Context, arg sqlcdb.UpdateCruiseParams) error
 	deleteCruiseFn                       func(ctx context.Context, arg sqlcdb.DeleteCruiseParams) error
+	listTripsFn                          func(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error)
+	listVoyagesFn                        func(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error)
+	completeCruiseFn                     func(ctx context.Context, arg sqlcdb.CompleteCruiseParams) (sqlcdb.Cruise, error)
+	reopenCruiseFn                       func(ctx context.Context, arg sqlcdb.ReopenCruiseParams) (sqlcdb.Cruise, error)
+	cancelCruiseFn                       func(ctx context.Context, arg sqlcdb.CancelCruiseParams) (sqlcdb.Cruise, error)
+	getCruiseStatusFn                    func(ctx context.Context, id int64) (sqlcdb.CruiseStatus, error)
 	listYachtsFn                         func(ctx context.Context, ownerID int64) ([]sqlcdb.Yacht, error)
 	getYachtFn                           func(ctx context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error)
 	createYachtFn                        func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
@@ -120,6 +126,48 @@ func (m *mockQuerier) DeleteCruise(ctx context.Context, arg sqlcdb.DeleteCruiseP
 		panic("unexpected call to DeleteCruise: deleteCruiseFn is nil")
 	}
 	return m.deleteCruiseFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListTrips(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error) {
+	if m.listTripsFn != nil {
+		return m.listTripsFn(ctx, ownerID)
+	}
+	panic("unexpected call to ListTrips")
+}
+
+func (m *mockQuerier) ListVoyages(ctx context.Context, ownerID int64) ([]sqlcdb.Cruise, error) {
+	if m.listVoyagesFn != nil {
+		return m.listVoyagesFn(ctx, ownerID)
+	}
+	panic("unexpected call to ListVoyages")
+}
+
+func (m *mockQuerier) CompleteCruise(ctx context.Context, arg sqlcdb.CompleteCruiseParams) (sqlcdb.Cruise, error) {
+	if m.completeCruiseFn != nil {
+		return m.completeCruiseFn(ctx, arg)
+	}
+	panic("unexpected call to CompleteCruise")
+}
+
+func (m *mockQuerier) ReopenCruise(ctx context.Context, arg sqlcdb.ReopenCruiseParams) (sqlcdb.Cruise, error) {
+	if m.reopenCruiseFn != nil {
+		return m.reopenCruiseFn(ctx, arg)
+	}
+	panic("unexpected call to ReopenCruise")
+}
+
+func (m *mockQuerier) CancelCruise(ctx context.Context, arg sqlcdb.CancelCruiseParams) (sqlcdb.Cruise, error) {
+	if m.cancelCruiseFn != nil {
+		return m.cancelCruiseFn(ctx, arg)
+	}
+	panic("unexpected call to CancelCruise")
+}
+
+func (m *mockQuerier) GetCruiseStatus(ctx context.Context, id int64) (sqlcdb.CruiseStatus, error) {
+	if m.getCruiseStatusFn != nil {
+		return m.getCruiseStatusFn(ctx, id)
+	}
+	panic("unexpected call to GetCruiseStatus")
 }
 
 func (m *mockQuerier) ListYachts(ctx context.Context, ownerID int64) ([]sqlcdb.Yacht, error) {
@@ -581,6 +629,26 @@ func (m *mockQuerier) ListOrgCruises(ctx context.Context, orgID sql.NullInt64) (
 		panic("unexpected call to ListOrgCruises")
 	}
 	return m.listOrgCruisesFn(ctx, orgID)
+}
+
+func (m *mockQuerier) ListOrgTrips(context.Context, sql.NullInt64) ([]sqlcdb.Cruise, error) {
+	panic("unexpected call")
+}
+
+func (m *mockQuerier) ListOrgVoyages(context.Context, sql.NullInt64) ([]sqlcdb.Cruise, error) {
+	panic("unexpected call")
+}
+
+func (m *mockQuerier) CompleteOrgCruise(context.Context, sqlcdb.CompleteOrgCruiseParams) (sqlcdb.Cruise, error) {
+	panic("unexpected call")
+}
+
+func (m *mockQuerier) ReopenOrgCruise(context.Context, sqlcdb.ReopenOrgCruiseParams) (sqlcdb.Cruise, error) {
+	panic("unexpected call")
+}
+
+func (m *mockQuerier) CancelOrgCruise(context.Context, sqlcdb.CancelOrgCruiseParams) (sqlcdb.Cruise, error) {
+	panic("unexpected call")
 }
 
 func (m *mockQuerier) ListOrgInvites(ctx context.Context, orgID int64) ([]sqlcdb.ListOrgInvitesRow, error) {

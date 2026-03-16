@@ -11,7 +11,11 @@ import (
 
 type Querier interface {
 	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
+	CancelCruise(ctx context.Context, arg CancelCruiseParams) (Cruise, error)
+	CancelOrgCruise(ctx context.Context, arg CancelOrgCruiseParams) (Cruise, error)
 	ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnrollTokenParams) error
+	CompleteCruise(ctx context.Context, arg CompleteCruiseParams) (Cruise, error)
+	CompleteOrgCruise(ctx context.Context, arg CompleteOrgCruiseParams) (Cruise, error)
 	CountCruiseEnrollments(ctx context.Context, cruiseID int64) (CountCruiseEnrollmentsRow, error)
 	CountOrgAdmins(ctx context.Context, orgID int64) (int64, error)
 	CreateCrewAssignment(ctx context.Context, arg CreateCrewAssignmentParams) (CrewAssignment, error)
@@ -46,6 +50,7 @@ type Querier interface {
 	GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error)
 	GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error)
 	GetCruiseByEnrollToken(ctx context.Context, enrollToken sql.NullString) (GetCruiseByEnrollTokenRow, error)
+	GetCruiseStatus(ctx context.Context, id int64) (CruiseStatus, error)
 	GetCruisesByYear(ctx context.Context, ownerID int64) ([]GetCruisesByYearRow, error)
 	GetDashboardStats(ctx context.Context, ownerID int64) (GetDashboardStatsRow, error)
 	GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberParams) (CrewMember, error)
@@ -77,11 +82,17 @@ type Querier interface {
 	ListOrgCruises(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error)
 	ListOrgInvites(ctx context.Context, orgID int64) ([]ListOrgInvitesRow, error)
 	ListOrgMembers(ctx context.Context, orgID int64) ([]ListOrgMembersRow, error)
+	ListOrgTrips(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error)
+	ListOrgVoyages(ctx context.Context, orgID sql.NullInt64) ([]Cruise, error)
 	ListOrgYachts(ctx context.Context, orgID sql.NullInt64) ([]Yacht, error)
 	ListTrainings(ctx context.Context, userID int64) ([]Training, error)
+	ListTrips(ctx context.Context, ownerID int64) ([]Cruise, error)
 	ListUserOrganizations(ctx context.Context, userID int64) ([]ListUserOrganizationsRow, error)
+	ListVoyages(ctx context.Context, ownerID int64) ([]Cruise, error)
 	ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error)
 	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
+	ReopenCruise(ctx context.Context, arg ReopenCruiseParams) (Cruise, error)
+	ReopenOrgCruise(ctx context.Context, arg ReopenOrgCruiseParams) (Cruise, error)
 	SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error
 	UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error
 	UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error

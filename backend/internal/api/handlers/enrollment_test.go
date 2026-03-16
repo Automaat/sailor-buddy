@@ -117,6 +117,9 @@ func TestEnrollment_Enroll(t *testing.T) {
 			getCruiseByEnrollTokenFn: func(_ context.Context, _ sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
 				return testEnrollCruise(), nil
 			},
+			getCruiseStatusFn: func(_ context.Context, _ int64) (sqlcdb.CruiseStatus, error) {
+				return sqlcdb.CruiseStatusPlanned, nil
+			},
 			createCruiseEnrollmentFn: func(_ context.Context, _ sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 				return sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 1, UserID: 1, Status: "pending"}, nil
 			},
@@ -129,6 +132,25 @@ func TestEnrollment_Enroll(t *testing.T) {
 		r.ServeHTTP(w, req)
 		if w.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("rejected on completed cruise", func(t *testing.T) {
+		m := &mockQuerier{
+			getCruiseByEnrollTokenFn: func(_ context.Context, _ sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
+				return testEnrollCruise(), nil
+			},
+			getCruiseStatusFn: func(_ context.Context, _ int64) (sqlcdb.CruiseStatus, error) {
+				return sqlcdb.CruiseStatusCompleted, nil
+			},
+		}
+		r := enrollmentRouter(m)
+		req := httptest.NewRequest(http.MethodPost, "/enroll/abc123", strings.NewReader(`{}`))
+		req = req.WithContext(userCtx(req.Context()))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusConflict {
+			t.Fatalf("got %d, want 409: %s", w.Code, w.Body.String())
 		}
 	})
 
@@ -169,6 +191,9 @@ func TestEnrollment_Enroll(t *testing.T) {
 			getCruiseByEnrollTokenFn: func(_ context.Context, _ sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
 				return testEnrollCruise(), nil
 			},
+			getCruiseStatusFn: func(_ context.Context, _ int64) (sqlcdb.CruiseStatus, error) {
+				return sqlcdb.CruiseStatusPlanned, nil
+			},
 		}
 		r := enrollmentRouter(m)
 		req := httptest.NewRequest(http.MethodPost, "/enroll/abc123", strings.NewReader(`not json`))
@@ -184,6 +209,9 @@ func TestEnrollment_Enroll(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseByEnrollTokenFn: func(_ context.Context, _ sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
 				return testEnrollCruise(), nil
+			},
+			getCruiseStatusFn: func(_ context.Context, _ int64) (sqlcdb.CruiseStatus, error) {
+				return sqlcdb.CruiseStatusPlanned, nil
 			},
 			createCruiseEnrollmentFn: func(_ context.Context, _ sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 				return sqlcdb.CruiseEnrollment{}, &pgconn.PgError{Code: "23505"}
@@ -203,6 +231,9 @@ func TestEnrollment_Enroll(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseByEnrollTokenFn: func(_ context.Context, _ sql.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
 				return testEnrollCruise(), nil
+			},
+			getCruiseStatusFn: func(_ context.Context, _ int64) (sqlcdb.CruiseStatus, error) {
+				return sqlcdb.CruiseStatusPlanned, nil
 			},
 			createCruiseEnrollmentFn: func(_ context.Context, _ sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 				return sqlcdb.CruiseEnrollment{}, errDBEnroll

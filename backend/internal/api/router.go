@@ -47,9 +47,14 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 				r.Get("/", enrollH.GetCruiseByToken)
 				r.Post("/", enrollH.Enroll)
 			})
+			r.Get("/trips", cruiseH.ListTrips)
+			r.Get("/voyages", cruiseH.ListVoyages)
 			r.Route("/cruises", func(r chi.Router) {
 				r.Get("/", cruiseH.List)
 				r.Post("/", cruiseH.Create)
+				r.Post("/{id}/complete", cruiseH.Complete)
+				r.Post("/{id}/reopen", cruiseH.Reopen)
+				r.Post("/{id}/cancel", cruiseH.Cancel)
 				r.Route("/{cruiseID}/crew", func(r chi.Router) {
 					r.Get("/", crewH.ListCruiseCrew)
 					r.Post("/", crewH.AssignCrew)
@@ -157,11 +162,16 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 
 					orgCruiseH := handlers.NewOrgCruiseHandler(q)
 					r.Get("/cruises", orgCruiseH.List)
+					r.Get("/trips", orgCruiseH.ListTrips)
+					r.Get("/voyages", orgCruiseH.ListVoyages)
 					r.Group(func(r chi.Router) {
 						r.Use(middleware.RequireOrgRole("admin"))
 						r.Post("/cruises", orgCruiseH.Create)
 						r.Put("/cruises/{id}", orgCruiseH.Update)
 						r.Delete("/cruises/{id}", orgCruiseH.Delete)
+						r.Post("/cruises/{id}/complete", orgCruiseH.Complete)
+						r.Post("/cruises/{id}/reopen", orgCruiseH.Reopen)
+						r.Post("/cruises/{id}/cancel", orgCruiseH.Cancel)
 					})
 					r.Get("/cruises/{id}", orgCruiseH.Get)
 
