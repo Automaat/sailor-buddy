@@ -96,7 +96,7 @@ func (q *Queries) GetCrewAssignmentByCruiseAndMember(ctx context.Context, arg Ge
 }
 
 const getCrewMemberCruises = `-- name: GetCrewMemberCruises :many
-SELECT c.id, c.owner_id, c.name, c.year, c.embark_date, c.disembark_date, c.countries, c.start_port, c.end_port, c.hours_total, c.hours_sail, c.hours_engine, c.hours_over_6bf, c.miles, c.days, c.captain_name, c.yacht_id, c.tidal_waters, c.cost_total, c.cost_per_person, c.image_logo_url, c.image_photo_url, c.image_route_url, c.description, c.created_at, c.updated_at, c.enroll_token, c.max_crew, c.org_id, ca.role
+SELECT c.id, c.owner_id, c.name, c.year, c.embark_date, c.disembark_date, c.countries, c.start_port, c.end_port, c.hours_total, c.hours_sail, c.hours_engine, c.hours_over_6bf, c.miles, c.days, c.captain_name, c.yacht_id, c.tidal_waters, c.cost_total, c.cost_per_person, c.image_logo_url, c.image_photo_url, c.image_route_url, c.description, c.created_at, c.updated_at, c.enroll_token, c.max_crew, c.org_id, c.status, ca.role
 FROM crew_assignments ca
 JOIN cruises c ON c.id = ca.cruise_id
 WHERE ca.crew_member_id = $1
@@ -133,6 +133,7 @@ type GetCrewMemberCruisesRow struct {
 	EnrollToken   sql.NullString  `json:"enroll_token"`
 	MaxCrew       sql.NullInt64   `json:"max_crew"`
 	OrgID         sql.NullInt64   `json:"org_id"`
+	Status        CruiseStatus    `json:"status"`
 	Role          string          `json:"role"`
 }
 
@@ -175,6 +176,7 @@ func (q *Queries) GetCrewMemberCruises(ctx context.Context, crewMemberID int64) 
 			&i.EnrollToken,
 			&i.MaxCrew,
 			&i.OrgID,
+			&i.Status,
 			&i.Role,
 		); err != nil {
 			return nil, err

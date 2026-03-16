@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Cruise, CrewAssignment, CrewMember, VoyageOpinion } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -26,13 +27,14 @@
 
 	onMount(async () => {
 		try {
-			[cruise, crew, opinions, allCrewMembers] = await Promise.all([
-				api.get<Cruise>(`/cruises/${id}`),
-				api.get<CrewAssignment[]>(`/cruises/${id}/crew`),
-				api.get<VoyageOpinion[]>(`/cruises/${id}/opinions`),
-				api.get<CrewMember[]>('/crew')
-			]);
+			const prefix = orgStore.apiPrefix();
+			cruise = await api.get<Cruise>(`${prefix}/cruises/${id}`);
 			enrollToken = cruise?.enroll_token ?? null;
+			[crew, opinions, allCrewMembers] = await Promise.all([
+				api.get<CrewAssignment[]>(`${prefix}/cruises/${id}/crew`).catch(() => []),
+				api.get<VoyageOpinion[]>(`${prefix}/cruises/${id}/opinions`).catch(() => []),
+				api.get<CrewMember[]>(`${prefix}/crew`).catch(() => [])
+			]);
 		} catch (err) {
 			console.error('Failed to load cruise:', err);
 		} finally {
@@ -42,7 +44,7 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
-		await api.del(`/cruises/${id}`);
+		await api.del(`${orgStore.apiPrefix()}/cruises/${id}`);
 		goto('/cruises');
 	}
 
@@ -115,6 +117,52 @@
 		await api.del(`/cruises/${id}/crew/${assignmentId}`);
 		crew = crew.filter((c) => c.id !== assignmentId);
 	}
+
+	let transitioning = $state(false);
+
+	async function transitionStatus(action: 'complete' | 'reopen' | 'cancel') {
+		const labels: Record<string, string> = {
+			complete: 'Oznaczyć jako zrealizowany?',
+			reopen: 'Przywrócić jako planowany?',
+			cancel: 'Anulować ten rejs?'
+		};
+		if (!confirm(labels[action])) return;
+		transitioning = true;
+		try {
+			cruise = await api.post<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}/${action}`);
+			enrollToken = cruise?.enroll_token ?? null;
+		} catch (err) {
+			console.error(`Failed to ${action} cruise:`, err);
+		} finally {
+			transitioning = false;
+		}
+	}
+
+	function statusBadge(status: string) {
+		switch (status) {
+			case 'planned':
+				return 'bg-blue-100 text-blue-700';
+			case 'completed':
+				return 'bg-green-100 text-green-700';
+			case 'cancelled':
+				return 'bg-gray-100 text-gray-500';
+			default:
+				return 'bg-gray-100 text-gray-500';
+		}
+	}
+
+	function statusLabel(status: string) {
+		switch (status) {
+			case 'planned':
+				return 'Planowany';
+			case 'completed':
+				return 'Zrealizowany';
+			case 'cancelled':
+				return 'Anulowany';
+			default:
+				return status;
+		}
+	}
 </script>
 
 {#if loading}
@@ -123,7 +171,12 @@
 	<div class="mx-auto max-w-4xl">
 		<div class="mb-6 flex items-center justify-between">
 			<div>
-				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
+				<div class="flex items-center gap-3">
+					<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
+					<span class="rounded-full px-2.5 py-1 text-xs font-medium {statusBadge(cruise.status)}">
+						{statusLabel(cruise.status)}
+					</span>
+				</div>
 				<p class="mt-1 text-[var(--text-muted)]">
 					{#if cruise.start_port && cruise.end_port}
 						{cruise.start_port} → {cruise.end_port}
@@ -133,6 +186,30 @@
 				</p>
 			</div>
 			<div class="flex gap-2">
+				{#if cruise.status === 'planned'}
+					<button
+						onclick={() => transitionStatus('complete')}
+						disabled={transitioning}
+						class="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+					>
+						Zrealizuj
+					</button>
+					<button
+						onclick={() => transitionStatus('cancel')}
+						disabled={transitioning}
+						class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+					>
+						Anuluj
+					</button>
+				{:else if cruise.status === 'completed'}
+					<button
+						onclick={() => transitionStatus('reopen')}
+						disabled={transitioning}
+						class="rounded-lg border border-blue-300 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+					>
+						Przywróć
+					</button>
+				{/if}
 				<a
 					href="/cruises/{id}/edit"
 					class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"

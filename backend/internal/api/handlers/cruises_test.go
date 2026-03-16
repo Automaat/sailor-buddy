@@ -248,6 +248,162 @@ func TestCruiseHandler_Update(t *testing.T) {
 	})
 }
 
+func TestCruiseHandler_ListTrips(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			listTripsFn: func(_ context.Context, _ int64) ([]sqlcdb.Cruise, error) {
+				return []sqlcdb.Cruise{{ID: 1, Name: "Future Trip", Status: sqlcdb.CruiseStatusPlanned}}, nil
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		w := httptest.NewRecorder()
+		h.ListTrips(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+}
+
+func TestCruiseHandler_ListVoyages(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			listVoyagesFn: func(_ context.Context, _ int64) ([]sqlcdb.Cruise, error) {
+				return []sqlcdb.Cruise{{ID: 1, Name: "Past Voyage", Status: sqlcdb.CruiseStatusCompleted}}, nil
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		w := httptest.NewRecorder()
+		h.ListVoyages(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+}
+
+func TestCruiseHandler_Complete(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			completeCruiseFn: func(_ context.Context, arg sqlcdb.CompleteCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{ID: arg.ID, Status: sqlcdb.CruiseStatusCompleted}, nil
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodPost, "/1/complete", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		w := httptest.NewRecorder()
+		h.Complete(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("invalid transition", func(t *testing.T) {
+		m := &mockQuerier{
+			completeCruiseFn: func(_ context.Context, _ sqlcdb.CompleteCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{}, sql.ErrNoRows
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodPost, "/1/complete", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		w := httptest.NewRecorder()
+		h.Complete(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
+func TestCruiseHandler_Reopen(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			reopenCruiseFn: func(_ context.Context, arg sqlcdb.ReopenCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{ID: arg.ID, Status: sqlcdb.CruiseStatusPlanned}, nil
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodPost, "/1/reopen", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		w := httptest.NewRecorder()
+		h.Reopen(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("invalid transition", func(t *testing.T) {
+		m := &mockQuerier{
+			reopenCruiseFn: func(_ context.Context, _ sqlcdb.ReopenCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{}, sql.ErrNoRows
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodPost, "/1/reopen", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		w := httptest.NewRecorder()
+		h.Reopen(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
+func TestCruiseHandler_Cancel(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			cancelCruiseFn: func(_ context.Context, arg sqlcdb.CancelCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{ID: arg.ID, Status: sqlcdb.CruiseStatusCancelled}, nil
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodPost, "/1/cancel", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		w := httptest.NewRecorder()
+		h.Cancel(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("invalid transition", func(t *testing.T) {
+		m := &mockQuerier{
+			cancelCruiseFn: func(_ context.Context, _ sqlcdb.CancelCruiseParams) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{}, sql.ErrNoRows
+			},
+		}
+		h := NewCruiseHandler(m)
+		req := httptest.NewRequest(http.MethodPost, "/1/cancel", nil)
+		req = req.WithContext(userCtx(req.Context()))
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "1")
+		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+		w := httptest.NewRecorder()
+		h.Cancel(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want %d", w.Code, http.StatusNotFound)
+		}
+	})
+}
+
 func TestCruiseHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{

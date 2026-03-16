@@ -3,13 +3,24 @@
 	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Cruise } from '$lib/api/types';
 
+	type Tab = 'trips' | 'voyages' | 'all';
+	let activeTab = $state<Tab>('all');
 	let cruises = $state<Cruise[]>([]);
 	let loading = $state(true);
 
 	async function load() {
 		loading = true;
 		try {
-			cruises = await api.get<Cruise[]>(`${orgStore.apiPrefix()}/cruises`);
+			const prefix = orgStore.apiPrefix();
+			let endpoint: string;
+			if (activeTab === 'trips') {
+				endpoint = `${prefix}/trips`;
+			} else if (activeTab === 'voyages') {
+				endpoint = `${prefix}/voyages`;
+			} else {
+				endpoint = `${prefix}/cruises`;
+			}
+			cruises = await api.get<Cruise[]>(endpoint);
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {
@@ -19,8 +30,35 @@
 
 	$effect(() => {
 		orgStore.currentSlug;
+		activeTab;
 		load();
 	});
+
+	function statusBadge(status: string) {
+		switch (status) {
+			case 'planned':
+				return 'bg-blue-100 text-blue-700';
+			case 'completed':
+				return 'bg-green-100 text-green-700';
+			case 'cancelled':
+				return 'bg-gray-100 text-gray-500';
+			default:
+				return 'bg-gray-100 text-gray-500';
+		}
+	}
+
+	function statusLabel(status: string) {
+		switch (status) {
+			case 'planned':
+				return 'Planowany';
+			case 'completed':
+				return 'Zrealizowany';
+			case 'cancelled':
+				return 'Anulowany';
+			default:
+				return status;
+		}
+	}
 </script>
 
 <div>
@@ -32,6 +70,27 @@
 		>
 			+ Nowy rejs
 		</a>
+	</div>
+
+	<div class="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
+		<button
+			class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors {activeTab === 'all' ? 'bg-white shadow-sm text-[var(--navy)]' : 'text-[var(--text-muted)] hover:text-[var(--navy)]'}"
+			onclick={() => (activeTab = 'all')}
+		>
+			Wszystkie
+		</button>
+		<button
+			class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors {activeTab === 'trips' ? 'bg-white shadow-sm text-[var(--navy)]' : 'text-[var(--text-muted)] hover:text-[var(--navy)]'}"
+			onclick={() => (activeTab = 'trips')}
+		>
+			Planowane
+		</button>
+		<button
+			class="flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors {activeTab === 'voyages' ? 'bg-white shadow-sm text-[var(--navy)]' : 'text-[var(--text-muted)] hover:text-[var(--navy)]'}"
+			onclick={() => (activeTab = 'voyages')}
+		>
+			Zrealizowane
+		</button>
 	</div>
 
 	{#if loading}
@@ -52,7 +111,12 @@
 					class="flex items-center justify-between rounded-2xl bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
 				>
 					<div>
-						<h3 class="font-semibold text-[var(--navy)]">{cruise.name}</h3>
+						<div class="flex items-center gap-2">
+							<h3 class="font-semibold text-[var(--navy)]">{cruise.name}</h3>
+							<span class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadge(cruise.status)}">
+								{statusLabel(cruise.status)}
+							</span>
+						</div>
 						<div class="mt-1 text-sm text-[var(--text-muted)]">
 							{#if cruise.start_port && cruise.end_port}
 								{cruise.start_port} → {cruise.end_port}
