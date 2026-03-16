@@ -6,8 +6,53 @@ package sqlcdb
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"time"
 )
+
+type CruiseStatus string
+
+const (
+	CruiseStatusPlanned   CruiseStatus = "planned"
+	CruiseStatusCompleted CruiseStatus = "completed"
+	CruiseStatusCancelled CruiseStatus = "cancelled"
+)
+
+func (e *CruiseStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CruiseStatus(s)
+	case string:
+		*e = CruiseStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CruiseStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCruiseStatus struct {
+	CruiseStatus CruiseStatus `json:"cruise_status"`
+	Valid        bool         `json:"valid"` // Valid is true if CruiseStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCruiseStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CruiseStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CruiseStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCruiseStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CruiseStatus), nil
+}
 
 type CrewAssignment struct {
 	ID           int64          `json:"id"`
@@ -65,6 +110,7 @@ type Cruise struct {
 	EnrollToken   sql.NullString  `json:"enroll_token"`
 	MaxCrew       sql.NullInt64   `json:"max_crew"`
 	OrgID         sql.NullInt64   `json:"org_id"`
+	Status        CruiseStatus    `json:"status"`
 }
 
 type CruiseEnrollment struct {

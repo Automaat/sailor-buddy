@@ -208,6 +208,7 @@ func (h *OrgCruiseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ImageRouteUrl: nullString(req.ImageRouteUrl),
 		Description:   nullString(req.Description),
 		MaxCrew:       nullInt64(req.MaxCrew),
+		Status:        parseCruiseStatus(req.Status),
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create cruise")
@@ -263,6 +264,92 @@ func (h *OrgCruiseHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusNoContent, nil)
+}
+
+func (h *OrgCruiseHandler) ListTrips(w http.ResponseWriter, r *http.Request) {
+	octx := middleware.GetOrg(r.Context())
+	cruises, err := h.q.ListOrgTrips(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list trips")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruises)
+}
+
+func (h *OrgCruiseHandler) ListVoyages(w http.ResponseWriter, r *http.Request) {
+	octx := middleware.GetOrg(r.Context())
+	cruises, err := h.q.ListOrgVoyages(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list voyages")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruises)
+}
+
+func (h *OrgCruiseHandler) Complete(w http.ResponseWriter, r *http.Request) {
+	octx := middleware.GetOrg(r.Context())
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	cruise, err := h.q.CompleteOrgCruise(r.Context(), sqlcdb.CompleteOrgCruiseParams{
+		ID:    id,
+		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found or invalid transition")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to complete cruise")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruise)
+}
+
+func (h *OrgCruiseHandler) Reopen(w http.ResponseWriter, r *http.Request) {
+	octx := middleware.GetOrg(r.Context())
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	cruise, err := h.q.ReopenOrgCruise(r.Context(), sqlcdb.ReopenOrgCruiseParams{
+		ID:    id,
+		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found or invalid transition")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to reopen cruise")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruise)
+}
+
+func (h *OrgCruiseHandler) Cancel(w http.ResponseWriter, r *http.Request) {
+	octx := middleware.GetOrg(r.Context())
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	cruise, err := h.q.CancelOrgCruise(r.Context(), sqlcdb.CancelOrgCruiseParams{
+		ID:    id,
+		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found or invalid transition")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to cancel cruise")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruise)
 }
 
 func (h *OrgCruiseHandler) Delete(w http.ResponseWriter, r *http.Request) {

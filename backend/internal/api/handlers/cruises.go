@@ -20,6 +20,7 @@ func NewCruiseHandler(q sqlcdb.Querier) *CruiseHandler {
 
 type cruiseRequest struct {
 	Name          string   `json:"name"`
+	Status        *string  `json:"status"`
 	Year          *int64   `json:"year"`
 	EmbarkDate    *string  `json:"embark_date"`
 	DisembarkDate *string  `json:"disembark_date"`
@@ -42,6 +43,18 @@ type cruiseRequest struct {
 	ImageRouteUrl *string  `json:"image_route_url"`
 	Description   *string  `json:"description"`
 	MaxCrew       *int64   `json:"max_crew"`
+}
+
+func parseCruiseStatus(s *string) sqlcdb.CruiseStatus {
+	if s == nil {
+		return sqlcdb.CruiseStatusCompleted
+	}
+	switch sqlcdb.CruiseStatus(*s) {
+	case sqlcdb.CruiseStatusPlanned, sqlcdb.CruiseStatusCompleted, sqlcdb.CruiseStatusCancelled:
+		return sqlcdb.CruiseStatus(*s)
+	default:
+		return sqlcdb.CruiseStatusCompleted
+	}
 }
 
 func (h *CruiseHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +125,7 @@ func (h *CruiseHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ImageRouteUrl: nullString(req.ImageRouteUrl),
 		Description:   nullString(req.Description),
 		MaxCrew:       nullInt64(req.MaxCrew),
+		Status:        parseCruiseStatus(req.Status),
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create cruise")
@@ -184,6 +198,83 @@ func (h *CruiseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, http.StatusNoContent, nil)
+}
+
+func (h *CruiseHandler) ListTrips(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	cruises, err := h.q.ListTrips(r.Context(), user.UserID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list trips")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruises)
+}
+
+func (h *CruiseHandler) ListVoyages(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	cruises, err := h.q.ListVoyages(r.Context(), user.UserID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list voyages")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruises)
+}
+
+func (h *CruiseHandler) Complete(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	cruise, err := h.q.CompleteCruise(r.Context(), sqlcdb.CompleteCruiseParams{ID: id, OwnerID: user.UserID})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found or invalid transition")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to complete cruise")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruise)
+}
+
+func (h *CruiseHandler) Reopen(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	cruise, err := h.q.ReopenCruise(r.Context(), sqlcdb.ReopenCruiseParams{ID: id, OwnerID: user.UserID})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found or invalid transition")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to reopen cruise")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruise)
+}
+
+func (h *CruiseHandler) Cancel(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		return
+	}
+	cruise, err := h.q.CancelCruise(r.Context(), sqlcdb.CancelCruiseParams{ID: id, OwnerID: user.UserID})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondError(w, http.StatusNotFound, "cruise not found or invalid transition")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to cancel cruise")
+		return
+	}
+	respondJSON(w, http.StatusOK, cruise)
 }
 
 func nullString(s *string) sql.NullString {
