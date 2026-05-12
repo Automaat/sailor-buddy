@@ -127,11 +127,13 @@ func firebasePost(ctx context.Context, baseURL, method string, body map[string]a
 			time.Sleep(time.Duration(attempt+1) * 250 * time.Millisecond)
 			continue
 		}
-		defer resp.Body.Close()
-
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
+			_ = resp.Body.Close()
 			return fmt.Errorf("read firebase response: %w", err)
+		}
+		if err := resp.Body.Close(); err != nil {
+			return fmt.Errorf("close firebase response: %w", err)
 		}
 		if resp.StatusCode >= 500 {
 			lastErr = fmt.Errorf("firebase status %d: %s", resp.StatusCode, string(respBody))
