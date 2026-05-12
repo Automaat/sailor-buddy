@@ -41,6 +41,23 @@ services:
         condition: service_healthy
       firebase-emulator:
         condition: service_started
+      dev-seed:
+        condition: service_completed_successfully
+
+  dev-seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["./seed-dev"]
+    environment:
+      - SAILOR_DATABASE_URL=postgres://sailor:sailor@postgres:5432/sailor?sslmode=disable
+      - SAILOR_FIREBASE_PROJECT_ID=sailor-buddy-dev
+      - FIREBASE_AUTH_EMULATOR_HOST=firebase-emulator:9099
+    depends_on:
+      postgres:
+        condition: service_healthy
+      firebase-emulator:
+        condition: service_started
 
   frontend:
     build:

@@ -11,6 +11,7 @@
 	import { firebaseAuth } from '$lib/firebase';
 
 	const googleProvider = new GoogleAuthProvider();
+	googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 	let isRegister = $state(false);
 	let email = $state('');
