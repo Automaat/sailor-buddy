@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -26,6 +27,10 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	q := sqlcdb.New(db)
 
