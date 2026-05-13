@@ -1,0 +1,135 @@
+name: Docker Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. v1.2.3). Empty bumps minor."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prev_version: ${{ steps.version.outputs.prev_version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
+          else
+            LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
+            if [ -z "$LATEST" ]; then
+              VERSION="v0.1.0"
+            else
+              MAJOR=$(echo "$LATEST" | cut -d. -f1)
+              MINOR=$(echo "$LATEST" | cut -d. -f2)
+              VERSION="${MAJOR}.$((MINOR + 1)).0"
+            fi
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prev_version=$LATEST" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          git tag "${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+  build-and-push:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - context: backend
+            image: sailor-buddy-backend
+          - context: frontend
+            image: sailor-buddy-frontend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase image name
+        id: image
+        run: |
+          IMAGE="${{ github.repository_owner }}/${{ matrix.image }}"
+          echo "name=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.version }}
+            type=sha,prefix=sha-
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.context }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.context }}
+
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-24.04
+    needs:
+      - prepare
+      - build-and-push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          PREV="${{ needs.prepare.outputs.prev_version }}"
+          if [ -z "$PREV" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${PREV}..HEAD"
+          fi
+
+          git log "$RANGE" --format="- %s" > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "No changes recorded." > /tmp/release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ needs.prepare.outputs.version }}" \
+            --title "${{ needs.prepare.outputs.version }}" \
+            --notes-file /tmp/release-notes.md

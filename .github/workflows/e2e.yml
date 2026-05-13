@@ -57,8 +57,9 @@ jobs:
           npm install -g firebase-tools@15.9.0
           firebase emulators:start --project sailor-buddy-dev --only auth &
           # wait for emulator to be ready
-          for i in $(seq 1 30); do
+          for attempt in $(seq 1 30); do
             curl -s http://localhost:9099/ > /dev/null 2>&1 && break
+            test "$attempt" -lt 30
             sleep 1
           done
 
@@ -73,8 +74,9 @@ jobs:
 
       - name: Wait for backend
         run: |
-          for i in $(seq 1 30); do
+          for attempt in $(seq 1 30); do
             curl -s http://localhost:8080/api/auth/me > /dev/null 2>&1 && break
+            test "$attempt" -lt 30
             sleep 1
           done
 
@@ -88,8 +90,9 @@ jobs:
 
       - name: Wait for frontend
         run: |
-          for i in $(seq 1 30); do
+          for attempt in $(seq 1 30); do
             curl -s http://localhost:5173/ > /dev/null 2>&1 && break
+            test "$attempt" -lt 30
             sleep 1
           done
 

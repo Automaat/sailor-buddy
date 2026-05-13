@@ -1,10 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { env } from '$env/dynamic/public';
 
 const firebaseConfig = {
-	apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'fake-api-key',
-	authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
-	projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sailor-buddy-dev'
+	apiKey: env.PUBLIC_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY || 'fake-api-key',
+	authDomain: env.PUBLIC_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
+	projectId: env.PUBLIC_FIREBASE_PROJECT_ID || import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sailor-buddy-dev'
 };
 
 const app = initializeApp(firebaseConfig);
