@@ -83,10 +83,10 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 		page.on('dialog', (d) => d.accept());
 		await page.getByRole('button', { name: 'Zrealizuj' }).click();
 
-		// Modal opens — fill stats and submit.
-		await page.getByLabel('Godziny łącznie').fill('48');
+		// Modal opens — fill stats and submit. Rok/Dni/Godziny łącznie are computed.
+		await page.getByLabel('Godziny żagli').fill('30');
+		await page.getByLabel('Godziny silnika').fill('18');
 		await page.getByLabel('Mile').fill('120');
-		await page.getByLabel('Dni').fill('5');
 		await page.getByRole('button', { name: 'Zrealizuj rejs' }).click();
 
 		await page.waitForURL(/\/voyages\/\d+/, { timeout: 15_000 });
