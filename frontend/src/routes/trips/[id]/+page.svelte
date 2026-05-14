@@ -124,12 +124,6 @@
 		return status === 'cancelled' ? 'Anulowany' : 'Planowany';
 	}
 
-	const embarkYear = $derived.by(() => {
-		if (!trip?.embark_date) return undefined;
-		const parts = trip.embark_date.split('-');
-		const y = parseInt(parts[0], 10);
-		return Number.isFinite(y) ? y : undefined;
-	});
 </script>
 
 {#if loading}
@@ -291,7 +285,8 @@
 	{#if showCompleteModal}
 		<CompleteTripModal
 			tripName={trip.name}
-			defaultYear={embarkYear}
+			embarkDate={trip.embark_date}
+			disembarkDate={trip.disembark_date}
 			onClose={() => (showCompleteModal = false)}
 			onSubmit={completeTrip}
 		/>
