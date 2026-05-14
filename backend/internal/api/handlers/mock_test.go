@@ -129,10 +129,6 @@ type mockQuerier struct {
 	getOrgVoyagesByYearFn     func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.GetOrgVoyagesByYearRow, error)
 }
 
-func panicIfNil[T any](fn T, name string) {
-	// helper not used; kept inline panics below for clarity.
-}
-
 // --- trips ---
 
 func (m *mockQuerier) ListTrips(ctx context.Context, ownerID int64) ([]sqlcdb.Trip, error) {
