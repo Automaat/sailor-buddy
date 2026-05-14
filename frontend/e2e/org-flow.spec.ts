@@ -157,7 +157,7 @@ test.describe.serial('Organization Flow', () => {
 		await page.getByText(orgName).click();
 		await page.waitForURL('/');
 
-		await page.getByRole('link', { name: 'Załoga' }).click();
+		await page.goto('/crew');
 		await page.waitForURL('/crew');
 
 		await page.getByRole('button', { name: '+ Dodaj załoganta' }).click();
@@ -179,7 +179,7 @@ test.describe.serial('Organization Flow', () => {
 		await page.waitForURL('/yachts');
 		await expect(page.getByText('Orion')).toBeVisible();
 
-		await page.getByRole('link', { name: 'Załoga' }).click();
+		await page.goto('/crew');
 		await page.waitForURL('/crew');
 		await expect(page.getByText('Jan Kowalski')).toBeVisible();
 	});
@@ -189,7 +189,7 @@ test.describe.serial('Organization Flow', () => {
 
 		// ensure personal mode
 		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: '👤 Osobisty' }).click();
+		await page.getByRole('button', { name: 'Osobisty' }).last().click();
 		await page.waitForURL('/');
 
 		await page.getByRole('link', { name: 'Jachty' }).click();

@@ -34,7 +34,7 @@ test.describe.serial('Cruise Lifecycle', () => {
 
 	async function selectPersonal(page: import('@playwright/test').Page) {
 		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: '👤 Osobisty' }).click();
+		await page.getByRole('button', { name: 'Osobisty' }).last().click();
 		await page.waitForURL('/');
 	}
 

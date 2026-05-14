@@ -2,6 +2,7 @@
 	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import type { CrewMember } from '$lib/api/types';
+	import Users from '@lucide/svelte/icons/users';
 
 	let members = $state<CrewMember[]>([]);
 	let loading = $state(true);
@@ -78,7 +79,7 @@
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if members.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<p class="text-5xl">👥</p>
+			<Users class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak załogantów</p>
 		</div>
 	{:else}

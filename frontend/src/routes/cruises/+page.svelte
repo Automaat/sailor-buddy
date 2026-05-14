@@ -2,6 +2,7 @@
 	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Cruise } from '$lib/api/types';
+	import Sailboat from '@lucide/svelte/icons/sailboat';
 
 	type Tab = 'trips' | 'voyages' | 'all';
 	let activeTab = $state<Tab>('all');
@@ -97,7 +98,7 @@
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if cruises.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<p class="text-5xl">⛵</p>
+			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak rejsów</p>
 			<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
 				Dodaj pierwszy rejs
