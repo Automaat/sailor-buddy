@@ -189,7 +189,7 @@ test.describe.serial('Organization Flow', () => {
 
 		// ensure personal mode
 		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: 'Osobisty' }).click();
+		await page.getByRole('button', { name: 'Osobisty' }).last().click();
 		await page.waitForURL('/');
 
 		await page.getByRole('link', { name: 'Jachty' }).click();
