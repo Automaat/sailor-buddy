@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -52,7 +53,7 @@ func (h *CrewHandler) Get(w http.ResponseWriter, r *http.Request) {
 		OwnerID: user.UserID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "crew member not found")
 			return
 		}
@@ -132,22 +133,19 @@ func (h *CrewHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusNoContent, nil)
 }
 
-func (h *CrewHandler) AssignCrew(w http.ResponseWriter, r *http.Request) {
+func (h *CrewHandler) AssignTripCrew(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	tripID, err := strconv.ParseInt(chi.URLParam(r, "tripID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{
-		ID:      cruiseID,
-		OwnerID: user.UserID,
-	}); err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "cruise not found")
+	if _, err := h.q.GetTrip(r.Context(), sqlcdb.GetTripParams{ID: tripID, OwnerID: user.UserID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "trip not found")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
+		respondError(w, http.StatusInternalServerError, "failed to verify trip")
 		return
 	}
 	var req crewAssignmentRequest
@@ -159,8 +157,8 @@ func (h *CrewHandler) AssignCrew(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "role is required")
 		return
 	}
-	assignment, err := h.q.CreateCrewAssignment(r.Context(), sqlcdb.CreateCrewAssignmentParams{
-		CruiseID:     cruiseID,
+	assignment, err := h.q.CreateTripCrewAssignment(r.Context(), sqlcdb.CreateTripCrewAssignmentParams{
+		TripID:       sql.NullInt64{Int64: tripID, Valid: true},
 		CrewMemberID: req.CrewMemberID,
 		Role:         req.Role,
 		PatentNumber: nullString(req.PatentNumber),
@@ -172,32 +170,104 @@ func (h *CrewHandler) AssignCrew(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, assignment)
 }
 
-func (h *CrewHandler) ListCruiseCrew(w http.ResponseWriter, r *http.Request) {
+func (h *CrewHandler) ListTripCrew(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	tripID, err := strconv.ParseInt(chi.URLParam(r, "tripID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	assignments, err := h.q.ListCruiseCrewAssignments(r.Context(), sqlcdb.ListCruiseCrewAssignmentsParams{
-		CruiseID: cruiseID,
-		OwnerID:  user.UserID,
+	assignments, err := h.q.ListTripCrewAssignments(r.Context(), sqlcdb.ListTripCrewAssignmentsParams{
+		TripID:  sql.NullInt64{Int64: tripID, Valid: true},
+		OwnerID: user.UserID,
 	})
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to list cruise crew")
+		respondError(w, http.StatusInternalServerError, "failed to list trip crew")
 		return
 	}
 	respondJSON(w, http.StatusOK, assignments)
 }
 
-func (h *CrewHandler) RemoveCruiseCrew(w http.ResponseWriter, r *http.Request) {
+func (h *CrewHandler) RemoveTripCrew(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	assignmentID, err := strconv.ParseInt(chi.URLParam(r, "assignmentID"), 10, 64)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "invalid assignment id")
 		return
 	}
-	if err := h.q.DeleteCrewAssignment(r.Context(), sqlcdb.DeleteCrewAssignmentParams{
+	if err := h.q.DeleteTripCrewAssignment(r.Context(), sqlcdb.DeleteTripCrewAssignmentParams{
+		ID:      assignmentID,
+		OwnerID: user.UserID,
+	}); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to remove crew assignment")
+		return
+	}
+	respondJSON(w, http.StatusNoContent, nil)
+}
+
+func (h *CrewHandler) AssignVoyageCrew(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	voyageID, err := strconv.ParseInt(chi.URLParam(r, "voyageID"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid voyage id")
+		return
+	}
+	if _, err := h.q.GetVoyage(r.Context(), sqlcdb.GetVoyageParams{ID: voyageID, OwnerID: user.UserID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "voyage not found")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
+		return
+	}
+	var req crewAssignmentRequest
+	if err := decodeJSON(r, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Role == "" {
+		respondError(w, http.StatusBadRequest, "role is required")
+		return
+	}
+	assignment, err := h.q.CreateVoyageCrewAssignment(r.Context(), sqlcdb.CreateVoyageCrewAssignmentParams{
+		VoyageID:     sql.NullInt64{Int64: voyageID, Valid: true},
+		CrewMemberID: req.CrewMemberID,
+		Role:         req.Role,
+		PatentNumber: nullString(req.PatentNumber),
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to assign crew member")
+		return
+	}
+	respondJSON(w, http.StatusCreated, assignment)
+}
+
+func (h *CrewHandler) ListVoyageCrew(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	voyageID, err := strconv.ParseInt(chi.URLParam(r, "voyageID"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid voyage id")
+		return
+	}
+	assignments, err := h.q.ListVoyageCrewAssignments(r.Context(), sqlcdb.ListVoyageCrewAssignmentsParams{
+		VoyageID: sql.NullInt64{Int64: voyageID, Valid: true},
+		OwnerID:  user.UserID,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to list voyage crew")
+		return
+	}
+	respondJSON(w, http.StatusOK, assignments)
+}
+
+func (h *CrewHandler) RemoveVoyageCrew(w http.ResponseWriter, r *http.Request) {
+	user := middleware.GetUser(r.Context())
+	assignmentID, err := strconv.ParseInt(chi.URLParam(r, "assignmentID"), 10, 64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid assignment id")
+		return
+	}
+	if err := h.q.DeleteVoyageCrewAssignment(r.Context(), sqlcdb.DeleteVoyageCrewAssignmentParams{
 		ID:      assignmentID,
 		OwnerID: user.UserID,
 	}); err != nil {

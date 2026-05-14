@@ -23,7 +23,8 @@
 
 	const navItems = [
 		{ href: '/', label: 'Pulpit', icon: Anchor },
-		{ href: '/cruises', label: 'Rejsy', icon: Sailboat },
+		{ href: '/trips', label: 'Planowane', icon: Sailboat },
+		{ href: '/voyages', label: 'Zrealizowane', icon: Sailboat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
 		{ href: '/import', label: 'Import', icon: Download }
@@ -31,7 +32,9 @@
 
 	const orgNavItems = $derived([
 		{ href: '/', label: 'Pulpit', icon: Anchor },
-		{ href: '/cruises', label: 'Rejsy', icon: Sailboat },
+		{ href: '/cruises', label: 'Wydarzenia', icon: Sailboat },
+		{ href: '/trips', label: 'Planowane', icon: Sailboat },
+		{ href: '/voyages', label: 'Zrealizowane', icon: Sailboat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/members', label: 'Członkowie', icon: Users },
 		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/settings', label: 'Ustawienia', icon: Settings }

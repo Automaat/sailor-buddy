@@ -1,0 +1,107 @@
+<script lang="ts">
+	import type { CompleteTripPayload } from '$lib/api/types';
+
+	type Props = {
+		tripName: string;
+		defaultYear?: number;
+		onClose: () => void;
+		onSubmit: (payload: CompleteTripPayload) => Promise<void>;
+	};
+
+	let { tripName, defaultYear, onClose, onSubmit }: Props = $props();
+
+	const initialYear = defaultYear ?? new Date().getFullYear();
+	let form = $state({
+		year: initialYear,
+		hours_total: 0,
+		hours_sail: 0,
+		hours_engine: 0,
+		hours_over_6bf: 0,
+		miles: 0,
+		days: 0,
+		tidal_waters: false
+	});
+	let submitting = $state(false);
+	let error = $state('');
+
+	async function handleSubmit(e: Event) {
+		e.preventDefault();
+		submitting = true;
+		error = '';
+		try {
+			await onSubmit({
+				year: form.year || undefined,
+				hours_total: form.hours_total || undefined,
+				hours_sail: form.hours_sail || undefined,
+				hours_engine: form.hours_engine || undefined,
+				hours_over_6bf: form.hours_over_6bf || undefined,
+				miles: form.miles || undefined,
+				days: form.days || undefined,
+				tidal_waters: form.tidal_waters ? 1 : 0
+			});
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Nie udało się zrealizować rejsu';
+		} finally {
+			submitting = false;
+		}
+	}
+</script>
+
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+	<div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+		<h2 class="mb-1 text-xl font-semibold text-[var(--navy)]">Zrealizuj rejs</h2>
+		<p class="mb-4 text-sm text-[var(--text-muted)]">{tripName}</p>
+
+		{#if error}
+			<div class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
+		{/if}
+
+		<form onsubmit={handleSubmit} class="space-y-4">
+			<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+				<div>
+					<label for="m-year" class="mb-1 block text-xs font-medium">Rok</label>
+					<input id="m-year" type="number" bind:value={form.year} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+				<div>
+					<label for="m-days" class="mb-1 block text-xs font-medium">Dni</label>
+					<input id="m-days" type="number" bind:value={form.days} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+				<div>
+					<label for="m-miles" class="mb-1 block text-xs font-medium">Mile</label>
+					<input id="m-miles" type="number" step="0.1" bind:value={form.miles} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+				<div class="flex items-end">
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={form.tidal_waters} />
+						Wody pływowe
+					</label>
+				</div>
+				<div>
+					<label for="m-ht" class="mb-1 block text-xs font-medium">Godziny łącznie</label>
+					<input id="m-ht" type="number" step="0.1" bind:value={form.hours_total} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+				<div>
+					<label for="m-hs" class="mb-1 block text-xs font-medium">Godziny żagli</label>
+					<input id="m-hs" type="number" step="0.1" bind:value={form.hours_sail} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+				<div>
+					<label for="m-he" class="mb-1 block text-xs font-medium">Godziny silnika</label>
+					<input id="m-he" type="number" step="0.1" bind:value={form.hours_engine} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+				<div>
+					<label for="m-h6" class="mb-1 block text-xs font-medium">Godziny &gt;6Bf</label>
+					<input id="m-h6" type="number" step="0.1" bind:value={form.hours_over_6bf} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+				</div>
+			</div>
+
+			<div class="flex justify-end gap-2 pt-2">
+				<button type="button" onclick={onClose} class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50">
+					Anuluj
+				</button>
+				<button type="submit" disabled={submitting} class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+					{submitting ? 'Zapisywanie...' : 'Zrealizuj rejs'}
+				</button>
+			</div>
+		</form>
+	</div>
+</div>

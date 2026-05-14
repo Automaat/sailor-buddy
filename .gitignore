@@ -1,6 +1,7 @@
 # Go
 backend/tmp/
 backend/sailor-buddy
+backend/seed-dev
 
 # Frontend
 frontend/node_modules/

@@ -5,38 +5,74 @@ export interface User {
 	avatar_url?: string;
 }
 
-export type CruiseStatus = 'planned' | 'completed' | 'cancelled';
+export type TripStatus = 'planned' | 'cancelled';
 
-export interface Cruise {
+export interface Trip {
 	id: number;
 	owner_id: number;
+	org_id?: number;
+	cruise_id?: number;
 	name: string;
-	status: CruiseStatus;
+	status: TripStatus;
+	embark_date?: string;
+	disembark_date?: string;
+	countries?: string;
+	start_port?: string;
+	end_port?: string;
+	captain_name?: string;
+	yacht_id?: number;
+	cost_total?: number;
+	cost_per_person?: number;
+	max_crew?: number;
+	image_logo_url?: string;
+	image_photo_url?: string;
+	image_route_url?: string;
+	description?: string;
+	enroll_token?: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface Voyage {
+	id: number;
+	owner_id: number;
+	org_id?: number;
+	cruise_id?: number;
+	name: string;
 	year?: number;
 	embark_date?: string;
 	disembark_date?: string;
 	countries?: string;
 	start_port?: string;
 	end_port?: string;
-	hours_total?: number;
-	hours_sail?: number;
-	hours_engine?: number;
-	hours_over_6bf?: number;
-	miles?: number;
-	days?: number;
 	captain_name?: string;
 	yacht_id?: number;
-	tidal_waters?: boolean;
+	hours_total: number;
+	hours_sail: number;
+	hours_engine: number;
+	hours_over_6bf: number;
+	miles: number;
+	days: number;
+	tidal_waters: number;
 	cost_total?: number;
 	cost_per_person?: number;
 	image_logo_url?: string;
 	image_photo_url?: string;
 	image_route_url?: string;
 	description?: string;
-	max_crew?: number;
-	enroll_token?: string;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface CompleteTripPayload {
+	year?: number;
+	hours_total?: number;
+	hours_sail?: number;
+	hours_engine?: number;
+	hours_over_6bf?: number;
+	miles?: number;
+	days?: number;
+	tidal_waters?: number;
 }
 
 export interface Yacht {
@@ -58,7 +94,8 @@ export interface CrewMember {
 
 export interface CrewAssignment {
 	id: number;
-	cruise_id: number;
+	trip_id?: number;
+	voyage_id?: number;
 	crew_member_id: number;
 	role: string;
 	patent_number?: string;
@@ -77,7 +114,7 @@ export interface Training {
 }
 
 export interface DashboardStats {
-	cruise_count: number;
+	voyage_count: number;
 	total_hours: number;
 	total_miles: number;
 	total_days: number;
@@ -88,7 +125,7 @@ export interface DashboardStats {
 
 export interface YearStats {
 	year: number;
-	cruise_count: number;
+	voyage_count: number;
 	total_hours: number;
 	total_miles: number;
 	total_days: number;
@@ -98,9 +135,9 @@ export interface UploadResponse {
 	url: string;
 }
 
-export interface CruiseEnrollment {
+export interface TripEnrollment {
 	id: number;
-	cruise_id: number;
+	trip_id: number;
 	user_id: number;
 	note?: string;
 	status: string;
@@ -110,10 +147,9 @@ export interface CruiseEnrollment {
 	user_email?: string;
 }
 
-export interface PublicCruise {
+export interface PublicTrip {
 	id: number;
 	name: string;
-	year?: number;
 	embark_date?: string;
 	disembark_date?: string;
 	countries?: string;
@@ -125,17 +161,77 @@ export interface PublicCruise {
 	image_photo_url?: string;
 }
 
-export interface EnrollPageData {
-	cruise: PublicCruise;
-	enrolled: boolean;
-	enrollment?: CruiseEnrollment;
-	accepted_count: number;
-	total_count: number;
+export interface Cruise {
+	id: number;
+	org_id: number;
+	name: string;
+	embark_date?: string;
+	disembark_date?: string;
+	countries?: string;
+	start_port?: string;
+	end_port?: string;
+	description?: string;
+	image_logo_url?: string;
+	image_photo_url?: string;
+	image_route_url?: string;
+	max_crew?: number;
+	cost_per_person?: number;
+	enroll_token?: string;
+	created_at: string;
+	updated_at: string;
 }
+
+export interface PublicCruise {
+	id: number;
+	org_id: number;
+	name: string;
+	embark_date?: string;
+	disembark_date?: string;
+	countries?: string;
+	start_port?: string;
+	end_port?: string;
+	description?: string;
+	image_photo_url?: string;
+	max_crew?: number;
+	cost_per_person?: number;
+}
+
+export interface CruiseEnrollment {
+	id: number;
+	cruise_id: number;
+	user_id: number;
+	trip_id?: number;
+	note?: string;
+	status: string;
+	created_at: string;
+	updated_at: string;
+	user_name?: string;
+	user_email?: string;
+	trip_name?: string;
+}
+
+export type EnrollPageData =
+	| {
+			kind: 'trip';
+			trip: PublicTrip;
+			enrolled: boolean;
+			enrollment?: TripEnrollment;
+			accepted_count: number;
+			total_count: number;
+	  }
+	| {
+			kind: 'cruise';
+			cruise: PublicCruise;
+			trips: PublicTrip[];
+			enrolled: boolean;
+			enrollment?: CruiseEnrollment;
+			accepted_count: number;
+			total_count: number;
+	  };
 
 export interface VoyageOpinion {
 	id: number;
-	cruise_id: number;
+	voyage_id: number;
 	crew_member_id: number;
 	file_path: string;
 	file_format: string;
@@ -189,7 +285,7 @@ export interface OrgInviteInfo {
 }
 
 export interface OrgDashboardStats {
-	cruise_count: number;
+	voyage_count: number;
 	total_hours: number;
 	total_miles: number;
 	total_days: number;

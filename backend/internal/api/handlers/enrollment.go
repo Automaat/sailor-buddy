@@ -23,47 +23,74 @@ func NewEnrollmentHandler(q sqlcdb.Querier) *EnrollmentHandler {
 	return &EnrollmentHandler{q: q}
 }
 
-func (h *EnrollmentHandler) GetCruiseByToken(w http.ResponseWriter, r *http.Request) {
+// GetByToken handles /enroll/{token}. The token may belong to either a trip
+// (standalone trip enrollment) or a cruise (org event-level enrollment).
+// Response shape: {kind: "trip" | "cruise", ...}
+func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	cruise, err := h.q.GetCruiseByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
-	if err != nil {
-		if err == sql.ErrNoRows {
+	user := middleware.GetUser(r.Context())
+
+	// Try trip first.
+	trip, terr := h.q.GetTripByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	if terr == nil {
+		counts, _ := h.q.CountTripEnrollments(r.Context(), trip.ID)
+		enrollment, enrollErr := h.q.GetUserTripEnrollment(r.Context(), sqlcdb.GetUserTripEnrollmentParams{
+			TripID: trip.ID,
+			UserID: user.UserID,
+		})
+		resp := map[string]any{
+			"kind":           "trip",
+			"trip":           trip,
+			"accepted_count": counts.Accepted,
+			"total_count":    counts.Total,
+		}
+		if enrollErr == nil {
+			resp["enrolled"] = true
+			resp["enrollment"] = enrollment
+		} else {
+			resp["enrolled"] = false
+		}
+		respondJSON(w, http.StatusOK, resp)
+		return
+	}
+	if !errors.Is(terr, sql.ErrNoRows) {
+		respondError(w, http.StatusInternalServerError, "failed to get trip")
+		return
+	}
+
+	// Fall through to cruise.
+	cruise, cerr := h.q.GetCruiseByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	if cerr != nil {
+		if errors.Is(cerr, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "invalid enrollment link")
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to get cruise")
 		return
 	}
-
-	user := middleware.GetUser(r.Context())
-	enrollment, enrollmentErr := h.q.GetUserEnrollment(r.Context(), sqlcdb.GetUserEnrollmentParams{
+	counts, _ := h.q.CountCruiseEnrollments(r.Context(), cruise.ID)
+	enrollment, enrollErr := h.q.GetUserCruiseEnrollment(r.Context(), sqlcdb.GetUserCruiseEnrollmentParams{
 		CruiseID: cruise.ID,
 		UserID:   user.UserID,
 	})
-
-	counts, err := h.q.CountCruiseEnrollments(r.Context(), cruise.ID)
-	if err != nil {
-		log.Printf("failed to count enrollments for cruise %d: %v", cruise.ID, err)
+	trips, tlistErr := h.q.ListCruiseTrips(r.Context(), sql.NullInt64{Int64: cruise.ID, Valid: true})
+	if tlistErr != nil {
+		log.Printf("failed to list cruise trips for %d: %v", cruise.ID, tlistErr)
+		trips = nil
 	}
-
-	type response struct {
-		Cruise     any   `json:"cruise"`
-		Enrolled   bool  `json:"enrolled"`
-		Enrollment any   `json:"enrollment,omitempty"`
-		Accepted   int64 `json:"accepted_count"`
-		Total      int64 `json:"total_count"`
+	resp := map[string]any{
+		"kind":           "cruise",
+		"cruise":         cruise,
+		"trips":          trips,
+		"accepted_count": counts.Accepted,
+		"total_count":    counts.Total,
 	}
-
-	resp := response{
-		Cruise:   cruise,
-		Accepted: counts.Accepted,
-		Total:    counts.Total,
+	if enrollErr == nil {
+		resp["enrolled"] = true
+		resp["enrollment"] = enrollment
+	} else {
+		resp["enrolled"] = false
 	}
-	if enrollmentErr == nil {
-		resp.Enrolled = true
-		resp.Enrollment = enrollment
-	}
-
 	respondJSON(w, http.StatusOK, resp)
 }
 
@@ -71,24 +98,9 @@ type enrollRequest struct {
 	Note *string `json:"note"`
 }
 
+// Enroll handles POST /enroll/{token}. Routes to trip or cruise enrollment by token.
 func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
-	cruise, err := h.q.GetCruiseByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
-	if err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "invalid enrollment link")
-			return
-		}
-		respondError(w, http.StatusInternalServerError, "failed to get cruise")
-		return
-	}
-
-	status, err := h.q.GetCruiseStatus(r.Context(), cruise.ID)
-	if err == nil && status != sqlcdb.CruiseStatusPlanned {
-		respondError(w, http.StatusConflict, "enrollment closed: cruise is not planned")
-		return
-	}
-
 	user := middleware.GetUser(r.Context())
 
 	var req enrollRequest
@@ -97,6 +109,44 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	trip, terr := h.q.GetTripByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	if terr == nil {
+		status, _ := h.q.GetTripStatus(r.Context(), trip.ID)
+		if status != sqlcdb.TripStatusPlanned {
+			respondError(w, http.StatusConflict, "enrollment closed: trip is not planned")
+			return
+		}
+		enrollment, err := h.q.CreateTripEnrollment(r.Context(), sqlcdb.CreateTripEnrollmentParams{
+			TripID: trip.ID,
+			UserID: user.UserID,
+			Note:   nullString(req.Note),
+		})
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				respondError(w, http.StatusConflict, "already enrolled")
+				return
+			}
+			respondError(w, http.StatusInternalServerError, "failed to enroll")
+			return
+		}
+		respondJSON(w, http.StatusCreated, enrollment)
+		return
+	}
+	if !errors.Is(terr, sql.ErrNoRows) {
+		respondError(w, http.StatusInternalServerError, "failed to get trip")
+		return
+	}
+
+	cruise, cerr := h.q.GetCruiseByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	if cerr != nil {
+		if errors.Is(cerr, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "invalid enrollment link")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "failed to get cruise")
+		return
+	}
 	enrollment, err := h.q.CreateCruiseEnrollment(r.Context(), sqlcdb.CreateCruiseEnrollmentParams{
 		CruiseID: cruise.ID,
 		UserID:   user.UserID,
@@ -114,20 +164,22 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, enrollment)
 }
 
+// --- per-trip enrollment management (admin side) ---
+
 func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	tripID, err := strconv.ParseInt(chi.URLParam(r, "tripID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
 
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: cruiseID, OwnerID: user.UserID}); err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "cruise not found")
+	if _, err := h.q.GetTrip(r.Context(), sqlcdb.GetTripParams{ID: tripID, OwnerID: user.UserID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "trip not found")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "failed to get cruise")
+		respondError(w, http.StatusInternalServerError, "failed to get trip")
 		return
 	}
 
@@ -138,9 +190,9 @@ func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request
 	}
 	token := hex.EncodeToString(b)
 
-	if err := h.q.SetCruiseEnrollToken(r.Context(), sqlcdb.SetCruiseEnrollTokenParams{
+	if err := h.q.SetTripEnrollToken(r.Context(), sqlcdb.SetTripEnrollTokenParams{
 		EnrollToken: sql.NullString{String: token, Valid: true},
-		ID:          cruiseID,
+		ID:          tripID,
 		OwnerID:     user.UserID,
 	}); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to set token")
@@ -151,13 +203,13 @@ func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request
 
 func (h *EnrollmentHandler) ClearToken(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	tripID, err := strconv.ParseInt(chi.URLParam(r, "tripID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	if err := h.q.ClearCruiseEnrollToken(r.Context(), sqlcdb.ClearCruiseEnrollTokenParams{
-		ID:      cruiseID,
+	if err := h.q.ClearTripEnrollToken(r.Context(), sqlcdb.ClearTripEnrollTokenParams{
+		ID:      tripID,
 		OwnerID: user.UserID,
 	}); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to clear token")
@@ -168,14 +220,14 @@ func (h *EnrollmentHandler) ClearToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *EnrollmentHandler) ListEnrollments(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	tripID, err := strconv.ParseInt(chi.URLParam(r, "tripID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	enrollments, err := h.q.ListCruiseEnrollments(r.Context(), sqlcdb.ListCruiseEnrollmentsParams{
-		CruiseID: cruiseID,
-		OwnerID:  user.UserID,
+	enrollments, err := h.q.ListTripEnrollments(r.Context(), sqlcdb.ListTripEnrollmentsParams{
+		TripID:  tripID,
+		OwnerID: user.UserID,
 	})
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to list enrollments")
@@ -206,7 +258,7 @@ func (h *EnrollmentHandler) UpdateStatus(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusBadRequest, "invalid status")
 		return
 	}
-	if err := h.q.UpdateEnrollmentStatus(r.Context(), sqlcdb.UpdateEnrollmentStatusParams{
+	if err := h.q.UpdateTripEnrollmentStatus(r.Context(), sqlcdb.UpdateTripEnrollmentStatusParams{
 		Status:  req.Status,
 		ID:      id,
 		OwnerID: user.UserID,
@@ -224,7 +276,7 @@ func (h *EnrollmentHandler) DeleteEnrollment(w http.ResponseWriter, r *http.Requ
 		respondError(w, http.StatusBadRequest, "invalid enrollment id")
 		return
 	}
-	if err := h.q.DeleteCruiseEnrollment(r.Context(), sqlcdb.DeleteCruiseEnrollmentParams{
+	if err := h.q.DeleteTripEnrollment(r.Context(), sqlcdb.DeleteTripEnrollmentParams{
 		ID:      id,
 		OwnerID: user.UserID,
 	}); err != nil {

@@ -99,7 +99,7 @@
 		<div class="rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-4 font-semibold text-[var(--navy)]">Podgląd importu</h2>
 			<p class="mb-2 text-sm text-[var(--text-muted)]">
-				Znaleziono {preview.cruises?.length ?? 0} rejsów, {preview.trainings?.length ?? 0} szkoleń
+				Znaleziono {preview.voyages?.length ?? 0} rejsów, {preview.trainings?.length ?? 0} szkoleń
 			</p>
 			<div class="mb-4 max-h-64 overflow-auto rounded-lg bg-gray-50 p-4 text-xs">
 				<pre>{JSON.stringify(preview, null, 2)}</pre>
@@ -121,7 +121,7 @@
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<CheckCircle2 class="mx-auto h-14 w-14 text-green-500" />
 			<p class="mt-4 text-lg font-semibold text-[var(--navy)]">Import zakończony!</p>
-			<a href="/cruises" class="mt-2 inline-block text-[var(--ocean)] hover:underline">Zobacz rejsy</a>
+			<a href="/voyages" class="mt-2 inline-block text-[var(--ocean)] hover:underline">Zobacz rejsy</a>
 		</div>
 	{/if}
 </div>

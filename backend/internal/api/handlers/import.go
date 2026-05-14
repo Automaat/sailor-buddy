@@ -55,17 +55,17 @@ type importTrainingRow struct {
 }
 
 type importPreview struct {
-	Cruises   []importCruiseRow   `json:"cruises"`
+	Voyages   []importCruiseRow   `json:"voyages"`
 	Trainings []importTrainingRow `json:"trainings"`
 }
 
 type importConfirmRequest struct {
-	Cruises   []importCruiseRow   `json:"cruises"`
+	Voyages   []importCruiseRow   `json:"voyages"`
 	Trainings []importTrainingRow `json:"trainings"`
 }
 
 type importConfirmResult struct {
-	CruisesCreated   int `json:"cruises_created"`
+	VoyagesCreated   int `json:"voyages_created"`
 	TrainingsCreated int `json:"trainings_created"`
 	YachtsCreated    int `json:"yachts_created"`
 	CrewCreated      int `json:"crew_created"`
@@ -112,7 +112,7 @@ func (h *ImportHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, importPreview{
-		Cruises:   cruises,
+		Voyages:   cruises,
 		Trainings: trainings,
 	})
 }
@@ -130,7 +130,7 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 	captainIDs := map[string]int64{}
 	crewCreated := 0
 
-	for _, c := range req.Cruises {
+	for _, c := range req.Voyages {
 		if c.YachtName != nil && *c.YachtName != "" {
 			name := *c.YachtName
 			if _, ok := yachtIDs[name]; !ok {
@@ -185,8 +185,8 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cruisesCreated := 0
-	for _, c := range req.Cruises {
+	voyagesCreated := 0
+	for _, c := range req.Voyages {
 		if c.Name == "" {
 			continue
 		}
@@ -194,12 +194,8 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 		if c.YachtName != nil && *c.YachtName != "" {
 			yachtID = sql.NullInt64{Int64: yachtIDs[*c.YachtName], Valid: true}
 		}
-		var tidalWaters sql.NullInt64
-		if c.TidalWaters != nil {
-			tidalWaters = sql.NullInt64{Int64: *c.TidalWaters, Valid: true}
-		}
 
-		_, err := h.q.CreateCruise(r.Context(), sqlcdb.CreateCruiseParams{
+		_, err := h.q.CreateVoyage(r.Context(), sqlcdb.CreateVoyageParams{
 			OwnerID:       user.UserID,
 			Name:          c.Name,
 			Year:          nullInt64(c.Year),
@@ -208,24 +204,24 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 			Countries:     nullString(c.Countries),
 			StartPort:     nullString(c.StartPort),
 			EndPort:       nullString(c.EndPort),
-			HoursTotal:    nullFloat64(c.HoursTotal),
-			HoursSail:     nullFloat64(c.HoursSail),
-			HoursEngine:   nullFloat64(c.HoursEngine),
-			HoursOver6bf:  nullFloat64(c.HoursOver6bf),
-			Miles:         nullFloat64(c.Miles),
-			Days:          nullInt64(c.Days),
+			HoursTotal:    valOrZeroFloat(c.HoursTotal),
+			HoursSail:     valOrZeroFloat(c.HoursSail),
+			HoursEngine:   valOrZeroFloat(c.HoursEngine),
+			HoursOver6bf:  valOrZeroFloat(c.HoursOver6bf),
+			Miles:         valOrZeroFloat(c.Miles),
+			Days:          valOrZeroInt(c.Days),
 			CaptainName:   nullString(c.CaptainName),
 			YachtID:       yachtID,
-			TidalWaters:   tidalWaters,
+			TidalWaters:   valOrZeroInt(c.TidalWaters),
 			CostTotal:     nullFloat64(c.CostTotal),
 			CostPerPerson: nullFloat64(c.CostPerPerson),
 			Description:   nullString(c.Description),
 		})
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create cruise %q: %v", c.Name, err))
+			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create voyage %q: %v", c.Name, err))
 			return
 		}
-		cruisesCreated++
+		voyagesCreated++
 	}
 
 	trainingsCreated := 0
@@ -249,7 +245,7 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, importConfirmResult{
-		CruisesCreated:   cruisesCreated,
+		VoyagesCreated:   voyagesCreated,
 		TrainingsCreated: trainingsCreated,
 		YachtsCreated:    yachtsCreated,
 		CrewCreated:      crewCreated,
