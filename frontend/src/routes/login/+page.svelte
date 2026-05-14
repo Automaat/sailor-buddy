@@ -9,6 +9,7 @@
 		updateProfile
 	} from 'firebase/auth';
 	import { firebaseAuth } from '$lib/firebase';
+	import Anchor from '@lucide/svelte/icons/anchor';
 
 	const googleProvider = new GoogleAuthProvider();
 	googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -63,7 +64,7 @@
 <div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 	<div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
 		<div class="mb-8 text-center">
-			<span class="text-5xl">⚓</span>
+			<Anchor class="mx-auto h-14 w-14 text-[var(--navy)]" />
 			<h1 class="mt-4 text-2xl font-bold text-[var(--navy)]">Sailor Buddy</h1>
 			<p class="mt-1 text-[var(--text-muted)]">
 				{isRegister ? 'Utwórz konto' : 'Witaj z powrotem, Kapitanie'}

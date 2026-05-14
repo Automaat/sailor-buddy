@@ -33,6 +33,7 @@
 		"vitest": "^4.1.0"
 	},
 	"dependencies": {
+		"@lucide/svelte": "^1.14.0",
 		"firebase": "^12.10.0"
 	},
 	"overrides": {

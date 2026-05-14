@@ -2,6 +2,7 @@
 	import { api } from '$lib/api/client';
 	import type { Training } from '$lib/api/types';
 	import { onMount } from 'svelte';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 
 	let trainings = $state<Training[]>([]);
 	let loading = $state(true);
@@ -83,7 +84,7 @@
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if trainings.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<p class="text-5xl">📋</p>
+			<ClipboardList class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak szkoleń</p>
 		</div>
 	{:else}

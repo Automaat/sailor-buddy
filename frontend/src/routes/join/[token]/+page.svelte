@@ -5,6 +5,9 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { OrgInviteInfo } from '$lib/api/types';
+	import Anchor from '@lucide/svelte/icons/anchor';
+	import XCircle from '@lucide/svelte/icons/x-circle';
+	import PartyPopper from '@lucide/svelte/icons/party-popper';
 
 	let token = $derived((page.params as Record<string, string>).token);
 	let info = $state<OrgInviteInfo | null>(null);
@@ -58,7 +61,7 @@
 	<div class="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
 		{#if !auth.isAuthenticated}
 			<div class="text-center">
-				<span class="text-4xl">⚓</span>
+				<Anchor class="mx-auto h-10 w-10 text-[var(--navy)]" />
 				<h1 class="mt-4 text-xl font-bold text-[var(--navy)]">Zaproszenie do klubu</h1>
 				<p class="mt-2 text-gray-500">Zaloguj się, aby dołączyć</p>
 				<a
@@ -70,12 +73,12 @@
 			</div>
 		{:else if loading}
 			<div class="text-center">
-				<span class="text-4xl">⚓</span>
+				<Anchor class="mx-auto h-10 w-10 animate-pulse text-[var(--navy)]" />
 				<p class="mt-4 text-gray-500">Ładowanie...</p>
 			</div>
 		{:else if error}
 			<div class="text-center">
-				<span class="text-4xl">❌</span>
+				<XCircle class="mx-auto h-10 w-10 text-red-500" />
 				<h1 class="mt-4 text-xl font-bold text-[var(--navy)]">Błąd</h1>
 				<p class="mt-2 text-red-600">{error}</p>
 				<a
@@ -87,13 +90,13 @@
 			</div>
 		{:else if joined}
 			<div class="text-center">
-				<span class="text-4xl">🎉</span>
+				<PartyPopper class="mx-auto h-10 w-10 text-[var(--ocean)]" />
 				<h1 class="mt-4 text-xl font-bold text-[var(--navy)]">Dołączono!</h1>
 				<p class="mt-2 text-gray-500">Przekierowywanie...</p>
 			</div>
 		{:else if info}
 			<div class="text-center">
-				<span class="text-4xl">⚓</span>
+				<Anchor class="mx-auto h-10 w-10 text-[var(--navy)]" />
 				<h1 class="mt-4 text-xl font-bold text-[var(--navy)]">{info.org_name}</h1>
 				<p class="mt-2 text-gray-500">
 					Zostaniesz dodany jako

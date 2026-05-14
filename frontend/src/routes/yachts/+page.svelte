@@ -2,6 +2,7 @@
 	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import type { Yacht } from '$lib/api/types';
+	import Ship from '@lucide/svelte/icons/ship';
 
 	let yachts = $state<Yacht[]>([]);
 	let loading = $state(true);
@@ -81,7 +82,7 @@
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if yachts.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<p class="text-5xl">🚢</p>
+			<Ship class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak jachtów</p>
 		</div>
 	{:else}

@@ -6,25 +6,35 @@
 	import { page } from '$app/stores';
 	import { api } from '$lib/api/client';
 	import type { User } from '$lib/api/types';
+	import Anchor from '@lucide/svelte/icons/anchor';
+	import Sailboat from '@lucide/svelte/icons/sailboat';
+	import Ship from '@lucide/svelte/icons/ship';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+	import Download from '@lucide/svelte/icons/download';
+	import Users from '@lucide/svelte/icons/users';
+	import Settings from '@lucide/svelte/icons/settings';
+	import UserIcon from '@lucide/svelte/icons/user';
+	import Building2 from '@lucide/svelte/icons/building-2';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import ChevronUp from '@lucide/svelte/icons/chevron-up';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	let { children } = $props();
 
 	const navItems = [
-		{ href: '/', label: 'Pulpit', icon: '⚓' },
-		{ href: '/cruises', label: 'Rejsy', icon: '⛵' },
-		{ href: '/crew', label: 'Załoga', icon: '👥' },
-		{ href: '/yachts', label: 'Jachty', icon: '🚢' },
-		{ href: '/trainings', label: 'Szkolenia', icon: '📋' },
-		{ href: '/import', label: 'Import', icon: '📥' }
+		{ href: '/', label: 'Pulpit', icon: Anchor },
+		{ href: '/cruises', label: 'Rejsy', icon: Sailboat },
+		{ href: '/yachts', label: 'Jachty', icon: Ship },
+		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
+		{ href: '/import', label: 'Import', icon: Download }
 	];
 
 	const orgNavItems = $derived([
-		{ href: '/', label: 'Pulpit', icon: '⚓' },
-		{ href: '/cruises', label: 'Rejsy', icon: '⛵' },
-		{ href: '/crew', label: 'Załoga', icon: '👥' },
-		{ href: '/yachts', label: 'Jachty', icon: '🚢' },
-		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/members', label: 'Członkowie', icon: '👤' },
-		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/settings', label: 'Ustawienia', icon: '⚙️' }
+		{ href: '/', label: 'Pulpit', icon: Anchor },
+		{ href: '/cruises', label: 'Rejsy', icon: Sailboat },
+		{ href: '/yachts', label: 'Jachty', icon: Ship },
+		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/members', label: 'Członkowie', icon: Users },
+		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/settings', label: 'Ustawienia', icon: Settings }
 	]);
 
 	let switcherOpen = $state(false);
@@ -83,7 +93,7 @@
 
 {#if auth.loading}
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
-		<span class="text-4xl">⚓</span>
+		<Anchor class="h-10 w-10 text-white" />
 	</div>
 {:else if $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/join')}
 	{@render children()}
@@ -91,7 +101,7 @@
 	<div class="flex min-h-screen">
 		<nav class="flex w-60 flex-col bg-[var(--navy)] text-white">
 			<div class="flex items-center gap-2 border-b border-white/10 p-4">
-				<span class="text-2xl">⚓</span>
+				<Anchor class="h-6 w-6" />
 				<span class="text-lg font-bold">Sailor Buddy</span>
 			</div>
 
@@ -107,7 +117,11 @@
 							Osobisty
 						{/if}
 					</span>
-					<span class="ml-2 text-xs text-white/50">{switcherOpen ? '▲' : '▼'}</span>
+					{#if switcherOpen}
+						<ChevronUp class="ml-2 h-4 w-4 text-white/50" />
+					{:else}
+						<ChevronDown class="ml-2 h-4 w-4 text-white/50" />
+					{/if}
 				</button>
 				{#if switcherOpen}
 					<div
@@ -119,7 +133,7 @@
 								? 'bg-white/15'
 								: ''}"
 						>
-							<span>👤</span>
+							<UserIcon class="h-4 w-4" />
 							<span>Osobisty</span>
 						</button>
 						{#each orgStore.orgs as org}
@@ -130,7 +144,7 @@
 									? 'bg-white/15'
 									: ''}"
 							>
-								<span>🏢</span>
+								<Building2 class="h-4 w-4" />
 								<span class="truncate">{org.name}</span>
 							</button>
 						{/each}
@@ -139,7 +153,7 @@
 							onclick={() => (switcherOpen = false)}
 							class="flex w-full items-center gap-2 border-t border-white/10 px-3 py-2 text-left text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white"
 						>
-							<span>+</span>
+							<Plus class="h-4 w-4" />
 							<span>Zarządzaj klubami</span>
 						</a>
 					</div>
@@ -151,13 +165,14 @@
 					{@const active =
 						$page.url.pathname === item.href ||
 						(item.href !== '/' && $page.url.pathname.startsWith(item.href))}
+					{@const Icon = item.icon}
 					<a
 						href={item.href}
 						class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
 							? 'bg-white/15'
 							: ''}"
 					>
-						<span>{item.icon}</span>
+						<Icon class="h-5 w-5" />
 						<span>{item.label}</span>
 					</a>
 				{/each}

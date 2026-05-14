@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { auth } from '$lib/stores/auth.svelte';
+	import Download from '@lucide/svelte/icons/download';
+	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let status = $state<'idle' | 'uploading' | 'preview' | 'confirming' | 'done' | 'error'>('idle');
@@ -77,7 +79,7 @@
 				<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
 			{/if}
 			<div class="text-center">
-				<p class="mb-4 text-5xl">📥</p>
+				<Download class="mx-auto mb-4 h-14 w-14 text-[var(--text-muted)]" />
 				<p class="mb-4 text-[var(--text-muted)]">
 					Prześlij arkusz żeglarski (XLSX), aby zaimportować rejsy, szkolenia i dane załogi.
 				</p>
@@ -117,7 +119,7 @@
 		</div>
 	{:else if status === 'done'}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<p class="text-5xl">✅</p>
+			<CheckCircle2 class="mx-auto h-14 w-14 text-green-500" />
 			<p class="mt-4 text-lg font-semibold text-[var(--navy)]">Import zakończony!</p>
 			<a href="/cruises" class="mt-2 inline-block text-[var(--ocean)] hover:underline">Zobacz rejsy</a>
 		</div>
