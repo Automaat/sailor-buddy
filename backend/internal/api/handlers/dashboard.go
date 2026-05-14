@@ -17,13 +17,13 @@ func NewDashboardHandler(q sqlcdb.Querier) *DashboardHandler {
 }
 
 type dashboardResponse struct {
-	CruiseCount      int64                        `json:"cruise_count"`
+	VoyageCount      int64                        `json:"voyage_count"`
 	TotalHours       float64                      `json:"total_hours"`
 	TotalMiles       float64                      `json:"total_miles"`
 	TotalDays        int64                        `json:"total_days"`
 	TotalHoursSail   float64                      `json:"total_hours_sail"`
 	TotalHoursEngine float64                      `json:"total_hours_engine"`
-	ByYear           []sqlcdb.GetCruisesByYearRow `json:"by_year"`
+	ByYear           []sqlcdb.GetVoyagesByYearRow `json:"by_year"`
 }
 
 func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -34,17 +34,17 @@ func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to get dashboard stats")
 		return
 	}
-	byYear, err := h.q.GetCruisesByYear(r.Context(), user.UserID)
+	byYear, err := h.q.GetVoyagesByYear(r.Context(), user.UserID)
 	if err != nil {
 		log.Printf("dashboard yearly error: %v", err)
 		respondError(w, http.StatusInternalServerError, "failed to get yearly breakdown")
 		return
 	}
 	if byYear == nil {
-		byYear = []sqlcdb.GetCruisesByYearRow{}
+		byYear = []sqlcdb.GetVoyagesByYearRow{}
 	}
 	respondJSON(w, http.StatusOK, dashboardResponse{
-		CruiseCount:      stats.CruiseCount,
+		VoyageCount:      stats.VoyageCount,
 		TotalHours:       stats.TotalHours,
 		TotalMiles:       stats.TotalMiles,
 		TotalDays:        stats.TotalDays,

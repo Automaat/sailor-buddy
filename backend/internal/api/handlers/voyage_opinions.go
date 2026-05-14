@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -31,9 +32,9 @@ type generateRequest struct {
 
 func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	voyageID, err := strconv.ParseInt(chi.URLParam(r, "voyageID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid voyage id")
 		return
 	}
 
@@ -54,23 +55,23 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	cruise, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: cruiseID, OwnerID: user.UserID})
+	voyage, err := h.q.GetVoyage(r.Context(), sqlcdb.GetVoyageParams{ID: voyageID, OwnerID: user.UserID})
 	if err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "cruise not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "failed to get cruise")
+		respondError(w, http.StatusInternalServerError, "failed to get voyage")
 		return
 	}
 
-	assignment, err := h.q.GetCrewAssignmentByCruiseAndMember(r.Context(), sqlcdb.GetCrewAssignmentByCruiseAndMemberParams{
-		CruiseID:     cruiseID,
+	assignment, err := h.q.GetVoyageCrewAssignmentByMember(r.Context(), sqlcdb.GetVoyageCrewAssignmentByMemberParams{
+		VoyageID:     sql.NullInt64{Int64: voyageID, Valid: true},
 		CrewMemberID: req.CrewMemberID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "crew member not assigned to this cruise")
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "crew member not assigned to this voyage")
 			return
 		}
 		respondError(w, http.StatusInternalServerError, "failed to get crew assignment")
@@ -78,8 +79,8 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var yachtName, yachtType string
-	if cruise.YachtID.Valid {
-		yacht, err := h.q.GetYacht(r.Context(), sqlcdb.GetYachtParams{ID: cruise.YachtID.Int64, OwnerID: user.UserID})
+	if voyage.YachtID.Valid {
+		yacht, err := h.q.GetYacht(r.Context(), sqlcdb.GetYachtParams{ID: voyage.YachtID.Int64, OwnerID: user.UserID})
 		if err == nil {
 			yachtName = yacht.Name
 			yachtType = yacht.YachtType.String
@@ -94,22 +95,22 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 	data := docgen.OpinionData{
 		CrewMemberName: assignment.FullName,
 		PatentNumber:   patent,
-		CruiseName:     cruise.Name,
-		EmbarkDate:     cruise.EmbarkDate.String,
-		DisembarkDate:  cruise.DisembarkDate.String,
+		CruiseName:     voyage.Name,
+		EmbarkDate:     voyage.EmbarkDate.String,
+		DisembarkDate:  voyage.DisembarkDate.String,
 		YachtName:      yachtName,
 		YachtType:      yachtType,
-		StartPort:      cruise.StartPort.String,
-		EndPort:        cruise.EndPort.String,
-		Countries:      cruise.Countries.String,
-		Miles:          cruise.Miles.Float64,
-		HoursTotal:     cruise.HoursTotal.Float64,
-		HoursSail:      cruise.HoursSail.Float64,
-		HoursEngine:    cruise.HoursEngine.Float64,
-		HoursOver6bf:   cruise.HoursOver6bf.Float64,
-		Days:           cruise.Days.Int64,
-		TidalWaters:    cruise.TidalWaters.Int64 > 0,
-		CaptainName:    cruise.CaptainName.String,
+		StartPort:      voyage.StartPort.String,
+		EndPort:        voyage.EndPort.String,
+		Countries:      voyage.Countries.String,
+		Miles:          voyage.Miles,
+		HoursTotal:     voyage.HoursTotal,
+		HoursSail:      voyage.HoursSail,
+		HoursEngine:    voyage.HoursEngine,
+		HoursOver6bf:   voyage.HoursOver6bf,
+		Days:           voyage.Days,
+		TidalWaters:    voyage.TidalWaters > 0,
+		CaptainName:    voyage.CaptainName.String,
 		Role:           assignment.Role,
 		GeneratedDate:  time.Now().Format("2006-01-02"),
 	}
@@ -144,11 +145,11 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 
 	for _, oldFmt := range []string{"pdf", "docx"} {
 		if oldFmt != req.Format {
-			_ = os.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", cruiseID, req.CrewMemberID, oldFmt)))
+			_ = os.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, req.CrewMemberID, oldFmt)))
 		}
 	}
 
-	filename := fmt.Sprintf("%d_%d.%s", cruiseID, req.CrewMemberID, req.Format)
+	filename := fmt.Sprintf("%d_%d.%s", voyageID, req.CrewMemberID, req.Format)
 	filePath := filepath.Join(dir, filename)
 	if err := os.WriteFile(filePath, fileBytes, 0o644); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to save file")
@@ -156,7 +157,7 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	opinion, err := h.q.UpsertVoyageOpinion(r.Context(), sqlcdb.UpsertVoyageOpinionParams{
-		CruiseID:     cruiseID,
+		VoyageID:     voyageID,
 		CrewMemberID: req.CrewMemberID,
 		FilePath:     filePath,
 		FileFormat:   req.Format,
@@ -171,22 +172,22 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 
 func (h *VoyageOpinionHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	voyageID, err := strconv.ParseInt(chi.URLParam(r, "voyageID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid voyage id")
 		return
 	}
 
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: cruiseID, OwnerID: user.UserID}); err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "cruise not found")
+	if _, err := h.q.GetVoyage(r.Context(), sqlcdb.GetVoyageParams{ID: voyageID, OwnerID: user.UserID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
+		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
 
-	opinions, err := h.q.ListCruiseVoyageOpinions(r.Context(), cruiseID)
+	opinions, err := h.q.ListVoyageVoyageOpinions(r.Context(), voyageID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to list opinions")
 		return
@@ -197,18 +198,18 @@ func (h *VoyageOpinionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *VoyageOpinionHandler) Download(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	voyageID, err := strconv.ParseInt(chi.URLParam(r, "voyageID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid voyage id")
 		return
 	}
 
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: cruiseID, OwnerID: user.UserID}); err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "cruise not found")
+	if _, err := h.q.GetVoyage(r.Context(), sqlcdb.GetVoyageParams{ID: voyageID, OwnerID: user.UserID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
+		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
 
@@ -220,7 +221,7 @@ func (h *VoyageOpinionHandler) Download(w http.ResponseWriter, r *http.Request) 
 
 	opinion, err := h.q.GetVoyageOpinion(r.Context(), opID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "opinion not found")
 			return
 		}
@@ -228,7 +229,7 @@ func (h *VoyageOpinionHandler) Download(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if opinion.CruiseID != cruiseID {
+	if opinion.VoyageID != voyageID {
 		respondError(w, http.StatusNotFound, "opinion not found")
 		return
 	}
@@ -239,18 +240,18 @@ func (h *VoyageOpinionHandler) Download(w http.ResponseWriter, r *http.Request) 
 
 func (h *VoyageOpinionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "cruiseID"), 10, 64)
+	voyageID, err := strconv.ParseInt(chi.URLParam(r, "voyageID"), 10, 64)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
+		respondError(w, http.StatusBadRequest, "invalid voyage id")
 		return
 	}
 
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: cruiseID, OwnerID: user.UserID}); err != nil {
-		if err == sql.ErrNoRows {
-			respondError(w, http.StatusNotFound, "cruise not found")
+	if _, err := h.q.GetVoyage(r.Context(), sqlcdb.GetVoyageParams{ID: voyageID, OwnerID: user.UserID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
+		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
 
@@ -262,7 +263,7 @@ func (h *VoyageOpinionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	opinion, err := h.q.GetVoyageOpinion(r.Context(), opID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "opinion not found")
 			return
 		}
@@ -270,7 +271,7 @@ func (h *VoyageOpinionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if opinion.CruiseID != cruiseID {
+	if opinion.VoyageID != voyageID {
 		respondError(w, http.StatusNotFound, "opinion not found")
 		return
 	}

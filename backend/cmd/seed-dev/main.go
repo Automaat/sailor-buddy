@@ -157,25 +157,24 @@ func (e firebaseError) Error() string {
 func upsertDBUser(ctx context.Context, database *sql.DB, user devUser, firebaseUID string) (int64, error) {
 	var id int64
 	err := database.QueryRowContext(ctx, `
-		INSERT INTO users (email, name, password_hash, firebase_uid)
-		VALUES ($1, $2, '', $3)
-		ON CONFLICT (firebase_uid) DO UPDATE SET
-			email = EXCLUDED.email,
-			name = EXCLUDED.name,
-			updated_at = CURRENT_TIMESTAMP
-		RETURNING id
+		WITH updated AS (
+			UPDATE users SET
+				name = $2,
+				firebase_uid = $3,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE email = $1
+			RETURNING id
+		),
+		inserted AS (
+			INSERT INTO users (email, name, password_hash, firebase_uid)
+			SELECT $1, $2, '', $3
+			WHERE NOT EXISTS (SELECT 1 FROM updated)
+			RETURNING id
+		)
+		SELECT id FROM updated
+		UNION ALL
+		SELECT id FROM inserted
 	`, user.Email, user.Name, firebaseUID).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-	err = database.QueryRowContext(ctx, `
-		UPDATE users SET
-			name = $1,
-			firebase_uid = $2,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE email = $3
-		RETURNING id
-	`, user.Name, firebaseUID, user.Email).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("upsert user: %w", err)
 	}
@@ -243,26 +242,84 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 		crewIDs = append(crewIDs, crewID)
 	}
 
-	completedCruiseID, err := seedCruise(ctx, tx, userID, yachtID, "Baltyk 2025", "completed")
-	if err != nil {
-		return err
-	}
-	if _, err = seedCruise(ctx, tx, userID, yachtID, "Majowka Hel 2026", "planned"); err != nil {
-		return err
+	personalVoyages := []voyageSeed{
+		{
+			name: "Baltyk 2025", year: 2025,
+			embark: "2025-07-04", disembark: "2025-07-12",
+			countries: "Polska, Szwecja", startPort: "Gdansk", endPort: "Visby",
+			hoursTotal: 84, hoursSail: 52, hoursEngine: 18, hoursOver6bf: 6,
+			miles: 410, days: 8, tidalWaters: 1,
+			costTotal: 12400, costPerPerson: 3100,
+			description: "Rejs testowy z gotowa zaloga i kosztami.",
+		},
+		{
+			name: "Norwegia 2024", year: 2024,
+			embark: "2024-06-15", disembark: "2024-06-28",
+			countries: "Norwegia", startPort: "Bergen", endPort: "Tromso",
+			hoursTotal: 168, hoursSail: 110, hoursEngine: 42, hoursOver6bf: 22,
+			miles: 980, days: 13, tidalWaters: 1,
+			costTotal: 28000, costPerPerson: 4700,
+			description: "Fjordy i archipelag Lofotow.",
+		},
+		{
+			name: "Chorwacja 2023", year: 2023,
+			embark: "2023-09-02", disembark: "2023-09-09",
+			countries: "Chorwacja", startPort: "Split", endPort: "Dubrovnik",
+			hoursTotal: 56, hoursSail: 38, hoursEngine: 14, hoursOver6bf: 0,
+			miles: 270, days: 7, tidalWaters: 0,
+			costTotal: 9800, costPerPerson: 2200,
+			description: "Powrot na poludnie pod koniec sezonu.",
+		},
 	}
 
+	voyageIDs := make([]int64, 0, len(personalVoyages))
+	for _, v := range personalVoyages {
+		id, verr := seedVoyageRow(ctx, tx, userID, yachtID, v)
+		if verr != nil {
+			err = verr
+			return verr
+		}
+		voyageIDs = append(voyageIDs, id)
+	}
+
+	personalTrips := []tripSeed{
+		{
+			name: "Majowka Hel 2026",
+			embark: "2026-05-23", disembark: "2026-05-26",
+			countries: "Polska", startPort: "Hel", endPort: "Gdynia",
+			captainName: user.Name, maxCrew: 6,
+			costTotal: 12400, costPerPerson: 3100,
+			description: "Krotki weekendowy wypad otwierajacy sezon.",
+		},
+		{
+			name: "Dalmacja 2026",
+			embark: "2026-09-12", disembark: "2026-09-20",
+			countries: "Chorwacja", startPort: "Sibenik", endPort: "Trogir",
+			captainName: user.Name, maxCrew: 8,
+			costTotal: 16800, costPerPerson: 2400,
+			description: "Wrzesniowy rejs po wyspach Chorwacji.",
+		},
+	}
+	for _, t := range personalTrips {
+		if _, terr := seedTripRow(ctx, tx, userID, yachtID, t); terr != nil {
+			err = terr
+			return terr
+		}
+	}
+
+	// Crew assigned to the most recent past voyage (Baltyk 2025).
 	for index, crewID := range crewIDs {
 		role := "zalogant"
 		if index == 2 {
 			role = "kapitan"
 		}
 		if _, err = tx.ExecContext(ctx, `
-			INSERT INTO crew_assignments (cruise_id, crew_member_id, role, patent_number)
+			INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
 			SELECT $1, $2, $3, NULL
 			WHERE NOT EXISTS (
-				SELECT 1 FROM crew_assignments WHERE cruise_id = $1 AND crew_member_id = $2
+				SELECT 1 FROM crew_assignments WHERE voyage_id = $1 AND crew_member_id = $2
 			)
-		`, completedCruiseID, crewID, role); err != nil {
+		`, voyageIDs[0], crewID, role); err != nil {
 			return fmt.Errorf("seed crew assignment: %w", err)
 		}
 	}
@@ -302,49 +359,81 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 	return nil
 }
 
-func seedCruise(ctx context.Context, tx *sql.Tx, userID, yachtID int64, name, status string) (int64, error) {
-	year := int64(2025)
-	embark := "2025-07-04"
-	disembark := "2025-07-12"
-	startPort := "Gdansk"
-	endPort := "Visby"
-	countries := "Polska, Szwecja"
-	if status == "planned" {
-		year = 2026
-		embark = "2026-05-23"
-		disembark = "2026-05-26"
-		startPort = "Hel"
-		endPort = "Gdynia"
-		countries = "Polska"
-	}
+type voyageSeed struct {
+	name                                                         string
+	year                                                         int64
+	embark, disembark, countries, startPort, endPort             string
+	hoursTotal, hoursSail, hoursEngine, hoursOver6bf, miles      float64
+	days, tidalWaters                                            int64
+	costTotal, costPerPerson                                     float64
+	description                                                  string
+}
 
-	var cruiseID int64
+type tripSeed struct {
+	name, embark, disembark, countries, startPort, endPort string
+	captainName                                            string
+	maxCrew                                                int64
+	costTotal, costPerPerson                               float64
+	description                                            string
+}
+
+func seedVoyageRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, v voyageSeed) (int64, error) {
+	var id int64
 	err := tx.QueryRowContext(ctx, `
 		WITH inserted AS (
-			INSERT INTO cruises (
+			INSERT INTO voyages (
 				owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
 				hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
-				captain_name, yacht_id, tidal_waters, cost_total, cost_per_person,
-				description, max_crew, status
+				captain_name, yacht_id, tidal_waters, cost_total, cost_per_person, description
 			)
 			SELECT $1, $2, $3, $4, $5, $6, $7, $8,
-				84, 52, 18, 6, 410, 8,
-				'Kasia Kapitan', $9, 1, 12400, 3100,
-				'Rejs testowy z gotowa zaloga i kosztami.', 6, $10::cruise_status
+				$9, $10, $11, $12, $13, $14,
+				'Kasia Kapitan', $15, $16, $17, $18, $19
 			WHERE NOT EXISTS (
-				SELECT 1 FROM cruises WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
+				SELECT 1 FROM voyages WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 			)
 			RETURNING id
 		)
 		SELECT id FROM inserted
 		UNION ALL
-		SELECT id FROM cruises WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
+		SELECT id FROM voyages WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 		LIMIT 1
-	`, userID, name, year, embark, disembark, countries, startPort, endPort, yachtID, status).Scan(&cruiseID)
+	`, userID, v.name, v.year, v.embark, v.disembark, v.countries, v.startPort, v.endPort,
+		v.hoursTotal, v.hoursSail, v.hoursEngine, v.hoursOver6bf, v.miles, v.days,
+		yachtID, v.tidalWaters, v.costTotal, v.costPerPerson, v.description).Scan(&id)
 	if err != nil {
-		return 0, fmt.Errorf("seed cruise %s: %w", name, err)
+		return 0, fmt.Errorf("seed voyage %s: %w", v.name, err)
 	}
-	return cruiseID, nil
+	return id, nil
+}
+
+func seedTripRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, t tripSeed) (int64, error) {
+	var id int64
+	err := tx.QueryRowContext(ctx, `
+		WITH inserted AS (
+			INSERT INTO trips (
+				owner_id, name, embark_date, disembark_date, countries, start_port, end_port,
+				captain_name, yacht_id, cost_total, cost_per_person,
+				description, max_crew, status
+			)
+			SELECT $1, $2, $3, $4, $5, $6, $7,
+				$8, $9, $10, $11,
+				$12, $13, 'planned'::trip_status
+			WHERE NOT EXISTS (
+				SELECT 1 FROM trips WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
+			)
+			RETURNING id
+		)
+		SELECT id FROM inserted
+		UNION ALL
+		SELECT id FROM trips WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
+		LIMIT 1
+	`, userID, t.name, t.embark, t.disembark, t.countries, t.startPort, t.endPort,
+		t.captainName, yachtID, t.costTotal, t.costPerPerson, t.description, t.maxCrew).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("seed trip %s: %w", t.name, err)
+	}
+	return id, nil
 }
 
 func seedOrg(ctx context.Context, tx *sql.Tx, userID int64) (int64, error) {
@@ -377,20 +466,13 @@ func seedOrg(ctx context.Context, tx *sql.Tx, userID int64) (int64, error) {
 }
 
 func seedOrgData(ctx context.Context, tx *sql.Tx, userID, orgID int64) error {
-	var yachtID int64
-	if err := tx.QueryRowContext(ctx, `
-		WITH inserted AS (
-			INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type)
-			SELECT $1, $2, 'S/Y Klubowa', 'GDA-777', 'Delphia 40'
-			WHERE NOT EXISTS (SELECT 1 FROM yachts WHERE org_id = $2 AND name = 'S/Y Klubowa')
-			RETURNING id
-		)
-		SELECT id FROM inserted
-		UNION ALL
-		SELECT id FROM yachts WHERE org_id = $2 AND name = 'S/Y Klubowa'
-		LIMIT 1
-	`, userID, orgID).Scan(&yachtID); err != nil {
-		return fmt.Errorf("seed org yacht: %w", err)
+	yachtKlubowa, err := upsertOrgYacht(ctx, tx, userID, orgID, "S/Y Klubowa", "GDA-777", "Delphia 40")
+	if err != nil {
+		return err
+	}
+	yachtMaestro, err := upsertOrgYacht(ctx, tx, userID, orgID, "S/Y Maestro", "GDA-778", "Hanse 415")
+	if err != nil {
+		return err
 	}
 
 	if _, err := tx.ExecContext(ctx, `
@@ -405,18 +487,156 @@ func seedOrgData(ctx context.Context, tx *sql.Tx, userID, orgID int64) error {
 		return fmt.Errorf("seed org crew: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO cruises (
-			owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
-			hours_total, hours_sail, hours_engine, miles, days, captain_name, yacht_id,
-			tidal_waters, cost_total, cost_per_person, description, max_crew, status
+	// Future event-level cruise with two child trips (one per yacht).
+	bornholmID, err := upsertOrgCruise(ctx, tx, orgID,
+		"Bornholm 2026 Flotylla",
+		"2026-08-01", "2026-08-09",
+		"Polska, Dania", "Kolobrzeg", "Nexo",
+		"Klubowa flotylla na Bornholm. Dwa jachty, otwarte zapisy.",
+		16, 3000,
+	)
+	if err != nil {
+		return err
+	}
+	if err := upsertOrgTripWithCruise(ctx, tx, userID, orgID, bornholmID, yachtKlubowa,
+		"Bornholm 2026 - S/Y Klubowa", "Kasia Kapitan",
+		"2026-08-01", "2026-08-09", "Polska, Dania", "Kolobrzeg", "Nexo",
+		"Jacht prowadzacy flotylli.", 8, 18000, 3000); err != nil {
+		return err
+	}
+	if err := upsertOrgTripWithCruise(ctx, tx, userID, orgID, bornholmID, yachtMaestro,
+		"Bornholm 2026 - S/Y Maestro", "Marek Zaloga",
+		"2026-08-01", "2026-08-09", "Polska, Dania", "Kolobrzeg", "Nexo",
+		"Drugi jacht klubowej flotylli.", 8, 18000, 3000); err != nil {
+		return err
+	}
+
+	// One-time cleanup of legacy demo rows from earlier seed-dev versions.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM voyages WHERE org_id = $1 AND name LIKE 'Mazury 2024%'`, orgID); err != nil {
+		return fmt.Errorf("cleanup legacy mazury voyages: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM cruises WHERE org_id = $1 AND name = 'Mazury 2024'`, orgID); err != nil {
+		return fmt.Errorf("cleanup legacy mazury cruise: %w", err)
+	}
+
+	// Past event-level cruise with two completed voyages — shows the roll-up of stats.
+	sztokholmID, err := upsertOrgCruise(ctx, tx, orgID,
+		"Sztokholm 2024",
+		"2024-07-06", "2024-07-13",
+		"Polska, Szwecja", "Gdansk", "Sztokholm",
+		"Klubowa flotylla przez Baltyk do archipelagu sztokholmskiego.",
+		16, 3400,
+	)
+	if err != nil {
+		return err
+	}
+	if err := upsertOrgVoyageWithCruise(ctx, tx, userID, orgID, sztokholmID, yachtKlubowa,
+		"Sztokholm 2024 - S/Y Klubowa", 2024,
+		"2024-07-06", "2024-07-13", "Polska, Szwecja", "Gdansk", "Sztokholm",
+		82, 60, 22, 8, 380, 7, 0,
+		16800, 2800, "Jacht prowadzacy - przejscie przez Gotland."); err != nil {
+		return err
+	}
+	if err := upsertOrgVoyageWithCruise(ctx, tx, userID, orgID, sztokholmID, yachtMaestro,
+		"Sztokholm 2024 - S/Y Maestro", 2024,
+		"2024-07-06", "2024-07-13", "Polska, Szwecja", "Gdansk", "Sztokholm",
+		86, 58, 28, 10, 395, 7, 0,
+		17400, 2900, "Drugi jacht klubowej flotylli."); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func upsertOrgYacht(ctx context.Context, tx *sql.Tx, userID, orgID int64, name, regNo, yachtType string) (int64, error) {
+	var id int64
+	err := tx.QueryRowContext(ctx, `
+		WITH inserted AS (
+			INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type)
+			SELECT $1, $2, $3, $4, $5
+			WHERE NOT EXISTS (SELECT 1 FROM yachts WHERE org_id = $2 AND name = $3)
+			RETURNING id
 		)
-		SELECT $1, $2, 'Klubowy Bornholm', 2026, '2026-08-01', '2026-08-09', 'Polska, Dania',
-			'Kolobrzeg', 'Nexo', 96, 58, 24, 520, 9, 'Kasia Kapitan', $3,
-			1, 18000, 3000, 'Organizacyjny rejs demo.', 8, 'planned'::cruise_status
-		WHERE NOT EXISTS (SELECT 1 FROM cruises WHERE org_id = $2 AND name = 'Klubowy Bornholm')
-	`, userID, orgID, yachtID); err != nil {
-		return fmt.Errorf("seed org cruise: %w", err)
+		SELECT id FROM inserted
+		UNION ALL
+		SELECT id FROM yachts WHERE org_id = $2 AND name = $3
+		LIMIT 1
+	`, userID, orgID, name, regNo, yachtType).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("seed org yacht %s: %w", name, err)
+	}
+	return id, nil
+}
+
+func upsertOrgCruise(ctx context.Context, tx *sql.Tx, orgID int64,
+	name, embark, disembark, countries, startPort, endPort, description string,
+	maxCrew int64, costPerPerson float64,
+) (int64, error) {
+	var id int64
+	err := tx.QueryRowContext(ctx, `
+		WITH inserted AS (
+			INSERT INTO cruises (
+				org_id, name, embark_date, disembark_date, countries, start_port, end_port,
+				description, max_crew, cost_per_person
+			)
+			SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+			WHERE NOT EXISTS (SELECT 1 FROM cruises WHERE org_id = $1 AND name = $2)
+			RETURNING id
+		)
+		SELECT id FROM inserted
+		UNION ALL
+		SELECT id FROM cruises WHERE org_id = $1 AND name = $2
+		LIMIT 1
+	`, orgID, name, embark, disembark, countries, startPort, endPort, description, maxCrew, costPerPerson).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("seed org cruise %s: %w", name, err)
+	}
+	return id, nil
+}
+
+func upsertOrgTripWithCruise(ctx context.Context, tx *sql.Tx,
+	userID, orgID, cruiseID, yachtID int64,
+	name, captain, embark, disembark, countries, startPort, endPort, description string,
+	maxCrew int64, costTotal, costPerPerson float64,
+) error {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO trips (
+			owner_id, org_id, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
+			captain_name, yacht_id, cost_total, cost_per_person, description, max_crew, status
+		)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9,
+			$10, $11, $12, $13, $14, $15, 'planned'::trip_status
+		WHERE NOT EXISTS (SELECT 1 FROM trips WHERE org_id = $2 AND name = $4)
+	`, userID, orgID, cruiseID, name, embark, disembark, countries, startPort, endPort,
+		captain, yachtID, costTotal, costPerPerson, description, maxCrew); err != nil {
+		return fmt.Errorf("seed org trip %s: %w", name, err)
+	}
+	return nil
+}
+
+func upsertOrgVoyageWithCruise(ctx context.Context, tx *sql.Tx,
+	userID, orgID, cruiseID, yachtID int64,
+	name string, year int64,
+	embark, disembark, countries, startPort, endPort string,
+	hoursTotal, hoursSail, hoursEngine, hoursOver6bf, miles float64,
+	days, tidalWaters int64,
+	costTotal, costPerPerson float64,
+	description string,
+) error {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO voyages (
+			owner_id, org_id, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
+			hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days,
+			yacht_id, tidal_waters, cost_total, cost_per_person, description
+		)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+			$11, $12, $13, $14, $15, $16,
+			$17, $18, $19, $20, $21
+		WHERE NOT EXISTS (SELECT 1 FROM voyages WHERE org_id = $2 AND name = $4)
+	`, userID, orgID, cruiseID, name, year, embark, disembark, countries, startPort, endPort,
+		hoursTotal, hoursSail, hoursEngine, hoursOver6bf, miles, days,
+		yachtID, tidalWaters, costTotal, costPerPerson, description); err != nil {
+		return fmt.Errorf("seed org voyage %s: %w", name, err)
 	}
 	return nil
 }

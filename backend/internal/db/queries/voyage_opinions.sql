@@ -1,18 +1,18 @@
 -- name: CreateVoyageOpinion :one
-INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format) VALUES ($1, $2, $3, $4) RETURNING *;
+INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format) VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: UpsertVoyageOpinion :one
-INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path, file_format)
+INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (cruise_id, crew_member_id) DO UPDATE
+ON CONFLICT (voyage_id, crew_member_id) DO UPDATE
 SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
 RETURNING *;
 
--- name: ListCruiseVoyageOpinions :many
+-- name: ListVoyageVoyageOpinions :many
 SELECT vo.*, cm.full_name
 FROM voyage_opinions vo
 JOIN crew_members cm ON cm.id = vo.crew_member_id
-WHERE vo.cruise_id = $1
+WHERE vo.voyage_id = $1
 ORDER BY cm.full_name;
 
 -- name: GetVoyageOpinion :one

@@ -1,22 +1,22 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
-	import type { CruiseEnrollment, Cruise } from '$lib/api/types';
+	import type { TripEnrollment, Trip } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
-	let cruise = $state<Cruise | null>(null);
-	let enrollments = $state<CruiseEnrollment[]>([]);
+	let trip = $state<Trip | null>(null);
+	let enrollments = $state<TripEnrollment[]>([]);
 	let loading = $state(true);
 
 	const id = $derived(page.params.id);
 
 	onMount(async () => {
 		try {
-			[cruise, enrollments] = await Promise.all([
-				api.get<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}`),
-				api.get<CruiseEnrollment[]>(`${orgStore.apiPrefix()}/cruises/${id}/enrollments`)
+			[trip, enrollments] = await Promise.all([
+				api.get<Trip>(`${orgStore.apiPrefix()}/trips/${id}`),
+				api.get<TripEnrollment[]>(`${orgStore.apiPrefix()}/trips/${id}/enrollments`)
 			]);
 		} catch (err) {
 			console.error('Failed to load enrollments:', err);
@@ -27,10 +27,8 @@
 
 	async function updateStatus(enrollmentId: number, status: string) {
 		try {
-			await api.put(`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}/status`, { status });
-			enrollments = enrollments.map((e) =>
-				e.id === enrollmentId ? { ...e, status } : e
-			);
+			await api.put(`${orgStore.apiPrefix()}/trips/${id}/enrollments/${enrollmentId}/status`, { status });
+			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
 			console.error('Failed to update status:', err);
 		}
@@ -39,7 +37,7 @@
 	async function deleteEnrollment(enrollmentId: number) {
 		if (!confirm('Usunąć ten zapis?')) return;
 		try {
-			await api.del(`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}`);
+			await api.del(`${orgStore.apiPrefix()}/trips/${id}/enrollments/${enrollmentId}`);
 			enrollments = enrollments.filter((e) => e.id !== enrollmentId);
 		} catch (err) {
 			console.error('Failed to delete enrollment:', err);
@@ -61,19 +59,16 @@
 		<div class="mb-6 flex items-center justify-between">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
-				{#if cruise}
+				{#if trip}
 					<p class="mt-1 text-[var(--text-muted)]">
-						{cruise.name}
-						{#if cruise.max_crew}
-							· {enrollments.filter((e) => e.status === 'accepted').length} / {cruise.max_crew} zaakceptowanych
+						{trip.name}
+						{#if trip.max_crew}
+							· {enrollments.filter((e) => e.status === 'accepted').length} / {trip.max_crew} zaakceptowanych
 						{/if}
 					</p>
 				{/if}
 			</div>
-			<a
-				href="/cruises/{id}"
-				class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
-			>
+			<a href="/trips/{id}" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
 				Wróć do rejsu
 			</a>
 		</div>
@@ -96,33 +91,21 @@
 							</div>
 							<div class="flex gap-1">
 								{#if enrollment.status !== 'accepted'}
-									<button
-										onclick={() => updateStatus(enrollment.id, 'accepted')}
-										class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-50"
-									>
+									<button onclick={() => updateStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-50">
 										Akceptuj
 									</button>
 								{/if}
 								{#if enrollment.status !== 'waitlisted'}
-									<button
-										onclick={() => updateStatus(enrollment.id, 'waitlisted')}
-										class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-50"
-									>
+									<button onclick={() => updateStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-50">
 										Rezerwa
 									</button>
 								{/if}
 								{#if enrollment.status !== 'rejected'}
-									<button
-										onclick={() => updateStatus(enrollment.id, 'rejected')}
-										class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-									>
+									<button onclick={() => updateStatus(enrollment.id, 'rejected')} class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-50">
 										Odrzuć
 									</button>
 								{/if}
-								<button
-									onclick={() => deleteEnrollment(enrollment.id)}
-									class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
-								>
+								<button onclick={() => deleteEnrollment(enrollment.id)} class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">
 									Usuń
 								</button>
 							</div>

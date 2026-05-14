@@ -31,8 +31,8 @@
 	{:else if stats}
 		<div class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 			<div class="rounded-2xl bg-white p-6 shadow-sm">
-				<div class="text-sm text-[var(--text-muted)]">Rejsy</div>
-				<div class="mt-1 text-4xl font-bold text-[var(--navy)]">{stats.cruise_count}</div>
+				<div class="text-sm text-[var(--text-muted)]">Zrealizowane rejsy</div>
+				<div class="mt-1 text-4xl font-bold text-[var(--navy)]">{stats.voyage_count}</div>
 			</div>
 			<div class="rounded-2xl bg-white p-6 shadow-sm">
 				<div class="text-sm text-[var(--text-muted)]">Godziny na morzu</div>
@@ -74,7 +74,7 @@
 							{#each stats.by_year as row}
 								<tr class="border-b border-gray-50">
 									<td class="py-2 pr-4 font-medium">{row.year}</td>
-									<td class="py-2 pr-4">{row.cruise_count}</td>
+									<td class="py-2 pr-4">{row.voyage_count}</td>
 									<td class="py-2 pr-4">{Math.round(row.total_hours)}</td>
 									<td class="py-2 pr-4">{Math.round(row.total_miles)}</td>
 									<td class="py-2">{row.total_days}</td>

@@ -10,8 +10,22 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func TestCruiseHandler_Update_InvalidJSON(t *testing.T) {
-	h := NewCruiseHandler(&mockQuerier{})
+func TestTripHandler_Update_InvalidJSON(t *testing.T) {
+	h := NewTripHandler(&mockQuerier{}, nil)
+	req := httptest.NewRequest(http.MethodPut, "/1", strings.NewReader("{bad"))
+	req = req.WithContext(userCtx(req.Context()))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestVoyageHandler_Update_InvalidJSON(t *testing.T) {
+	h := NewVoyageHandler(&mockQuerier{})
 	req := httptest.NewRequest(http.MethodPut, "/1", strings.NewReader("{bad"))
 	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()

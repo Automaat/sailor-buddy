@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
-	import type { Cruise, Yacht, CruiseStatus } from '$lib/api/types';
+	import type { Cruise } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -9,29 +9,16 @@
 	let error = $state('');
 	let loading = $state(true);
 	let saving = $state(false);
-	let yachts = $state<Yacht[]>([]);
-	let cruiseStatus = $state<CruiseStatus>('completed');
 
 	let form = $state({
 		name: '',
-		year: 0,
 		embark_date: '',
 		disembark_date: '',
 		countries: '',
 		start_port: '',
 		end_port: '',
-		hours_total: 0,
-		hours_sail: 0,
-		hours_engine: 0,
-		hours_over_6bf: 0,
-		miles: 0,
-		days: 0,
-		captain_name: '',
-		yacht_id: 0,
-		tidal_waters: false,
-		cost_total: 0,
-		cost_per_person: 0,
 		max_crew: 0,
+		cost_per_person: 0,
 		description: ''
 	});
 
@@ -39,33 +26,16 @@
 
 	onMount(async () => {
 		try {
-			const prefix = orgStore.apiPrefix();
-			const [cruise, y] = await Promise.all([
-				api.get<Cruise>(`${prefix}/cruises/${id}`),
-				api.get<Yacht[]>(`${prefix}/yachts`)
-			]);
-			yachts = y;
-			cruiseStatus = cruise.status;
+			const cruise = await api.get<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}`);
 			form = {
 				name: cruise.name,
-				year: cruise.year ?? 0,
 				embark_date: cruise.embark_date ?? '',
 				disembark_date: cruise.disembark_date ?? '',
 				countries: cruise.countries ?? '',
 				start_port: cruise.start_port ?? '',
 				end_port: cruise.end_port ?? '',
-				hours_total: cruise.hours_total ?? 0,
-				hours_sail: cruise.hours_sail ?? 0,
-				hours_engine: cruise.hours_engine ?? 0,
-				hours_over_6bf: cruise.hours_over_6bf ?? 0,
-				miles: cruise.miles ?? 0,
-				days: cruise.days ?? 0,
-				captain_name: cruise.captain_name ?? '',
-				yacht_id: cruise.yacht_id ?? 0,
-				tidal_waters: !!cruise.tidal_waters,
-				cost_total: cruise.cost_total ?? 0,
-				cost_per_person: cruise.cost_per_person ?? 0,
 				max_crew: cruise.max_crew ?? 0,
+				cost_per_person: cruise.cost_per_person ?? 0,
 				description: cruise.description ?? ''
 			};
 		} catch (err) {
@@ -80,12 +50,7 @@
 		saving = true;
 		error = '';
 		try {
-			const payload = {
-			...form,
-			tidal_waters: form.tidal_waters ? 1 : 0,
-			yacht_id: form.yacht_id || undefined
-		};
-		await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, payload);
+			await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, form);
 			goto(`/cruises/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
@@ -99,7 +64,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else}
 	<div class="mx-auto max-w-3xl">
-		<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj rejs</h1>
+		<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj wydarzenie</h1>
 
 		{#if error}
 			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
@@ -108,21 +73,8 @@
 		<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-2 gap-4">
 				<div class="col-span-2">
-					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
+					<label for="name" class="mb-1 block text-sm font-medium">Nazwa wydarzenia *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
-				</div>
-				<div>
-					<label for="year" class="mb-1 block text-sm font-medium">Rok</label>
-					<input id="year" type="number" bind:value={form.year} class="w-full rounded-lg border px-3 py-2" />
-				</div>
-				<div>
-					<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
-					<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
-						<option value={0}>-- Wybierz --</option>
-						{#each yachts as yacht}
-							<option value={yacht.id}>{yacht.name}</option>
-						{/each}
-					</select>
 				</div>
 				<div>
 					<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
@@ -140,76 +92,23 @@
 					<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
 					<input id="end_port" type="text" bind:value={form.end_port} class="w-full rounded-lg border px-3 py-2" />
 				</div>
-				<div>
+				<div class="col-span-2">
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
 					<input id="countries" type="text" bind:value={form.countries} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
-					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-					<input id="captain" type="text" bind:value={form.captain_name} class="w-full rounded-lg border px-3 py-2" />
-				</div>
-			</div>
-
-			{#if cruiseStatus === 'completed'}
-				<hr />
-				<h3 class="font-semibold text-[var(--navy)]">Statystyki nawigacyjne</h3>
-				<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-					<div>
-						<label for="ht" class="mb-1 block text-sm font-medium">Godziny łącznie</label>
-						<input id="ht" type="number" step="0.1" bind:value={form.hours_total} class="w-full rounded-lg border px-3 py-2" />
-					</div>
-					<div>
-						<label for="hs" class="mb-1 block text-sm font-medium">Godziny żagli</label>
-						<input id="hs" type="number" step="0.1" bind:value={form.hours_sail} class="w-full rounded-lg border px-3 py-2" />
-					</div>
-					<div>
-						<label for="he" class="mb-1 block text-sm font-medium">Godziny silnika</label>
-						<input id="he" type="number" step="0.1" bind:value={form.hours_engine} class="w-full rounded-lg border px-3 py-2" />
-					</div>
-					<div>
-						<label for="h6" class="mb-1 block text-sm font-medium">Godziny &gt;6Bf</label>
-						<input id="h6" type="number" step="0.1" bind:value={form.hours_over_6bf} class="w-full rounded-lg border px-3 py-2" />
-					</div>
-					<div>
-						<label for="mi" class="mb-1 block text-sm font-medium">Mile</label>
-						<input id="mi" type="number" step="0.1" bind:value={form.miles} class="w-full rounded-lg border px-3 py-2" />
-					</div>
-					<div>
-						<label for="da" class="mb-1 block text-sm font-medium">Dni</label>
-						<input id="da" type="number" bind:value={form.days} class="w-full rounded-lg border px-3 py-2" />
-					</div>
-					<div class="flex items-end">
-						<label class="flex items-center gap-2 text-sm">
-							<input type="checkbox" bind:checked={form.tidal_waters} />
-							Wody pływowe
-						</label>
-					</div>
-				</div>
-			{/if}
-
-			<hr />
-			<h3 class="font-semibold text-[var(--navy)]">Koszty</h3>
-			<div class="grid grid-cols-2 gap-4">
-				<div>
-					<label for="ct" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
-					<input id="ct" type="number" step="0.01" bind:value={form.cost_total} class="w-full rounded-lg border px-3 py-2" />
+					<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. liczba uczestników</label>
+					<input id="max_crew" type="number" bind:value={form.max_crew} min="0" class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
-					<label for="cp" class="mb-1 block text-sm font-medium">Koszt na osobę</label>
-					<input id="cp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
-				</div>
-			</div>
-
-			<div class="grid grid-cols-2 gap-4">
-				<div>
-					<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. załoga</label>
-					<input id="max_crew" type="number" bind:value={form.max_crew} class="w-full rounded-lg border px-3 py-2" min="0" placeholder="0 = bez limitu" />
+					<label for="cost_pp" class="mb-1 block text-sm font-medium">Szacowany koszt / osobę</label>
+					<input id="cost_pp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 			</div>
 
 			<div>
-				<label for="desc" class="mb-1 block text-sm font-medium">Opis</label>
-				<textarea id="desc" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+				<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
+				<textarea id="description" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
 			</div>
 
 			<div class="flex gap-3">
