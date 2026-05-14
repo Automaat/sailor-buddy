@@ -3,24 +3,39 @@
 
 	type Props = {
 		tripName: string;
-		defaultYear?: number;
+		embarkDate?: string | null;
+		disembarkDate?: string | null;
 		onClose: () => void;
 		onSubmit: (payload: CompleteTripPayload) => Promise<void>;
 	};
 
-	let { tripName, defaultYear, onClose, onSubmit }: Props = $props();
+	let { tripName, embarkDate, disembarkDate, onClose, onSubmit }: Props = $props();
 
-	const initialYear = defaultYear ?? new Date().getFullYear();
+	function yearFromDate(d?: string | null): number {
+		if (!d) return new Date().getFullYear();
+		const y = parseInt(d.split('-')[0], 10);
+		return Number.isFinite(y) ? y : new Date().getFullYear();
+	}
+
+	function daysBetween(start?: string | null, end?: string | null): number {
+		if (!start || !end) return 0;
+		const s = Date.parse(start);
+		const e = Date.parse(end);
+		if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return 0;
+		return Math.round((e - s) / 86_400_000) + 1;
+	}
+
+	const computedYear = $derived(yearFromDate(embarkDate));
+	const computedDays = $derived(daysBetween(embarkDate, disembarkDate));
+
 	let form = $state({
-		year: initialYear,
-		hours_total: 0,
 		hours_sail: 0,
 		hours_engine: 0,
 		hours_over_6bf: 0,
 		miles: 0,
-		days: 0,
 		tidal_waters: false
 	});
+	const hoursTotal = $derived((form.hours_sail || 0) + (form.hours_engine || 0));
 	let submitting = $state(false);
 	let error = $state('');
 
@@ -30,13 +45,13 @@
 		error = '';
 		try {
 			await onSubmit({
-				year: form.year || undefined,
-				hours_total: form.hours_total || undefined,
+				year: computedYear || undefined,
+				hours_total: hoursTotal || undefined,
 				hours_sail: form.hours_sail || undefined,
 				hours_engine: form.hours_engine || undefined,
 				hours_over_6bf: form.hours_over_6bf || undefined,
 				miles: form.miles || undefined,
-				days: form.days || undefined,
+				days: computedDays || undefined,
 				tidal_waters: form.tidal_waters ? 1 : 0
 			});
 		} catch (err) {
@@ -60,11 +75,11 @@
 			<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 				<div>
 					<label for="m-year" class="mb-1 block text-xs font-medium">Rok</label>
-					<input id="m-year" type="number" bind:value={form.year} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input id="m-year" type="number" value={computedYear} readonly class="w-full rounded-lg border bg-gray-50 px-2 py-1.5 text-sm text-[var(--text-muted)]" />
 				</div>
 				<div>
 					<label for="m-days" class="mb-1 block text-xs font-medium">Dni</label>
-					<input id="m-days" type="number" bind:value={form.days} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input id="m-days" type="number" value={computedDays} readonly class="w-full rounded-lg border bg-gray-50 px-2 py-1.5 text-sm text-[var(--text-muted)]" />
 				</div>
 				<div>
 					<label for="m-miles" class="mb-1 block text-xs font-medium">Mile</label>
@@ -78,7 +93,7 @@
 				</div>
 				<div>
 					<label for="m-ht" class="mb-1 block text-xs font-medium">Godziny łącznie</label>
-					<input id="m-ht" type="number" step="0.1" bind:value={form.hours_total} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input id="m-ht" type="number" step="0.1" value={hoursTotal} readonly class="w-full rounded-lg border bg-gray-50 px-2 py-1.5 text-sm text-[var(--text-muted)]" />
 				</div>
 				<div>
 					<label for="m-hs" class="mb-1 block text-xs font-medium">Godziny żagli</label>
