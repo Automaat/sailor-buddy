@@ -46,29 +46,13 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(fbClient, q))
-			registerHumaRoutes(humachi.New(r, humaConfig()), q, db)
-			mountCruiseRoutes(r, q, cfg)
+			registerHumaRoutes(humachi.New(r, humaConfig()), q, db, cfg.UploadDir)
 			mountCatalogRoutes(r, q, cfg)
 			mountOrgRoutes(r, q, db)
 		})
 	})
 
 	return r
-}
-
-// mountCruiseRoutes registers the chi routes that have not yet moved to huma:
-// the voyage-opinion subroutes. Trip and voyage CRUD, crew assignments and
-// enrollment are served by huma via registerHumaRoutes; the subroutes here
-// share the {voyageID} path parameter for routing consistency.
-func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
-	opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
-
-	r.Route("/voyages/{voyageID}/opinions", func(r chi.Router) {
-		r.Get("/", opinH.List)
-		r.Post("/", opinH.Generate)
-		r.Get("/{id}/download", opinH.Download)
-		r.Delete("/{id}", opinH.Delete)
-	})
 }
 
 // mountCatalogRoutes registers the chi routes for uploads and import that have

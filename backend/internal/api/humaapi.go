@@ -28,7 +28,7 @@ func humaConfig() huma.Config {
 // registerHumaRoutes wires every huma-served operation onto the given API.
 // It is shared by the live router and the offline spec generator, so the
 // generated OpenAPI document always matches the routes the server serves.
-func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir string) {
 	handlers.RegisterAuthRoutes(api)
 	handlers.RegisterDashboardRoutes(api, q)
 	handlers.RegisterTripRoutes(api, q, db)
@@ -37,6 +37,7 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	handlers.RegisterTrainingRoutes(api, q)
 	handlers.RegisterCrewRoutes(api, q)
 	handlers.RegisterEnrollmentRoutes(api, q)
+	handlers.RegisterVoyageOpinionRoutes(api, q, uploadDir)
 }
 
 // OpenAPIYAML builds the OpenAPI document for all huma-served routes and
@@ -44,6 +45,6 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 // document is derived from the operation types only, handlers are never run.
 func OpenAPIYAML() ([]byte, error) {
 	api := humachi.New(chi.NewRouter(), humaConfig())
-	registerHumaRoutes(api, nil, nil)
+	registerHumaRoutes(api, nil, nil, "")
 	return api.OpenAPI().YAML()
 }
