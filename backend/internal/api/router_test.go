@@ -6,25 +6,18 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 )
 
-// TestCORSPreflight verifies that the CORS middleware accepts listed origins and
-// rejects unlisted ones (no Access-Control-Allow-Origin header).
+// TestCORSPreflight verifies that NewRouter wires CORS from cfg.CORSAllowedOrigins:
+// listed origins get Access-Control-Allow-Origin, unlisted ones do not.
 func TestCORSPreflight(t *testing.T) {
 	t.Parallel()
 
-	allowedOrigins := []string{"https://allowed.example.com", "http://localhost:5173"}
-
-	r := chi.NewRouter()
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: allowedOrigins,
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
-	}))
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	cfg := &config.Config{
+		CORSAllowedOrigins: []string{"https://allowed.example.com", "http://localhost:5173"},
+	}
+	r := NewRouter(nil, cfg, nil)
 
 	tests := []struct {
 		origin  string

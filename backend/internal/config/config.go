@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -24,9 +25,11 @@ func Load() *Config {
 }
 
 func loadCORSOrigins() []string {
+	const fallback = "http://localhost:5173"
 	v := os.Getenv("CORS_ALLOWED_ORIGINS")
 	if v == "" {
-		return []string{"http://localhost:5173"}
+		slog.Warn("CORS_ALLOWED_ORIGINS not set, defaulting to localhost", "origins", fallback)
+		return []string{fallback}
 	}
 	parts := strings.Split(v, ",")
 	origins := make([]string, 0, len(parts))
@@ -36,7 +39,8 @@ func loadCORSOrigins() []string {
 		}
 	}
 	if len(origins) == 0 {
-		return []string{"http://localhost:5173"}
+		slog.Warn("CORS_ALLOWED_ORIGINS blank after trimming, defaulting to localhost", "origins", fallback)
+		return []string{fallback}
 	}
 	return origins
 }

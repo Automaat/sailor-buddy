@@ -2,7 +2,6 @@ package api
 
 import (
 	"database/sql"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -24,7 +23,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	allowCredentials := false
 	for _, o := range cfg.CORSAllowedOrigins {
 		if allowCredentials && o == "*" {
-			log.Fatal("CORS misconfiguration: AllowCredentials=true with wildcard origin is forbidden")
+			panic("CORS misconfiguration: AllowCredentials=true with wildcard origin is forbidden")
 		}
 	}
 
