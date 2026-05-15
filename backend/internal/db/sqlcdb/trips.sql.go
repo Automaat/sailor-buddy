@@ -21,6 +21,10 @@ type CancelOrgTripParams struct {
 	OrgID types.NullInt64 `json:"org_id"`
 }
 
+// CancelOrgTrip
+//
+//	UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $1 AND org_id = $2 AND status = 'planned' RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 func (q *Queries) CancelOrgTrip(ctx context.Context, arg CancelOrgTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, cancelOrgTrip, arg.ID, arg.OrgID)
 	var i Trip
@@ -62,6 +66,10 @@ type CancelTripParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// CancelTrip
+//
+//	UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $1 AND owner_id = $2 AND org_id IS NULL AND status = 'planned' RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 func (q *Queries) CancelTrip(ctx context.Context, arg CancelTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, cancelTrip, arg.ID, arg.OwnerID)
 	var i Trip
@@ -103,6 +111,10 @@ type ClearTripEnrollTokenParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// ClearTripEnrollToken
+//
+//	UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $1 AND owner_id = $2
 func (q *Queries) ClearTripEnrollToken(ctx context.Context, arg ClearTripEnrollTokenParams) error {
 	_, err := q.db.ExecContext(ctx, clearTripEnrollToken, arg.ID, arg.OwnerID)
 	return err
@@ -138,6 +150,13 @@ type CreateOrgTripParams struct {
 	Status        TripStatus        `json:"status"`
 }
 
+// CreateOrgTrip
+//
+//	INSERT INTO trips (
+//	    owner_id, org_id, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
+//	    captain_name, yacht_id, cost_total, cost_per_person, max_crew,
+//	    image_logo_url, image_photo_url, image_route_url, description, status
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 func (q *Queries) CreateOrgTrip(ctx context.Context, arg CreateOrgTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, createOrgTrip,
 		arg.OwnerID,
@@ -217,6 +236,13 @@ type CreateTripParams struct {
 	Status        TripStatus        `json:"status"`
 }
 
+// CreateTrip
+//
+//	INSERT INTO trips (
+//	    owner_id, name, embark_date, disembark_date, countries, start_port, end_port,
+//	    captain_name, yacht_id, cost_total, cost_per_person, max_crew,
+//	    image_logo_url, image_photo_url, image_route_url, description, status
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, createTrip,
 		arg.OwnerID,
@@ -275,6 +301,9 @@ type DeleteOrgTripParams struct {
 	OrgID types.NullInt64 `json:"org_id"`
 }
 
+// DeleteOrgTrip
+//
+//	DELETE FROM trips WHERE id = $1 AND org_id = $2
 func (q *Queries) DeleteOrgTrip(ctx context.Context, arg DeleteOrgTripParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOrgTrip, arg.ID, arg.OrgID)
 	return err
@@ -289,6 +318,9 @@ type DeleteTripParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// DeleteTrip
+//
+//	DELETE FROM trips WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 func (q *Queries) DeleteTrip(ctx context.Context, arg DeleteTripParams) error {
 	_, err := q.db.ExecContext(ctx, deleteTrip, arg.ID, arg.OwnerID)
 	return err
@@ -303,6 +335,9 @@ type GetOrgTripParams struct {
 	OrgID types.NullInt64 `json:"org_id"`
 }
 
+// GetOrgTrip
+//
+//	SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE id = $1 AND org_id = $2
 func (q *Queries) GetOrgTrip(ctx context.Context, arg GetOrgTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, getOrgTrip, arg.ID, arg.OrgID)
 	var i Trip
@@ -343,6 +378,9 @@ type GetTripParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// GetTrip
+//
+//	SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 func (q *Queries) GetTrip(ctx context.Context, arg GetTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, getTrip, arg.ID, arg.OwnerID)
 	var i Trip
@@ -394,6 +432,11 @@ type GetTripByEnrollTokenRow struct {
 	ImagePhotoUrl types.NullString `json:"image_photo_url"`
 }
 
+// GetTripByEnrollToken
+//
+//	SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
+//	       description, max_crew, captain_name, image_photo_url
+//	FROM trips WHERE enroll_token = $1
 func (q *Queries) GetTripByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetTripByEnrollTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getTripByEnrollToken, enrollToken)
 	var i GetTripByEnrollTokenRow
@@ -417,6 +460,9 @@ const getTripStatus = `-- name: GetTripStatus :one
 SELECT status FROM trips WHERE id = $1
 `
 
+// GetTripStatus
+//
+//	SELECT status FROM trips WHERE id = $1
 func (q *Queries) GetTripStatus(ctx context.Context, id int64) (TripStatus, error) {
 	row := q.db.QueryRowContext(ctx, getTripStatus, id)
 	var status TripStatus
@@ -428,6 +474,9 @@ const listOrgTrips = `-- name: ListOrgTrips :many
 SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE org_id = $1 ORDER BY embark_date ASC
 `
 
+// ListOrgTrips
+//
+//	SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE org_id = $1 ORDER BY embark_date ASC
 func (q *Queries) ListOrgTrips(ctx context.Context, orgID types.NullInt64) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgTrips, orgID)
 	if err != nil {
@@ -479,6 +528,9 @@ const listTrips = `-- name: ListTrips :many
 SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC
 `
 
+// ListTrips
+//
+//	SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC
 func (q *Queries) ListTrips(ctx context.Context, ownerID int64) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listTrips, ownerID)
 	if err != nil {
@@ -537,6 +589,10 @@ type SetTripEnrollTokenParams struct {
 	OwnerID     int64            `json:"owner_id"`
 }
 
+// SetTripEnrollToken
+//
+//	UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $2 AND owner_id = $3
 func (q *Queries) SetTripEnrollToken(ctx context.Context, arg SetTripEnrollTokenParams) error {
 	_, err := q.db.ExecContext(ctx, setTripEnrollToken, arg.EnrollToken, arg.ID, arg.OwnerID)
 	return err
@@ -574,6 +630,16 @@ type UpdateOrgTripParams struct {
 	OrgID         types.NullInt64   `json:"org_id"`
 }
 
+// UpdateOrgTrip
+//
+//	UPDATE trips SET
+//	    name = $1, embark_date = $2, disembark_date = $3, countries = $4,
+//	    start_port = $5, end_port = $6, captain_name = $7, yacht_id = $8,
+//	    cost_total = $9, cost_per_person = $10, max_crew = $11,
+//	    image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
+//	    cruise_id = $16,
+//	    updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $17 AND org_id = $18
 func (q *Queries) UpdateOrgTrip(ctx context.Context, arg UpdateOrgTripParams) error {
 	_, err := q.db.ExecContext(ctx, updateOrgTrip,
 		arg.Name,
@@ -628,6 +694,15 @@ type UpdateTripParams struct {
 	OwnerID       int64             `json:"owner_id"`
 }
 
+// UpdateTrip
+//
+//	UPDATE trips SET
+//	    name = $1, embark_date = $2, disembark_date = $3, countries = $4,
+//	    start_port = $5, end_port = $6, captain_name = $7, yacht_id = $8,
+//	    cost_total = $9, cost_per_person = $10, max_crew = $11,
+//	    image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
+//	    updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $16 AND owner_id = $17 AND org_id IS NULL
 func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
 	_, err := q.db.ExecContext(ctx, updateTrip,
 		arg.Name,

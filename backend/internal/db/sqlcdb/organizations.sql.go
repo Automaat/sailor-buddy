@@ -22,6 +22,10 @@ type AddOrgMemberParams struct {
 	Role   string `json:"role"`
 }
 
+// AddOrgMember
+//
+//	INSERT INTO org_members (org_id, user_id, role)
+//	VALUES ($1, $2, $3) RETURNING id, org_id, user_id, role, joined_at
 func (q *Queries) AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error) {
 	row := q.db.QueryRowContext(ctx, addOrgMember, arg.OrgID, arg.UserID, arg.Role)
 	var i OrgMember
@@ -39,6 +43,9 @@ const countOrgAdmins = `-- name: CountOrgAdmins :one
 SELECT COUNT(*)::BIGINT FROM org_members WHERE org_id = $1 AND role = 'admin'
 `
 
+// CountOrgAdmins
+//
+//	SELECT COUNT(*)::BIGINT FROM org_members WHERE org_id = $1 AND role = 'admin'
 func (q *Queries) CountOrgAdmins(ctx context.Context, orgID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countOrgAdmins, orgID)
 	var column_1 int64
@@ -60,6 +67,10 @@ type CreateOrgInviteParams struct {
 	MaxUses   types.NullInt64 `json:"max_uses"`
 }
 
+// CreateOrgInvite
+//
+//	INSERT INTO org_invites (org_id, token, role, created_by, expires_at, max_uses)
+//	VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, org_id, token, role, created_by, expires_at, max_uses, use_count, created_at
 func (q *Queries) CreateOrgInvite(ctx context.Context, arg CreateOrgInviteParams) (OrgInvite, error) {
 	row := q.db.QueryRowContext(ctx, createOrgInvite,
 		arg.OrgID,
@@ -99,6 +110,10 @@ type CreateOrganizationParams struct {
 	Website       types.NullString `json:"website"`
 }
 
+// CreateOrganization
+//
+//	INSERT INTO organizations (name, slug, description, logo_url, pzz_club_number, city, website)
+//	VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at
 func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, createOrganization,
 		arg.Name,
@@ -134,6 +149,9 @@ type DeleteOrgInviteParams struct {
 	OrgID int64 `json:"org_id"`
 }
 
+// DeleteOrgInvite
+//
+//	DELETE FROM org_invites WHERE id = $1 AND org_id = $2
 func (q *Queries) DeleteOrgInvite(ctx context.Context, arg DeleteOrgInviteParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOrgInvite, arg.ID, arg.OrgID)
 	return err
@@ -143,6 +161,9 @@ const deleteOrganization = `-- name: DeleteOrganization :exec
 DELETE FROM organizations WHERE id = $1
 `
 
+// DeleteOrganization
+//
+//	DELETE FROM organizations WHERE id = $1
 func (q *Queries) DeleteOrganization(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
 	return err
@@ -169,6 +190,12 @@ type GetOrgInviteByTokenRow struct {
 	OrgSlug   string          `json:"org_slug"`
 }
 
+// GetOrgInviteByToken
+//
+//	SELECT oi.id, oi.org_id, oi.token, oi.role, oi.created_by, oi.expires_at, oi.max_uses, oi.use_count, oi.created_at, o.name AS org_name, o.slug AS org_slug
+//	FROM org_invites oi
+//	JOIN organizations o ON o.id = oi.org_id
+//	WHERE oi.token = $1
 func (q *Queries) GetOrgInviteByToken(ctx context.Context, token string) (GetOrgInviteByTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrgInviteByToken, token)
 	var i GetOrgInviteByTokenRow
@@ -209,6 +236,12 @@ type GetOrgMembershipRow struct {
 	Slug     string         `json:"slug"`
 }
 
+// GetOrgMembership
+//
+//	SELECT om.id, om.org_id, om.user_id, om.role, om.joined_at, o.slug
+//	FROM org_members om
+//	JOIN organizations o ON o.id = om.org_id
+//	WHERE om.org_id = $1 AND om.user_id = $2
 func (q *Queries) GetOrgMembership(ctx context.Context, arg GetOrgMembershipParams) (GetOrgMembershipRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrgMembership, arg.OrgID, arg.UserID)
 	var i GetOrgMembershipRow
@@ -235,6 +268,12 @@ type GetOrgMembershipBySlugParams struct {
 	UserID int64  `json:"user_id"`
 }
 
+// GetOrgMembershipBySlug
+//
+//	SELECT om.id, om.org_id, om.user_id, om.role, om.joined_at
+//	FROM org_members om
+//	JOIN organizations o ON o.id = om.org_id
+//	WHERE o.slug = $1 AND om.user_id = $2
 func (q *Queries) GetOrgMembershipBySlug(ctx context.Context, arg GetOrgMembershipBySlugParams) (OrgMember, error) {
 	row := q.db.QueryRowContext(ctx, getOrgMembershipBySlug, arg.Slug, arg.UserID)
 	var i OrgMember
@@ -252,6 +291,9 @@ const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at FROM organizations WHERE id = $1
 `
 
+// GetOrganizationByID
+//
+//	SELECT id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at FROM organizations WHERE id = $1
 func (q *Queries) GetOrganizationByID(ctx context.Context, id int64) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationByID, id)
 	var i Organization
@@ -274,6 +316,9 @@ const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
 SELECT id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at FROM organizations WHERE slug = $1
 `
 
+// GetOrganizationBySlug
+//
+//	SELECT id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at FROM organizations WHERE slug = $1
 func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationBySlug, slug)
 	var i Organization
@@ -296,6 +341,9 @@ const incrementInviteUseCount = `-- name: IncrementInviteUseCount :execrows
 UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1 AND (max_uses IS NULL OR use_count < max_uses)
 `
 
+// IncrementInviteUseCount
+//
+//	UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1 AND (max_uses IS NULL OR use_count < max_uses)
 func (q *Queries) IncrementInviteUseCount(ctx context.Context, id int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, incrementInviteUseCount, id)
 	if err != nil {
@@ -325,6 +373,13 @@ type ListOrgInvitesRow struct {
 	CreatorName string          `json:"creator_name"`
 }
 
+// ListOrgInvites
+//
+//	SELECT oi.id, oi.org_id, oi.token, oi.role, oi.created_by, oi.expires_at, oi.max_uses, oi.use_count, oi.created_at, u.name AS creator_name
+//	FROM org_invites oi
+//	JOIN users u ON u.id = oi.created_by
+//	WHERE oi.org_id = $1
+//	ORDER BY oi.created_at DESC
 func (q *Queries) ListOrgInvites(ctx context.Context, orgID int64) ([]ListOrgInvitesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgInvites, orgID)
 	if err != nil {
@@ -379,6 +434,14 @@ type ListOrgMembersRow struct {
 	UserAvatarUrl types.NullString `json:"user_avatar_url"`
 }
 
+// ListOrgMembers
+//
+//	SELECT om.id, om.org_id, om.user_id, om.role, om.joined_at,
+//	       u.name AS user_name, u.email AS user_email, u.avatar_url AS user_avatar_url
+//	FROM org_members om
+//	JOIN users u ON u.id = om.user_id
+//	WHERE om.org_id = $1
+//	ORDER BY om.role, u.name
 func (q *Queries) ListOrgMembers(ctx context.Context, orgID int64) ([]ListOrgMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgMembers, orgID)
 	if err != nil {
@@ -433,6 +496,13 @@ type ListUserOrganizationsRow struct {
 	Role          string           `json:"role"`
 }
 
+// ListUserOrganizations
+//
+//	SELECT o.id, o.name, o.slug, o.description, o.logo_url, o.pzz_club_number, o.city, o.website, o.created_at, o.updated_at, om.role
+//	FROM organizations o
+//	JOIN org_members om ON om.org_id = o.id
+//	WHERE om.user_id = $1
+//	ORDER BY o.name
 func (q *Queries) ListUserOrganizations(ctx context.Context, userID int64) ([]ListUserOrganizationsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUserOrganizations, userID)
 	if err != nil {
@@ -477,6 +547,9 @@ type RemoveOrgMemberParams struct {
 	OrgID int64 `json:"org_id"`
 }
 
+// RemoveOrgMember
+//
+//	DELETE FROM org_members WHERE id = $1 AND org_id = $2
 func (q *Queries) RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error {
 	_, err := q.db.ExecContext(ctx, removeOrgMember, arg.ID, arg.OrgID)
 	return err
@@ -492,6 +565,9 @@ type UpdateOrgMemberRoleParams struct {
 	OrgID int64  `json:"org_id"`
 }
 
+// UpdateOrgMemberRole
+//
+//	UPDATE org_members SET role = $1 WHERE id = $2 AND org_id = $3
 func (q *Queries) UpdateOrgMemberRole(ctx context.Context, arg UpdateOrgMemberRoleParams) error {
 	_, err := q.db.ExecContext(ctx, updateOrgMemberRole, arg.Role, arg.ID, arg.OrgID)
 	return err
@@ -515,6 +591,13 @@ type UpdateOrganizationParams struct {
 	ID            int64            `json:"id"`
 }
 
+// UpdateOrganization
+//
+//	UPDATE organizations SET
+//	    name = $1, description = $2, logo_url = $3,
+//	    pzz_club_number = $4, city = $5, website = $6,
+//	    updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $7
 func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) error {
 	_, err := q.db.ExecContext(ctx, updateOrganization,
 		arg.Name,

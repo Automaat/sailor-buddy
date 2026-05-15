@@ -23,6 +23,10 @@ type CreateTripCrewAssignmentParams struct {
 	PatentNumber types.NullString `json:"patent_number"`
 }
 
+// CreateTripCrewAssignment
+//
+//	INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
+//	VALUES ($1, $2, $3, $4) RETURNING id, crew_member_id, role, patent_number, created_at, trip_id, voyage_id
 func (q *Queries) CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error) {
 	row := q.db.QueryRowContext(ctx, createTripCrewAssignment,
 		arg.TripID,
@@ -55,6 +59,10 @@ type CreateVoyageCrewAssignmentParams struct {
 	PatentNumber types.NullString `json:"patent_number"`
 }
 
+// CreateVoyageCrewAssignment
+//
+//	INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
+//	VALUES ($1, $2, $3, $4) RETURNING id, crew_member_id, role, patent_number, created_at, trip_id, voyage_id
 func (q *Queries) CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoyageCrewAssignmentParams) (CrewAssignment, error) {
 	row := q.db.QueryRowContext(ctx, createVoyageCrewAssignment,
 		arg.VoyageID,
@@ -86,6 +94,11 @@ type DeleteTripCrewAssignmentParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// DeleteTripCrewAssignment
+//
+//	DELETE FROM crew_assignments
+//	WHERE crew_assignments.id = $1
+//	  AND crew_assignments.trip_id IN (SELECT trips.id FROM trips WHERE trips.owner_id = $2)
 func (q *Queries) DeleteTripCrewAssignment(ctx context.Context, arg DeleteTripCrewAssignmentParams) error {
 	_, err := q.db.ExecContext(ctx, deleteTripCrewAssignment, arg.ID, arg.OwnerID)
 	return err
@@ -102,6 +115,11 @@ type DeleteVoyageCrewAssignmentParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// DeleteVoyageCrewAssignment
+//
+//	DELETE FROM crew_assignments
+//	WHERE crew_assignments.id = $1
+//	  AND crew_assignments.voyage_id IN (SELECT voyages.id FROM voyages WHERE voyages.owner_id = $2)
 func (q *Queries) DeleteVoyageCrewAssignment(ctx context.Context, arg DeleteVoyageCrewAssignmentParams) error {
 	_, err := q.db.ExecContext(ctx, deleteVoyageCrewAssignment, arg.ID, arg.OwnerID)
 	return err
@@ -125,6 +143,16 @@ type GetCrewMemberStatsRow struct {
 	TotalDays   int64   `json:"total_days"`
 }
 
+// GetCrewMemberStats
+//
+//	SELECT
+//	    COUNT(*)::BIGINT AS voyage_count,
+//	    COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours,
+//	    COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
+//	    COALESCE(SUM(v.days), 0)::BIGINT AS total_days
+//	FROM crew_assignments ca
+//	JOIN voyages v ON v.id = ca.voyage_id
+//	WHERE ca.crew_member_id = $1
 func (q *Queries) GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getCrewMemberStats, crewMemberID)
 	var i GetCrewMemberStatsRow
@@ -172,6 +200,13 @@ type GetCrewMemberTripsRow struct {
 	Role          string            `json:"role"`
 }
 
+// GetCrewMemberTrips
+//
+//	SELECT t.id, t.owner_id, t.org_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.cruise_id, ca.role
+//	FROM crew_assignments ca
+//	JOIN trips t ON t.id = ca.trip_id
+//	WHERE ca.crew_member_id = $1
+//	ORDER BY t.embark_date ASC
 func (q *Queries) GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([]GetCrewMemberTripsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getCrewMemberTrips, crewMemberID)
 	if err != nil {
@@ -260,6 +295,13 @@ type GetCrewMemberVoyagesRow struct {
 	Role          string            `json:"role"`
 }
 
+// GetCrewMemberVoyages
+//
+//	SELECT v.id, v.owner_id, v.org_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, v.cruise_id, ca.role
+//	FROM crew_assignments ca
+//	JOIN voyages v ON v.id = ca.voyage_id
+//	WHERE ca.crew_member_id = $1
+//	ORDER BY v.year DESC, v.embark_date DESC
 func (q *Queries) GetCrewMemberVoyages(ctx context.Context, crewMemberID int64) ([]GetCrewMemberVoyagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getCrewMemberVoyages, crewMemberID)
 	if err != nil {
@@ -337,6 +379,12 @@ type GetVoyageCrewAssignmentByMemberRow struct {
 	MemberPatent types.NullString `json:"member_patent"`
 }
 
+// GetVoyageCrewAssignmentByMember
+//
+//	SELECT ca.id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, ca.trip_id, ca.voyage_id, cm.full_name, cm.patent_number AS member_patent
+//	FROM crew_assignments ca
+//	JOIN crew_members cm ON cm.id = ca.crew_member_id
+//	WHERE ca.voyage_id = $1 AND ca.crew_member_id = $2
 func (q *Queries) GetVoyageCrewAssignmentByMember(ctx context.Context, arg GetVoyageCrewAssignmentByMemberParams) (GetVoyageCrewAssignmentByMemberRow, error) {
 	row := q.db.QueryRowContext(ctx, getVoyageCrewAssignmentByMember, arg.VoyageID, arg.CrewMemberID)
 	var i GetVoyageCrewAssignmentByMemberRow
@@ -381,6 +429,15 @@ type ListTripCrewAssignmentsRow struct {
 	Email        types.NullString `json:"email"`
 }
 
+// ListTripCrewAssignments
+//
+//	SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+//	       cm.full_name, cm.email
+//	FROM crew_assignments ca
+//	JOIN crew_members cm ON cm.id = ca.crew_member_id
+//	JOIN trips t ON t.id = ca.trip_id
+//	WHERE ca.trip_id = $1 AND t.owner_id = $2
+//	ORDER BY cm.full_name
 func (q *Queries) ListTripCrewAssignments(ctx context.Context, arg ListTripCrewAssignmentsParams) ([]ListTripCrewAssignmentsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTripCrewAssignments, arg.TripID, arg.OwnerID)
 	if err != nil {
@@ -441,6 +498,15 @@ type ListVoyageCrewAssignmentsRow struct {
 	Email        types.NullString `json:"email"`
 }
 
+// ListVoyageCrewAssignments
+//
+//	SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+//	       cm.full_name, cm.email
+//	FROM crew_assignments ca
+//	JOIN crew_members cm ON cm.id = ca.crew_member_id
+//	JOIN voyages v ON v.id = ca.voyage_id
+//	WHERE ca.voyage_id = $1 AND v.owner_id = $2
+//	ORDER BY cm.full_name
 func (q *Queries) ListVoyageCrewAssignments(ctx context.Context, arg ListVoyageCrewAssignmentsParams) ([]ListVoyageCrewAssignmentsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listVoyageCrewAssignments, arg.VoyageID, arg.OwnerID)
 	if err != nil {
@@ -484,6 +550,10 @@ type RepointCrewAssignmentsToVoyageParams struct {
 	TripID   types.NullInt64 `json:"trip_id"`
 }
 
+// RepointCrewAssignmentsToVoyage
+//
+//	UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
+//	WHERE trip_id = $2
 func (q *Queries) RepointCrewAssignmentsToVoyage(ctx context.Context, arg RepointCrewAssignmentsToVoyageParams) error {
 	_, err := q.db.ExecContext(ctx, repointCrewAssignmentsToVoyage, arg.VoyageID, arg.TripID)
 	return err

@@ -24,6 +24,9 @@ type CreateTrainingParams struct {
 	Url       types.NullString  `json:"url"`
 }
 
+// CreateTraining
+//
+//	INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, date, name, organizer, cost, url, created_at, updated_at
 func (q *Queries) CreateTraining(ctx context.Context, arg CreateTrainingParams) (Training, error) {
 	row := q.db.QueryRowContext(ctx, createTraining,
 		arg.UserID,
@@ -57,6 +60,9 @@ type DeleteTrainingParams struct {
 	UserID int64 `json:"user_id"`
 }
 
+// DeleteTraining
+//
+//	DELETE FROM trainings WHERE id = $1 AND user_id = $2
 func (q *Queries) DeleteTraining(ctx context.Context, arg DeleteTrainingParams) error {
 	_, err := q.db.ExecContext(ctx, deleteTraining, arg.ID, arg.UserID)
 	return err
@@ -71,6 +77,9 @@ type GetTrainingParams struct {
 	UserID int64 `json:"user_id"`
 }
 
+// GetTraining
+//
+//	SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE id = $1 AND user_id = $2
 func (q *Queries) GetTraining(ctx context.Context, arg GetTrainingParams) (Training, error) {
 	row := q.db.QueryRowContext(ctx, getTraining, arg.ID, arg.UserID)
 	var i Training
@@ -92,6 +101,9 @@ const listTrainings = `-- name: ListTrainings :many
 SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
 `
 
+// ListTrainings
+//
+//	SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
 func (q *Queries) ListTrainings(ctx context.Context, userID int64) ([]Training, error) {
 	rows, err := q.db.QueryContext(ctx, listTrainings, userID)
 	if err != nil {
@@ -139,6 +151,9 @@ type UpdateTrainingParams struct {
 	UserID    int64             `json:"user_id"`
 }
 
+// UpdateTraining
+//
+//	UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 AND user_id = $7
 func (q *Queries) UpdateTraining(ctx context.Context, arg UpdateTrainingParams) error {
 	_, err := q.db.ExecContext(ctx, updateTraining,
 		arg.Date,

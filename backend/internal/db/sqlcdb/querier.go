@@ -11,127 +11,726 @@ import (
 )
 
 type Querier interface {
+	//AddOrgMember
+	//
+	//  INSERT INTO org_members (org_id, user_id, role)
+	//  VALUES ($1, $2, $3) RETURNING id, org_id, user_id, role, joined_at
 	AddOrgMember(ctx context.Context, arg AddOrgMemberParams) (OrgMember, error)
+	//AssignCruiseEnrollmentToTrip
+	//
+	//  UPDATE cruise_enrollments ce SET
+	//      trip_id = $1,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  FROM cruises c
+	//  WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
+	//    AND ($1::BIGINT IS NULL OR EXISTS (
+	//        SELECT 1 FROM trips t WHERE t.id = $1 AND t.cruise_id = ce.cruise_id
+	//    ))
 	AssignCruiseEnrollmentToTrip(ctx context.Context, arg AssignCruiseEnrollmentToTripParams) error
+	//CancelOrgTrip
+	//
+	//  UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $1 AND org_id = $2 AND status = 'planned' RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 	CancelOrgTrip(ctx context.Context, arg CancelOrgTripParams) (Trip, error)
+	//CancelTrip
+	//
+	//  UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $1 AND owner_id = $2 AND org_id IS NULL AND status = 'planned' RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 	CancelTrip(ctx context.Context, arg CancelTripParams) (Trip, error)
+	//ClearCruiseEnrollToken
+	//
+	//  UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $1 AND org_id = $2
 	ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnrollTokenParams) error
+	//ClearTripEnrollToken
+	//
+	//  UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $1 AND owner_id = $2
 	ClearTripEnrollToken(ctx context.Context, arg ClearTripEnrollTokenParams) error
+	//CountCruiseEnrollments
+	//
+	//  SELECT
+	//      COUNT(*) FILTER (WHERE status = 'accepted')::BIGINT AS accepted,
+	//      COUNT(*)::BIGINT AS total
+	//  FROM cruise_enrollments
+	//  WHERE cruise_id = $1
 	CountCruiseEnrollments(ctx context.Context, cruiseID int64) (CountCruiseEnrollmentsRow, error)
+	//CountOrgAdmins
+	//
+	//  SELECT COUNT(*)::BIGINT FROM org_members WHERE org_id = $1 AND role = 'admin'
 	CountOrgAdmins(ctx context.Context, orgID int64) (int64, error)
+	//CountTripEnrollments
+	//
+	//  SELECT
+	//      COUNT(*) FILTER (WHERE status = 'accepted')::BIGINT AS accepted,
+	//      COUNT(*)::BIGINT AS total
+	//  FROM trip_enrollments
+	//  WHERE trip_id = $1
 	CountTripEnrollments(ctx context.Context, tripID int64) (CountTripEnrollmentsRow, error)
+	//CreateCrewMember
+	//
+	//  INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
 	CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error)
+	//CreateCruise
+	//
+	//  INSERT INTO cruises (
+	//      org_id, name, embark_date, disembark_date, countries, start_port, end_port,
+	//      description, image_logo_url, image_photo_url, image_route_url,
+	//      max_crew, cost_per_person
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at
 	CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error)
+	//CreateCruiseEnrollment
+	//
+	//  INSERT INTO cruise_enrollments (cruise_id, user_id, note)
+	//  VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, created_at, updated_at
 	CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error)
+	//CreateOrgCrewMember
+	//
+	//  INSERT INTO crew_members (owner_id, org_id, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone)
+	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
 	CreateOrgCrewMember(ctx context.Context, arg CreateOrgCrewMemberParams) (CrewMember, error)
+	//CreateOrgInvite
+	//
+	//  INSERT INTO org_invites (org_id, token, role, created_by, expires_at, max_uses)
+	//  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, org_id, token, role, created_by, expires_at, max_uses, use_count, created_at
 	CreateOrgInvite(ctx context.Context, arg CreateOrgInviteParams) (OrgInvite, error)
+	//CreateOrgTrip
+	//
+	//  INSERT INTO trips (
+	//      owner_id, org_id, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
+	//      captain_name, yacht_id, cost_total, cost_per_person, max_crew,
+	//      image_logo_url, image_photo_url, image_route_url, description, status
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 	CreateOrgTrip(ctx context.Context, arg CreateOrgTripParams) (Trip, error)
+	//CreateOrgVoyage
+	//
+	//  INSERT INTO voyages (
+	//      owner_id, org_id, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
+	//      captain_name, yacht_id,
+	//      hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
+	//      cost_total, cost_per_person,
+	//      image_logo_url, image_photo_url, image_route_url, description
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id
 	CreateOrgVoyage(ctx context.Context, arg CreateOrgVoyageParams) (Voyage, error)
+	//CreateOrgYacht
+	//
+	//  INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
 	CreateOrgYacht(ctx context.Context, arg CreateOrgYachtParams) (Yacht, error)
+	//CreateOrganization
+	//
+	//  INSERT INTO organizations (name, slug, description, logo_url, pzz_club_number, city, website)
+	//  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error)
+	//CreateTraining
+	//
+	//  INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, date, name, organizer, cost, url, created_at, updated_at
 	CreateTraining(ctx context.Context, arg CreateTrainingParams) (Training, error)
+	//CreateTrip
+	//
+	//  INSERT INTO trips (
+	//      owner_id, name, embark_date, disembark_date, countries, start_port, end_port,
+	//      captain_name, yacht_id, cost_total, cost_per_person, max_crew,
+	//      image_logo_url, image_photo_url, image_route_url, description, status
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id
 	CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, error)
+	//CreateTripCrewAssignment
+	//
+	//  INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
+	//  VALUES ($1, $2, $3, $4) RETURNING id, crew_member_id, role, patent_number, created_at, trip_id, voyage_id
 	CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error)
+	//CreateTripEnrollment
+	//
+	//  INSERT INTO trip_enrollments (trip_id, user_id, note)
+	//  VALUES ($1, $2, $3) RETURNING id, trip_id, user_id, note, status, created_at, updated_at
 	CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error)
+	//CreateUser
+	//
+	//  INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	//CreateVoyage
+	//
+	//  INSERT INTO voyages (
+	//      owner_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
+	//      captain_name, yacht_id,
+	//      hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
+	//      cost_total, cost_per_person,
+	//      image_logo_url, image_photo_url, image_route_url, description
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id
 	CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voyage, error)
+	//CreateVoyageCrewAssignment
+	//
+	//  INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
+	//  VALUES ($1, $2, $3, $4) RETURNING id, crew_member_id, role, patent_number, created_at, trip_id, voyage_id
 	CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoyageCrewAssignmentParams) (CrewAssignment, error)
+	//CreateVoyageOpinion
+	//
+	//  INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format) VALUES ($1, $2, $3, $4) RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at
 	CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpinionParams) (VoyageOpinion, error)
+	//CreateYacht
+	//
+	//  INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
 	CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error)
+	//DeleteCrewMember
+	//
+	//  DELETE FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberParams) error
+	//DeleteCruise
+	//
+	//  DELETE FROM cruises WHERE id = $1 AND org_id = $2
 	DeleteCruise(ctx context.Context, arg DeleteCruiseParams) error
+	//DeleteCruiseEnrollment
+	//
+	//  DELETE FROM cruise_enrollments ce
+	//  USING cruises c
+	//  WHERE ce.id = $1 AND ce.cruise_id = c.id AND c.org_id = $2
 	DeleteCruiseEnrollment(ctx context.Context, arg DeleteCruiseEnrollmentParams) error
+	//DeleteOrgCrewMember
+	//
+	//  DELETE FROM crew_members WHERE id = $1 AND org_id = $2
 	DeleteOrgCrewMember(ctx context.Context, arg DeleteOrgCrewMemberParams) error
+	//DeleteOrgInvite
+	//
+	//  DELETE FROM org_invites WHERE id = $1 AND org_id = $2
 	DeleteOrgInvite(ctx context.Context, arg DeleteOrgInviteParams) error
+	//DeleteOrgTrip
+	//
+	//  DELETE FROM trips WHERE id = $1 AND org_id = $2
 	DeleteOrgTrip(ctx context.Context, arg DeleteOrgTripParams) error
+	//DeleteOrgVoyage
+	//
+	//  DELETE FROM voyages WHERE id = $1 AND org_id = $2
 	DeleteOrgVoyage(ctx context.Context, arg DeleteOrgVoyageParams) error
+	//DeleteOrgYacht
+	//
+	//  DELETE FROM yachts WHERE id = $1 AND org_id = $2
 	DeleteOrgYacht(ctx context.Context, arg DeleteOrgYachtParams) error
+	//DeleteOrganization
+	//
+	//  DELETE FROM organizations WHERE id = $1
 	DeleteOrganization(ctx context.Context, id int64) error
+	//DeleteTraining
+	//
+	//  DELETE FROM trainings WHERE id = $1 AND user_id = $2
 	DeleteTraining(ctx context.Context, arg DeleteTrainingParams) error
+	//DeleteTrip
+	//
+	//  DELETE FROM trips WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	DeleteTrip(ctx context.Context, arg DeleteTripParams) error
+	//DeleteTripCrewAssignment
+	//
+	//  DELETE FROM crew_assignments
+	//  WHERE crew_assignments.id = $1
+	//    AND crew_assignments.trip_id IN (SELECT trips.id FROM trips WHERE trips.owner_id = $2)
 	DeleteTripCrewAssignment(ctx context.Context, arg DeleteTripCrewAssignmentParams) error
+	//DeleteTripEnrollment
+	//
+	//  DELETE FROM trip_enrollments te
+	//  USING trips t
+	//  WHERE te.id = $1 AND te.trip_id = t.id AND t.owner_id = $2
 	DeleteTripEnrollment(ctx context.Context, arg DeleteTripEnrollmentParams) error
+	//DeleteTripEnrollmentsForTrip
+	//
+	//  DELETE FROM trip_enrollments WHERE trip_id = $1
 	DeleteTripEnrollmentsForTrip(ctx context.Context, tripID int64) error
+	//DeleteVoyage
+	//
+	//  DELETE FROM voyages WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	DeleteVoyage(ctx context.Context, arg DeleteVoyageParams) error
+	//DeleteVoyageCrewAssignment
+	//
+	//  DELETE FROM crew_assignments
+	//  WHERE crew_assignments.id = $1
+	//    AND crew_assignments.voyage_id IN (SELECT voyages.id FROM voyages WHERE voyages.owner_id = $2)
 	DeleteVoyageCrewAssignment(ctx context.Context, arg DeleteVoyageCrewAssignmentParams) error
+	//DeleteVoyageOpinion
+	//
+	//  DELETE FROM voyage_opinions WHERE id = $1
 	DeleteVoyageOpinion(ctx context.Context, id int64) error
+	//DeleteYacht
+	//
+	//  DELETE FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	DeleteYacht(ctx context.Context, arg DeleteYachtParams) error
+	//GetCrewMember
+	//
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	GetCrewMember(ctx context.Context, arg GetCrewMemberParams) (CrewMember, error)
+	//GetCrewMemberByName
+	//
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND full_name = $2 AND org_id IS NULL
 	GetCrewMemberByName(ctx context.Context, arg GetCrewMemberByNameParams) (CrewMember, error)
+	//GetCrewMemberStats
+	//
+	//  SELECT
+	//      COUNT(*)::BIGINT AS voyage_count,
+	//      COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours,
+	//      COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
+	//      COALESCE(SUM(v.days), 0)::BIGINT AS total_days
+	//  FROM crew_assignments ca
+	//  JOIN voyages v ON v.id = ca.voyage_id
+	//  WHERE ca.crew_member_id = $1
 	GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error)
+	//GetCrewMemberTrips
+	//
+	//  SELECT t.id, t.owner_id, t.org_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.cruise_id, ca.role
+	//  FROM crew_assignments ca
+	//  JOIN trips t ON t.id = ca.trip_id
+	//  WHERE ca.crew_member_id = $1
+	//  ORDER BY t.embark_date ASC
 	GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([]GetCrewMemberTripsRow, error)
+	//GetCrewMemberVoyages
+	//
+	//  SELECT v.id, v.owner_id, v.org_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, v.cruise_id, ca.role
+	//  FROM crew_assignments ca
+	//  JOIN voyages v ON v.id = ca.voyage_id
+	//  WHERE ca.crew_member_id = $1
+	//  ORDER BY v.year DESC, v.embark_date DESC
 	GetCrewMemberVoyages(ctx context.Context, crewMemberID int64) ([]GetCrewMemberVoyagesRow, error)
+	//GetCruise
+	//
+	//  SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE id = $1 AND org_id = $2
 	GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error)
+	//GetCruiseByEnrollToken
+	//
+	//  SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port,
+	//         description, image_photo_url, max_crew, cost_per_person
+	//  FROM cruises WHERE enroll_token = $1
 	GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error)
+	//GetDashboardStats
+	//
+	//  SELECT
+	//      COUNT(*)::BIGINT AS voyage_count,
+	//      COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
+	//      COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
+	//      COALESCE(SUM(days), 0)::BIGINT AS total_days,
+	//      COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
+	//      COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
+	//  FROM voyages WHERE owner_id = $1 AND org_id IS NULL
 	GetDashboardStats(ctx context.Context, ownerID int64) (GetDashboardStatsRow, error)
+	//GetOrgCrewMember
+	//
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND org_id = $2
 	GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberParams) (CrewMember, error)
+	//GetOrgDashboardStats
+	//
+	//  SELECT
+	//      COUNT(*)::BIGINT AS voyage_count,
+	//      COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
+	//      COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
+	//      COALESCE(SUM(days), 0)::BIGINT AS total_days,
+	//      COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
+	//      COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
+	//  FROM voyages WHERE org_id = $1
 	GetOrgDashboardStats(ctx context.Context, orgID types.NullInt64) (GetOrgDashboardStatsRow, error)
+	//GetOrgInviteByToken
+	//
+	//  SELECT oi.id, oi.org_id, oi.token, oi.role, oi.created_by, oi.expires_at, oi.max_uses, oi.use_count, oi.created_at, o.name AS org_name, o.slug AS org_slug
+	//  FROM org_invites oi
+	//  JOIN organizations o ON o.id = oi.org_id
+	//  WHERE oi.token = $1
 	GetOrgInviteByToken(ctx context.Context, token string) (GetOrgInviteByTokenRow, error)
+	//GetOrgMembership
+	//
+	//  SELECT om.id, om.org_id, om.user_id, om.role, om.joined_at, o.slug
+	//  FROM org_members om
+	//  JOIN organizations o ON o.id = om.org_id
+	//  WHERE om.org_id = $1 AND om.user_id = $2
 	GetOrgMembership(ctx context.Context, arg GetOrgMembershipParams) (GetOrgMembershipRow, error)
+	//GetOrgMembershipBySlug
+	//
+	//  SELECT om.id, om.org_id, om.user_id, om.role, om.joined_at
+	//  FROM org_members om
+	//  JOIN organizations o ON o.id = om.org_id
+	//  WHERE o.slug = $1 AND om.user_id = $2
 	GetOrgMembershipBySlug(ctx context.Context, arg GetOrgMembershipBySlugParams) (OrgMember, error)
+	//GetOrgTrip
+	//
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE id = $1 AND org_id = $2
 	GetOrgTrip(ctx context.Context, arg GetOrgTripParams) (Trip, error)
+	//GetOrgVoyage
+	//
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE id = $1 AND org_id = $2
 	GetOrgVoyage(ctx context.Context, arg GetOrgVoyageParams) (Voyage, error)
+	//GetOrgVoyagesByYear
+	//
+	//  SELECT
+	//      year,
+	//      COUNT(*)::BIGINT AS voyage_count,
+	//      COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
+	//      COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
+	//      COALESCE(SUM(days), 0)::BIGINT AS total_days
+	//  FROM voyages WHERE org_id = $1 GROUP BY year ORDER BY year
 	GetOrgVoyagesByYear(ctx context.Context, orgID types.NullInt64) ([]GetOrgVoyagesByYearRow, error)
+	//GetOrgYacht
+	//
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND org_id = $2
 	GetOrgYacht(ctx context.Context, arg GetOrgYachtParams) (Yacht, error)
+	//GetOrganizationByID
+	//
+	//  SELECT id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at FROM organizations WHERE id = $1
 	GetOrganizationByID(ctx context.Context, id int64) (Organization, error)
+	//GetOrganizationBySlug
+	//
+	//  SELECT id, name, slug, description, logo_url, pzz_club_number, city, website, created_at, updated_at FROM organizations WHERE slug = $1
 	GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error)
+	//GetTraining
+	//
+	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE id = $1 AND user_id = $2
 	GetTraining(ctx context.Context, arg GetTrainingParams) (Training, error)
+	//GetTrip
+	//
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	GetTrip(ctx context.Context, arg GetTripParams) (Trip, error)
+	//GetTripByEnrollToken
+	//
+	//  SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
+	//         description, max_crew, captain_name, image_photo_url
+	//  FROM trips WHERE enroll_token = $1
 	GetTripByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetTripByEnrollTokenRow, error)
+	//GetTripStatus
+	//
+	//  SELECT status FROM trips WHERE id = $1
 	GetTripStatus(ctx context.Context, id int64) (TripStatus, error)
+	//GetUserByEmail
+	//
+	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = $1
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	//GetUserByFirebaseUID
+	//
+	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = $1
 	GetUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (User, error)
+	//GetUserByID
+	//
+	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = $1
 	GetUserByID(ctx context.Context, id int64) (User, error)
+	//GetUserCruiseEnrollment
+	//
+	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+	//  WHERE cruise_id = $1 AND user_id = $2
 	GetUserCruiseEnrollment(ctx context.Context, arg GetUserCruiseEnrollmentParams) (CruiseEnrollment, error)
+	//GetUserTripEnrollment
+	//
+	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at FROM trip_enrollments
+	//  WHERE trip_id = $1 AND user_id = $2
 	GetUserTripEnrollment(ctx context.Context, arg GetUserTripEnrollmentParams) (TripEnrollment, error)
+	//GetVoyage
+	//
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	GetVoyage(ctx context.Context, arg GetVoyageParams) (Voyage, error)
+	//GetVoyageCrewAssignmentByMember
+	//
+	//  SELECT ca.id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, ca.trip_id, ca.voyage_id, cm.full_name, cm.patent_number AS member_patent
+	//  FROM crew_assignments ca
+	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
+	//  WHERE ca.voyage_id = $1 AND ca.crew_member_id = $2
 	GetVoyageCrewAssignmentByMember(ctx context.Context, arg GetVoyageCrewAssignmentByMemberParams) (GetVoyageCrewAssignmentByMemberRow, error)
+	//GetVoyageOpinion
+	//
+	//  SELECT id, voyage_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE id = $1
 	GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion, error)
+	//GetVoyagesByYear
+	//
+	//  SELECT
+	//      year,
+	//      COUNT(*)::BIGINT AS voyage_count,
+	//      COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
+	//      COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
+	//      COALESCE(SUM(days), 0)::BIGINT AS total_days
+	//  FROM voyages WHERE owner_id = $1 AND org_id IS NULL GROUP BY year ORDER BY year
 	GetVoyagesByYear(ctx context.Context, ownerID int64) ([]GetVoyagesByYearRow, error)
+	//GetYacht
+	//
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 	GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error)
+	//GetYachtByName
+	//
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 	GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error)
+	//IncrementInviteUseCount
+	//
+	//  UPDATE org_invites SET use_count = use_count + 1 WHERE id = $1 AND (max_uses IS NULL OR use_count < max_uses)
 	IncrementInviteUseCount(ctx context.Context, id int64) (int64, error)
+	//LinkFirebaseUIDByEmail
+	//
+	//  UPDATE users SET
+	//    firebase_uid = $1,
+	//    name = COALESCE(NULLIF($2::TEXT, ''), name),
+	//    updated_at = CURRENT_TIMESTAMP
+	//  WHERE email = $3
+	//    AND (firebase_uid IS NULL OR firebase_uid = $1)
+	//  RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
+	//ListCrewMembers
+	//
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name
 	ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error)
+	//ListCruiseEnrollments
+	//
+	//  SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
+	//         u.name AS user_name, u.email AS user_email,
+	//         t.name AS trip_name
+	//  FROM cruise_enrollments ce
+	//  JOIN users u ON u.id = ce.user_id
+	//  JOIN cruises c ON c.id = ce.cruise_id
+	//  LEFT JOIN trips t ON t.id = ce.trip_id
+	//  WHERE ce.cruise_id = $1 AND c.org_id = $2
+	//  ORDER BY ce.created_at
 	ListCruiseEnrollments(ctx context.Context, arg ListCruiseEnrollmentsParams) ([]ListCruiseEnrollmentsRow, error)
+	//ListCruiseTrips
+	//
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 	ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64) ([]Trip, error)
+	//ListCruiseVoyages
+	//
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
 	ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error)
+	//ListCruises
+	//
+	//  SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC
 	ListCruises(ctx context.Context, orgID int64) ([]Cruise, error)
+	//ListOrgCrewMembers
+	//
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name
 	ListOrgCrewMembers(ctx context.Context, orgID types.NullInt64) ([]CrewMember, error)
+	//ListOrgInvites
+	//
+	//  SELECT oi.id, oi.org_id, oi.token, oi.role, oi.created_by, oi.expires_at, oi.max_uses, oi.use_count, oi.created_at, u.name AS creator_name
+	//  FROM org_invites oi
+	//  JOIN users u ON u.id = oi.created_by
+	//  WHERE oi.org_id = $1
+	//  ORDER BY oi.created_at DESC
 	ListOrgInvites(ctx context.Context, orgID int64) ([]ListOrgInvitesRow, error)
+	//ListOrgMembers
+	//
+	//  SELECT om.id, om.org_id, om.user_id, om.role, om.joined_at,
+	//         u.name AS user_name, u.email AS user_email, u.avatar_url AS user_avatar_url
+	//  FROM org_members om
+	//  JOIN users u ON u.id = om.user_id
+	//  WHERE om.org_id = $1
+	//  ORDER BY om.role, u.name
 	ListOrgMembers(ctx context.Context, orgID int64) ([]ListOrgMembersRow, error)
+	//ListOrgTrips
+	//
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE org_id = $1 ORDER BY embark_date ASC
 	ListOrgTrips(ctx context.Context, orgID types.NullInt64) ([]Trip, error)
+	//ListOrgVoyages
+	//
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
 	ListOrgVoyages(ctx context.Context, orgID types.NullInt64) ([]Voyage, error)
+	//ListOrgYachts
+	//
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
 	ListOrgYachts(ctx context.Context, orgID types.NullInt64) ([]Yacht, error)
+	//ListTrainings
+	//
+	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
 	ListTrainings(ctx context.Context, userID int64) ([]Training, error)
+	//ListTripCrewAssignments
+	//
+	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+	//         cm.full_name, cm.email
+	//  FROM crew_assignments ca
+	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
+	//  JOIN trips t ON t.id = ca.trip_id
+	//  WHERE ca.trip_id = $1 AND t.owner_id = $2
+	//  ORDER BY cm.full_name
 	ListTripCrewAssignments(ctx context.Context, arg ListTripCrewAssignmentsParams) ([]ListTripCrewAssignmentsRow, error)
+	//ListTripEnrollments
+	//
+	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+	//         u.name AS user_name, u.email AS user_email
+	//  FROM trip_enrollments te
+	//  JOIN users u ON u.id = te.user_id
+	//  JOIN trips t ON t.id = te.trip_id
+	//  WHERE te.trip_id = $1 AND t.owner_id = $2
+	//  ORDER BY te.created_at
 	ListTripEnrollments(ctx context.Context, arg ListTripEnrollmentsParams) ([]ListTripEnrollmentsRow, error)
+	//ListTrips
+	//
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC
 	ListTrips(ctx context.Context, ownerID int64) ([]Trip, error)
+	//ListUserOrganizations
+	//
+	//  SELECT o.id, o.name, o.slug, o.description, o.logo_url, o.pzz_club_number, o.city, o.website, o.created_at, o.updated_at, om.role
+	//  FROM organizations o
+	//  JOIN org_members om ON om.org_id = o.id
+	//  WHERE om.user_id = $1
+	//  ORDER BY o.name
 	ListUserOrganizations(ctx context.Context, userID int64) ([]ListUserOrganizationsRow, error)
+	//ListVoyageCrewAssignments
+	//
+	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+	//         cm.full_name, cm.email
+	//  FROM crew_assignments ca
+	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
+	//  JOIN voyages v ON v.id = ca.voyage_id
+	//  WHERE ca.voyage_id = $1 AND v.owner_id = $2
+	//  ORDER BY cm.full_name
 	ListVoyageCrewAssignments(ctx context.Context, arg ListVoyageCrewAssignmentsParams) ([]ListVoyageCrewAssignmentsRow, error)
+	//ListVoyageVoyageOpinions
+	//
+	//  SELECT vo.id, vo.voyage_id, vo.crew_member_id, vo.file_path, vo.file_format, vo.created_at, cm.full_name
+	//  FROM voyage_opinions vo
+	//  JOIN crew_members cm ON cm.id = vo.crew_member_id
+	//  WHERE vo.voyage_id = $1
+	//  ORDER BY cm.full_name
 	ListVoyageVoyageOpinions(ctx context.Context, voyageID int64) ([]ListVoyageVoyageOpinionsRow, error)
+	//ListVoyages
+	//
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
 	ListVoyages(ctx context.Context, ownerID int64) ([]Voyage, error)
+	//ListYachts
+	//
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
 	ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error)
+	//RemoveOrgMember
+	//
+	//  DELETE FROM org_members WHERE id = $1 AND org_id = $2
 	RemoveOrgMember(ctx context.Context, arg RemoveOrgMemberParams) error
+	//RepointCrewAssignmentsToVoyage
+	//
+	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
+	//  WHERE trip_id = $2
 	RepointCrewAssignmentsToVoyage(ctx context.Context, arg RepointCrewAssignmentsToVoyageParams) error
+	//SetCruiseEnrollToken
+	//
+	//  UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $2 AND org_id = $3
 	SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error
+	//SetTripEnrollToken
+	//
+	//  UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $2 AND owner_id = $3
 	SetTripEnrollToken(ctx context.Context, arg SetTripEnrollTokenParams) error
+	//UpdateCrewMember
+	//
+	//  UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
 	UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error
+	//UpdateCruise
+	//
+	//  UPDATE cruises SET
+	//      name = $1, embark_date = $2, disembark_date = $3, countries = $4,
+	//      start_port = $5, end_port = $6, description = $7,
+	//      image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
+	//      max_crew = $11, cost_per_person = $12,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $13 AND org_id = $14
 	UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error
+	//UpdateCruiseEnrollmentStatus
+	//
+	//  UPDATE cruise_enrollments ce SET
+	//      status = $1,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  FROM cruises c
+	//  WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
 	UpdateCruiseEnrollmentStatus(ctx context.Context, arg UpdateCruiseEnrollmentStatusParams) error
+	//UpdateOrgCrewMember
+	//
+	//  UPDATE crew_members SET
+	//      full_name = $1, email = $2, patent_number = $3,
+	//      phone = $4, pzz_license_type = $5, pzz_license_number = $6,
+	//      emergency_contact_name = $7, emergency_contact_phone = $8,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $9 AND org_id = $10
 	UpdateOrgCrewMember(ctx context.Context, arg UpdateOrgCrewMemberParams) error
+	//UpdateOrgMemberRole
+	//
+	//  UPDATE org_members SET role = $1 WHERE id = $2 AND org_id = $3
 	UpdateOrgMemberRole(ctx context.Context, arg UpdateOrgMemberRoleParams) error
+	//UpdateOrgTrip
+	//
+	//  UPDATE trips SET
+	//      name = $1, embark_date = $2, disembark_date = $3, countries = $4,
+	//      start_port = $5, end_port = $6, captain_name = $7, yacht_id = $8,
+	//      cost_total = $9, cost_per_person = $10, max_crew = $11,
+	//      image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
+	//      cruise_id = $16,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $17 AND org_id = $18
 	UpdateOrgTrip(ctx context.Context, arg UpdateOrgTripParams) error
+	//UpdateOrgVoyage
+	//
+	//  UPDATE voyages SET
+	//      name = $1, year = $2, embark_date = $3, disembark_date = $4, countries = $5,
+	//      start_port = $6, end_port = $7, captain_name = $8, yacht_id = $9,
+	//      hours_total = $10, hours_sail = $11, hours_engine = $12, hours_over_6bf = $13,
+	//      miles = $14, days = $15, tidal_waters = $16,
+	//      cost_total = $17, cost_per_person = $18,
+	//      image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
+	//      cruise_id = $23,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $24 AND org_id = $25
 	UpdateOrgVoyage(ctx context.Context, arg UpdateOrgVoyageParams) error
+	//UpdateOrgYacht
+	//
+	//  UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND org_id = $5
 	UpdateOrgYacht(ctx context.Context, arg UpdateOrgYachtParams) error
+	//UpdateOrganization
+	//
+	//  UPDATE organizations SET
+	//      name = $1, description = $2, logo_url = $3,
+	//      pzz_club_number = $4, city = $5, website = $6,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $7
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) error
+	//UpdateTraining
+	//
+	//  UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 AND user_id = $7
 	UpdateTraining(ctx context.Context, arg UpdateTrainingParams) error
+	//UpdateTrip
+	//
+	//  UPDATE trips SET
+	//      name = $1, embark_date = $2, disembark_date = $3, countries = $4,
+	//      start_port = $5, end_port = $6, captain_name = $7, yacht_id = $8,
+	//      cost_total = $9, cost_per_person = $10, max_crew = $11,
+	//      image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $16 AND owner_id = $17 AND org_id IS NULL
 	UpdateTrip(ctx context.Context, arg UpdateTripParams) error
+	//UpdateTripEnrollmentStatus
+	//
+	//  UPDATE trip_enrollments te SET
+	//      status = $1,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  FROM trips t
+	//  WHERE te.id = $2 AND te.trip_id = t.id AND t.owner_id = $3
 	UpdateTripEnrollmentStatus(ctx context.Context, arg UpdateTripEnrollmentStatusParams) error
+	//UpdateUser
+	//
+	//  UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
+	//UpdateVoyage
+	//
+	//  UPDATE voyages SET
+	//      name = $1, year = $2, embark_date = $3, disembark_date = $4, countries = $5,
+	//      start_port = $6, end_port = $7, captain_name = $8, yacht_id = $9,
+	//      hours_total = $10, hours_sail = $11, hours_engine = $12, hours_over_6bf = $13,
+	//      miles = $14, days = $15, tidal_waters = $16,
+	//      cost_total = $17, cost_per_person = $18,
+	//      image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $23 AND owner_id = $24 AND org_id IS NULL
 	UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) error
+	//UpdateYacht
+	//
+	//  UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
 	UpdateYacht(ctx context.Context, arg UpdateYachtParams) error
+	//UpsertUserByFirebaseUID
+	//
+	//  INSERT INTO users (email, name, password_hash, firebase_uid)
+	//  VALUES ($1, $2, '', $3)
+	//  ON CONFLICT(firebase_uid) DO UPDATE SET
+	//    email = EXCLUDED.email,
+	//    name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
+	//    updated_at = CURRENT_TIMESTAMP
+	//  RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
 	UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error)
+	//UpsertVoyageOpinion
+	//
+	//  INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format)
+	//  VALUES ($1, $2, $3, $4)
+	//  ON CONFLICT (voyage_id, crew_member_id) DO UPDATE
+	//  SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
+	//  RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at
 	UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (VoyageOpinion, error)
 }
 
