@@ -72,6 +72,61 @@ func TestCreateTrip_Huma_MissingName(t *testing.T) {
 	}
 }
 
+func TestUpdateTrip_Huma(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error { return nil },
+		}
+		resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{"name": "Renamed"})
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want 204; body=%s", resp.Code, resp.Body)
+		}
+	})
+
+	t.Run("missing name", func(t *testing.T) {
+		resp := tripTestAPI(t, &mockQuerier{}).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{})
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("status = %d, want 422", resp.Code)
+		}
+	})
+}
+
+func TestDeleteTrip_Huma(t *testing.T) {
+	m := &mockQuerier{
+		deleteTripFn: func(context.Context, sqlcdb.DeleteTripParams) error { return nil },
+	}
+	resp := tripTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/1")
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.Code)
+	}
+}
+
+func TestCancelTrip_Huma(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			cancelTripFn: func(_ context.Context, arg sqlcdb.CancelTripParams) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{ID: arg.ID, Status: sqlcdb.TripStatusCancelled}, nil
+			},
+		}
+		resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/1/cancel")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+	})
+
+	t.Run("invalid transition", func(t *testing.T) {
+		m := &mockQuerier{
+			cancelTripFn: func(context.Context, sqlcdb.CancelTripParams) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{}, sql.ErrNoRows
+			},
+		}
+		resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/1/cancel")
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404", resp.Code)
+		}
+	})
+}
+
 func TestCreateTrip_Huma(t *testing.T) {
 	m := &mockQuerier{
 		createTripFn: func(_ context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
