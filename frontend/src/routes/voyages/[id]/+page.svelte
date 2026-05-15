@@ -65,6 +65,14 @@
 		}
 	}
 
+	async function downloadOpinion(opId: number) {
+		try {
+			await api.download(`/voyages/${id}/opinions/${opId}/download`);
+		} catch (err) {
+			console.error('Failed to download opinion:', err);
+		}
+	}
+
 	async function deleteOpinion(opId: number) {
 		if (!confirm('Usunąć tę opinię?')) return;
 		await api.del(`/voyages/${id}/opinions/${opId}`);
@@ -265,9 +273,9 @@
 								</span>
 							</div>
 							<div class="flex gap-2">
-								<a href="/api/voyages/{id}/opinions/{op.id}/download" class="text-sm text-[var(--ocean)] hover:underline">
+								<button onclick={() => downloadOpinion(op.id)} class="text-sm text-[var(--ocean)] hover:underline">
 									Pobierz
-								</a>
+								</button>
 								<button onclick={() => deleteOpinion(op.id)} class="text-sm text-red-500 hover:underline">
 									Usuń
 								</button>

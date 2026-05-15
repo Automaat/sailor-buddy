@@ -50,6 +50,40 @@ async function upload<T>(path: string, formData: FormData): Promise<T> {
 	return res.json();
 }
 
+async function download(path: string): Promise<void> {
+	const token = await auth.getIdToken();
+	const headers: Record<string, string> = {};
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const res = await fetch(`${BASE}${path}`, { headers });
+
+	if (res.status === 401) {
+		await auth.logout();
+		throw new Error('Session expired');
+	}
+
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		throw new Error(body.error || `Request failed: ${res.status}`);
+	}
+
+	const disposition = res.headers.get('Content-Disposition') ?? '';
+	const match = disposition.match(/filename="?([^"]+)"?/);
+	const filename = match ? match[1] : path.split('/').pop() || 'download';
+
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	URL.revokeObjectURL(url);
+}
+
 export const api = {
 	get: <T>(path: string) => request<T>(path),
 	post: <T>(path: string, body?: unknown) =>
@@ -57,5 +91,6 @@ export const api = {
 	put: <T>(path: string, body?: unknown) =>
 		request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
 	del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
-	upload: <T>(path: string, formData: FormData) => upload<T>(path, formData)
+	upload: <T>(path: string, formData: FormData) => upload<T>(path, formData),
+	download: (path: string) => download(path)
 };
