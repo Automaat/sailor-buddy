@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type OrgVoyageHandler struct {
@@ -22,7 +23,7 @@ func NewOrgVoyageHandler(q sqlcdb.Querier) *OrgVoyageHandler {
 
 func (h *OrgVoyageHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
-	voyages, err := h.q.ListOrgVoyages(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
+	voyages, err := h.q.ListOrgVoyages(r.Context(), types.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
 		slog.Error("list org voyages", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list voyages")
@@ -38,7 +39,7 @@ func (h *OrgVoyageHandler) Get(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid voyage id")
 		return
 	}
-	voyage, err := h.q.GetOrgVoyage(r.Context(), sqlcdb.GetOrgVoyageParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}})
+	voyage, err := h.q.GetOrgVoyage(r.Context(), sqlcdb.GetOrgVoyageParams{ID: id, OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true}})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "voyage not found")
@@ -65,7 +66,7 @@ func (h *OrgVoyageHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	voyage, err := h.q.CreateOrgVoyage(r.Context(), sqlcdb.CreateOrgVoyageParams{
 		OwnerID:       user.UserID,
-		OrgID:         sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:         types.NullInt64{Int64: octx.OrgID, Valid: true},
 		CruiseID:      nullInt64(req.CruiseID),
 		Name:          req.Name,
 		Year:          nullInt64(req.Year),
@@ -139,7 +140,7 @@ func (h *OrgVoyageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Description:   nullString(req.Description),
 		CruiseID:      nullInt64(req.CruiseID),
 		ID:            id,
-		OrgID:         sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:         types.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
 		slog.Error("update org voyage", "voyage_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update voyage")
@@ -155,7 +156,7 @@ func (h *OrgVoyageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid voyage id")
 		return
 	}
-	if err := h.q.DeleteOrgVoyage(r.Context(), sqlcdb.DeleteOrgVoyageParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}}); err != nil {
+	if err := h.q.DeleteOrgVoyage(r.Context(), sqlcdb.DeleteOrgVoyageParams{ID: id, OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true}}); err != nil {
 		slog.Error("delete org voyage", "voyage_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete voyage")
 		return

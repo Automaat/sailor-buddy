@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createVoyageOpinion = `-- name: CreateVoyageOpinion :one
@@ -76,13 +77,13 @@ ORDER BY cm.full_name
 `
 
 type ListVoyageVoyageOpinionsRow struct {
-	ID           int64        `json:"id"`
-	VoyageID     int64        `json:"voyage_id"`
-	CrewMemberID int64        `json:"crew_member_id"`
-	FilePath     string       `json:"file_path"`
-	FileFormat   string       `json:"file_format"`
-	CreatedAt    sql.NullTime `json:"created_at"`
-	FullName     string       `json:"full_name"`
+	ID           int64          `json:"id"`
+	VoyageID     int64          `json:"voyage_id"`
+	CrewMemberID int64          `json:"crew_member_id"`
+	FilePath     string         `json:"file_path"`
+	FileFormat   string         `json:"file_format"`
+	CreatedAt    types.NullTime `json:"created_at"`
+	FullName     string         `json:"full_name"`
 }
 
 func (q *Queries) ListVoyageVoyageOpinions(ctx context.Context, voyageID int64) ([]ListVoyageVoyageOpinionsRow, error) {

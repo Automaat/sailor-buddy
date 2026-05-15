@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createCrewMember = `-- name: CreateCrewMember :one
@@ -15,11 +16,11 @@ INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VA
 `
 
 type CreateCrewMemberParams struct {
-	OwnerID      int64          `json:"owner_id"`
-	UserID       sql.NullInt64  `json:"user_id"`
-	FullName     string         `json:"full_name"`
-	Email        sql.NullString `json:"email"`
-	PatentNumber sql.NullString `json:"patent_number"`
+	OwnerID      int64            `json:"owner_id"`
+	UserID       types.NullInt64  `json:"user_id"`
+	FullName     string           `json:"full_name"`
+	Email        types.NullString `json:"email"`
+	PatentNumber types.NullString `json:"patent_number"`
 }
 
 func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error) {
@@ -56,17 +57,17 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, owner_id, us
 `
 
 type CreateOrgCrewMemberParams struct {
-	OwnerID               int64          `json:"owner_id"`
-	OrgID                 sql.NullInt64  `json:"org_id"`
-	UserID                sql.NullInt64  `json:"user_id"`
-	FullName              string         `json:"full_name"`
-	Email                 sql.NullString `json:"email"`
-	PatentNumber          sql.NullString `json:"patent_number"`
-	Phone                 sql.NullString `json:"phone"`
-	PzzLicenseType        sql.NullString `json:"pzz_license_type"`
-	PzzLicenseNumber      sql.NullString `json:"pzz_license_number"`
-	EmergencyContactName  sql.NullString `json:"emergency_contact_name"`
-	EmergencyContactPhone sql.NullString `json:"emergency_contact_phone"`
+	OwnerID               int64            `json:"owner_id"`
+	OrgID                 types.NullInt64  `json:"org_id"`
+	UserID                types.NullInt64  `json:"user_id"`
+	FullName              string           `json:"full_name"`
+	Email                 types.NullString `json:"email"`
+	PatentNumber          types.NullString `json:"patent_number"`
+	Phone                 types.NullString `json:"phone"`
+	PzzLicenseType        types.NullString `json:"pzz_license_type"`
+	PzzLicenseNumber      types.NullString `json:"pzz_license_number"`
+	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
 }
 
 func (q *Queries) CreateOrgCrewMember(ctx context.Context, arg CreateOrgCrewMemberParams) (CrewMember, error) {
@@ -122,8 +123,8 @@ DELETE FROM crew_members WHERE id = $1 AND org_id = $2
 `
 
 type DeleteOrgCrewMemberParams struct {
-	ID    int64         `json:"id"`
-	OrgID sql.NullInt64 `json:"org_id"`
+	ID    int64           `json:"id"`
+	OrgID types.NullInt64 `json:"org_id"`
 }
 
 func (q *Queries) DeleteOrgCrewMember(ctx context.Context, arg DeleteOrgCrewMemberParams) error {
@@ -198,8 +199,8 @@ SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updat
 `
 
 type GetOrgCrewMemberParams struct {
-	ID    int64         `json:"id"`
-	OrgID sql.NullInt64 `json:"org_id"`
+	ID    int64           `json:"id"`
+	OrgID types.NullInt64 `json:"org_id"`
 }
 
 func (q *Queries) GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberParams) (CrewMember, error) {
@@ -270,7 +271,7 @@ const listOrgCrewMembers = `-- name: ListOrgCrewMembers :many
 SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name
 `
 
-func (q *Queries) ListOrgCrewMembers(ctx context.Context, orgID sql.NullInt64) ([]CrewMember, error) {
+func (q *Queries) ListOrgCrewMembers(ctx context.Context, orgID types.NullInt64) ([]CrewMember, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgCrewMembers, orgID)
 	if err != nil {
 		return nil, err
@@ -313,11 +314,11 @@ UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_
 `
 
 type UpdateCrewMemberParams struct {
-	FullName     string         `json:"full_name"`
-	Email        sql.NullString `json:"email"`
-	PatentNumber sql.NullString `json:"patent_number"`
-	ID           int64          `json:"id"`
-	OwnerID      int64          `json:"owner_id"`
+	FullName     string           `json:"full_name"`
+	Email        types.NullString `json:"email"`
+	PatentNumber types.NullString `json:"patent_number"`
+	ID           int64            `json:"id"`
+	OwnerID      int64            `json:"owner_id"`
 }
 
 func (q *Queries) UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error {
@@ -341,16 +342,16 @@ WHERE id = $9 AND org_id = $10
 `
 
 type UpdateOrgCrewMemberParams struct {
-	FullName              string         `json:"full_name"`
-	Email                 sql.NullString `json:"email"`
-	PatentNumber          sql.NullString `json:"patent_number"`
-	Phone                 sql.NullString `json:"phone"`
-	PzzLicenseType        sql.NullString `json:"pzz_license_type"`
-	PzzLicenseNumber      sql.NullString `json:"pzz_license_number"`
-	EmergencyContactName  sql.NullString `json:"emergency_contact_name"`
-	EmergencyContactPhone sql.NullString `json:"emergency_contact_phone"`
-	ID                    int64          `json:"id"`
-	OrgID                 sql.NullInt64  `json:"org_id"`
+	FullName              string           `json:"full_name"`
+	Email                 types.NullString `json:"email"`
+	PatentNumber          types.NullString `json:"patent_number"`
+	Phone                 types.NullString `json:"phone"`
+	PzzLicenseType        types.NullString `json:"pzz_license_type"`
+	PzzLicenseNumber      types.NullString `json:"pzz_license_number"`
+	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
+	ID                    int64            `json:"id"`
+	OrgID                 types.NullInt64  `json:"org_id"`
 }
 
 func (q *Queries) UpdateOrgCrewMember(ctx context.Context, arg UpdateOrgCrewMemberParams) error {

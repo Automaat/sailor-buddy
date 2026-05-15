@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const countTripEnrollments = `-- name: CountTripEnrollments :one
@@ -36,9 +37,9 @@ VALUES ($1, $2, $3) RETURNING id, trip_id, user_id, note, status, created_at, up
 `
 
 type CreateTripEnrollmentParams struct {
-	TripID int64          `json:"trip_id"`
-	UserID int64          `json:"user_id"`
-	Note   sql.NullString `json:"note"`
+	TripID int64            `json:"trip_id"`
+	UserID int64            `json:"user_id"`
+	Note   types.NullString `json:"note"`
 }
 
 func (q *Queries) CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error) {
@@ -122,15 +123,15 @@ type ListTripEnrollmentsParams struct {
 }
 
 type ListTripEnrollmentsRow struct {
-	ID        int64          `json:"id"`
-	TripID    int64          `json:"trip_id"`
-	UserID    int64          `json:"user_id"`
-	Note      sql.NullString `json:"note"`
-	Status    string         `json:"status"`
-	CreatedAt sql.NullTime   `json:"created_at"`
-	UpdatedAt sql.NullTime   `json:"updated_at"`
-	UserName  string         `json:"user_name"`
-	UserEmail string         `json:"user_email"`
+	ID        int64            `json:"id"`
+	TripID    int64            `json:"trip_id"`
+	UserID    int64            `json:"user_id"`
+	Note      types.NullString `json:"note"`
+	Status    string           `json:"status"`
+	CreatedAt types.NullTime   `json:"created_at"`
+	UpdatedAt types.NullTime   `json:"updated_at"`
+	UserName  string           `json:"user_name"`
+	UserEmail string           `json:"user_email"`
 }
 
 func (q *Queries) ListTripEnrollments(ctx context.Context, arg ListTripEnrollmentsParams) ([]ListTripEnrollmentsRow, error) {

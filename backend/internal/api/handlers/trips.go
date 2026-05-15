@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type TripHandler struct {
@@ -212,7 +213,7 @@ func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	voyage, err := completeTripTx(r, h.db, sql.NullInt64{}, id, user.UserID, req)
+	voyage, err := completeTripTx(r, h.db, types.NullInt64{}, id, user.UserID, req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "trip not found or not in planned state")
@@ -227,7 +228,7 @@ func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 
 // completeTripTx wraps the trip → voyage transition. If orgID.Valid, scopes by org_id;
 // otherwise scopes by owner_id with org_id IS NULL.
-func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID, userID int64, req completeTripRequest) (sqlcdb.Voyage, error) {
+func completeTripTx(r *http.Request, db *sql.DB, orgID types.NullInt64, tripID, userID int64, req completeTripRequest) (sqlcdb.Voyage, error) {
 	ctx := r.Context()
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -256,8 +257,8 @@ func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID, us
 	}
 
 	if err := qtx.RepointCrewAssignmentsToVoyage(ctx, sqlcdb.RepointCrewAssignmentsToVoyageParams{
-		VoyageID: sql.NullInt64{Int64: voyage.ID, Valid: true},
-		TripID:   sql.NullInt64{Int64: trip.ID, Valid: true},
+		VoyageID: types.NullInt64{Int64: voyage.ID, Valid: true},
+		TripID:   types.NullInt64{Int64: trip.ID, Valid: true},
 	}); err != nil {
 		return sqlcdb.Voyage{}, &QueryError{Op: "RepointCrewAssignmentsToVoyage", Err: err}
 	}
@@ -285,7 +286,7 @@ func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID, us
 // createVoyageFromTrip inserts the voyage row for a completed trip, choosing the
 // org-scoped or owner-scoped query based on orgID.Valid. The voyage year falls
 // back to the trip embark date when the request omits it.
-func createVoyageFromTrip(ctx context.Context, qtx *sqlcdb.Queries, orgID sql.NullInt64, trip sqlcdb.Trip, req completeTripRequest) (sqlcdb.Voyage, error) {
+func createVoyageFromTrip(ctx context.Context, qtx *sqlcdb.Queries, orgID types.NullInt64, trip sqlcdb.Trip, req completeTripRequest) (sqlcdb.Voyage, error) {
 	year := req.Year
 	if year == nil && trip.EmbarkDate.Valid {
 		if t, perr := time.Parse(time.DateOnly, trip.EmbarkDate.String); perr == nil {

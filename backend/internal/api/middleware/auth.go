@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type ctxKey string
@@ -47,7 +47,7 @@ func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Han
 
 			name, _ := fbToken.Claims["name"].(string)
 
-			fbUID := sql.NullString{String: fbToken.UID, Valid: true}
+			fbUID := types.NullString{String: fbToken.UID, Valid: true}
 			user, err := q.UpsertUserByFirebaseUID(r.Context(), sqlcdb.UpsertUserByFirebaseUIDParams{
 				Email:       email,
 				Name:        name,

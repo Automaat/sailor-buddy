@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type OrgTripHandler struct {
@@ -23,7 +24,7 @@ func NewOrgTripHandler(q sqlcdb.Querier, db *sql.DB) *OrgTripHandler {
 
 func (h *OrgTripHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
-	trips, err := h.q.ListOrgTrips(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
+	trips, err := h.q.ListOrgTrips(r.Context(), types.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
 		slog.Error("list org trips", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list trips")
@@ -39,7 +40,7 @@ func (h *OrgTripHandler) Get(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	trip, err := h.q.GetOrgTrip(r.Context(), sqlcdb.GetOrgTripParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}})
+	trip, err := h.q.GetOrgTrip(r.Context(), sqlcdb.GetOrgTripParams{ID: id, OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true}})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "trip not found")
@@ -66,7 +67,7 @@ func (h *OrgTripHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	trip, err := h.q.CreateOrgTrip(r.Context(), sqlcdb.CreateOrgTripParams{
 		OwnerID:       user.UserID,
-		OrgID:         sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:         types.NullInt64{Int64: octx.OrgID, Valid: true},
 		CruiseID:      nullInt64(req.CruiseID),
 		Name:          req.Name,
 		EmbarkDate:    nullString(req.EmbarkDate),
@@ -127,7 +128,7 @@ func (h *OrgTripHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Description:   nullString(req.Description),
 		CruiseID:      nullInt64(req.CruiseID),
 		ID:            id,
-		OrgID:         sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:         types.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
 		slog.Error("update org trip", "trip_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update trip")
@@ -143,7 +144,7 @@ func (h *OrgTripHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	if err := h.q.DeleteOrgTrip(r.Context(), sqlcdb.DeleteOrgTripParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}}); err != nil {
+	if err := h.q.DeleteOrgTrip(r.Context(), sqlcdb.DeleteOrgTripParams{ID: id, OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true}}); err != nil {
 		slog.Error("delete org trip", "trip_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete trip")
 		return
@@ -158,7 +159,7 @@ func (h *OrgTripHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid trip id")
 		return
 	}
-	trip, err := h.q.CancelOrgTrip(r.Context(), sqlcdb.CancelOrgTripParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}})
+	trip, err := h.q.CancelOrgTrip(r.Context(), sqlcdb.CancelOrgTripParams{ID: id, OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true}})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "trip not found or invalid transition")
@@ -184,7 +185,7 @@ func (h *OrgTripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	voyage, err := completeTripTx(r, h.db, sql.NullInt64{Int64: octx.OrgID, Valid: true}, id, user.UserID, req)
+	voyage, err := completeTripTx(r, h.db, types.NullInt64{Int64: octx.OrgID, Valid: true}, id, user.UserID, req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "trip not found or not in planned state")

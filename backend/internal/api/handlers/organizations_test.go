@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 func TestOrgHandler_List(t *testing.T) {
@@ -823,7 +824,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 
 	t.Run("success with max uses", func(t *testing.T) {
 		invite := validInvite
-		invite.MaxUses = sql.NullInt64{Int64: 5, Valid: true}
+		invite.MaxUses = types.NullInt64{Int64: 5, Valid: true}
 		invite.UseCount = 4
 		m := &mockQuerier{
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
@@ -868,7 +869,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 
 	t.Run("expired", func(t *testing.T) {
 		invite := validInvite
-		invite.ExpiresAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		invite.ExpiresAt = types.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
 		m := &mockQuerier{
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
 				return invite, nil
@@ -889,7 +890,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 
 	t.Run("max uses reached rows=0", func(t *testing.T) {
 		invite := validInvite
-		invite.MaxUses = sql.NullInt64{Int64: 5, Valid: true}
+		invite.MaxUses = types.NullInt64{Int64: 5, Valid: true}
 		invite.UseCount = 5
 		m := &mockQuerier{
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
@@ -953,7 +954,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 
 	t.Run("increment use count db error", func(t *testing.T) {
 		invite := validInvite
-		invite.MaxUses = sql.NullInt64{Int64: 5, Valid: true}
+		invite.MaxUses = types.NullInt64{Int64: 5, Valid: true}
 		m := &mockQuerier{
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
 				return invite, nil
@@ -1073,7 +1074,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 
 	t.Run("expired", func(t *testing.T) {
 		invite := validInvite
-		invite.ExpiresAt = sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
+		invite.ExpiresAt = types.NullTime{Time: time.Now().Add(-time.Hour), Valid: true}
 		m := &mockQuerier{
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
 				return invite, nil
@@ -1094,7 +1095,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 
 	t.Run("max uses reached", func(t *testing.T) {
 		invite := validInvite
-		invite.MaxUses = sql.NullInt64{Int64: 5, Valid: true}
+		invite.MaxUses = types.NullInt64{Int64: 5, Valid: true}
 		invite.UseCount = 5
 		m := &mockQuerier{
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {

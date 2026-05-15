@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type OrgHandler struct {
@@ -304,9 +305,9 @@ func (h *OrgHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	token := hex.EncodeToString(b)
 
-	var expiresAt sql.NullTime
+	var expiresAt types.NullTime
 	if req.ExpiresIn != nil {
-		expiresAt = sql.NullTime{
+		expiresAt = types.NullTime{
 			Time:  time.Now().Add(time.Duration(*req.ExpiresIn) * time.Hour),
 			Valid: true,
 		}

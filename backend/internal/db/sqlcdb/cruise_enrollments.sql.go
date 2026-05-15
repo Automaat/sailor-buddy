@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const assignCruiseEnrollmentToTrip = `-- name: AssignCruiseEnrollmentToTrip :exec
@@ -22,9 +23,9 @@ WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
 `
 
 type AssignCruiseEnrollmentToTripParams struct {
-	TripID sql.NullInt64 `json:"trip_id"`
-	ID     int64         `json:"id"`
-	OrgID  int64         `json:"org_id"`
+	TripID types.NullInt64 `json:"trip_id"`
+	ID     int64           `json:"id"`
+	OrgID  int64           `json:"org_id"`
 }
 
 func (q *Queries) AssignCruiseEnrollmentToTrip(ctx context.Context, arg AssignCruiseEnrollmentToTripParams) error {
@@ -58,9 +59,9 @@ VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, cre
 `
 
 type CreateCruiseEnrollmentParams struct {
-	CruiseID int64          `json:"cruise_id"`
-	UserID   int64          `json:"user_id"`
-	Note     sql.NullString `json:"note"`
+	CruiseID int64            `json:"cruise_id"`
+	UserID   int64            `json:"user_id"`
+	Note     types.NullString `json:"note"`
 }
 
 func (q *Queries) CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error) {
@@ -139,17 +140,17 @@ type ListCruiseEnrollmentsParams struct {
 }
 
 type ListCruiseEnrollmentsRow struct {
-	ID        int64          `json:"id"`
-	CruiseID  int64          `json:"cruise_id"`
-	UserID    int64          `json:"user_id"`
-	TripID    sql.NullInt64  `json:"trip_id"`
-	Note      sql.NullString `json:"note"`
-	Status    string         `json:"status"`
-	CreatedAt sql.NullTime   `json:"created_at"`
-	UpdatedAt sql.NullTime   `json:"updated_at"`
-	UserName  string         `json:"user_name"`
-	UserEmail string         `json:"user_email"`
-	TripName  sql.NullString `json:"trip_name"`
+	ID        int64            `json:"id"`
+	CruiseID  int64            `json:"cruise_id"`
+	UserID    int64            `json:"user_id"`
+	TripID    types.NullInt64  `json:"trip_id"`
+	Note      types.NullString `json:"note"`
+	Status    string           `json:"status"`
+	CreatedAt types.NullTime   `json:"created_at"`
+	UpdatedAt types.NullTime   `json:"updated_at"`
+	UserName  string           `json:"user_name"`
+	UserEmail string           `json:"user_email"`
+	TripName  types.NullString `json:"trip_name"`
 }
 
 func (q *Queries) ListCruiseEnrollments(ctx context.Context, arg ListCruiseEnrollmentsParams) ([]ListCruiseEnrollmentsRow, error) {

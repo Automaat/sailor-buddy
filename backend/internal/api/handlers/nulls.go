@@ -1,26 +1,26 @@
 package handlers
 
-import "database/sql"
+import "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 
-func nullString(s *string) sql.NullString {
+func nullString(s *string) types.NullString {
 	if s == nil {
-		return sql.NullString{}
+		return types.NullString{}
 	}
-	return sql.NullString{String: *s, Valid: true}
+	return types.NullString{String: *s, Valid: true}
 }
 
-func nullInt64(i *int64) sql.NullInt64 {
+func nullInt64(i *int64) types.NullInt64 {
 	if i == nil {
-		return sql.NullInt64{}
+		return types.NullInt64{}
 	}
-	return sql.NullInt64{Int64: *i, Valid: true}
+	return types.NullInt64{Int64: *i, Valid: true}
 }
 
-func nullFloat64(f *float64) sql.NullFloat64 {
+func nullFloat64(f *float64) types.NullFloat64 {
 	if f == nil {
-		return sql.NullFloat64{}
+		return types.NullFloat64{}
 	}
-	return sql.NullFloat64{Float64: *f, Valid: true}
+	return types.NullFloat64{Float64: *f, Valid: true}
 }
 
 func valOrZeroFloat(f *float64) float64 {

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type CrewHandler struct {
@@ -165,7 +166,7 @@ func (h *CrewHandler) AssignTripCrew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	assignment, err := h.q.CreateTripCrewAssignment(r.Context(), sqlcdb.CreateTripCrewAssignmentParams{
-		TripID:       sql.NullInt64{Int64: tripID, Valid: true},
+		TripID:       types.NullInt64{Int64: tripID, Valid: true},
 		CrewMemberID: req.CrewMemberID,
 		Role:         req.Role,
 		PatentNumber: nullString(req.PatentNumber),
@@ -186,7 +187,7 @@ func (h *CrewHandler) ListTripCrew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	assignments, err := h.q.ListTripCrewAssignments(r.Context(), sqlcdb.ListTripCrewAssignmentsParams{
-		TripID:  sql.NullInt64{Int64: tripID, Valid: true},
+		TripID:  types.NullInt64{Int64: tripID, Valid: true},
 		OwnerID: user.UserID,
 	})
 	if err != nil {
@@ -241,7 +242,7 @@ func (h *CrewHandler) AssignVoyageCrew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	assignment, err := h.q.CreateVoyageCrewAssignment(r.Context(), sqlcdb.CreateVoyageCrewAssignmentParams{
-		VoyageID:     sql.NullInt64{Int64: voyageID, Valid: true},
+		VoyageID:     types.NullInt64{Int64: voyageID, Valid: true},
 		CrewMemberID: req.CrewMemberID,
 		Role:         req.Role,
 		PatentNumber: nullString(req.PatentNumber),
@@ -262,7 +263,7 @@ func (h *CrewHandler) ListVoyageCrew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	assignments, err := h.q.ListVoyageCrewAssignments(r.Context(), sqlcdb.ListVoyageCrewAssignmentsParams{
-		VoyageID: sql.NullInt64{Int64: voyageID, Valid: true},
+		VoyageID: types.NullInt64{Int64: voyageID, Valid: true},
 		OwnerID:  user.UserID,
 	})
 	if err != nil {

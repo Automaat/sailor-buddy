@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type EnrollmentHandler struct {
@@ -31,7 +32,7 @@ func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 
 	// Try trip first.
-	trip, terr := h.q.GetTripByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	trip, terr := h.q.GetTripByEnrollToken(r.Context(), types.NullString{String: token, Valid: true})
 	if terr == nil {
 		counts, _ := h.q.CountTripEnrollments(r.Context(), trip.ID)
 		enrollment, enrollErr := h.q.GetUserTripEnrollment(r.Context(), sqlcdb.GetUserTripEnrollmentParams{
@@ -60,7 +61,7 @@ func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fall through to cruise.
-	cruise, cerr := h.q.GetCruiseByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	cruise, cerr := h.q.GetCruiseByEnrollToken(r.Context(), types.NullString{String: token, Valid: true})
 	if cerr != nil {
 		if errors.Is(cerr, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "invalid enrollment link")
@@ -75,7 +76,7 @@ func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 		CruiseID: cruise.ID,
 		UserID:   user.UserID,
 	})
-	trips, tlistErr := h.q.ListCruiseTrips(r.Context(), sql.NullInt64{Int64: cruise.ID, Valid: true})
+	trips, tlistErr := h.q.ListCruiseTrips(r.Context(), types.NullInt64{Int64: cruise.ID, Valid: true})
 	if tlistErr != nil {
 		slog.Error("list cruise trips", "cruise_id", cruise.ID, "err", tlistErr)
 		trips = nil
@@ -111,7 +112,7 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	trip, terr := h.q.GetTripByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	trip, terr := h.q.GetTripByEnrollToken(r.Context(), types.NullString{String: token, Valid: true})
 	if terr == nil {
 		status, _ := h.q.GetTripStatus(r.Context(), trip.ID)
 		if status != sqlcdb.TripStatusPlanned {
@@ -142,7 +143,7 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cruise, cerr := h.q.GetCruiseByEnrollToken(r.Context(), sql.NullString{String: token, Valid: true})
+	cruise, cerr := h.q.GetCruiseByEnrollToken(r.Context(), types.NullString{String: token, Valid: true})
 	if cerr != nil {
 		if errors.Is(cerr, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "invalid enrollment link")
@@ -198,7 +199,7 @@ func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request
 	token := hex.EncodeToString(b)
 
 	if err := h.q.SetTripEnrollToken(r.Context(), sqlcdb.SetTripEnrollTokenParams{
-		EnrollToken: sql.NullString{String: token, Valid: true},
+		EnrollToken: types.NullString{String: token, Valid: true},
 		ID:          tripID,
 		OwnerID:     user.UserID,
 	}); err != nil {
