@@ -9,6 +9,7 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("SAILOR_LISTEN_ADDR", "")
 	t.Setenv("SAILOR_UPLOAD_DIR", "")
 	t.Setenv("SAILOR_FIREBASE_PROJECT_ID", "")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
 	cfg := Load()
 
 	defaults := map[string]struct {
@@ -25,6 +26,10 @@ func TestLoad_Defaults(t *testing.T) {
 		if tc.got != tc.want {
 			t.Errorf("%s = %q, want %q", name, tc.got, tc.want)
 		}
+	}
+
+	if len(cfg.CORSAllowedOrigins) != 1 || cfg.CORSAllowedOrigins[0] != "http://localhost:5173" {
+		t.Errorf("CORSAllowedOrigins = %v, want [http://localhost:5173]", cfg.CORSAllowedOrigins)
 	}
 }
 
@@ -46,6 +51,35 @@ func TestLoad_EnvOverrides(t *testing.T) {
 			cfg := Load()
 			if got := tc.field(cfg); got != tc.value {
 				t.Errorf("%s: got %q, want %q", tc.envKey, got, tc.value)
+			}
+		})
+	}
+}
+
+func TestLoadCORSOrigins(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want []string
+	}{
+		{"empty falls back to localhost", "", []string{"http://localhost:5173"}},
+		{"single origin", "https://app.example.com", []string{"https://app.example.com"}},
+		{"multiple origins", "https://a.com,https://b.com", []string{"https://a.com", "https://b.com"}},
+		{"trims whitespace", " https://a.com , https://b.com ", []string{"https://a.com", "https://b.com"}},
+		{"blank-only falls back to localhost", "   ", []string{"http://localhost:5173"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("CORS_ALLOWED_ORIGINS", tc.env)
+			cfg := Load()
+			if len(cfg.CORSAllowedOrigins) != len(tc.want) {
+				t.Fatalf("got %v, want %v", cfg.CORSAllowedOrigins, tc.want)
+			}
+			for i, o := range tc.want {
+				if cfg.CORSAllowedOrigins[i] != o {
+					t.Errorf("[%d] got %q, want %q", i, cfg.CORSAllowedOrigins[i], o)
+				}
 			}
 		})
 	}

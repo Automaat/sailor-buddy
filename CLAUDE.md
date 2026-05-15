@@ -61,3 +61,4 @@ mise run dev-frontend  # frontend dev
 - crew_members decoupled from users (crew may not have accounts)
 - Go code must pass `gofumpt` formatting
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
+- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`)

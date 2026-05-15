@@ -6,7 +6,47 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 )
+
+// TestCORSPreflight verifies that NewRouter wires CORS from cfg.CORSAllowedOrigins:
+// listed origins get Access-Control-Allow-Origin, unlisted ones do not.
+func TestCORSPreflight(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		CORSAllowedOrigins: []string{"https://allowed.example.com", "http://localhost:5173"},
+	}
+	r := NewRouter(nil, cfg, nil)
+
+	tests := []struct {
+		origin  string
+		wantHdr bool
+	}{
+		{"https://allowed.example.com", true},
+		{"http://localhost:5173", true},
+		{"https://evil.example.com", false},
+		{"https://notallowed.com", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.origin, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodOptions, "/healthz", http.NoBody)
+			req.Header.Set("Origin", tc.origin)
+			req.Header.Set("Access-Control-Request-Method", "GET")
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			got := w.Header().Get("Access-Control-Allow-Origin")
+			if tc.wantHdr && got == "" {
+				t.Errorf("origin %q: expected ACAO header, got none", tc.origin)
+			}
+			if !tc.wantHdr && got != "" {
+				t.Errorf("origin %q: expected no ACAO header, got %q", tc.origin, got)
+			}
+		})
+	}
+}
 
 // TestCruiseNestedRoutes verifies that /{cruiseID}/crew and /{cruiseID}/opinions
 // are reachable and not captured by the /{id} subrouter.
