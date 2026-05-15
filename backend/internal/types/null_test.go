@@ -6,9 +6,10 @@ import (
 	"time"
 )
 
+var testTime = time.Date(2026, 5, 15, 9, 30, 0, 0, time.UTC)
+
 func TestNullMarshalJSON(t *testing.T) {
 	t.Parallel()
-	ts := time.Date(2026, 5, 15, 9, 30, 0, 0, time.UTC)
 	tests := []struct {
 		name string
 		in   any
@@ -22,7 +23,7 @@ func TestNullMarshalJSON(t *testing.T) {
 		{"NullInt64 zero valid", NullInt64{Int64: 0, Valid: true}, "0"},
 		{"NullFloat64 valid", NullFloat64{Float64: 3.5, Valid: true}, "3.5"},
 		{"NullFloat64 invalid", NullFloat64{}, "null"},
-		{"NullTime valid", NullTime{Time: ts, Valid: true}, `"2026-05-15T09:30:00Z"`},
+		{"NullTime valid", NullTime{Time: testTime, Valid: true}, `"2026-05-15T09:30:00Z"`},
 		{"NullTime invalid", NullTime{}, "null"},
 	}
 	for _, tt := range tests {
@@ -39,60 +40,84 @@ func TestNullMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestNullUnmarshalJSON(t *testing.T) {
+func TestNullStringUnmarshalJSON(t *testing.T) {
 	t.Parallel()
-	t.Run("NullString", func(t *testing.T) {
-		t.Parallel()
-		var n NullString
-		if err := json.Unmarshal([]byte(`"hi"`), &n); err != nil {
-			t.Fatal(err)
-		}
-		if n != (NullString{String: "hi", Valid: true}) {
-			t.Errorf("got %+v", n)
-		}
-		if err := json.Unmarshal([]byte(`null`), &n); err != nil {
-			t.Fatal(err)
-		}
-		if n != (NullString{}) {
-			t.Errorf("null: got %+v", n)
-		}
-	})
-	t.Run("NullInt64", func(t *testing.T) {
-		t.Parallel()
-		var n NullInt64
-		if err := json.Unmarshal([]byte(`7`), &n); err != nil {
-			t.Fatal(err)
-		}
-		if n != (NullInt64{Int64: 7, Valid: true}) {
-			t.Errorf("got %+v", n)
-		}
-		if err := json.Unmarshal([]byte(`null`), &n); err != nil {
-			t.Fatal(err)
-		}
-		if n != (NullInt64{}) {
-			t.Errorf("null: got %+v", n)
-		}
-	})
-	t.Run("NullFloat64", func(t *testing.T) {
-		t.Parallel()
-		var n NullFloat64
-		if err := json.Unmarshal([]byte(`1.25`), &n); err != nil {
-			t.Fatal(err)
-		}
-		if n != (NullFloat64{Float64: 1.25, Valid: true}) {
-			t.Errorf("got %+v", n)
-		}
-	})
-	t.Run("NullTime", func(t *testing.T) {
-		t.Parallel()
-		var n NullTime
-		if err := json.Unmarshal([]byte(`"2026-05-15T09:30:00Z"`), &n); err != nil {
-			t.Fatal(err)
-		}
-		if !n.Valid || !n.Time.Equal(time.Date(2026, 5, 15, 9, 30, 0, 0, time.UTC)) {
-			t.Errorf("got %+v", n)
-		}
-	})
+	var n NullString
+	if err := json.Unmarshal([]byte(`"hi"`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullString{String: "hi", Valid: true}) {
+		t.Errorf("value: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`null`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullString{}) {
+		t.Errorf("null: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`[1]`), &n); err == nil {
+		t.Error("expected error for non-string JSON")
+	}
+}
+
+func TestNullInt64UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+	var n NullInt64
+	if err := json.Unmarshal([]byte(`7`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullInt64{Int64: 7, Valid: true}) {
+		t.Errorf("value: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`null`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullInt64{}) {
+		t.Errorf("null: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`"x"`), &n); err == nil {
+		t.Error("expected error for non-number JSON")
+	}
+}
+
+func TestNullFloat64UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+	var n NullFloat64
+	if err := json.Unmarshal([]byte(`1.25`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullFloat64{Float64: 1.25, Valid: true}) {
+		t.Errorf("value: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`null`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullFloat64{}) {
+		t.Errorf("null: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`"x"`), &n); err == nil {
+		t.Error("expected error for non-number JSON")
+	}
+}
+
+func TestNullTimeUnmarshalJSON(t *testing.T) {
+	t.Parallel()
+	var n NullTime
+	if err := json.Unmarshal([]byte(`"2026-05-15T09:30:00Z"`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if !n.Valid || !n.Time.Equal(testTime) {
+		t.Errorf("value: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`null`), &n); err != nil {
+		t.Fatal(err)
+	}
+	if n.Valid {
+		t.Errorf("null: got %+v", n)
+	}
+	if err := json.Unmarshal([]byte(`"not-a-time"`), &n); err == nil {
+		t.Error("expected error for invalid time JSON")
+	}
 }
 
 func TestNullRoundTrip(t *testing.T) {
@@ -136,39 +161,99 @@ func TestNullNested(t *testing.T) {
 	}
 }
 
-func TestNullScanValue(t *testing.T) {
+func TestNullStringScanValue(t *testing.T) {
 	t.Parallel()
-	t.Run("NullString scan", func(t *testing.T) {
-		t.Parallel()
-		var n NullString
-		if err := n.Scan("hello"); err != nil {
-			t.Fatal(err)
-		}
-		if n != (NullString{String: "hello", Valid: true}) {
-			t.Errorf("got %+v", n)
-		}
-		if err := n.Scan(nil); err != nil {
-			t.Fatal(err)
-		}
-		if n.Valid {
-			t.Errorf("nil scan should be invalid: %+v", n)
-		}
-	})
-	t.Run("Value", func(t *testing.T) {
-		t.Parallel()
-		v, err := NullInt64{Int64: 9, Valid: true}.Value()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if v != int64(9) {
-			t.Errorf("got %v", v)
-		}
-		v, err = NullInt64{}.Value()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if v != nil {
-			t.Errorf("invalid Value should be nil, got %v", v)
-		}
-	})
+	var n NullString
+	if err := n.Scan("hello"); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullString{String: "hello", Valid: true}) {
+		t.Errorf("scan: got %+v", n)
+	}
+	v, err := n.Value()
+	if err != nil || v != "hello" {
+		t.Errorf("value: got %v, %v", v, err)
+	}
+	if err := n.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	if n.Valid {
+		t.Errorf("nil scan should be invalid: %+v", n)
+	}
+	v, err = n.Value()
+	if err != nil || v != nil {
+		t.Errorf("invalid value: got %v, %v", v, err)
+	}
+}
+
+func TestNullInt64ScanValue(t *testing.T) {
+	t.Parallel()
+	var n NullInt64
+	if err := n.Scan(int64(9)); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullInt64{Int64: 9, Valid: true}) {
+		t.Errorf("scan: got %+v", n)
+	}
+	v, err := n.Value()
+	if err != nil || v != int64(9) {
+		t.Errorf("value: got %v, %v", v, err)
+	}
+	if err := n.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := n.Value(); err != nil || v != nil {
+		t.Errorf("invalid value: got %v, %v", v, err)
+	}
+	if err := n.Scan("not-a-number"); err == nil {
+		t.Error("expected scan error for non-numeric string")
+	}
+}
+
+func TestNullFloat64ScanValue(t *testing.T) {
+	t.Parallel()
+	var n NullFloat64
+	if err := n.Scan(2.5); err != nil {
+		t.Fatal(err)
+	}
+	if n != (NullFloat64{Float64: 2.5, Valid: true}) {
+		t.Errorf("scan: got %+v", n)
+	}
+	v, err := n.Value()
+	if err != nil || v != 2.5 {
+		t.Errorf("value: got %v, %v", v, err)
+	}
+	if err := n.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := n.Value(); err != nil || v != nil {
+		t.Errorf("invalid value: got %v, %v", v, err)
+	}
+	if err := n.Scan("not-a-number"); err == nil {
+		t.Error("expected scan error for non-numeric string")
+	}
+}
+
+func TestNullTimeScanValue(t *testing.T) {
+	t.Parallel()
+	var n NullTime
+	if err := n.Scan(testTime); err != nil {
+		t.Fatal(err)
+	}
+	if !n.Valid || !n.Time.Equal(testTime) {
+		t.Errorf("scan: got %+v", n)
+	}
+	v, err := n.Value()
+	if err != nil || v != testTime {
+		t.Errorf("value: got %v, %v", v, err)
+	}
+	if err := n.Scan(nil); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := n.Value(); err != nil || v != nil {
+		t.Errorf("invalid value: got %v, %v", v, err)
+	}
+	if err := n.Scan("not-a-time"); err == nil {
+		t.Error("expected scan error for non-time value")
+	}
 }
