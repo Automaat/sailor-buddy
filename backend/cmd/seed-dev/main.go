@@ -281,7 +281,7 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 
 	voyageIDs := make([]int64, 0, len(personalVoyages))
 	for _, v := range personalVoyages {
-		id, verr := seedVoyageRow(ctx, tx, userID, yachtID, v)
+		id, verr := seedVoyageRow(ctx, tx, userID, yachtID, user.Name, v)
 		if verr != nil {
 			err = verr
 			return verr
@@ -353,9 +353,9 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 	}
 
 	if user.OrgRole != "" {
-		orgID, oerr := seedOrg(ctx, tx, userID, user.OrgRole)
-		if oerr != nil {
-			err = oerr
+		var orgID int64
+		orgID, err = seedOrg(ctx, tx, userID, user.OrgRole)
+		if err != nil {
 			return err
 		}
 		if err = seedOrgData(ctx, tx, userID, orgID); err != nil {
@@ -387,7 +387,7 @@ type tripSeed struct {
 	description                                            string
 }
 
-func seedVoyageRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, v voyageSeed) (int64, error) {
+func seedVoyageRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, captainName string, v voyageSeed) (int64, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
 		WITH inserted AS (
@@ -398,7 +398,7 @@ func seedVoyageRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, v voy
 			)
 			SELECT $1, $2, $3, $4, $5, $6, $7, $8,
 				$9, $10, $11, $12, $13, $14,
-				'Kasia Admin', $15, $16, $17, $18, $19
+				$15, $16, $17, $18, $19, $20
 			WHERE NOT EXISTS (
 				SELECT 1 FROM voyages WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 			)
@@ -410,7 +410,7 @@ func seedVoyageRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, v voy
 		LIMIT 1
 	`, userID, v.name, v.year, v.embark, v.disembark, v.countries, v.startPort, v.endPort,
 		v.hoursTotal, v.hoursSail, v.hoursEngine, v.hoursOver6bf, v.miles, v.days,
-		yachtID, v.tidalWaters, v.costTotal, v.costPerPerson, v.description).Scan(&id)
+		captainName, yachtID, v.tidalWaters, v.costTotal, v.costPerPerson, v.description).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("seed voyage %s: %w", v.name, err)
 	}
