@@ -163,14 +163,18 @@ func (h *VoyageOpinionHandler) buildOpinionData(ctx context.Context, userID int6
 // renderOpinionFile produces the opinion document bytes for the requested
 // format. PDF goes through the HTML template; docx is generated directly.
 func renderOpinionFile(format string, data docgen.OpinionData) ([]byte, error) {
-	if format == "docx" {
+	switch format {
+	case "pdf":
+		html, err := docgen.RenderHTML(data)
+		if err != nil {
+			return nil, err
+		}
+		return docgen.GeneratePDF(html)
+	case "docx":
 		return docgen.GenerateDOCX(data)
+	default:
+		return nil, fmt.Errorf("unsupported format %q", format)
 	}
-	html, err := docgen.RenderHTML(data)
-	if err != nil {
-		return nil, err
-	}
-	return docgen.GeneratePDF(html)
 }
 
 func (h *VoyageOpinionHandler) List(w http.ResponseWriter, r *http.Request) {
