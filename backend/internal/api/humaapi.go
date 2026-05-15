@@ -29,7 +29,12 @@ func humaConfig() huma.Config {
 // It is shared by the live router and the offline spec generator, so the
 // generated OpenAPI document always matches the routes the server serves.
 func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	handlers.RegisterAuthRoutes(api)
+	handlers.RegisterDashboardRoutes(api, q)
 	handlers.RegisterTripRoutes(api, q, db)
+	handlers.RegisterVoyageRoutes(api, q)
+	handlers.RegisterYachtRoutes(api, q)
+	handlers.RegisterTrainingRoutes(api, q)
 }
 
 // OpenAPIYAML builds the OpenAPI document for all huma-served routes and

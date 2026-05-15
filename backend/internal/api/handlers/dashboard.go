@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
@@ -16,40 +20,38 @@ func NewDashboardHandler(q sqlcdb.Querier) *DashboardHandler {
 	return &DashboardHandler{q: q}
 }
 
-type dashboardResponse struct {
-	VoyageCount      int64                        `json:"voyage_count"`
-	TotalHours       float64                      `json:"total_hours"`
-	TotalMiles       float64                      `json:"total_miles"`
-	TotalDays        int64                        `json:"total_days"`
-	TotalHoursSail   float64                      `json:"total_hours_sail"`
-	TotalHoursEngine float64                      `json:"total_hours_engine"`
-	ByYear           []sqlcdb.GetVoyagesByYearRow `json:"by_year"`
+type dashboardOutput struct {
+	Body dto.Dashboard
 }
 
-func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	stats, err := h.q.GetDashboardStats(r.Context(), user.UserID)
+// RegisterDashboardRoutes wires the owner-scoped dashboard onto the API.
+func RegisterDashboardRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewDashboardHandler(q)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-dashboard", Method: http.MethodGet, Path: "/dashboard",
+		Summary: "Owner sailing summary", Tags: []string{"Dashboard"},
+	}, h.get)
+}
+
+func (h *DashboardHandler) get(ctx context.Context, _ *struct{}) (*dashboardOutput, error) {
+	user := middleware.GetUser(ctx)
+	stats, err := h.q.GetDashboardStats(ctx, user.UserID)
 	if err != nil {
 		slog.Error("dashboard stats", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get dashboard stats")
-		return
+		return nil, huma.Error500InternalServerError("failed to get dashboard stats")
 	}
-	byYear, err := h.q.GetVoyagesByYear(r.Context(), user.UserID)
+	byYear, err := h.q.GetVoyagesByYear(ctx, user.UserID)
 	if err != nil {
 		slog.Error("dashboard yearly breakdown", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get yearly breakdown")
-		return
+		return nil, huma.Error500InternalServerError("failed to get yearly breakdown")
 	}
-	if byYear == nil {
-		byYear = []sqlcdb.GetVoyagesByYearRow{}
-	}
-	respondJSON(w, http.StatusOK, dashboardResponse{
+	return &dashboardOutput{Body: dto.Dashboard{
 		VoyageCount:      stats.VoyageCount,
 		TotalHours:       stats.TotalHours,
 		TotalMiles:       stats.TotalMiles,
 		TotalDays:        stats.TotalDays,
 		TotalHoursSail:   stats.TotalHoursSail,
 		TotalHoursEngine: stats.TotalHoursEngine,
-		ByYear:           byYear,
-	})
+		ByYear:           dto.VoyagesByYearFromDB(byYear),
+	}}, nil
 }

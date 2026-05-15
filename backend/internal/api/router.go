@@ -56,18 +56,12 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	return r
 }
 
-// mountCruiseRoutes registers the owner-scoped account, trip and voyage routes.
-// Trip CRUD (list/get/create/update/delete/complete/cancel) is served by huma
-// via registerHumaRoutes; the trip-crew and enrollment subroutes below remain
-// on chi and share the {tripID} path parameter for routing consistency.
+// mountCruiseRoutes registers the chi routes that have not yet moved to huma:
+// the enrollment subtree and the crew/opinion subroutes nested under trips and
+// voyages. Owner-scoped trip and voyage CRUD is served by huma via
+// registerHumaRoutes; the subroutes here share the {tripID}/{voyageID} path
+// parameters for routing consistency.
 func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
-	authH := handlers.NewAuthHandler()
-	r.Get("/auth/me", authH.Me)
-
-	dashH := handlers.NewDashboardHandler(q)
-	r.Get("/dashboard", dashH.Get)
-
-	voyH := handlers.NewVoyageHandler(q)
 	crewH := handlers.NewCrewHandler(q)
 	opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
 	enrollH := handlers.NewEnrollmentHandler(q)
@@ -88,42 +82,23 @@ func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
 	r.Put("/trips/{tripID}/enrollments/{id}/status", enrollH.UpdateStatus)
 	r.Delete("/trips/{tripID}/enrollments/{id}", enrollH.DeleteEnrollment)
 
-	r.Route("/voyages", func(r chi.Router) {
-		r.Get("/", voyH.List)
-		r.Post("/", voyH.Create)
-		r.Route("/{voyageID}/crew", func(r chi.Router) {
-			r.Get("/", crewH.ListVoyageCrew)
-			r.Post("/", crewH.AssignVoyageCrew)
-			r.Delete("/{assignmentID}", crewH.RemoveVoyageCrew)
-		})
-		r.Route("/{voyageID}/opinions", func(r chi.Router) {
-			r.Get("/", opinH.List)
-			r.Post("/", opinH.Generate)
-			r.Get("/{id}/download", opinH.Download)
-			r.Delete("/{id}", opinH.Delete)
-		})
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", voyH.Get)
-			r.Put("/", voyH.Update)
-			r.Delete("/", voyH.Delete)
-		})
+	r.Route("/voyages/{voyageID}/crew", func(r chi.Router) {
+		r.Get("/", crewH.ListVoyageCrew)
+		r.Post("/", crewH.AssignVoyageCrew)
+		r.Delete("/{assignmentID}", crewH.RemoveVoyageCrew)
+	})
+	r.Route("/voyages/{voyageID}/opinions", func(r chi.Router) {
+		r.Get("/", opinH.List)
+		r.Post("/", opinH.Generate)
+		r.Get("/{id}/download", opinH.Download)
+		r.Delete("/{id}", opinH.Delete)
 	})
 }
 
-// mountCatalogRoutes registers the owner-scoped yacht, crew, training and
-// import routes.
+// mountCatalogRoutes registers the chi routes for crew, uploads and import
+// that have not yet moved to huma. Owner-scoped yacht and training CRUD is
+// served by huma via registerHumaRoutes.
 func mountCatalogRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
-	yachtH := handlers.NewYachtHandler(q)
-	r.Route("/yachts", func(r chi.Router) {
-		r.Get("/", yachtH.List)
-		r.Post("/", yachtH.Create)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", yachtH.Get)
-			r.Put("/", yachtH.Update)
-			r.Delete("/", yachtH.Delete)
-		})
-	})
-
 	crewH := handlers.NewCrewHandler(q)
 	r.Route("/crew", func(r chi.Router) {
 		r.Get("/", crewH.List)
@@ -132,17 +107,6 @@ func mountCatalogRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
 			r.Get("/", crewH.Get)
 			r.Put("/", crewH.Update)
 			r.Delete("/", crewH.Delete)
-		})
-	})
-
-	trainingH := handlers.NewTrainingHandler(q)
-	r.Route("/trainings", func(r chi.Router) {
-		r.Get("/", trainingH.List)
-		r.Post("/", trainingH.Create)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", trainingH.Get)
-			r.Put("/", trainingH.Update)
-			r.Delete("/", trainingH.Delete)
 		})
 	})
 

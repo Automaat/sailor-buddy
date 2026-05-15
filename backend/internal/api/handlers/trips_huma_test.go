@@ -51,12 +51,15 @@ func TestGetTrip_Huma_NotFound(t *testing.T) {
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", resp.Code, resp.Body)
 	}
-	var body map[string]string
+	// huma emits the RFC 9457 problem+json envelope.
+	var body struct {
+		Detail string `json:"detail"`
+	}
 	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body["error"] != "trip not found" {
-		t.Fatalf("error envelope = %v, want {error: trip not found}", body)
+	if body.Detail != "trip not found" {
+		t.Fatalf("detail = %q, want %q", body.Detail, "trip not found")
 	}
 }
 

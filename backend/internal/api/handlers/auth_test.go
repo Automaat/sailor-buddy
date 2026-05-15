@@ -3,38 +3,29 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
+	"github.com/danielgtaylor/huma/v2/humatest"
 )
 
 func TestAuthHandler_Me(t *testing.T) {
+	_, api := humatest.New(t)
+	RegisterAuthRoutes(api)
+
 	t.Run("authenticated", func(t *testing.T) {
-		h := NewAuthHandler()
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		ctx := context.WithValue(req.Context(), middleware.UserCtxKey, &auth.Claims{
-			UserID: 42, Email: "test@example.com", Name: "Test", AvatarUrl: "https://example.com/avatar.png",
-		})
-		req = req.WithContext(ctx)
-		w := httptest.NewRecorder()
-		h.Me(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		resp := api.GetCtx(userCtx(context.Background()), "/auth/me")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
 		}
-		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		if ct := resp.Header().Get("Content-Type"); ct != "application/json" {
 			t.Fatalf("got content-type %q, want application/json", ct)
 		}
 	})
 
 	t.Run("not authenticated", func(t *testing.T) {
-		h := NewAuthHandler()
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		w := httptest.NewRecorder()
-		h.Me(w, req)
-		if w.Code != http.StatusUnauthorized {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusUnauthorized)
+		resp := api.Get("/auth/me")
+		if resp.Code != http.StatusUnauthorized {
+			t.Fatalf("got %d, want 401", resp.Code)
 		}
 	})
 }

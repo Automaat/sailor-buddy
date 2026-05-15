@@ -1,13 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
@@ -20,121 +22,116 @@ func NewTrainingHandler(q sqlcdb.Querier) *TrainingHandler {
 	return &TrainingHandler{q: q}
 }
 
-type trainingRequest struct {
-	Date      *string  `json:"date"`
-	Name      string   `json:"name"`
-	Organizer *string  `json:"organizer"`
-	Cost      *float64 `json:"cost"`
-	Url       *string  `json:"url"`
+type trainingIDParam struct {
+	ID int64 `path:"trainingID" doc:"Training ID"`
 }
 
-func (h *TrainingHandler) List(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	trainings, err := h.q.ListTrainings(r.Context(), user.UserID)
+type createTrainingInput struct {
+	Body dto.TrainingBody
+}
+
+type updateTrainingInput struct {
+	ID   int64 `path:"trainingID" doc:"Training ID"`
+	Body dto.TrainingBody
+}
+
+type trainingOutput struct {
+	Body dto.Training
+}
+
+type trainingListOutput struct {
+	Body []dto.Training
+}
+
+// RegisterTrainingRoutes wires the owner-scoped training operations onto the API.
+func RegisterTrainingRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewTrainingHandler(q)
+	tag := []string{"Trainings"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-trainings", Method: http.MethodGet, Path: "/trainings",
+		Summary: "List trainings", Tags: tag,
+	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-training", Method: http.MethodGet, Path: "/trainings/{trainingID}",
+		Summary: "Get a training", Tags: tag,
+	}, h.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-training", Method: http.MethodPost, Path: "/trainings",
+		Summary: "Create a training", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-training", Method: http.MethodPut, Path: "/trainings/{trainingID}",
+		Summary: "Update a training", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-training", Method: http.MethodDelete, Path: "/trainings/{trainingID}",
+		Summary: "Delete a training", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.delete)
+}
+
+func (h *TrainingHandler) list(ctx context.Context, _ *struct{}) (*trainingListOutput, error) {
+	user := middleware.GetUser(ctx)
+	trainings, err := h.q.ListTrainings(ctx, user.UserID)
 	if err != nil {
 		slog.Error("list trainings", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list trainings")
-		return
+		return nil, huma.Error500InternalServerError("failed to list trainings")
 	}
-	respondJSON(w, http.StatusOK, trainings)
+	return &trainingListOutput{Body: dto.TrainingsFromDB(trainings)}, nil
 }
 
-func (h *TrainingHandler) Get(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid training id")
-		return
-	}
-	training, err := h.q.GetTraining(r.Context(), sqlcdb.GetTrainingParams{
-		ID:     id,
-		UserID: user.UserID,
-	})
+func (h *TrainingHandler) get(ctx context.Context, in *trainingIDParam) (*trainingOutput, error) {
+	user := middleware.GetUser(ctx)
+	training, err := h.q.GetTraining(ctx, sqlcdb.GetTrainingParams{ID: in.ID, UserID: user.UserID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "training not found")
-			return
+			return nil, huma.Error404NotFound("training not found")
 		}
-		slog.Error("get training", "training_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get training")
-		return
+		slog.Error("get training", "training_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get training")
 	}
-	respondJSON(w, http.StatusOK, training)
+	return &trainingOutput{Body: dto.TrainingFromDB(training)}, nil
 }
 
-func (h *TrainingHandler) Create(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	var req trainingRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	training, err := h.q.CreateTraining(r.Context(), sqlcdb.CreateTrainingParams{
+func (h *TrainingHandler) create(ctx context.Context, in *createTrainingInput) (*trainingOutput, error) {
+	user := middleware.GetUser(ctx)
+	training, err := h.q.CreateTraining(ctx, sqlcdb.CreateTrainingParams{
 		UserID:    user.UserID,
-		Date:      nullString(req.Date),
-		Name:      req.Name,
-		Organizer: nullString(req.Organizer),
-		Cost:      nullFloat64(req.Cost),
-		Url:       nullString(req.Url),
+		Date:      nullString(in.Body.Date),
+		Name:      in.Body.Name,
+		Organizer: nullString(in.Body.Organizer),
+		Cost:      nullFloat64(in.Body.Cost),
+		Url:       nullString(in.Body.Url),
 	})
 	if err != nil {
-		slog.Error("create training", "user_id", user.UserID, "name", req.Name, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create training")
-		return
+		slog.Error("create training", "user_id", user.UserID, "name", in.Body.Name, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create training")
 	}
-	respondJSON(w, http.StatusCreated, training)
+	return &trainingOutput{Body: dto.TrainingFromDB(training)}, nil
 }
 
-func (h *TrainingHandler) Update(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid training id")
-		return
-	}
-	var req trainingRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := h.q.UpdateTraining(r.Context(), sqlcdb.UpdateTrainingParams{
-		Date:      nullString(req.Date),
-		Name:      req.Name,
-		Organizer: nullString(req.Organizer),
-		Cost:      nullFloat64(req.Cost),
-		Url:       nullString(req.Url),
-		ID:        id,
+func (h *TrainingHandler) update(ctx context.Context, in *updateTrainingInput) (*noContentOutput, error) {
+	user := middleware.GetUser(ctx)
+	if err := h.q.UpdateTraining(ctx, sqlcdb.UpdateTrainingParams{
+		Date:      nullString(in.Body.Date),
+		Name:      in.Body.Name,
+		Organizer: nullString(in.Body.Organizer),
+		Cost:      nullFloat64(in.Body.Cost),
+		Url:       nullString(in.Body.Url),
+		ID:        in.ID,
 		UserID:    user.UserID,
 	}); err != nil {
-		slog.Error("update training", "training_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update training")
-		return
+		slog.Error("update training", "training_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update training")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *TrainingHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid training id")
-		return
+func (h *TrainingHandler) delete(ctx context.Context, in *trainingIDParam) (*noContentOutput, error) {
+	user := middleware.GetUser(ctx)
+	if err := h.q.DeleteTraining(ctx, sqlcdb.DeleteTrainingParams{ID: in.ID, UserID: user.UserID}); err != nil {
+		slog.Error("delete training", "training_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete training")
 	}
-	if err := h.q.DeleteTraining(r.Context(), sqlcdb.DeleteTrainingParams{
-		ID:     id,
-		UserID: user.UserID,
-	}); err != nil {
-		slog.Error("delete training", "training_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete training")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
