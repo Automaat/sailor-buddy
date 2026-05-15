@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"math"
@@ -317,7 +318,7 @@ func TestFlattenNulls(t *testing.T) {
 			got := flattenNulls(tt.in)
 			gotJSON, _ := json.Marshal(got)
 			wantJSON, _ := json.Marshal(tt.want)
-			if string(gotJSON) != string(wantJSON) {
+			if !bytes.Equal(gotJSON, wantJSON) {
 				t.Errorf("got %s, want %s", gotJSON, wantJSON)
 			}
 		})

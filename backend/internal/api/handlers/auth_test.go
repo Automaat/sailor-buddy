@@ -13,7 +13,7 @@ import (
 func TestAuthHandler_Me(t *testing.T) {
 	t.Run("authenticated", func(t *testing.T) {
 		h := NewAuthHandler()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		ctx := context.WithValue(req.Context(), middleware.UserCtxKey, &auth.Claims{
 			UserID: 42, Email: "test@example.com", Name: "Test", AvatarUrl: "https://example.com/avatar.png",
 		})
@@ -30,7 +30,7 @@ func TestAuthHandler_Me(t *testing.T) {
 
 	t.Run("not authenticated", func(t *testing.T) {
 		h := NewAuthHandler()
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		w := httptest.NewRecorder()
 		h.Me(w, req)
 		if w.Code != http.StatusUnauthorized {

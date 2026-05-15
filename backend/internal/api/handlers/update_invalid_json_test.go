@@ -79,4 +79,3 @@ func TestCrewHandler_Update_InvalidJSON(t *testing.T) {
 		t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
-

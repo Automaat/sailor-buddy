@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
@@ -30,13 +30,13 @@ func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	stats, err := h.q.GetDashboardStats(r.Context(), user.UserID)
 	if err != nil {
-		log.Printf("dashboard stats error: %v", err)
+		slog.Error("dashboard stats", "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get dashboard stats")
 		return
 	}
 	byYear, err := h.q.GetVoyagesByYear(r.Context(), user.UserID)
 	if err != nil {
-		log.Printf("dashboard yearly error: %v", err)
+		slog.Error("dashboard yearly breakdown", "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get yearly breakdown")
 		return
 	}

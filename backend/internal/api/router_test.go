@@ -54,7 +54,7 @@ func TestCruiseNestedRoutes(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.path, func(t *testing.T) {
 			hit = ""
-			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tc.path, http.NoBody)
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 			if w.Code != http.StatusOK {

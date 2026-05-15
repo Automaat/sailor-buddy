@@ -25,7 +25,7 @@ func TestOrgHandler_List(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.List(w, req)
@@ -41,7 +41,7 @@ func TestOrgHandler_List(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.List(w, req)
@@ -179,7 +179,7 @@ func TestOrgHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/test-org", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test-org", http.NoBody)
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("slug", "test-org")
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -197,7 +197,7 @@ func TestOrgHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/nope", nil)
+		req := httptest.NewRequest(http.MethodGet, "/nope", http.NoBody)
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("slug", "nope")
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -215,7 +215,7 @@ func TestOrgHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/test-org", nil)
+		req := httptest.NewRequest(http.MethodGet, "/test-org", http.NoBody)
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("slug", "test-org")
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -289,7 +289,7 @@ func TestOrgHandler_Delete(t *testing.T) {
 			deleteOrganizationFn: func(context.Context, int64) error { return nil },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.Delete(w, req)
@@ -303,7 +303,7 @@ func TestOrgHandler_Delete(t *testing.T) {
 			deleteOrganizationFn: func(context.Context, int64) error { return errors.New("fail") },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.Delete(w, req)
@@ -323,7 +323,7 @@ func TestOrgHandler_ListMembers(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.ListMembers(w, req)
@@ -339,7 +339,7 @@ func TestOrgHandler_ListMembers(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.ListMembers(w, req)
@@ -527,7 +527,7 @@ func TestOrgHandler_RemoveMember(t *testing.T) {
 			removeOrgMemberFn: func(context.Context, sqlcdb.RemoveOrgMemberParams) error { return nil },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("memberID", "2")
@@ -541,7 +541,7 @@ func TestOrgHandler_RemoveMember(t *testing.T) {
 
 	t.Run("invalid member id", func(t *testing.T) {
 		h := NewOrgHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("memberID", "abc")
@@ -561,7 +561,7 @@ func TestOrgHandler_RemoveMember(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("memberID", "2")
@@ -578,7 +578,7 @@ func TestOrgHandler_RemoveMember(t *testing.T) {
 			countOrgAdminsFn: func(context.Context, int64) (int64, error) { return 0, errors.New("fail") },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("memberID", "2")
@@ -598,7 +598,7 @@ func TestOrgHandler_RemoveMember(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("memberID", "2")
@@ -619,7 +619,7 @@ func TestOrgHandler_RemoveMember(t *testing.T) {
 			removeOrgMemberFn: func(context.Context, sqlcdb.RemoveOrgMemberParams) error { return errors.New("fail") },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("memberID", "2")
@@ -711,7 +711,7 @@ func TestOrgHandler_ListInvites(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.ListInvites(w, req)
@@ -727,7 +727,7 @@ func TestOrgHandler_ListInvites(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.ListInvites(w, req)
@@ -745,7 +745,7 @@ func TestOrgHandler_DeleteInvite(t *testing.T) {
 			deleteOrgInviteFn: func(context.Context, sqlcdb.DeleteOrgInviteParams) error { return nil },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("inviteID", "5")
@@ -759,7 +759,7 @@ func TestOrgHandler_DeleteInvite(t *testing.T) {
 
 	t.Run("invalid invite id", func(t *testing.T) {
 		h := NewOrgHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("inviteID", "abc")
@@ -776,7 +776,7 @@ func TestOrgHandler_DeleteInvite(t *testing.T) {
 			deleteOrgInviteFn: func(context.Context, sqlcdb.DeleteOrgInviteParams) error { return errors.New("fail") },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/", http.NoBody)
 		req = req.WithContext(orgCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("inviteID", "5")
@@ -809,7 +809,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -835,7 +835,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -854,7 +854,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "nope")
@@ -875,7 +875,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -898,7 +898,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			incrementInviteUseCountFn: func(context.Context, int64) (int64, error) { return 0, nil },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -920,7 +920,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -939,7 +939,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -961,7 +961,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			incrementInviteUseCountFn: func(context.Context, int64) (int64, error) { return 0, errors.New("fail") },
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -983,7 +983,7 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -1018,7 +1018,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -1040,7 +1040,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -1059,7 +1059,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "nope")
@@ -1080,7 +1080,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")
@@ -1102,7 +1102,7 @@ func TestOrgHandler_GetInviteInfo(t *testing.T) {
 			},
 		}
 		h := NewOrgHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("token", "abc123")

@@ -73,7 +73,10 @@ func TestUploadImage_InvalidMIME(t *testing.T) {
 
 	body := &bytes.Buffer{}
 	w := multipart.NewWriter(body)
-	part, _ := w.CreateFormFile("file", "test.txt")
+	part, err := w.CreateFormFile("file", "test.txt")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
 	_, _ = part.Write([]byte("this is not an image"))
 	_ = w.Close()
 
@@ -116,7 +119,7 @@ func TestServeFile(t *testing.T) {
 	_ = os.MkdirAll(dir+"/1/images", 0o755)
 	_ = os.WriteFile(dir+"/1/images/test.jpg", []byte("fake-image-data"), 0o644)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/test.jpg", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/test.jpg", http.NoBody)
 	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("*", "1/images/test.jpg")
@@ -134,7 +137,7 @@ func TestServeFile_PathTraversal(t *testing.T) {
 	dir := t.TempDir()
 	h := NewUploadHandler(dir)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/../etc/passwd", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/../etc/passwd", http.NoBody)
 	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("*", "../etc/passwd")
@@ -152,7 +155,7 @@ func TestServeFile_EmptyPath(t *testing.T) {
 	dir := t.TempDir()
 	h := NewUploadHandler(dir)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/", http.NoBody)
 	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("*", "")
@@ -170,7 +173,7 @@ func TestServeFile_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	h := NewUploadHandler(dir)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/missing.jpg", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/missing.jpg", http.NoBody)
 	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("*", "1/images/missing.jpg")
@@ -189,7 +192,7 @@ func TestServeFile_OtherUserPath(t *testing.T) {
 	h := NewUploadHandler(dir)
 
 	// user 1 in context, trying to access user 2's file
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/2/images/test.jpg", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/2/images/test.jpg", http.NoBody)
 	req = req.WithContext(userCtx(req.Context()))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("*", "2/images/test.jpg")

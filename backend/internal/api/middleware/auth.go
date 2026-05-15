@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -56,17 +56,17 @@ func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Han
 			if err != nil {
 				var pgErr *pgconn.PgError
 				if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
-					log.Printf("upsert failed (email=%s uid=%s): %v", email, fbToken.UID, err)
+					slog.Error("upsert user", "email", email, "uid", fbToken.UID, "err", err)
 					http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 					return
 				}
 				emailVerified, _ := fbToken.Claims["email_verified"].(bool)
 				if !emailVerified {
-					log.Printf("email not verified, refusing link by email (email=%s uid=%s)", email, fbToken.UID)
+					slog.Warn("email not verified, refusing link by email", "email", email, "uid", fbToken.UID)
 					http.Error(w, `{"error":"email not verified"}`, http.StatusUnauthorized)
 					return
 				}
-				log.Printf("upsert failed (email=%s uid=%s): %v — trying link by email", email, fbToken.UID, err)
+				slog.Error("upsert user, trying link by email", "email", email, "uid", fbToken.UID, "err", err)
 				user, err = q.LinkFirebaseUIDByEmail(r.Context(), sqlcdb.LinkFirebaseUIDByEmailParams{
 					FirebaseUid: fbUID,
 					NewName:     name,
@@ -74,7 +74,7 @@ func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Han
 				})
 			}
 			if err != nil {
-				log.Printf("provision failed (email=%s uid=%s): %v", email, fbToken.UID, err)
+				slog.Error("provision user", "email", email, "uid", fbToken.UID, "err", err)
 				http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 				return
 			}

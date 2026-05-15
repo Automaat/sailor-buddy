@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -78,63 +79,12 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var yachtName, yachtType string
-	if voyage.YachtID.Valid {
-		yacht, err := h.q.GetYacht(r.Context(), sqlcdb.GetYachtParams{ID: voyage.YachtID.Int64, OwnerID: user.UserID})
-		if err == nil {
-			yachtName = yacht.Name
-			yachtType = yacht.YachtType.String
-		}
-	}
+	data := h.buildOpinionData(r.Context(), user.UserID, voyage, assignment)
 
-	patent := assignment.PatentNumber.String
-	if patent == "" {
-		patent = assignment.MemberPatent.String
-	}
-
-	data := docgen.OpinionData{
-		CrewMemberName: assignment.FullName,
-		PatentNumber:   patent,
-		CruiseName:     voyage.Name,
-		EmbarkDate:     voyage.EmbarkDate.String,
-		DisembarkDate:  voyage.DisembarkDate.String,
-		YachtName:      yachtName,
-		YachtType:      yachtType,
-		StartPort:      voyage.StartPort.String,
-		EndPort:        voyage.EndPort.String,
-		Countries:      voyage.Countries.String,
-		Miles:          voyage.Miles,
-		HoursTotal:     voyage.HoursTotal,
-		HoursSail:      voyage.HoursSail,
-		HoursEngine:    voyage.HoursEngine,
-		HoursOver6bf:   voyage.HoursOver6bf,
-		Days:           voyage.Days,
-		TidalWaters:    voyage.TidalWaters > 0,
-		CaptainName:    voyage.CaptainName.String,
-		Role:           assignment.Role,
-		GeneratedDate:  time.Now().Format("2006-01-02"),
-	}
-
-	var fileBytes []byte
-	switch req.Format {
-	case "pdf":
-		html, err := docgen.RenderHTML(data)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to render template")
-			return
-		}
-		fileBytes, err = docgen.GeneratePDF(html)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to generate PDF")
-			return
-		}
-	case "docx":
-		var err error
-		fileBytes, err = docgen.GenerateDOCX(data)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to generate DOCX")
-			return
-		}
+	fileBytes, err := renderOpinionFile(req.Format, data)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to generate "+req.Format)
+		return
 	}
 
 	dir := filepath.Join(h.uploadDir, strconv.FormatInt(user.UserID, 10), "opinions")
@@ -168,6 +118,63 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	respondJSON(w, http.StatusCreated, opinion)
+}
+
+// buildOpinionData assembles the document payload from the voyage and crew
+// assignment, resolving the yacht name/type and the effective patent number.
+func (h *VoyageOpinionHandler) buildOpinionData(ctx context.Context, userID int64, voyage sqlcdb.Voyage, assignment sqlcdb.GetVoyageCrewAssignmentByMemberRow) docgen.OpinionData {
+	var yachtName, yachtType string
+	if voyage.YachtID.Valid {
+		if yacht, err := h.q.GetYacht(ctx, sqlcdb.GetYachtParams{ID: voyage.YachtID.Int64, OwnerID: userID}); err == nil {
+			yachtName = yacht.Name
+			yachtType = yacht.YachtType.String
+		}
+	}
+
+	patent := assignment.PatentNumber.String
+	if patent == "" {
+		patent = assignment.MemberPatent.String
+	}
+
+	return docgen.OpinionData{
+		CrewMemberName: assignment.FullName,
+		PatentNumber:   patent,
+		CruiseName:     voyage.Name,
+		EmbarkDate:     voyage.EmbarkDate.String,
+		DisembarkDate:  voyage.DisembarkDate.String,
+		YachtName:      yachtName,
+		YachtType:      yachtType,
+		StartPort:      voyage.StartPort.String,
+		EndPort:        voyage.EndPort.String,
+		Countries:      voyage.Countries.String,
+		Miles:          voyage.Miles,
+		HoursTotal:     voyage.HoursTotal,
+		HoursSail:      voyage.HoursSail,
+		HoursEngine:    voyage.HoursEngine,
+		HoursOver6bf:   voyage.HoursOver6bf,
+		Days:           voyage.Days,
+		TidalWaters:    voyage.TidalWaters > 0,
+		CaptainName:    voyage.CaptainName.String,
+		Role:           assignment.Role,
+		GeneratedDate:  time.Now().Format("2006-01-02"),
+	}
+}
+
+// renderOpinionFile produces the opinion document bytes for the requested
+// format. PDF goes through the HTML template; docx is generated directly.
+func renderOpinionFile(format string, data docgen.OpinionData) ([]byte, error) {
+	switch format {
+	case "pdf":
+		html, err := docgen.RenderHTML(data)
+		if err != nil {
+			return nil, err
+		}
+		return docgen.GeneratePDF(html)
+	case "docx":
+		return docgen.GenerateDOCX(data)
+	default:
+		return nil, fmt.Errorf("unsupported format %q", format)
+	}
 }
 
 func (h *VoyageOpinionHandler) List(w http.ResponseWriter, r *http.Request) {

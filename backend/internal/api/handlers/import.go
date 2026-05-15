@@ -1,9 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -84,7 +85,7 @@ func (h *ImportHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf("failed to close uploaded file: %v", err)
+			slog.Error("close uploaded file", "err", err)
 		}
 	}()
 
@@ -95,7 +96,7 @@ func (h *ImportHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Printf("failed to close xlsx file: %v", err)
+			slog.Error("close xlsx file", "err", err)
 		}
 	}()
 
@@ -125,68 +126,109 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	yachtIDs := map[string]int64{}
-	yachtsCreated := 0
-	captainIDs := map[string]int64{}
-	crewCreated := 0
+	yachtIDs, yachtsCreated, crewCreated, err := h.resolveImportEntities(r.Context(), user.UserID, req.Voyages)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
-	for _, c := range req.Voyages {
+	voyagesCreated, err := h.createImportVoyages(r.Context(), user.UserID, req.Voyages, yachtIDs)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	trainingsCreated, err := h.createImportTrainings(r.Context(), user.UserID, req.Trainings)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, importConfirmResult{
+		VoyagesCreated:   voyagesCreated,
+		TrainingsCreated: trainingsCreated,
+		YachtsCreated:    yachtsCreated,
+		CrewCreated:      crewCreated,
+	})
+}
+
+// resolveImportEntities ensures every yacht and captain referenced by the
+// imported voyages exists, creating any that are missing. It returns the
+// name->ID map for yachts plus counts of newly created yachts and crew.
+func (h *ImportHandler) resolveImportEntities(ctx context.Context, ownerID int64, voyages []importCruiseRow) (yachtIDs map[string]int64, yachtsCreated, crewCreated int, err error) {
+	yachtIDs = map[string]int64{}
+	captainIDs := map[string]int64{}
+
+	for i := range voyages {
+		c := &voyages[i]
 		if c.YachtName != nil && *c.YachtName != "" {
-			name := *c.YachtName
-			if _, ok := yachtIDs[name]; !ok {
-				existing, err := h.q.GetYachtByName(r.Context(), sqlcdb.GetYachtByNameParams{
-					OwnerID: user.UserID,
-					Name:    name,
-				})
-				if err == nil {
-					yachtIDs[name] = existing.ID
-				} else {
-					yachtType := sql.NullString{}
-					if c.YachtType != nil {
-						yachtType = sql.NullString{String: *c.YachtType, Valid: true}
-					}
-					created, err := h.q.CreateYacht(r.Context(), sqlcdb.CreateYachtParams{
-						OwnerID:   user.UserID,
-						Name:      name,
-						YachtType: yachtType,
-					})
-					if err != nil {
-						respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create yacht %q: %v", name, err))
-						return
-					}
-					yachtIDs[name] = created.ID
-					yachtsCreated++
-				}
+			created, rerr := h.resolveYacht(ctx, ownerID, yachtIDs, *c.YachtName, c.YachtType)
+			if rerr != nil {
+				return nil, 0, 0, rerr
+			}
+			if created {
+				yachtsCreated++
 			}
 		}
-
 		if c.CaptainName != nil && *c.CaptainName != "" {
-			name := *c.CaptainName
-			if _, ok := captainIDs[name]; !ok {
-				existing, err := h.q.GetCrewMemberByName(r.Context(), sqlcdb.GetCrewMemberByNameParams{
-					OwnerID:  user.UserID,
-					FullName: name,
-				})
-				if err == nil {
-					captainIDs[name] = existing.ID
-				} else {
-					created, err := h.q.CreateCrewMember(r.Context(), sqlcdb.CreateCrewMemberParams{
-						OwnerID:  user.UserID,
-						FullName: name,
-					})
-					if err != nil {
-						respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create crew member %q: %v", name, err))
-						return
-					}
-					captainIDs[name] = created.ID
-					crewCreated++
-				}
+			created, rerr := h.resolveCaptain(ctx, ownerID, captainIDs, *c.CaptainName)
+			if rerr != nil {
+				return nil, 0, 0, rerr
+			}
+			if created {
+				crewCreated++
 			}
 		}
 	}
+	return yachtIDs, yachtsCreated, crewCreated, nil
+}
 
-	voyagesCreated := 0
-	for _, c := range req.Voyages {
+func (h *ImportHandler) resolveYacht(ctx context.Context, ownerID int64, yachtIDs map[string]int64, name string, yachtTypePtr *string) (created bool, err error) {
+	if _, ok := yachtIDs[name]; ok {
+		return false, nil
+	}
+	existing, lookupErr := h.q.GetYachtByName(ctx, sqlcdb.GetYachtByNameParams{OwnerID: ownerID, Name: name})
+	if lookupErr == nil {
+		yachtIDs[name] = existing.ID
+		return false, nil
+	}
+	yachtType := sql.NullString{}
+	if yachtTypePtr != nil {
+		yachtType = sql.NullString{String: *yachtTypePtr, Valid: true}
+	}
+	row, createErr := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
+		OwnerID:   ownerID,
+		Name:      name,
+		YachtType: yachtType,
+	})
+	if createErr != nil {
+		return false, fmt.Errorf("failed to create yacht %q: %w", name, createErr)
+	}
+	yachtIDs[name] = row.ID
+	return true, nil
+}
+
+func (h *ImportHandler) resolveCaptain(ctx context.Context, ownerID int64, captainIDs map[string]int64, name string) (created bool, err error) {
+	if _, ok := captainIDs[name]; ok {
+		return false, nil
+	}
+	existing, lookupErr := h.q.GetCrewMemberByName(ctx, sqlcdb.GetCrewMemberByNameParams{OwnerID: ownerID, FullName: name})
+	if lookupErr == nil {
+		captainIDs[name] = existing.ID
+		return false, nil
+	}
+	row, createErr := h.q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{OwnerID: ownerID, FullName: name})
+	if createErr != nil {
+		return false, fmt.Errorf("failed to create crew member %q: %w", name, createErr)
+	}
+	captainIDs[name] = row.ID
+	return true, nil
+}
+
+func (h *ImportHandler) createImportVoyages(ctx context.Context, ownerID int64, voyages []importCruiseRow, yachtIDs map[string]int64) (int, error) {
+	created := 0
+	for i := range voyages {
+		c := &voyages[i]
 		if c.Name == "" {
 			continue
 		}
@@ -194,9 +236,8 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 		if c.YachtName != nil && *c.YachtName != "" {
 			yachtID = sql.NullInt64{Int64: yachtIDs[*c.YachtName], Valid: true}
 		}
-
-		_, err := h.q.CreateVoyage(r.Context(), sqlcdb.CreateVoyageParams{
-			OwnerID:       user.UserID,
+		_, err := h.q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
+			OwnerID:       ownerID,
 			Name:          c.Name,
 			Year:          nullInt64(c.Year),
 			EmbarkDate:    nullString(c.EmbarkDate),
@@ -218,19 +259,22 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 			Description:   nullString(c.Description),
 		})
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create voyage %q: %v", c.Name, err))
-			return
+			return created, fmt.Errorf("failed to create voyage %q: %w", c.Name, err)
 		}
-		voyagesCreated++
+		created++
 	}
+	return created, nil
+}
 
-	trainingsCreated := 0
-	for _, t := range req.Trainings {
+func (h *ImportHandler) createImportTrainings(ctx context.Context, userID int64, trainings []importTrainingRow) (int, error) {
+	created := 0
+	for i := range trainings {
+		t := &trainings[i]
 		if t.Name == "" {
 			continue
 		}
-		_, err := h.q.CreateTraining(r.Context(), sqlcdb.CreateTrainingParams{
-			UserID:    user.UserID,
+		_, err := h.q.CreateTraining(ctx, sqlcdb.CreateTrainingParams{
+			UserID:    userID,
 			Date:      nullString(t.Date),
 			Name:      t.Name,
 			Organizer: nullString(t.Organizer),
@@ -238,18 +282,11 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 			Url:       nullString(t.Url),
 		})
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create training %q: %v", t.Name, err))
-			return
+			return created, fmt.Errorf("failed to create training %q: %w", t.Name, err)
 		}
-		trainingsCreated++
+		created++
 	}
-
-	respondJSON(w, http.StatusCreated, importConfirmResult{
-		VoyagesCreated:   voyagesCreated,
-		TrainingsCreated: trainingsCreated,
-		YachtsCreated:    yachtsCreated,
-		CrewCreated:      crewCreated,
-	})
+	return created, nil
 }
 
 func parseOpinionSheet(f *excelize.File) ([]importCruiseRow, error) {

@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
@@ -12,11 +14,17 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	cfg := config.Load()
 
 	database, err := db.Open(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		return fmt.Errorf("open database: %w", err)
 	}
 	defer func() {
 		if err := database.Close(); err != nil {
@@ -25,19 +33,22 @@ func main() {
 	}()
 
 	if err := db.Migrate(database); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
+		return fmt.Errorf("run migrations: %w", err)
 	}
 
 	ctx := context.Background()
 	fbClient, err := auth.NewFirebaseAuth(ctx, cfg.FirebaseProjectID)
 	if err != nil {
-		log.Fatalf("failed to init firebase auth: %v", err)
+		return fmt.Errorf("init firebase auth: %w", err)
 	}
 
 	router := api.NewRouter(database, cfg, fbClient)
 
 	log.Printf("listening on %s", cfg.ListenAddr)
-	if err := http.ListenAndServe(cfg.ListenAddr, router); err != nil {
-		log.Fatalf("server error: %v", err)
+	srv := &http.Server{
+		Addr:              cfg.ListenAddr,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
+	return srv.ListenAndServe()
 }

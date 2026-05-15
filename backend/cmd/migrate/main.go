@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
@@ -8,11 +9,17 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	cfg := config.Load()
 
 	database, err := db.Open(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		return fmt.Errorf("open database: %w", err)
 	}
 	defer func() {
 		if err := database.Close(); err != nil {
@@ -21,8 +28,9 @@ func main() {
 	}()
 
 	if err := db.Migrate(database); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
+		return fmt.Errorf("run migrations: %w", err)
 	}
 
 	log.Println("migrations applied successfully")
+	return nil
 }

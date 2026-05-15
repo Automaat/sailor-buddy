@@ -277,7 +277,7 @@ func TestUpload(t *testing.T) {
 
 	t.Run("no multipart", func(t *testing.T) {
 		h := NewImportHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.Upload(w, req)

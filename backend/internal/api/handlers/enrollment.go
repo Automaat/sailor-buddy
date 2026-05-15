@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -75,7 +75,7 @@ func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 	})
 	trips, tlistErr := h.q.ListCruiseTrips(r.Context(), sql.NullInt64{Int64: cruise.ID, Valid: true})
 	if tlistErr != nil {
-		log.Printf("failed to list cruise trips for %d: %v", cruise.ID, tlistErr)
+		slog.Error("list cruise trips", "cruise_id", cruise.ID, "err", tlistErr)
 		trips = nil
 	}
 	resp := map[string]any{
