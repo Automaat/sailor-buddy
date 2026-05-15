@@ -21,6 +21,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List crew members */
+        get: operations["list-crew"];
+        put?: never;
+        /** Create a crew member */
+        post: operations["create-crew-member"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/crew/{crewID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a crew member */
+        get: operations["get-crew-member"];
+        /** Update a crew member */
+        put: operations["update-crew-member"];
+        post?: never;
+        /** Delete a crew member */
+        delete: operations["delete-crew-member"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard": {
         parameters: {
             query?: never;
@@ -146,6 +183,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripID}/crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a trip's crew */
+        get: operations["list-trip-crew"];
+        put?: never;
+        /** Assign a crew member to a trip */
+        post: operations["assign-trip-crew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/crew/{assignmentID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a crew assignment from a trip */
+        delete: operations["remove-trip-crew"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voyages": {
         parameters: {
             query?: never;
@@ -178,6 +250,41 @@ export interface paths {
         post?: never;
         /** Delete a voyage */
         delete: operations["delete-voyage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voyages/{voyageID}/crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a voyage's crew */
+        get: operations["list-voyage-crew"];
+        put?: never;
+        /** Assign a crew member to a voyage */
+        post: operations["assign-voyage-crew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voyages/{voyageID}/crew/{assignmentID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a crew assignment from a voyage */
+        delete: operations["remove-voyage-crew"];
         options?: never;
         head?: never;
         patch?: never;
@@ -247,6 +354,84 @@ export interface components {
             tidal_waters?: number;
             /** Format: int64 */
             year?: number;
+        };
+        CrewAssignment: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CrewAssignment.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            crew_member_id: number;
+            email?: string;
+            full_name: string;
+            /** Format: int64 */
+            id: number;
+            patent_number?: string;
+            role: string;
+            /** Format: int64 */
+            trip_id?: number;
+            /** Format: int64 */
+            voyage_id?: number;
+        };
+        CrewAssignmentBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CrewAssignmentBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Crew member ID
+             */
+            crew_member_id: number;
+            patent_number?: string;
+            /** @description Assignment role */
+            role: string;
+        };
+        CrewMember: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CrewMember.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            created_at: string;
+            email?: string;
+            emergency_contact_name?: string;
+            emergency_contact_phone?: string;
+            full_name: string;
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            org_id?: number;
+            /** Format: int64 */
+            owner_id: number;
+            patent_number?: string;
+            phone?: string;
+            pzz_license_number?: string;
+            pzz_license_type?: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: int64 */
+            user_id?: number;
+        };
+        CrewMemberBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CrewMemberBody.json
+             */
+            readonly $schema?: string;
+            email?: string;
+            /** @description Crew member full name */
+            full_name: string;
+            patent_number?: string;
         };
         Dashboard: {
             /**
@@ -606,6 +791,164 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Me"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewMember"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewMemberBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewMember"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Crew member ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewMember"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Crew member ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewMemberBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Crew member ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -1031,6 +1374,106 @@ export interface operations {
             };
         };
     };
+    "list-trip-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewAssignment"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "assign-trip-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewAssignmentBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewAssignment"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "remove-trip-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+                /** @description Assignment ID */
+                assignmentID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-voyages": {
         parameters: {
             query?: never;
@@ -1166,6 +1609,106 @@ export interface operations {
             path: {
                 /** @description Voyage ID */
                 voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-voyage-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewAssignment"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "assign-voyage-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewAssignmentBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewAssignment"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "remove-voyage-crew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+                /** @description Assignment ID */
+                assignmentID: number;
             };
             cookie?: never;
         };
