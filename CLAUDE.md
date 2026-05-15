@@ -69,10 +69,14 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 
 - API wire models live in `internal/api/dto/`, kept separate from the
   sqlc row structs so the HTTP contract is decoupled from the schema.
-- huma operations are registered per resource (e.g. `RegisterTripRoutes`).
+- huma operations are registered per resource (e.g. `RegisterTripRoutes`),
+  wired up in `internal/api/humaapi.go`.
 - Regenerate both artifacts after changing a DTO or operation:
   `mise run gen-api`. `openapi.yaml` and `schema.d.ts` are committed.
-- Migrated so far: trips. Other resources remain legacy chi handlers.
+- Every API endpoint is huma-served and in the spec. Org routes resolve
+  their scope via the `resolveOrg` helper (membership + role check),
+  which replaced the former chi org middleware. Only static file
+  serving (`GET /uploads/*`) stays on chi — it is not an API operation.
 
 ## Key Conventions
 

@@ -41,3 +41,12 @@ func floatPtr(n types.NullFloat64) *float64 {
 func timeVal(n types.NullTime) time.Time {
 	return n.Time
 }
+
+// timePtr converts a nullable DB timestamp into an optional API field.
+func timePtr(n types.NullTime) *time.Time {
+	if !n.Valid {
+		return nil
+	}
+	t := n.Time
+	return &t
+}

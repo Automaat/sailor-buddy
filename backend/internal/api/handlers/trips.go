@@ -25,13 +25,9 @@ func NewTripHandler(q sqlcdb.Querier, db *sql.DB) *TripHandler {
 	return &TripHandler{q: q, db: db}
 }
 
-// tripRequest and completeTripRequest alias the DTO bodies so the chi-based
-// org trip handlers and the trip → voyage transaction helper share one type
-// with the huma-served owner-scoped trip routes.
-type (
-	tripRequest         = dto.TripBody
-	completeTripRequest = dto.CompleteTripBody
-)
+// completeTripRequest aliases the DTO body so the trip → voyage transaction
+// helper is shared by the owner-scoped and org-scoped trip completions.
+type completeTripRequest = dto.CompleteTripBody
 
 // --- huma operation input/output types ---
 

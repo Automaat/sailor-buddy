@@ -23,6 +23,7 @@ type mockQuerier struct {
 	setTripEnrollTokenFn   func(ctx context.Context, arg sqlcdb.SetTripEnrollTokenParams) error
 	clearTripEnrollTokenFn func(ctx context.Context, arg sqlcdb.ClearTripEnrollTokenParams) error
 	getTripByEnrollFn      func(ctx context.Context, token types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error)
+	getCruiseByEnrollFn    func(ctx context.Context, token types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error)
 
 	// voyages
 	listVoyagesFn      func(ctx context.Context, ownerID int64) ([]sqlcdb.Voyage, error)
@@ -891,8 +892,11 @@ func (m *mockQuerier) ClearCruiseEnrollToken(context.Context, sqlcdb.ClearCruise
 	panic("unexpected call to ClearCruiseEnrollToken")
 }
 
-func (m *mockQuerier) GetCruiseByEnrollToken(context.Context, types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
-	panic("unexpected call to GetCruiseByEnrollToken")
+func (m *mockQuerier) GetCruiseByEnrollToken(ctx context.Context, token types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
+	if m.getCruiseByEnrollFn == nil {
+		panic("unexpected call to GetCruiseByEnrollToken")
+	}
+	return m.getCruiseByEnrollFn(ctx, token)
 }
 
 func (m *mockQuerier) ListCruiseTrips(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
@@ -934,11 +938,5 @@ func (m *mockQuerier) GetUserCruiseEnrollment(context.Context, sqlcdb.GetUserCru
 func userCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, middleware.UserCtxKey, &auth.Claims{
 		UserID: 1, Email: "test@example.com", Name: "Test User",
-	})
-}
-
-func orgCtx(ctx context.Context) context.Context {
-	return context.WithValue(ctx, middleware.OrgCtxKey, &middleware.OrgContext{
-		OrgID: 1, Slug: "test-org", Role: "admin",
 	})
 }

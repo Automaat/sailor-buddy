@@ -1,17 +1,26 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
+
+// orgID wraps an org context's ID as the nullable column the org queries take.
+func orgID(octx *middleware.OrgContext) types.NullInt64 {
+	return types.NullInt64{Int64: octx.OrgID, Valid: true}
+}
+
+// --- org yachts ---
 
 type OrgYachtHandler struct {
 	q sqlcdb.Querier
@@ -21,122 +30,23 @@ func NewOrgYachtHandler(q sqlcdb.Querier) *OrgYachtHandler {
 	return &OrgYachtHandler{q: q}
 }
 
-func (h *OrgYachtHandler) List(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	yachts, err := h.q.ListOrgYachts(r.Context(), types.NullInt64{Int64: octx.OrgID, Valid: true})
-	if err != nil {
-		slog.Error("list org yachts", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list yachts")
-		return
-	}
-	respondJSON(w, http.StatusOK, yachts)
+type orgYachtParam struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	ID   int64  `path:"yachtID" doc:"Yacht ID"`
 }
 
-func (h *OrgYachtHandler) Get(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid yacht id")
-		return
-	}
-	yacht, err := h.q.GetOrgYacht(r.Context(), sqlcdb.GetOrgYachtParams{
-		ID:    id,
-		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "yacht not found")
-			return
-		}
-		slog.Error("get org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get yacht")
-		return
-	}
-	respondJSON(w, http.StatusOK, yacht)
+type createOrgYachtInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	Body dto.YachtBody
 }
 
-func (h *OrgYachtHandler) Create(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	user := middleware.GetUser(r.Context())
-	var req struct {
-		Name           string  `json:"name"`
-		RegistrationNo *string `json:"registration_no"`
-		YachtType      *string `json:"yacht_type"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	yacht, err := h.q.CreateOrgYacht(r.Context(), sqlcdb.CreateOrgYachtParams{
-		OwnerID:        user.UserID,
-		OrgID:          types.NullInt64{Int64: octx.OrgID, Valid: true},
-		Name:           req.Name,
-		RegistrationNo: nullString(req.RegistrationNo),
-		YachtType:      nullString(req.YachtType),
-	})
-	if err != nil {
-		slog.Error("create org yacht", "org_id", octx.OrgID, "user_id", user.UserID, "name", req.Name, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create yacht")
-		return
-	}
-	respondJSON(w, http.StatusCreated, yacht)
+type updateOrgYachtInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	ID   int64  `path:"yachtID" doc:"Yacht ID"`
+	Body dto.YachtBody
 }
 
-func (h *OrgYachtHandler) Update(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid yacht id")
-		return
-	}
-	var req struct {
-		Name           string  `json:"name"`
-		RegistrationNo *string `json:"registration_no"`
-		YachtType      *string `json:"yacht_type"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := h.q.UpdateOrgYacht(r.Context(), sqlcdb.UpdateOrgYachtParams{
-		Name:           req.Name,
-		RegistrationNo: nullString(req.RegistrationNo),
-		YachtType:      nullString(req.YachtType),
-		ID:             id,
-		OrgID:          types.NullInt64{Int64: octx.OrgID, Valid: true},
-	}); err != nil {
-		slog.Error("update org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update yacht")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
-}
-
-func (h *OrgYachtHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid yacht id")
-		return
-	}
-	if err := h.q.DeleteOrgYacht(r.Context(), sqlcdb.DeleteOrgYachtParams{
-		ID:    id,
-		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
-	}); err != nil {
-		slog.Error("delete org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete yacht")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
-}
+// --- org crew ---
 
 type OrgCrewHandler struct {
 	q sqlcdb.Querier
@@ -146,136 +56,23 @@ func NewOrgCrewHandler(q sqlcdb.Querier) *OrgCrewHandler {
 	return &OrgCrewHandler{q: q}
 }
 
-func (h *OrgCrewHandler) List(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	crew, err := h.q.ListOrgCrewMembers(r.Context(), types.NullInt64{Int64: octx.OrgID, Valid: true})
-	if err != nil {
-		slog.Error("list org crew members", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list crew members")
-		return
-	}
-	respondJSON(w, http.StatusOK, crew)
+type orgCrewParam struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	ID   int64  `path:"crewID" doc:"Crew member ID"`
 }
 
-func (h *OrgCrewHandler) Get(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid crew member id")
-		return
-	}
-	member, err := h.q.GetOrgCrewMember(r.Context(), sqlcdb.GetOrgCrewMemberParams{
-		ID:    id,
-		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "crew member not found")
-			return
-		}
-		slog.Error("get org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get crew member")
-		return
-	}
-	respondJSON(w, http.StatusOK, member)
+type createOrgCrewInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	Body dto.OrgCrewBody
 }
 
-type orgCrewRequest struct {
-	FullName              string  `json:"full_name"`
-	Email                 *string `json:"email"`
-	PatentNumber          *string `json:"patent_number"`
-	Phone                 *string `json:"phone"`
-	PzzLicenseType        *string `json:"pzz_license_type"`
-	PzzLicenseNumber      *string `json:"pzz_license_number"`
-	EmergencyContactName  *string `json:"emergency_contact_name"`
-	EmergencyContactPhone *string `json:"emergency_contact_phone"`
+type updateOrgCrewInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	ID   int64  `path:"crewID" doc:"Crew member ID"`
+	Body dto.OrgCrewBody
 }
 
-func (h *OrgCrewHandler) Create(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	user := middleware.GetUser(r.Context())
-	var req orgCrewRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.FullName == "" {
-		respondError(w, http.StatusBadRequest, "full_name is required")
-		return
-	}
-	member, err := h.q.CreateOrgCrewMember(r.Context(), sqlcdb.CreateOrgCrewMemberParams{
-		OwnerID:               user.UserID,
-		OrgID:                 types.NullInt64{Int64: octx.OrgID, Valid: true},
-		UserID:                types.NullInt64{},
-		FullName:              req.FullName,
-		Email:                 nullString(req.Email),
-		PatentNumber:          nullString(req.PatentNumber),
-		Phone:                 nullString(req.Phone),
-		PzzLicenseType:        nullString(req.PzzLicenseType),
-		PzzLicenseNumber:      nullString(req.PzzLicenseNumber),
-		EmergencyContactName:  nullString(req.EmergencyContactName),
-		EmergencyContactPhone: nullString(req.EmergencyContactPhone),
-	})
-	if err != nil {
-		slog.Error("create org crew member", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create crew member")
-		return
-	}
-	respondJSON(w, http.StatusCreated, member)
-}
-
-func (h *OrgCrewHandler) Update(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid crew member id")
-		return
-	}
-	var req orgCrewRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.FullName == "" {
-		respondError(w, http.StatusBadRequest, "full_name is required")
-		return
-	}
-	if err := h.q.UpdateOrgCrewMember(r.Context(), sqlcdb.UpdateOrgCrewMemberParams{
-		FullName:              req.FullName,
-		Email:                 nullString(req.Email),
-		PatentNumber:          nullString(req.PatentNumber),
-		Phone:                 nullString(req.Phone),
-		PzzLicenseType:        nullString(req.PzzLicenseType),
-		PzzLicenseNumber:      nullString(req.PzzLicenseNumber),
-		EmergencyContactName:  nullString(req.EmergencyContactName),
-		EmergencyContactPhone: nullString(req.EmergencyContactPhone),
-		ID:                    id,
-		OrgID:                 types.NullInt64{Int64: octx.OrgID, Valid: true},
-	}); err != nil {
-		slog.Error("update org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update crew member")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
-}
-
-func (h *OrgCrewHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid crew member id")
-		return
-	}
-	if err := h.q.DeleteOrgCrewMember(r.Context(), sqlcdb.DeleteOrgCrewMemberParams{
-		ID:    id,
-		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
-	}); err != nil {
-		slog.Error("delete org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete crew member")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
-}
+// --- org dashboard ---
 
 type OrgDashboardHandler struct {
 	q sqlcdb.Querier
@@ -285,47 +82,271 @@ func NewOrgDashboardHandler(q sqlcdb.Querier) *OrgDashboardHandler {
 	return &OrgDashboardHandler{q: q}
 }
 
-func (h *OrgDashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	orgID := types.NullInt64{Int64: octx.OrgID, Valid: true}
+type orgDashboardOutput struct {
+	Body dto.OrgDashboard
+}
 
-	stats, err := h.q.GetOrgDashboardStats(r.Context(), orgID)
+// RegisterOrgResourceRoutes wires the org yacht, crew and dashboard operations.
+func RegisterOrgResourceRoutes(api huma.API, q sqlcdb.Querier) {
+	yh := NewOrgYachtHandler(q)
+	ch := NewOrgCrewHandler(q)
+	dh := NewOrgDashboardHandler(q)
+	tag := []string{"Org resources"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-yachts", Method: http.MethodGet, Path: "/orgs/{slug}/yachts",
+		Summary: "List org yachts", Tags: tag,
+	}, yh.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-org-yacht", Method: http.MethodGet, Path: "/orgs/{slug}/yachts/{yachtID}",
+		Summary: "Get an org yacht", Tags: tag,
+	}, yh.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-org-yacht", Method: http.MethodPost, Path: "/orgs/{slug}/yachts",
+		Summary: "Create an org yacht (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, yh.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org-yacht", Method: http.MethodPut, Path: "/orgs/{slug}/yachts/{yachtID}",
+		Summary: "Update an org yacht (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, yh.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-org-yacht", Method: http.MethodDelete, Path: "/orgs/{slug}/yachts/{yachtID}",
+		Summary: "Delete an org yacht (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, yh.delete)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-crew", Method: http.MethodGet, Path: "/orgs/{slug}/crew",
+		Summary: "List org crew members", Tags: tag,
+	}, ch.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-org-crew-member", Method: http.MethodGet, Path: "/orgs/{slug}/crew/{crewID}",
+		Summary: "Get an org crew member", Tags: tag,
+	}, ch.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-org-crew-member", Method: http.MethodPost, Path: "/orgs/{slug}/crew",
+		Summary: "Create an org crew member (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, ch.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org-crew-member", Method: http.MethodPut, Path: "/orgs/{slug}/crew/{crewID}",
+		Summary: "Update an org crew member (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, ch.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-org-crew-member", Method: http.MethodDelete, Path: "/orgs/{slug}/crew/{crewID}",
+		Summary: "Delete an org crew member (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, ch.delete)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-org-dashboard", Method: http.MethodGet, Path: "/orgs/{slug}/dashboard",
+		Summary: "Org sailing and membership summary", Tags: tag,
+	}, dh.get)
+}
+
+func (h *OrgYachtHandler) list(ctx context.Context, in *orgSlugParam) (*yachtListOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	yachts, err := h.q.ListOrgYachts(ctx, orgID(octx))
+	if err != nil {
+		slog.Error("list org yachts", "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list yachts")
+	}
+	return &yachtListOutput{Body: dto.YachtsFromDB(yachts)}, nil
+}
+
+func (h *OrgYachtHandler) get(ctx context.Context, in *orgYachtParam) (*yachtOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	yacht, err := h.q.GetOrgYacht(ctx, sqlcdb.GetOrgYachtParams{ID: in.ID, OrgID: orgID(octx)})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("yacht not found")
+		}
+		slog.Error("get org yacht", "yacht_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get yacht")
+	}
+	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
+}
+
+func (h *OrgYachtHandler) create(ctx context.Context, in *createOrgYachtInput) (*yachtOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	user := middleware.GetUser(ctx)
+	yacht, err := h.q.CreateOrgYacht(ctx, sqlcdb.CreateOrgYachtParams{
+		OwnerID:        user.UserID,
+		OrgID:          orgID(octx),
+		Name:           in.Body.Name,
+		RegistrationNo: nullString(in.Body.RegistrationNo),
+		YachtType:      nullString(in.Body.YachtType),
+	})
+	if err != nil {
+		slog.Error("create org yacht", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create yacht")
+	}
+	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
+}
+
+func (h *OrgYachtHandler) update(ctx context.Context, in *updateOrgYachtInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.UpdateOrgYacht(ctx, sqlcdb.UpdateOrgYachtParams{
+		Name:           in.Body.Name,
+		RegistrationNo: nullString(in.Body.RegistrationNo),
+		YachtType:      nullString(in.Body.YachtType),
+		ID:             in.ID,
+		OrgID:          orgID(octx),
+	}); err != nil {
+		slog.Error("update org yacht", "yacht_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update yacht")
+	}
+	return &noContentOutput{}, nil
+}
+
+func (h *OrgYachtHandler) delete(ctx context.Context, in *orgYachtParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.DeleteOrgYacht(ctx, sqlcdb.DeleteOrgYachtParams{ID: in.ID, OrgID: orgID(octx)}); err != nil {
+		slog.Error("delete org yacht", "yacht_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete yacht")
+	}
+	return &noContentOutput{}, nil
+}
+
+func (h *OrgCrewHandler) list(ctx context.Context, in *orgSlugParam) (*crewListOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	crew, err := h.q.ListOrgCrewMembers(ctx, orgID(octx))
+	if err != nil {
+		slog.Error("list org crew members", "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list crew members")
+	}
+	return &crewListOutput{Body: dto.CrewMembersFromDB(crew)}, nil
+}
+
+func (h *OrgCrewHandler) get(ctx context.Context, in *orgCrewParam) (*crewOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	member, err := h.q.GetOrgCrewMember(ctx, sqlcdb.GetOrgCrewMemberParams{ID: in.ID, OrgID: orgID(octx)})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("crew member not found")
+		}
+		slog.Error("get org crew member", "crew_member_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get crew member")
+	}
+	return &crewOutput{Body: dto.CrewMemberFromDB(member)}, nil
+}
+
+func (h *OrgCrewHandler) create(ctx context.Context, in *createOrgCrewInput) (*crewOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	user := middleware.GetUser(ctx)
+	member, err := h.q.CreateOrgCrewMember(ctx, sqlcdb.CreateOrgCrewMemberParams{
+		OwnerID:               user.UserID,
+		OrgID:                 orgID(octx),
+		UserID:                types.NullInt64{},
+		FullName:              in.Body.FullName,
+		Email:                 nullString(in.Body.Email),
+		PatentNumber:          nullString(in.Body.PatentNumber),
+		Phone:                 nullString(in.Body.Phone),
+		PzzLicenseType:        nullString(in.Body.PzzLicenseType),
+		PzzLicenseNumber:      nullString(in.Body.PzzLicenseNumber),
+		EmergencyContactName:  nullString(in.Body.EmergencyContactName),
+		EmergencyContactPhone: nullString(in.Body.EmergencyContactPhone),
+	})
+	if err != nil {
+		slog.Error("create org crew member", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create crew member")
+	}
+	return &crewOutput{Body: dto.CrewMemberFromDB(member)}, nil
+}
+
+func (h *OrgCrewHandler) update(ctx context.Context, in *updateOrgCrewInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.UpdateOrgCrewMember(ctx, sqlcdb.UpdateOrgCrewMemberParams{
+		FullName:              in.Body.FullName,
+		Email:                 nullString(in.Body.Email),
+		PatentNumber:          nullString(in.Body.PatentNumber),
+		Phone:                 nullString(in.Body.Phone),
+		PzzLicenseType:        nullString(in.Body.PzzLicenseType),
+		PzzLicenseNumber:      nullString(in.Body.PzzLicenseNumber),
+		EmergencyContactName:  nullString(in.Body.EmergencyContactName),
+		EmergencyContactPhone: nullString(in.Body.EmergencyContactPhone),
+		ID:                    in.ID,
+		OrgID:                 orgID(octx),
+	}); err != nil {
+		slog.Error("update org crew member", "crew_member_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update crew member")
+	}
+	return &noContentOutput{}, nil
+}
+
+func (h *OrgCrewHandler) delete(ctx context.Context, in *orgCrewParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.DeleteOrgCrewMember(ctx, sqlcdb.DeleteOrgCrewMemberParams{ID: in.ID, OrgID: orgID(octx)}); err != nil {
+		slog.Error("delete org crew member", "crew_member_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete crew member")
+	}
+	return &noContentOutput{}, nil
+}
+
+func (h *OrgDashboardHandler) get(ctx context.Context, in *orgSlugParam) (*orgDashboardOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	id := orgID(octx)
+
+	stats, err := h.q.GetOrgDashboardStats(ctx, id)
 	if err != nil {
 		slog.Error("org dashboard stats", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get dashboard stats")
-		return
+		return nil, huma.Error500InternalServerError("failed to get dashboard stats")
 	}
-
-	byYear, err := h.q.GetOrgVoyagesByYear(r.Context(), orgID)
+	byYear, err := h.q.GetOrgVoyagesByYear(ctx, id)
 	if err != nil {
 		slog.Error("org dashboard voyages by year", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get voyages by year")
-		return
+		return nil, huma.Error500InternalServerError("failed to get voyages by year")
 	}
-
-	members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
+	members, err := h.q.ListOrgMembers(ctx, octx.OrgID)
 	if err != nil {
 		slog.Error("org dashboard list members", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to count members")
-		return
+		return nil, huma.Error500InternalServerError("failed to count members")
 	}
-
-	yachts, err := h.q.ListOrgYachts(r.Context(), orgID)
+	yachts, err := h.q.ListOrgYachts(ctx, id)
 	if err != nil {
 		slog.Error("org dashboard list yachts", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to count yachts")
-		return
+		return nil, huma.Error500InternalServerError("failed to count yachts")
 	}
 
-	respondJSON(w, http.StatusOK, map[string]any{
-		"voyage_count":       stats.VoyageCount,
-		"total_hours":        stats.TotalHours,
-		"total_miles":        stats.TotalMiles,
-		"total_days":         stats.TotalDays,
-		"total_hours_sail":   stats.TotalHoursSail,
-		"total_hours_engine": stats.TotalHoursEngine,
-		"member_count":       len(members),
-		"yacht_count":        len(yachts),
-		"by_year":            byYear,
-	})
+	return &orgDashboardOutput{Body: dto.OrgDashboard{
+		VoyageCount:      stats.VoyageCount,
+		TotalHours:       stats.TotalHours,
+		TotalMiles:       stats.TotalMiles,
+		TotalDays:        stats.TotalDays,
+		TotalHoursSail:   stats.TotalHoursSail,
+		TotalHoursEngine: stats.TotalHoursEngine,
+		MemberCount:      len(members),
+		YachtCount:       len(yachts),
+		ByYear:           dto.OrgVoyagesByYearFromDB(byYear),
+	}}, nil
 }

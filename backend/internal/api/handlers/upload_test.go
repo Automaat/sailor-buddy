@@ -7,201 +7,139 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/go-chi/chi/v5"
 )
 
-func TestUploadImage_ValidJPEG(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
+func uploadTestAPI(t *testing.T) (api humatest.TestAPI, dir string) {
+	t.Helper()
+	dir = t.TempDir()
+	_, api = humatest.New(t)
+	RegisterUploadRoutes(api, dir)
+	return api, dir
+}
 
-	body := &bytes.Buffer{}
+// multipartBody builds a multipart form body with one "file" part written by
+// encode, returning the body and its Content-Type header value.
+func multipartBody(t *testing.T, filename string, encode func(io.Writer)) (body *bytes.Buffer, contentType string) {
+	t.Helper()
+	body = &bytes.Buffer{}
 	w := multipart.NewWriter(body)
-	part, _ := w.CreateFormFile("file", "test.jpg")
-	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	_ = jpeg.Encode(part, img, nil)
-	_ = w.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/upload/image", body)
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req = req.WithContext(userCtx(req.Context()))
-
-	rr := httptest.NewRecorder()
-	h.UploadImage(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	part, err := w.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
 	}
-	var resp map[string]string
-	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["url"] == "" {
+	encode(part)
+	if err := w.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+	return body, w.FormDataContentType()
+}
+
+func TestUploadImage_ValidJPEG(t *testing.T) {
+	api, _ := uploadTestAPI(t)
+	body, ct := multipartBody(t, "test.jpg", func(wr io.Writer) {
+		_ = jpeg.Encode(wr, image.NewRGBA(image.Rect(0, 0, 1, 1)), nil)
+	})
+	resp := api.PostCtx(userCtx(context.Background()), "/upload/image", "Content-Type: "+ct, body)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body)
+	}
+	var out map[string]string
+	_ = json.Unmarshal(resp.Body.Bytes(), &out)
+	if out["url"] == "" {
 		t.Fatal("expected url in response")
 	}
 }
 
 func TestUploadImage_ValidPNG(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
-	body := &bytes.Buffer{}
-	w := multipart.NewWriter(body)
-	part, _ := w.CreateFormFile("file", "test.png")
-	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	_ = png.Encode(part, img)
-	_ = w.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/upload/image", body)
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req = req.WithContext(userCtx(req.Context()))
-
-	rr := httptest.NewRecorder()
-	h.UploadImage(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	api, _ := uploadTestAPI(t)
+	body, ct := multipartBody(t, "test.png", func(wr io.Writer) {
+		_ = png.Encode(wr, image.NewRGBA(image.Rect(0, 0, 1, 1)))
+	})
+	resp := api.PostCtx(userCtx(context.Background()), "/upload/image", "Content-Type: "+ct, body)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body)
 	}
 }
 
 func TestUploadImage_InvalidMIME(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
-	body := &bytes.Buffer{}
-	w := multipart.NewWriter(body)
-	part, err := w.CreateFormFile("file", "test.txt")
-	if err != nil {
-		t.Fatalf("create form file: %v", err)
-	}
-	_, _ = part.Write([]byte("this is not an image"))
-	_ = w.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/upload/image", body)
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req = req.WithContext(userCtx(req.Context()))
-
-	rr := httptest.NewRecorder()
-	h.UploadImage(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", rr.Code)
+	api, _ := uploadTestAPI(t)
+	body, ct := multipartBody(t, "test.txt", func(wr io.Writer) {
+		_, _ = wr.Write([]byte("this is not an image"))
+	})
+	resp := api.PostCtx(userCtx(context.Background()), "/upload/image", "Content-Type: "+ct, body)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body)
 	}
 }
 
 func TestUploadImage_MissingFile(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
+	api, _ := uploadTestAPI(t)
 	body := &bytes.Buffer{}
 	w := multipart.NewWriter(body)
 	_ = w.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/upload/image", body)
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req = req.WithContext(userCtx(req.Context()))
-
-	rr := httptest.NewRecorder()
-	h.UploadImage(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", rr.Code)
+	// huma rejects the absent required file part with 422.
+	resp := api.PostCtx(userCtx(context.Background()), "/upload/image", "Content-Type: "+w.FormDataContentType(), body)
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d: %s", resp.Code, resp.Body)
 	}
+}
+
+func serveFileReq(t *testing.T, h *UploadHandler, wildcard string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/uploads/"+wildcard, http.NoBody)
+	req = req.WithContext(userCtx(req.Context()))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("*", wildcard)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rr := httptest.NewRecorder()
+	h.ServeFile(rr, req)
+	return rr
 }
 
 func TestServeFile(t *testing.T) {
 	dir := t.TempDir()
 	h := NewUploadHandler(dir)
-
 	_ = os.MkdirAll(dir+"/1/images", 0o755)
 	_ = os.WriteFile(dir+"/1/images/test.jpg", []byte("fake-image-data"), 0o644)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/test.jpg", http.NoBody)
-	req = req.WithContext(userCtx(req.Context()))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("*", "1/images/test.jpg")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	rr := httptest.NewRecorder()
-	h.ServeFile(rr, req)
-
-	if rr.Code != http.StatusOK {
+	if rr := serveFileReq(t, h, "1/images/test.jpg"); rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
 
 func TestServeFile_PathTraversal(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/../etc/passwd", http.NoBody)
-	req = req.WithContext(userCtx(req.Context()))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("*", "../etc/passwd")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	rr := httptest.NewRecorder()
-	h.ServeFile(rr, req)
-
-	if rr.Code != http.StatusForbidden {
+	h := NewUploadHandler(t.TempDir())
+	if rr := serveFileReq(t, h, "../etc/passwd"); rr.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rr.Code)
 	}
 }
 
 func TestServeFile_EmptyPath(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/", http.NoBody)
-	req = req.WithContext(userCtx(req.Context()))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("*", "")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	rr := httptest.NewRecorder()
-	h.ServeFile(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
+	h := NewUploadHandler(t.TempDir())
+	if rr := serveFileReq(t, h, ""); rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 }
 
 func TestServeFile_NotFound(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/1/images/missing.jpg", http.NoBody)
-	req = req.WithContext(userCtx(req.Context()))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("*", "1/images/missing.jpg")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	rr := httptest.NewRecorder()
-	h.ServeFile(rr, req)
-
-	if rr.Code != http.StatusNotFound {
+	h := NewUploadHandler(t.TempDir())
+	if rr := serveFileReq(t, h, "1/images/missing.jpg"); rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }
 
 func TestServeFile_OtherUserPath(t *testing.T) {
-	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-
-	// user 1 in context, trying to access user 2's file
-	req := httptest.NewRequest(http.MethodGet, "/api/uploads/2/images/test.jpg", http.NoBody)
-	req = req.WithContext(userCtx(req.Context()))
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("*", "2/images/test.jpg")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	rr := httptest.NewRecorder()
-	h.ServeFile(rr, req)
-
-	if rr.Code != http.StatusForbidden {
+	h := NewUploadHandler(t.TempDir())
+	if rr := serveFileReq(t, h, "2/images/test.jpg"); rr.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rr.Code)
 	}
 }

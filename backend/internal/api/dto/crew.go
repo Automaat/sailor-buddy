@@ -31,6 +31,19 @@ type CrewMemberBody struct {
 	PatentNumber *string `json:"patent_number,omitempty"`
 }
 
+// OrgCrewBody is the org-scoped create/update payload for a crew member,
+// covering the extended PZŻ licence and emergency-contact fields.
+type OrgCrewBody struct {
+	FullName              string  `json:"full_name" minLength:"1" doc:"Crew member full name"`
+	Email                 *string `json:"email,omitempty"`
+	PatentNumber          *string `json:"patent_number,omitempty"`
+	Phone                 *string `json:"phone,omitempty"`
+	PzzLicenseType        *string `json:"pzz_license_type,omitempty"`
+	PzzLicenseNumber      *string `json:"pzz_license_number,omitempty"`
+	EmergencyContactName  *string `json:"emergency_contact_name,omitempty"`
+	EmergencyContactPhone *string `json:"emergency_contact_phone,omitempty"`
+}
+
 // CrewAssignment is a crew member's assignment to a trip or voyage.
 type CrewAssignment struct {
 	ID           int64     `json:"id"`

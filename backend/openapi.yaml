@@ -1,5 +1,20 @@
 components:
   schemas:
+    AssignTripBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/AssignTripBody.json
+          format: uri
+          readOnly: true
+          type: string
+        trip_id:
+          description: Trip ID, or null to unassign
+          format: int64
+          type: integer
+      type: object
     CompleteTripBody:
       additionalProperties: false
       properties:
@@ -171,6 +186,142 @@ components:
       required:
         - full_name
       type: object
+    Cruise:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Cruise.json
+          format: uri
+          readOnly: true
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        enroll_token:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        start_port:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - org_id
+        - name
+        - created_at
+        - updated_at
+      type: object
+    CruiseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CruiseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        countries:
+          type: string
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          description: Cruise name
+          minLength: 1
+          type: string
+        start_port:
+          type: string
+      required:
+        - name
+      type: object
+    CruiseEnrollmentDetail:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        id:
+          format: int64
+          type: integer
+        note:
+          type: string
+        status:
+          type: string
+        trip_id:
+          format: int64
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        user_email:
+          type: string
+        user_id:
+          format: int64
+          type: integer
+        user_name:
+          type: string
+      required:
+        - user_name
+        - user_email
+        - id
+        - user_id
+        - status
+        - created_at
+        - updated_at
+      type: object
     Dashboard:
       additionalProperties: false
       properties:
@@ -213,6 +364,188 @@ components:
         - total_hours_sail
         - total_hours_engine
         - by_year
+      type: object
+    EnrollBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/EnrollBody.json
+          format: uri
+          readOnly: true
+          type: string
+        note:
+          description: Optional note to the organizer
+          type: string
+      type: object
+    EnrollCruise:
+      additionalProperties: false
+      properties:
+        cost_per_person:
+          format: double
+          type: number
+        countries:
+          type: string
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_photo_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        start_port:
+          type: string
+      required:
+        - id
+        - org_id
+        - name
+      type: object
+    EnrollInfo:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/EnrollInfo.json
+          format: uri
+          readOnly: true
+          type: string
+        accepted_count:
+          format: int64
+          type: integer
+        cruise:
+          $ref: "#/components/schemas/EnrollCruise"
+        enrolled:
+          type: boolean
+        enrollment:
+          $ref: "#/components/schemas/Enrollment"
+        kind:
+          enum:
+            - trip
+            - cruise
+          type: string
+        total_count:
+          format: int64
+          type: integer
+        trip:
+          $ref: "#/components/schemas/EnrollTrip"
+        trips:
+          items:
+            $ref: "#/components/schemas/Trip"
+          type:
+            - array
+            - "null"
+      required:
+        - kind
+        - enrolled
+        - accepted_count
+        - total_count
+      type: object
+    EnrollTrip:
+      additionalProperties: false
+      properties:
+        captain_name:
+          type: string
+        countries:
+          type: string
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_photo_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        start_port:
+          type: string
+      required:
+        - id
+        - name
+      type: object
+    Enrollment:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Enrollment.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        id:
+          format: int64
+          type: integer
+        note:
+          type: string
+        status:
+          type: string
+        trip_id:
+          format: int64
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        user_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - user_id
+        - status
+        - created_at
+        - updated_at
+      type: object
+    EnrollmentStatusBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/EnrollmentStatusBody.json
+          format: uri
+          readOnly: true
+          type: string
+        status:
+          description: Enrollment status
+          enum:
+            - accepted
+            - rejected
+            - waitlisted
+            - pending
+          type: string
+      required:
+        - status
       type: object
     ErrorDetail:
       additionalProperties: false
@@ -273,6 +606,247 @@ components:
           format: uri
           type: string
       type: object
+    FormFile:
+      additionalProperties: false
+      properties:
+        ContentType:
+          type: string
+        Filename:
+          type: string
+        IsSet:
+          type: boolean
+        Size:
+          format: int64
+          type: integer
+      required:
+        - ContentType
+        - IsSet
+        - Size
+        - Filename
+      type: object
+    GenerateOpinionBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/GenerateOpinionBody.json
+          format: uri
+          readOnly: true
+          type: string
+        crew_member_id:
+          description: Crew member ID
+          format: int64
+          type: integer
+        format:
+          default: pdf
+          description: Document format
+          enum:
+            - pdf
+            - docx
+          type: string
+      required:
+        - crew_member_id
+      type: object
+    ImportData:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/ImportData.json
+          format: uri
+          readOnly: true
+          type: string
+        trainings:
+          items:
+            $ref: "#/components/schemas/ImportTrainingRow"
+          type:
+            - array
+            - "null"
+        voyages:
+          items:
+            $ref: "#/components/schemas/ImportVoyageRow"
+          type:
+            - array
+            - "null"
+      required:
+        - voyages
+        - trainings
+      type: object
+    ImportResult:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/ImportResult.json
+          format: uri
+          readOnly: true
+          type: string
+        crew_created:
+          format: int64
+          type: integer
+        trainings_created:
+          format: int64
+          type: integer
+        voyages_created:
+          format: int64
+          type: integer
+        yachts_created:
+          format: int64
+          type: integer
+      required:
+        - voyages_created
+        - trainings_created
+        - yachts_created
+        - crew_created
+      type: object
+    ImportTrainingRow:
+      additionalProperties: false
+      properties:
+        cost:
+          format: double
+          type: number
+        date:
+          type: string
+        name:
+          type: string
+        organizer:
+          type: string
+        url:
+          type: string
+      required:
+        - name
+      type: object
+    ImportVoyageRow:
+      additionalProperties: false
+      properties:
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        days:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        miles:
+          format: double
+          type: number
+        name:
+          type: string
+        start_port:
+          type: string
+        tidal_waters:
+          format: int64
+          type: integer
+        yacht_name:
+          type: string
+        yacht_type:
+          type: string
+        year:
+          format: int64
+          type: integer
+      required:
+        - name
+      type: object
+    InviteAcceptResult:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/InviteAcceptResult.json
+          format: uri
+          readOnly: true
+          type: string
+        org_name:
+          type: string
+        org_slug:
+          type: string
+        role:
+          type: string
+      required:
+        - org_name
+        - org_slug
+        - role
+      type: object
+    InviteInfo:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/InviteInfo.json
+          format: uri
+          readOnly: true
+          type: string
+        already_member:
+          type: boolean
+        org_name:
+          type: string
+        org_slug:
+          type: string
+        role:
+          type: string
+      required:
+        - org_name
+        - org_slug
+        - role
+        - already_member
+      type: object
+    InviteRequestBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/InviteRequestBody.json
+          format: uri
+          readOnly: true
+          type: string
+        expires_in_hours:
+          description: Invite lifetime in hours
+          format: int64
+          type: integer
+        max_uses:
+          description: Maximum number of uses
+          format: int64
+          type: integer
+        role:
+          default: crew
+          description: Role granted to invitees
+          enum:
+            - admin
+            - captain
+            - crew
+          type: string
+      type: object
     Me:
       additionalProperties: false
       properties:
@@ -297,6 +871,271 @@ components:
         - email
         - name
         - avatar_url
+      type: object
+    MemberRoleBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/MemberRoleBody.json
+          format: uri
+          readOnly: true
+          type: string
+        role:
+          description: New role
+          enum:
+            - admin
+            - captain
+            - crew
+          type: string
+      required:
+        - role
+      type: object
+    OrgBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/OrgBody.json
+          format: uri
+          readOnly: true
+          type: string
+        city:
+          type: string
+        description:
+          type: string
+        logo_url:
+          type: string
+        name:
+          description: Organization name
+          minLength: 1
+          type: string
+        pzz_club_number:
+          type: string
+        slug:
+          description: URL slug (lowercase letters, digits, hyphens); required on create
+          type: string
+        website:
+          type: string
+      required:
+        - name
+      type: object
+    OrgCrewBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/OrgCrewBody.json
+          format: uri
+          readOnly: true
+          type: string
+        email:
+          type: string
+        emergency_contact_name:
+          type: string
+        emergency_contact_phone:
+          type: string
+        full_name:
+          description: Crew member full name
+          minLength: 1
+          type: string
+        patent_number:
+          type: string
+        phone:
+          type: string
+        pzz_license_number:
+          type: string
+        pzz_license_type:
+          type: string
+      required:
+        - full_name
+      type: object
+    OrgDashboard:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/OrgDashboard.json
+          format: uri
+          readOnly: true
+          type: string
+        by_year:
+          items:
+            $ref: "#/components/schemas/VoyagesByYear"
+          type:
+            - array
+            - "null"
+        member_count:
+          format: int64
+          type: integer
+        total_days:
+          format: int64
+          type: integer
+        total_hours:
+          format: double
+          type: number
+        total_hours_engine:
+          format: double
+          type: number
+        total_hours_sail:
+          format: double
+          type: number
+        total_miles:
+          format: double
+          type: number
+        voyage_count:
+          format: int64
+          type: integer
+        yacht_count:
+          format: int64
+          type: integer
+      required:
+        - voyage_count
+        - total_hours
+        - total_miles
+        - total_days
+        - total_hours_sail
+        - total_hours_engine
+        - member_count
+        - yacht_count
+        - by_year
+      type: object
+    OrgInvite:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/OrgInvite.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          format: int64
+          type: integer
+        creator_name:
+          type: string
+        expires_at:
+          format: date-time
+          type: string
+        id:
+          format: int64
+          type: integer
+        max_uses:
+          format: int64
+          type: integer
+        org_id:
+          format: int64
+          type: integer
+        role:
+          type: string
+        token:
+          type: string
+        use_count:
+          format: int64
+          type: integer
+      required:
+        - id
+        - org_id
+        - token
+        - role
+        - created_by
+        - use_count
+        - created_at
+      type: object
+    OrgMember:
+      additionalProperties: false
+      properties:
+        id:
+          format: int64
+          type: integer
+        joined_at:
+          format: date-time
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        role:
+          type: string
+        user_avatar_url:
+          type: string
+        user_email:
+          type: string
+        user_id:
+          format: int64
+          type: integer
+        user_name:
+          type: string
+      required:
+        - id
+        - org_id
+        - user_id
+        - role
+        - joined_at
+        - user_name
+        - user_email
+      type: object
+    Organization:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Organization.json
+          format: uri
+          readOnly: true
+          type: string
+        city:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        logo_url:
+          type: string
+        name:
+          type: string
+        pzz_club_number:
+          type: string
+        slug:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        website:
+          type: string
+      required:
+        - id
+        - name
+        - slug
+        - created_at
+        - updated_at
+      type: object
+    TokenOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TokenOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        token:
+          type: string
+      required:
+        - token
       type: object
     Training:
       additionalProperties: false
@@ -493,6 +1332,95 @@ components:
       required:
         - name
       type: object
+    TripEnrollmentDetail:
+      additionalProperties: false
+      properties:
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        id:
+          format: int64
+          type: integer
+        note:
+          type: string
+        status:
+          type: string
+        trip_id:
+          format: int64
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        user_email:
+          type: string
+        user_id:
+          format: int64
+          type: integer
+        user_name:
+          type: string
+      required:
+        - user_name
+        - user_email
+        - id
+        - user_id
+        - status
+        - created_at
+        - updated_at
+      type: object
+    UploadURLOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/UploadURLOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        url:
+          type: string
+      required:
+        - url
+      type: object
+    UserOrganization:
+      additionalProperties: false
+      properties:
+        city:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        logo_url:
+          type: string
+        name:
+          type: string
+        pzz_club_number:
+          type: string
+        role:
+          type: string
+        slug:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        website:
+          type: string
+      required:
+        - role
+        - id
+        - name
+        - slug
+        - created_at
+        - updated_at
+      type: object
     Voyage:
       additionalProperties: false
       properties:
@@ -662,6 +1590,39 @@ components:
           type: integer
       required:
         - name
+      type: object
+    VoyageOpinion:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/VoyageOpinion.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        crew_member_id:
+          format: int64
+          type: integer
+        file_format:
+          type: string
+        full_name:
+          type: string
+        id:
+          format: int64
+          type: integer
+        voyage_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - voyage_id
+        - crew_member_id
+        - file_format
+        - created_at
       type: object
     VoyagesByYear:
       additionalProperties: false
@@ -916,6 +1877,1730 @@ paths:
       summary: Owner sailing summary
       tags:
         - Dashboard
+  /enroll/{token}:
+    get:
+      operationId: resolve-enroll-token
+      parameters:
+        - description: Enrollment share token
+          in: path
+          name: token
+          required: true
+          schema:
+            description: Enrollment share token
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollInfo"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Resolve an enrollment token to its trip or cruise
+      tags:
+        - Enrollment
+    post:
+      operationId: enroll
+      parameters:
+        - description: Enrollment share token
+          in: path
+          name: token
+          required: true
+          schema:
+            description: Enrollment share token
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Self-enroll via a share token
+      tags:
+        - Enrollment
+  /import/confirm:
+    post:
+      operationId: import-confirm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportData"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Persist the reviewed import preview
+      tags:
+        - Import
+  /import/xlsx:
+    post:
+      operationId: import-xlsx
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              file:
+                contentType: application/octet-stream
+            schema:
+              properties:
+                file:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  description: XLSX spreadsheet to import
+                  format: binary
+                  type: string
+              required:
+                - file
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportData"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Upload an XLSX file and preview the parsed records
+      tags:
+        - Import
+  /join/{token}:
+    get:
+      operationId: get-invite-info
+      parameters:
+        - description: Invite token
+          in: path
+          name: token
+          required: true
+          schema:
+            description: Invite token
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteInfo"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Resolve an invite token
+      tags:
+        - Organizations
+    post:
+      operationId: accept-invite
+      parameters:
+        - description: Invite token
+          in: path
+          name: token
+          required: true
+          schema:
+            description: Invite token
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteAcceptResult"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Accept an invite
+      tags:
+        - Organizations
+  /orgs:
+    get:
+      operationId: list-orgs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/UserOrganization"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List the caller's organizations
+      tags:
+        - Organizations
+    post:
+      operationId: create-org
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an organization
+      tags:
+        - Organizations
+  /orgs/{slug}:
+    delete:
+      operationId: delete-org
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an organization (admin)
+      tags:
+        - Organizations
+    get:
+      operationId: get-org
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get an organization
+      tags:
+        - Organizations
+    put:
+      operationId: update-org
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update an organization (admin)
+      tags:
+        - Organizations
+  /orgs/{slug}/crew:
+    get:
+      operationId: list-org-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CrewMember"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List org crew members
+      tags:
+        - Org resources
+    post:
+      operationId: create-org-crew-member
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgCrewBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewMember"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an org crew member (admin)
+      tags:
+        - Org resources
+  /orgs/{slug}/crew/{crewID}:
+    delete:
+      operationId: delete-org-crew-member
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Crew member ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Crew member ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an org crew member (admin)
+      tags:
+        - Org resources
+    get:
+      operationId: get-org-crew-member
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Crew member ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Crew member ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewMember"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get an org crew member
+      tags:
+        - Org resources
+    put:
+      operationId: update-org-crew-member
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Crew member ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Crew member ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgCrewBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update an org crew member (admin)
+      tags:
+        - Org resources
+  /orgs/{slug}/cruises:
+    get:
+      operationId: list-org-cruises
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Cruise"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List org cruises
+      tags:
+        - Org cruises
+    post:
+      operationId: create-org-cruise
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CruiseBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cruise"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an org cruise (admin)
+      tags:
+        - Org cruises
+  /orgs/{slug}/cruises/{cruiseID}:
+    delete:
+      operationId: delete-org-cruise
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an org cruise (admin)
+      tags:
+        - Org cruises
+    get:
+      operationId: get-org-cruise
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cruise"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get an org cruise
+      tags:
+        - Org cruises
+    put:
+      operationId: update-org-cruise
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CruiseBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update an org cruise (admin)
+      tags:
+        - Org cruises
+  /orgs/{slug}/cruises/{cruiseID}/enroll-token:
+    delete:
+      operationId: clear-cruise-enroll-token
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Clear a cruise enrollment token (admin)
+      tags:
+        - Org cruises
+    post:
+      operationId: generate-cruise-enroll-token
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Generate a cruise enrollment token (admin)
+      tags:
+        - Org cruises
+  /orgs/{slug}/cruises/{cruiseID}/enrollments:
+    get:
+      operationId: list-cruise-enrollments
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CruiseEnrollmentDetail"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a cruise's enrollments
+      tags:
+        - Cruise enrollments
+  /orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}:
+    delete:
+      operationId: delete-cruise-enrollment
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: enrollmentID
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a cruise enrollment (admin)
+      tags:
+        - Cruise enrollments
+  /orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}/status:
+    put:
+      operationId: update-cruise-enrollment-status
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: enrollmentID
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollmentStatusBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a cruise enrollment's status (admin)
+      tags:
+        - Cruise enrollments
+  /orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}/trip:
+    put:
+      operationId: assign-cruise-enrollment-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: enrollmentID
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignTripBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Assign a cruise enrollment to a trip (admin)
+      tags:
+        - Cruise enrollments
+  /orgs/{slug}/cruises/{cruiseID}/trips:
+    get:
+      operationId: list-cruise-trips
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Trip"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a cruise's child trips
+      tags:
+        - Org cruises
+  /orgs/{slug}/cruises/{cruiseID}/voyages:
+    get:
+      operationId: list-cruise-voyages
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Voyage"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a cruise's child voyages
+      tags:
+        - Org cruises
+  /orgs/{slug}/dashboard:
+    get:
+      operationId: get-org-dashboard
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgDashboard"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Org sailing and membership summary
+      tags:
+        - Org resources
+  /orgs/{slug}/invites:
+    get:
+      operationId: list-org-invites
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/OrgInvite"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List invite links (admin)
+      tags:
+        - Organizations
+    post:
+      operationId: create-org-invite
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRequestBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgInvite"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an invite link (admin)
+      tags:
+        - Organizations
+  /orgs/{slug}/invites/{inviteID}:
+    delete:
+      operationId: delete-org-invite
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Invite ID
+          in: path
+          name: inviteID
+          required: true
+          schema:
+            description: Invite ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an invite link (admin)
+      tags:
+        - Organizations
+  /orgs/{slug}/members:
+    get:
+      operationId: list-org-members
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/OrgMember"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List organization members
+      tags:
+        - Organizations
+  /orgs/{slug}/members/{memberID}:
+    delete:
+      operationId: remove-org-member
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Org member ID
+          in: path
+          name: memberID
+          required: true
+          schema:
+            description: Org member ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove a member (admin)
+      tags:
+        - Organizations
+  /orgs/{slug}/members/{memberID}/role:
+    put:
+      operationId: update-org-member-role
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Org member ID
+          in: path
+          name: memberID
+          required: true
+          schema:
+            description: Org member ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberRoleBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a member's role (admin)
+      tags:
+        - Organizations
+  /orgs/{slug}/trips:
+    get:
+      operationId: list-org-trips
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Trip"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List org trips
+      tags:
+        - Org trips
+    post:
+      operationId: create-org-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an org trip (admin)
+      tags:
+        - Org trips
+  /orgs/{slug}/trips/{tripID}:
+    delete:
+      operationId: delete-org-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an org trip (admin)
+      tags:
+        - Org trips
+    get:
+      operationId: get-org-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get an org trip
+      tags:
+        - Org trips
+    put:
+      operationId: update-org-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update an org trip (admin)
+      tags:
+        - Org trips
+  /orgs/{slug}/trips/{tripID}/cancel:
+    post:
+      operationId: cancel-org-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Cancel an org trip (admin)
+      tags:
+        - Org trips
+  /orgs/{slug}/trips/{tripID}/complete:
+    post:
+      operationId: complete-org-trip
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteTripBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Complete an org trip into a voyage (admin)
+      tags:
+        - Org trips
+  /orgs/{slug}/voyages:
+    get:
+      operationId: list-org-voyages
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Voyage"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List org voyages
+      tags:
+        - Org voyages
+    post:
+      operationId: create-org-voyage
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyageBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an org voyage (admin)
+      tags:
+        - Org voyages
+  /orgs/{slug}/voyages/{voyageID}:
+    delete:
+      operationId: delete-org-voyage
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an org voyage (admin)
+      tags:
+        - Org voyages
+    get:
+      operationId: get-org-voyage
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get an org voyage
+      tags:
+        - Org voyages
+    put:
+      operationId: update-org-voyage
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyageBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update an org voyage (admin)
+      tags:
+        - Org voyages
+  /orgs/{slug}/yachts:
+    get:
+      operationId: list-org-yachts
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Yacht"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List org yachts
+      tags:
+        - Org resources
+    post:
+      operationId: create-org-yacht
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YachtBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Yacht"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create an org yacht (admin)
+      tags:
+        - Org resources
+  /orgs/{slug}/yachts/{yachtID}:
+    delete:
+      operationId: delete-org-yacht
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Yacht ID
+          in: path
+          name: yachtID
+          required: true
+          schema:
+            description: Yacht ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an org yacht (admin)
+      tags:
+        - Org resources
+    get:
+      operationId: get-org-yacht
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Yacht ID
+          in: path
+          name: yachtID
+          required: true
+          schema:
+            description: Yacht ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Yacht"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get an org yacht
+      tags:
+        - Org resources
+    put:
+      operationId: update-org-yacht
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Yacht ID
+          in: path
+          name: yachtID
+          required: true
+          schema:
+            description: Yacht ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YachtBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update an org yacht (admin)
+      tags:
+        - Org resources
   /trainings:
     get:
       operationId: list-trainings
@@ -1329,6 +4014,195 @@ paths:
       summary: Remove a crew assignment from a trip
       tags:
         - Crew
+  /trips/{tripID}/enroll-token:
+    delete:
+      operationId: clear-trip-enroll-token
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Clear a trip enrollment share token
+      tags:
+        - Enrollment
+    post:
+      operationId: generate-trip-enroll-token
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Generate a trip enrollment share token
+      tags:
+        - Enrollment
+  /trips/{tripID}/enrollments:
+    get:
+      operationId: list-trip-enrollments
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/TripEnrollmentDetail"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a trip's enrollments
+      tags:
+        - Enrollment
+  /trips/{tripID}/enrollments/{id}:
+    delete:
+      operationId: delete-trip-enrollment
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a trip enrollment
+      tags:
+        - Enrollment
+  /trips/{tripID}/enrollments/{id}/status:
+    put:
+      operationId: update-trip-enrollment-status
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollmentStatusBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a trip enrollment's status
+      tags:
+        - Enrollment
+  /upload/image:
+    post:
+      operationId: upload-image
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              file:
+                contentType: application/octet-stream
+            schema:
+              properties:
+                file:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  description: Image file (jpeg, png or webp; max 5 MB)
+                  format: binary
+                  type: string
+              required:
+                - file
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadURLOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Upload an image
+      tags:
+        - Uploads
   /voyages:
     get:
       operationId: list-voyages
@@ -1553,6 +4427,147 @@ paths:
       summary: Remove a crew assignment from a voyage
       tags:
         - Crew
+  /voyages/{voyageID}/opinions:
+    get:
+      operationId: list-voyage-opinions
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/VoyageOpinion"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a voyage's generated opinions
+      tags:
+        - Voyage opinions
+    post:
+      operationId: generate-voyage-opinion
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateOpinionBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoyageOpinion"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Generate a crew opinion document
+      tags:
+        - Voyage opinions
+  /voyages/{voyageID}/opinions/{opinionID}:
+    delete:
+      operationId: delete-voyage-opinion
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Opinion ID
+          in: path
+          name: opinionID
+          required: true
+          schema:
+            description: Opinion ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an opinion
+      tags:
+        - Voyage opinions
+  /voyages/{voyageID}/opinions/{opinionID}/download:
+    get:
+      operationId: download-voyage-opinion
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Opinion ID
+          in: path
+          name: opinionID
+          required: true
+          schema:
+            description: Opinion ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                contentEncoding: base64
+                type: string
+          description: OK
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Download an opinion document
+      tags:
+        - Voyage opinions
   /yachts:
     get:
       operationId: list-yachts

@@ -1,16 +1,17 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -23,235 +24,250 @@ func NewOrgCruiseHandler(q sqlcdb.Querier) *OrgCruiseHandler {
 	return &OrgCruiseHandler{q: q}
 }
 
-type orgCruiseRequest struct {
-	Name          string   `json:"name"`
-	EmbarkDate    *string  `json:"embark_date"`
-	DisembarkDate *string  `json:"disembark_date"`
-	Countries     *string  `json:"countries"`
-	StartPort     *string  `json:"start_port"`
-	EndPort       *string  `json:"end_port"`
-	Description   *string  `json:"description"`
-	ImageLogoUrl  *string  `json:"image_logo_url"`
-	ImagePhotoUrl *string  `json:"image_photo_url"`
-	ImageRouteUrl *string  `json:"image_route_url"`
-	MaxCrew       *int64   `json:"max_crew"`
-	CostPerPerson *float64 `json:"cost_per_person"`
+type orgCruiseParam struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	ID   int64  `path:"cruiseID" doc:"Cruise ID"`
 }
 
-func (h *OrgCruiseHandler) List(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	cruises, err := h.q.ListCruises(r.Context(), octx.OrgID)
+type createOrgCruiseInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	Body dto.CruiseBody
+}
+
+type updateOrgCruiseInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	ID   int64  `path:"cruiseID" doc:"Cruise ID"`
+	Body dto.CruiseBody
+}
+
+type cruiseOutput struct {
+	Body dto.Cruise
+}
+
+type cruiseListOutput struct {
+	Body []dto.Cruise
+}
+
+// RegisterOrgCruiseRoutes wires the org-scoped cruise operations onto the API.
+func RegisterOrgCruiseRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewOrgCruiseHandler(q)
+	tag := []string{"Org cruises"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-cruises", Method: http.MethodGet, Path: "/orgs/{slug}/cruises",
+		Summary: "List org cruises", Tags: tag,
+	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-org-cruise", Method: http.MethodGet, Path: "/orgs/{slug}/cruises/{cruiseID}",
+		Summary: "Get an org cruise", Tags: tag,
+	}, h.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-org-cruise", Method: http.MethodPost, Path: "/orgs/{slug}/cruises",
+		Summary: "Create an org cruise (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org-cruise", Method: http.MethodPut, Path: "/orgs/{slug}/cruises/{cruiseID}",
+		Summary: "Update an org cruise (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-org-cruise", Method: http.MethodDelete, Path: "/orgs/{slug}/cruises/{cruiseID}",
+		Summary: "Delete an org cruise (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.delete)
+	huma.Register(api, huma.Operation{
+		OperationID: "generate-cruise-enroll-token", Method: http.MethodPost, Path: "/orgs/{slug}/cruises/{cruiseID}/enroll-token",
+		Summary: "Generate a cruise enrollment token (admin)", Tags: tag,
+	}, h.generateEnrollToken)
+	huma.Register(api, huma.Operation{
+		OperationID: "clear-cruise-enroll-token", Method: http.MethodDelete, Path: "/orgs/{slug}/cruises/{cruiseID}/enroll-token",
+		Summary: "Clear a cruise enrollment token (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.clearEnrollToken)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cruise-trips", Method: http.MethodGet, Path: "/orgs/{slug}/cruises/{cruiseID}/trips",
+		Summary: "List a cruise's child trips", Tags: tag,
+	}, h.listChildTrips)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cruise-voyages", Method: http.MethodGet, Path: "/orgs/{slug}/cruises/{cruiseID}/voyages",
+		Summary: "List a cruise's child voyages", Tags: tag,
+	}, h.listChildVoyages)
+}
+
+func (h *OrgCruiseHandler) list(ctx context.Context, in *orgSlugParam) (*cruiseListOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	cruises, err := h.q.ListCruises(ctx, octx.OrgID)
 	if err != nil {
 		slog.Error("list org cruises", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list cruises")
-		return
+		return nil, huma.Error500InternalServerError("failed to list cruises")
 	}
-	respondJSON(w, http.StatusOK, cruises)
+	return &cruiseListOutput{Body: dto.CruisesFromDB(cruises)}, nil
 }
 
-func (h *OrgCruiseHandler) Get(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (h *OrgCruiseHandler) get(ctx context.Context, in *orgCruiseParam) (*cruiseOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	cruise, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: id, OrgID: octx.OrgID})
+	cruise, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: in.ID, OrgID: octx.OrgID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "cruise not found")
-			return
+			return nil, huma.Error404NotFound("cruise not found")
 		}
-		slog.Error("get org cruise", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get cruise")
-		return
+		slog.Error("get org cruise", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get cruise")
 	}
-	respondJSON(w, http.StatusOK, cruise)
+	return &cruiseOutput{Body: dto.CruiseFromDB(cruise)}, nil
 }
 
-func (h *OrgCruiseHandler) Create(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	var req orgCruiseRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
+func (h *OrgCruiseHandler) create(ctx context.Context, in *createOrgCruiseInput) (*cruiseOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
 	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	cruise, err := h.q.CreateCruise(r.Context(), sqlcdb.CreateCruiseParams{
+	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
 		OrgID:         octx.OrgID,
-		Name:          req.Name,
-		EmbarkDate:    nullString(req.EmbarkDate),
-		DisembarkDate: nullString(req.DisembarkDate),
-		Countries:     nullString(req.Countries),
-		StartPort:     nullString(req.StartPort),
-		EndPort:       nullString(req.EndPort),
-		Description:   nullString(req.Description),
-		ImageLogoUrl:  nullString(req.ImageLogoUrl),
-		ImagePhotoUrl: nullString(req.ImagePhotoUrl),
-		ImageRouteUrl: nullString(req.ImageRouteUrl),
-		MaxCrew:       nullInt64(req.MaxCrew),
-		CostPerPerson: nullFloat64(req.CostPerPerson),
+		Name:          in.Body.Name,
+		EmbarkDate:    nullString(in.Body.EmbarkDate),
+		DisembarkDate: nullString(in.Body.DisembarkDate),
+		Countries:     nullString(in.Body.Countries),
+		StartPort:     nullString(in.Body.StartPort),
+		EndPort:       nullString(in.Body.EndPort),
+		Description:   nullString(in.Body.Description),
+		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
+		MaxCrew:       nullInt64(in.Body.MaxCrew),
+		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
 	})
 	if err != nil {
-		slog.Error("create org cruise", "org_id", octx.OrgID, "name", req.Name, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create cruise")
-		return
+		slog.Error("create org cruise", "org_id", octx.OrgID, "name", in.Body.Name, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create cruise")
 	}
-	respondJSON(w, http.StatusCreated, cruise)
+	return &cruiseOutput{Body: dto.CruiseFromDB(cruise)}, nil
 }
 
-func (h *OrgCruiseHandler) Update(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (h *OrgCruiseHandler) update(ctx context.Context, in *updateOrgCruiseInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	var req orgCruiseRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := h.q.UpdateCruise(r.Context(), sqlcdb.UpdateCruiseParams{
-		Name:          req.Name,
-		EmbarkDate:    nullString(req.EmbarkDate),
-		DisembarkDate: nullString(req.DisembarkDate),
-		Countries:     nullString(req.Countries),
-		StartPort:     nullString(req.StartPort),
-		EndPort:       nullString(req.EndPort),
-		Description:   nullString(req.Description),
-		ImageLogoUrl:  nullString(req.ImageLogoUrl),
-		ImagePhotoUrl: nullString(req.ImagePhotoUrl),
-		ImageRouteUrl: nullString(req.ImageRouteUrl),
-		MaxCrew:       nullInt64(req.MaxCrew),
-		CostPerPerson: nullFloat64(req.CostPerPerson),
-		ID:            id,
+	if err := h.q.UpdateCruise(ctx, sqlcdb.UpdateCruiseParams{
+		Name:          in.Body.Name,
+		EmbarkDate:    nullString(in.Body.EmbarkDate),
+		DisembarkDate: nullString(in.Body.DisembarkDate),
+		Countries:     nullString(in.Body.Countries),
+		StartPort:     nullString(in.Body.StartPort),
+		EndPort:       nullString(in.Body.EndPort),
+		Description:   nullString(in.Body.Description),
+		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
+		MaxCrew:       nullInt64(in.Body.MaxCrew),
+		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
+		ID:            in.ID,
 		OrgID:         octx.OrgID,
 	}); err != nil {
-		slog.Error("update org cruise", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update cruise")
-		return
+		slog.Error("update org cruise", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update cruise")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgCruiseHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (h *OrgCruiseHandler) delete(ctx context.Context, in *orgCruiseParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	if err := h.q.DeleteCruise(r.Context(), sqlcdb.DeleteCruiseParams{ID: id, OrgID: octx.OrgID}); err != nil {
-		slog.Error("delete org cruise", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete cruise")
-		return
+	if err := h.q.DeleteCruise(ctx, sqlcdb.DeleteCruiseParams{ID: in.ID, OrgID: octx.OrgID}); err != nil {
+		slog.Error("delete org cruise", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete cruise")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgCruiseHandler) GenerateEnrollToken(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (h *OrgCruiseHandler) generateEnrollToken(ctx context.Context, in *orgCruiseParam) (*tokenOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: id, OrgID: octx.OrgID}); err != nil {
+	if _, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: in.ID, OrgID: octx.OrgID}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "cruise not found")
-			return
+			return nil, huma.Error404NotFound("cruise not found")
 		}
-		slog.Error("verify cruise for token generation", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
-		return
+		slog.Error("verify cruise for token generation", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to verify cruise")
 	}
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to generate token")
-		return
+		return nil, huma.Error500InternalServerError("failed to generate token")
 	}
 	token := hex.EncodeToString(b)
-	if err := h.q.SetCruiseEnrollToken(r.Context(), sqlcdb.SetCruiseEnrollTokenParams{
+	if err := h.q.SetCruiseEnrollToken(ctx, sqlcdb.SetCruiseEnrollTokenParams{
 		EnrollToken: types.NullString{String: token, Valid: true},
-		ID:          id,
+		ID:          in.ID,
 		OrgID:       octx.OrgID,
 	}); err != nil {
-		slog.Error("set cruise enroll token", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to set token")
-		return
+		slog.Error("set cruise enroll token", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to set token")
 	}
-	respondJSON(w, http.StatusOK, map[string]string{"token": token})
+	out := &tokenOutput{}
+	out.Body.Token = token
+	return out, nil
 }
 
-func (h *OrgCruiseHandler) ClearEnrollToken(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (h *OrgCruiseHandler) clearEnrollToken(ctx context.Context, in *orgCruiseParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	if err := h.q.ClearCruiseEnrollToken(r.Context(), sqlcdb.ClearCruiseEnrollTokenParams{ID: id, OrgID: octx.OrgID}); err != nil {
-		slog.Error("clear cruise enroll token", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to clear token")
-		return
+	if err := h.q.ClearCruiseEnrollToken(ctx, sqlcdb.ClearCruiseEnrollTokenParams{ID: in.ID, OrgID: octx.OrgID}); err != nil {
+		slog.Error("clear cruise enroll token", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to clear token")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgCruiseHandler) ListChildTrips(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (h *OrgCruiseHandler) listChildTrips(ctx context.Context, in *orgCruiseParam) (*tripListOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: id, OrgID: octx.OrgID}); err != nil {
+	if err := h.verifyCruise(ctx, in.ID, octx.OrgID); err != nil {
+		return nil, err
+	}
+	trips, err := h.q.ListCruiseTrips(ctx, types.NullInt64{Int64: in.ID, Valid: true})
+	if err != nil {
+		slog.Error("list cruise child trips", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list trips")
+	}
+	return &tripListOutput{Body: dto.TripsFromDB(trips)}, nil
+}
+
+func (h *OrgCruiseHandler) listChildVoyages(ctx context.Context, in *orgCruiseParam) (*voyageListOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.verifyCruise(ctx, in.ID, octx.OrgID); err != nil {
+		return nil, err
+	}
+	voyages, err := h.q.ListCruiseVoyages(ctx, types.NullInt64{Int64: in.ID, Valid: true})
+	if err != nil {
+		slog.Error("list cruise child voyages", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list voyages")
+	}
+	return &voyageListOutput{Body: dto.VoyagesFromDB(voyages)}, nil
+}
+
+// verifyCruise confirms the cruise exists within the org.
+func (h *OrgCruiseHandler) verifyCruise(ctx context.Context, cruiseID, orgIDVal int64) error {
+	if _, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: cruiseID, OrgID: orgIDVal}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "cruise not found")
-			return
+			return huma.Error404NotFound("cruise not found")
 		}
-		slog.Error("verify cruise for child trips", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
-		return
+		slog.Error("verify cruise", "cruise_id", cruiseID, "org_id", orgIDVal, "err", err)
+		return huma.Error500InternalServerError("failed to verify cruise")
 	}
-	trips, err := h.q.ListCruiseTrips(r.Context(), types.NullInt64{Int64: id, Valid: true})
-	if err != nil {
-		slog.Error("list cruise child trips", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list trips")
-		return
-	}
-	respondJSON(w, http.StatusOK, trips)
-}
-
-func (h *OrgCruiseHandler) ListChildVoyages(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
-	}
-	if _, err := h.q.GetCruise(r.Context(), sqlcdb.GetCruiseParams{ID: id, OrgID: octx.OrgID}); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "cruise not found")
-			return
-		}
-		slog.Error("verify cruise for child voyages", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
-		return
-	}
-	voyages, err := h.q.ListCruiseVoyages(r.Context(), types.NullInt64{Int64: id, Valid: true})
-	if err != nil {
-		slog.Error("list cruise child voyages", "cruise_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list voyages")
-		return
-	}
-	respondJSON(w, http.StatusOK, voyages)
+	return nil
 }

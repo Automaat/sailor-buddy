@@ -22,10 +22,6 @@ func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
 	return &VoyageHandler{q: q}
 }
 
-// voyageRequest aliases the DTO body so the chi-based org voyage handler
-// shares one type with the huma-served owner-scoped voyage routes.
-type voyageRequest = dto.VoyageBody
-
 type voyageIDParam struct {
 	ID int64 `path:"voyageID" doc:"Voyage ID"`
 }

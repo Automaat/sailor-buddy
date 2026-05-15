@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -212,77 +213,59 @@ func TestParseExcelDate(t *testing.T) {
 	})
 }
 
+func importTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	RegisterImportRoutes(api, m)
+	return api
+}
+
+// multipartFile builds a multipart body with one "file" part holding content.
+func multipartFile(t *testing.T, filename string, content []byte) (body *bytes.Buffer, contentType string) {
+	t.Helper()
+	body = &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	part, err := w.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatalf("write part: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	return body, w.FormDataContentType()
+}
+
 func TestUpload(t *testing.T) {
 	t.Run("valid xlsx", func(t *testing.T) {
-		opinieRows := [][]string{
-			{"name", "year"},
-			{"Baltic Trip", "2024"},
-		}
-		szkoleniaRows := [][]string{
-			{"date", "name"},
-			{"2024-01-15", "RYA"},
-		}
-		xlsxBuf := createTestXLSX(t, opinieRows, szkoleniaRows)
-
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		part, _ := writer.CreateFormFile("file", "test.xlsx")
-		_, _ = part.Write(xlsxBuf.Bytes())
-		_ = writer.Close()
-
-		h := NewImportHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", &body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Upload(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("got %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+		xlsxBuf := createTestXLSX(t,
+			[][]string{{"name", "year"}, {"Baltic Trip", "2024"}},
+			[][]string{{"date", "name"}, {"2024-01-15", "RYA"}},
+		)
+		body, ct := multipartFile(t, "test.xlsx", xlsxBuf.Bytes())
+		resp := importTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/import/xlsx", "Content-Type: "+ct, body)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200: %s", resp.Code, resp.Body)
 		}
 	})
 
 	t.Run("missing file field", func(t *testing.T) {
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		_ = writer.Close()
-
-		h := NewImportHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", &body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Upload(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		body := &bytes.Buffer{}
+		w := multipart.NewWriter(body)
+		_ = w.Close()
+		resp := importTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/import/xlsx", "Content-Type: "+w.FormDataContentType(), body)
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("got %d, want 422", resp.Code)
 		}
 	})
 
 	t.Run("invalid xlsx", func(t *testing.T) {
-		var body bytes.Buffer
-		writer := multipart.NewWriter(&body)
-		part, _ := writer.CreateFormFile("file", "test.xlsx")
-		_, _ = part.Write([]byte("not an xlsx file"))
-		_ = writer.Close()
-
-		h := NewImportHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", &body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Upload(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("no multipart", func(t *testing.T) {
-		h := NewImportHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Upload(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		body, ct := multipartFile(t, "test.xlsx", []byte("not an xlsx file"))
+		resp := importTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/import/xlsx", "Content-Type: "+ct, body)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("got %d, want 400", resp.Code)
 		}
 	})
 }

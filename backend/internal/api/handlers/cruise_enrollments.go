@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -18,97 +19,121 @@ func NewCruiseEnrollmentHandler(q sqlcdb.Querier) *CruiseEnrollmentHandler {
 	return &CruiseEnrollmentHandler{q: q}
 }
 
-func (h *CruiseEnrollmentHandler) List(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	cruiseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+type cruiseEnrollmentsParam struct {
+	Slug     string `path:"slug" doc:"Organization slug"`
+	CruiseID int64  `path:"cruiseID" doc:"Cruise ID"`
+}
+
+type cruiseEnrollmentParam struct {
+	Slug         string `path:"slug" doc:"Organization slug"`
+	CruiseID     int64  `path:"cruiseID" doc:"Cruise ID"`
+	EnrollmentID int64  `path:"enrollmentID" doc:"Enrollment ID"`
+}
+
+type cruiseEnrollmentStatusInput struct {
+	Slug         string `path:"slug" doc:"Organization slug"`
+	CruiseID     int64  `path:"cruiseID" doc:"Cruise ID"`
+	EnrollmentID int64  `path:"enrollmentID" doc:"Enrollment ID"`
+	Body         dto.EnrollmentStatusBody
+}
+
+type cruiseEnrollmentTripInput struct {
+	Slug         string `path:"slug" doc:"Organization slug"`
+	CruiseID     int64  `path:"cruiseID" doc:"Cruise ID"`
+	EnrollmentID int64  `path:"enrollmentID" doc:"Enrollment ID"`
+	Body         dto.AssignTripBody
+}
+
+type cruiseEnrollmentsOutput struct {
+	Body []dto.CruiseEnrollmentDetail
+}
+
+// RegisterCruiseEnrollmentRoutes wires the cruise enrollment management routes.
+func RegisterCruiseEnrollmentRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewCruiseEnrollmentHandler(q)
+	tag := []string{"Cruise enrollments"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cruise-enrollments", Method: http.MethodGet,
+		Path:    "/orgs/{slug}/cruises/{cruiseID}/enrollments",
+		Summary: "List a cruise's enrollments", Tags: tag,
+	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-cruise-enrollment-status", Method: http.MethodPut,
+		Path:    "/orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}/status",
+		Summary: "Update a cruise enrollment's status (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.updateStatus)
+	huma.Register(api, huma.Operation{
+		OperationID: "assign-cruise-enrollment-trip", Method: http.MethodPut,
+		Path:    "/orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}/trip",
+		Summary: "Assign a cruise enrollment to a trip (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.assignToTrip)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-cruise-enrollment", Method: http.MethodDelete,
+		Path:    "/orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}",
+		Summary: "Delete a cruise enrollment (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.delete)
+}
+
+func (h *CruiseEnrollmentHandler) list(ctx context.Context, in *cruiseEnrollmentsParam) (*cruiseEnrollmentsOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid cruise id")
-		return
+		return nil, err
 	}
-	enrollments, err := h.q.ListCruiseEnrollments(r.Context(), sqlcdb.ListCruiseEnrollmentsParams{
-		CruiseID: cruiseID,
+	enrollments, err := h.q.ListCruiseEnrollments(ctx, sqlcdb.ListCruiseEnrollmentsParams{
+		CruiseID: in.CruiseID,
 		OrgID:    octx.OrgID,
 	})
 	if err != nil {
-		slog.Error("list cruise enrollments", "cruise_id", cruiseID, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list enrollments")
-		return
+		slog.Error("list cruise enrollments", "cruise_id", in.CruiseID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list enrollments")
 	}
-	respondJSON(w, http.StatusOK, enrollments)
+	return &cruiseEnrollmentsOutput{Body: dto.CruiseEnrollmentsFromDB(enrollments)}, nil
 }
 
-func (h *CruiseEnrollmentHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "enrollmentID"), 10, 64)
+func (h *CruiseEnrollmentHandler) updateStatus(ctx context.Context, in *cruiseEnrollmentStatusInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid enrollment id")
-		return
+		return nil, err
 	}
-	var req struct {
-		Status string `json:"status"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	switch req.Status {
-	case "accepted", "rejected", "waitlisted", "pending":
-	default:
-		respondError(w, http.StatusBadRequest, "invalid status")
-		return
-	}
-	if err := h.q.UpdateCruiseEnrollmentStatus(r.Context(), sqlcdb.UpdateCruiseEnrollmentStatusParams{
-		Status: req.Status,
-		ID:     id,
+	if err := h.q.UpdateCruiseEnrollmentStatus(ctx, sqlcdb.UpdateCruiseEnrollmentStatusParams{
+		Status: in.Body.Status,
+		ID:     in.EnrollmentID,
 		OrgID:  octx.OrgID,
 	}); err != nil {
-		slog.Error("update cruise enrollment status", "enrollment_id", id, "org_id", octx.OrgID, "status", req.Status, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update status")
-		return
+		slog.Error("update cruise enrollment status", "enrollment_id", in.EnrollmentID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update status")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *CruiseEnrollmentHandler) AssignToTrip(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "enrollmentID"), 10, 64)
+func (h *CruiseEnrollmentHandler) assignToTrip(ctx context.Context, in *cruiseEnrollmentTripInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid enrollment id")
-		return
+		return nil, err
 	}
-	var req struct {
-		TripID *int64 `json:"trip_id"`
-	}
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if err := h.q.AssignCruiseEnrollmentToTrip(r.Context(), sqlcdb.AssignCruiseEnrollmentToTripParams{
-		TripID: nullInt64(req.TripID),
-		ID:     id,
+	if err := h.q.AssignCruiseEnrollmentToTrip(ctx, sqlcdb.AssignCruiseEnrollmentToTripParams{
+		TripID: nullInt64(in.Body.TripID),
+		ID:     in.EnrollmentID,
 		OrgID:  octx.OrgID,
 	}); err != nil {
-		slog.Error("assign cruise enrollment to trip", "enrollment_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to assign enrollment")
-		return
+		slog.Error("assign cruise enrollment to trip", "enrollment_id", in.EnrollmentID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to assign enrollment")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *CruiseEnrollmentHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "enrollmentID"), 10, 64)
+func (h *CruiseEnrollmentHandler) delete(ctx context.Context, in *cruiseEnrollmentParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid enrollment id")
-		return
+		return nil, err
 	}
-	if err := h.q.DeleteCruiseEnrollment(r.Context(), sqlcdb.DeleteCruiseEnrollmentParams{
-		ID:    id,
+	if err := h.q.DeleteCruiseEnrollment(ctx, sqlcdb.DeleteCruiseEnrollmentParams{
+		ID:    in.EnrollmentID,
 		OrgID: octx.OrgID,
 	}); err != nil {
-		slog.Error("delete cruise enrollment", "enrollment_id", id, "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete enrollment")
-		return
+		slog.Error("delete cruise enrollment", "enrollment_id", in.EnrollmentID, "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete enrollment")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
