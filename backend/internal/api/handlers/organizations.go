@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -41,6 +42,7 @@ func (h *OrgHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	orgs, err := h.q.ListUserOrganizations(r.Context(), user.UserID)
 	if err != nil {
+		slog.Error("list organizations", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list organizations")
 		return
 	}
@@ -83,6 +85,7 @@ func (h *OrgHandler) Create(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusConflict, "slug already taken")
 			return
 		}
+		slog.Error("create organization", "user_id", user.UserID, "slug", req.Slug, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create organization")
 		return
 	}
@@ -93,6 +96,7 @@ func (h *OrgHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Role:   "admin",
 	})
 	if err != nil {
+		slog.Error("add org creator as admin", "org_id", org.ID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to add creator as admin")
 		return
 	}
@@ -108,6 +112,7 @@ func (h *OrgHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "organization not found")
 			return
 		}
+		slog.Error("get organization", "slug", slug, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get organization")
 		return
 	}
@@ -134,6 +139,7 @@ func (h *OrgHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Website:       nullString(req.Website),
 		ID:            octx.OrgID,
 	}); err != nil {
+		slog.Error("update organization", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update organization")
 		return
 	}
@@ -143,6 +149,7 @@ func (h *OrgHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *OrgHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	if err := h.q.DeleteOrganization(r.Context(), octx.OrgID); err != nil {
+		slog.Error("delete organization", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete organization")
 		return
 	}
@@ -153,6 +160,7 @@ func (h *OrgHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
 	if err != nil {
+		slog.Error("list org members", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list members")
 		return
 	}
@@ -184,6 +192,7 @@ func (h *OrgHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	if req.Role != "admin" {
 		members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
 		if err != nil {
+			slog.Error("list org members for role check", "org_id", octx.OrgID, "err", err)
 			respondError(w, http.StatusInternalServerError, "failed to check members")
 			return
 		}
@@ -198,6 +207,7 @@ func (h *OrgHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		if isAdmin {
 			count, err := h.q.CountOrgAdmins(r.Context(), octx.OrgID)
 			if err != nil {
+				slog.Error("count org admins", "org_id", octx.OrgID, "err", err)
 				respondError(w, http.StatusInternalServerError, "failed to check admins")
 				return
 			}
@@ -212,6 +222,7 @@ func (h *OrgHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		ID:    memberID,
 		OrgID: octx.OrgID,
 	}); err != nil {
+		slog.Error("update org member role", "org_id", octx.OrgID, "member_id", memberID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update role")
 		return
 	}
@@ -228,12 +239,14 @@ func (h *OrgHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 	count, err := h.q.CountOrgAdmins(r.Context(), octx.OrgID)
 	if err != nil {
+		slog.Error("count org admins", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to check admins")
 		return
 	}
 
 	members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
 	if err != nil {
+		slog.Error("list org members", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list members")
 		return
 	}
@@ -249,6 +262,7 @@ func (h *OrgHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		ID:    memberID,
 		OrgID: octx.OrgID,
 	}); err != nil {
+		slog.Error("remove org member", "org_id", octx.OrgID, "member_id", memberID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to remove member")
 		return
 	}
@@ -307,6 +321,7 @@ func (h *OrgHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		MaxUses:   nullInt64(req.MaxUses),
 	})
 	if err != nil {
+		slog.Error("create org invite", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create invite")
 		return
 	}
@@ -317,6 +332,7 @@ func (h *OrgHandler) ListInvites(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	invites, err := h.q.ListOrgInvites(r.Context(), octx.OrgID)
 	if err != nil {
+		slog.Error("list org invites", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list invites")
 		return
 	}
@@ -334,6 +350,7 @@ func (h *OrgHandler) DeleteInvite(w http.ResponseWriter, r *http.Request) {
 		ID:    inviteID,
 		OrgID: octx.OrgID,
 	}); err != nil {
+		slog.Error("delete org invite", "org_id", octx.OrgID, "invite_id", inviteID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete invite")
 		return
 	}
@@ -350,6 +367,7 @@ func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "invalid invite link")
 			return
 		}
+		slog.Error("get org invite by token", "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get invite")
 		return
 	}
@@ -362,6 +380,7 @@ func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	if invite.MaxUses.Valid {
 		rows, err := h.q.IncrementInviteUseCount(r.Context(), invite.ID)
 		if err != nil {
+			slog.Error("increment invite use count", "invite_id", invite.ID, "err", err)
 			respondError(w, http.StatusInternalServerError, "failed to claim invite")
 			return
 		}
@@ -382,6 +401,7 @@ func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusConflict, "already a member")
 			return
 		}
+		slog.Error("add org member via invite", "org_id", invite.OrgID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to join organization")
 		return
 	}
@@ -402,6 +422,7 @@ func (h *OrgHandler) GetInviteInfo(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "invalid invite link")
 			return
 		}
+		slog.Error("get org invite info", "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get invite")
 		return
 	}

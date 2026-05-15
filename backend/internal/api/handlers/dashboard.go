@@ -30,13 +30,13 @@ func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	stats, err := h.q.GetDashboardStats(r.Context(), user.UserID)
 	if err != nil {
-		slog.Error("dashboard stats", "err", err)
+		slog.Error("dashboard stats", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get dashboard stats")
 		return
 	}
 	byYear, err := h.q.GetVoyagesByYear(r.Context(), user.UserID)
 	if err != nil {
-		slog.Error("dashboard yearly breakdown", "err", err)
+		slog.Error("dashboard yearly breakdown", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get yearly breakdown")
 		return
 	}

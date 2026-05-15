@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -24,6 +25,7 @@ func (h *OrgTripHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	trips, err := h.q.ListOrgTrips(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
+		slog.Error("list org trips", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list trips")
 		return
 	}
@@ -43,6 +45,7 @@ func (h *OrgTripHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found")
 			return
 		}
+		slog.Error("get org trip", "trip_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get trip")
 		return
 	}
@@ -83,6 +86,7 @@ func (h *OrgTripHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Status:        sqlcdb.TripStatusPlanned,
 	})
 	if err != nil {
+		slog.Error("create org trip", "org_id", octx.OrgID, "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create trip")
 		return
 	}
@@ -125,6 +129,7 @@ func (h *OrgTripHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:            id,
 		OrgID:         sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
+		slog.Error("update org trip", "trip_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update trip")
 		return
 	}
@@ -139,6 +144,7 @@ func (h *OrgTripHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.q.DeleteOrgTrip(r.Context(), sqlcdb.DeleteOrgTripParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}}); err != nil {
+		slog.Error("delete org trip", "trip_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete trip")
 		return
 	}
@@ -158,6 +164,7 @@ func (h *OrgTripHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found or invalid transition")
 			return
 		}
+		slog.Error("cancel org trip", "trip_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to cancel trip")
 		return
 	}
@@ -183,6 +190,7 @@ func (h *OrgTripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found or not in planned state")
 			return
 		}
+		slog.Error("complete org trip", "trip_id", id, "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to complete trip")
 		return
 	}

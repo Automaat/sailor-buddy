@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -31,6 +32,7 @@ func (h *TrainingHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	trainings, err := h.q.ListTrainings(r.Context(), user.UserID)
 	if err != nil {
+		slog.Error("list trainings", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list trainings")
 		return
 	}
@@ -53,6 +55,7 @@ func (h *TrainingHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "training not found")
 			return
 		}
+		slog.Error("get training", "training_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get training")
 		return
 	}
@@ -79,6 +82,7 @@ func (h *TrainingHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Url:       nullString(req.Url),
 	})
 	if err != nil {
+		slog.Error("create training", "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create training")
 		return
 	}
@@ -110,6 +114,7 @@ func (h *TrainingHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:        id,
 		UserID:    user.UserID,
 	}); err != nil {
+		slog.Error("update training", "training_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update training")
 		return
 	}
@@ -127,6 +132,7 @@ func (h *TrainingHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:     id,
 		UserID: user.UserID,
 	}); err != nil {
+		slog.Error("delete training", "training_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete training")
 		return
 	}

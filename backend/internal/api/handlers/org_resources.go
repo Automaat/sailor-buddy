@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -23,6 +24,7 @@ func (h *OrgYachtHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	yachts, err := h.q.ListOrgYachts(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
+		slog.Error("list org yachts", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list yachts")
 		return
 	}
@@ -45,6 +47,7 @@ func (h *OrgYachtHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "yacht not found")
 			return
 		}
+		slog.Error("get org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get yacht")
 		return
 	}
@@ -75,6 +78,7 @@ func (h *OrgYachtHandler) Create(w http.ResponseWriter, r *http.Request) {
 		YachtType:      nullString(req.YachtType),
 	})
 	if err != nil {
+		slog.Error("create org yacht", "org_id", octx.OrgID, "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create yacht")
 		return
 	}
@@ -108,6 +112,7 @@ func (h *OrgYachtHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:             id,
 		OrgID:          sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
+		slog.Error("update org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update yacht")
 		return
 	}
@@ -125,6 +130,7 @@ func (h *OrgYachtHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:    id,
 		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
+		slog.Error("delete org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete yacht")
 		return
 	}
@@ -143,6 +149,7 @@ func (h *OrgCrewHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	crew, err := h.q.ListOrgCrewMembers(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
+		slog.Error("list org crew members", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list crew members")
 		return
 	}
@@ -165,6 +172,7 @@ func (h *OrgCrewHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "crew member not found")
 			return
 		}
+		slog.Error("get org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get crew member")
 		return
 	}
@@ -208,6 +216,7 @@ func (h *OrgCrewHandler) Create(w http.ResponseWriter, r *http.Request) {
 		EmergencyContactPhone: nullString(req.EmergencyContactPhone),
 	})
 	if err != nil {
+		slog.Error("create org crew member", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create crew member")
 		return
 	}
@@ -242,6 +251,7 @@ func (h *OrgCrewHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:                    id,
 		OrgID:                 sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
+		slog.Error("update org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update crew member")
 		return
 	}
@@ -259,6 +269,7 @@ func (h *OrgCrewHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:    id,
 		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
+		slog.Error("delete org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete crew member")
 		return
 	}
@@ -279,24 +290,28 @@ func (h *OrgDashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := h.q.GetOrgDashboardStats(r.Context(), orgID)
 	if err != nil {
+		slog.Error("org dashboard stats", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get dashboard stats")
 		return
 	}
 
 	byYear, err := h.q.GetOrgVoyagesByYear(r.Context(), orgID)
 	if err != nil {
+		slog.Error("org dashboard voyages by year", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get voyages by year")
 		return
 	}
 
 	members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
 	if err != nil {
+		slog.Error("org dashboard list members", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to count members")
 		return
 	}
 
 	yachts, err := h.q.ListOrgYachts(r.Context(), orgID)
 	if err != nil {
+		slog.Error("org dashboard list yachts", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to count yachts")
 		return
 	}

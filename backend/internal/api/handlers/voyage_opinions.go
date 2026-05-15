@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -62,6 +63,7 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("get voyage for opinion", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get voyage")
 		return
 	}
@@ -75,6 +77,7 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 			respondError(w, http.StatusNotFound, "crew member not assigned to this voyage")
 			return
 		}
+		slog.Error("get voyage crew assignment for opinion", "voyage_id", voyageID, "crew_member_id", req.CrewMemberID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get crew assignment")
 		return
 	}
@@ -113,6 +116,7 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 		FileFormat:   req.Format,
 	})
 	if err != nil {
+		slog.Error("upsert voyage opinion", "voyage_id", voyageID, "crew_member_id", req.CrewMemberID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to save opinion record")
 		return
 	}
@@ -190,12 +194,14 @@ func (h *VoyageOpinionHandler) List(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("verify voyage for opinion list", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
 
 	opinions, err := h.q.ListVoyageVoyageOpinions(r.Context(), voyageID)
 	if err != nil {
+		slog.Error("list voyage opinions", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list opinions")
 		return
 	}
@@ -216,6 +222,7 @@ func (h *VoyageOpinionHandler) Download(w http.ResponseWriter, r *http.Request) 
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("verify voyage for opinion download", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
@@ -232,6 +239,7 @@ func (h *VoyageOpinionHandler) Download(w http.ResponseWriter, r *http.Request) 
 			respondError(w, http.StatusNotFound, "opinion not found")
 			return
 		}
+		slog.Error("get voyage opinion for download", "opinion_id", opID, "voyage_id", voyageID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get opinion")
 		return
 	}
@@ -258,6 +266,7 @@ func (h *VoyageOpinionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("verify voyage for opinion delete", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
@@ -274,6 +283,7 @@ func (h *VoyageOpinionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "opinion not found")
 			return
 		}
+		slog.Error("get voyage opinion for delete", "opinion_id", opID, "voyage_id", voyageID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get opinion")
 		return
 	}
@@ -286,6 +296,7 @@ func (h *VoyageOpinionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	_ = os.Remove(opinion.FilePath)
 
 	if err := h.q.DeleteVoyageOpinion(r.Context(), opID); err != nil {
+		slog.Error("delete voyage opinion", "opinion_id", opID, "voyage_id", voyageID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete opinion")
 		return
 	}

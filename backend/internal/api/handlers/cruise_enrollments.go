@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -29,6 +30,7 @@ func (h *CruiseEnrollmentHandler) List(w http.ResponseWriter, r *http.Request) {
 		OrgID:    octx.OrgID,
 	})
 	if err != nil {
+		slog.Error("list cruise enrollments", "cruise_id", cruiseID, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list enrollments")
 		return
 	}
@@ -60,6 +62,7 @@ func (h *CruiseEnrollmentHandler) UpdateStatus(w http.ResponseWriter, r *http.Re
 		ID:     id,
 		OrgID:  octx.OrgID,
 	}); err != nil {
+		slog.Error("update cruise enrollment status", "enrollment_id", id, "org_id", octx.OrgID, "status", req.Status, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update status")
 		return
 	}
@@ -85,6 +88,7 @@ func (h *CruiseEnrollmentHandler) AssignToTrip(w http.ResponseWriter, r *http.Re
 		ID:     id,
 		OrgID:  octx.OrgID,
 	}); err != nil {
+		slog.Error("assign cruise enrollment to trip", "enrollment_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to assign enrollment")
 		return
 	}
@@ -102,6 +106,7 @@ func (h *CruiseEnrollmentHandler) Delete(w http.ResponseWriter, r *http.Request)
 		ID:    id,
 		OrgID: octx.OrgID,
 	}); err != nil {
+		slog.Error("delete cruise enrollment", "enrollment_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete enrollment")
 		return
 	}
