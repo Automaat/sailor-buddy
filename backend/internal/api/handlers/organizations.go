@@ -104,7 +104,7 @@ func (h *OrgHandler) Get(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	org, err := h.q.GetOrganizationBySlug(r.Context(), slug)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "organization not found")
 			return
 		}
@@ -188,7 +188,8 @@ func (h *OrgHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var isAdmin bool
-		for _, m := range members {
+		for i := range members {
+			m := &members[i]
 			if m.ID == memberID && m.Role == "admin" {
 				isAdmin = true
 				break
@@ -236,7 +237,8 @@ func (h *OrgHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to list members")
 		return
 	}
-	for _, m := range members {
+	for i := range members {
+		m := &members[i]
 		if m.ID == memberID && m.Role == "admin" && count <= 1 {
 			respondError(w, http.StatusBadRequest, "cannot remove the last admin")
 			return
@@ -344,7 +346,7 @@ func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 
 	invite, err := h.q.GetOrgInviteByToken(r.Context(), token)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "invalid invite link")
 			return
 		}
@@ -396,7 +398,7 @@ func (h *OrgHandler) GetInviteInfo(w http.ResponseWriter, r *http.Request) {
 
 	invite, err := h.q.GetOrgInviteByToken(r.Context(), token)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "invalid invite link")
 			return
 		}

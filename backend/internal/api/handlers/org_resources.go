@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -40,7 +41,7 @@ func (h *OrgYachtHandler) Get(w http.ResponseWriter, r *http.Request) {
 		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "yacht not found")
 			return
 		}
@@ -160,7 +161,7 @@ func (h *OrgCrewHandler) Get(w http.ResponseWriter, r *http.Request) {
 		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "crew member not found")
 			return
 		}

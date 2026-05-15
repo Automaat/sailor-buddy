@@ -1,8 +1,10 @@
 [tools]
 go = "1.26.3"
 node = "24"
+golangci-lint = "2.12.2"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "v1.31.1"
 "go:github.com/air-verse/air" = "v1.65.1"
+"go:go.uber.org/nilaway/cmd/nilaway" = "latest"
 "npm:firebase-tools" = "15.18.0"
 
 [tasks.dev]
@@ -32,3 +34,10 @@ run = "cd backend && sqlc generate"
 [tasks.test]
 description = "Run all tests"
 run = "cd backend && go test ./..."
+
+[tasks.lint]
+description = "Run Go linters (golangci-lint + nilaway)"
+run = [
+  "cd backend && golangci-lint run ./...",
+  "cd backend && nilaway -include-pkgs=github.com/marcinskalski/sailor-buddy/backend ./...",
+]

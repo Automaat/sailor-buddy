@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -48,7 +49,7 @@ func (h *TrainingHandler) Get(w http.ResponseWriter, r *http.Request) {
 		UserID: user.UserID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "training not found")
 			return
 		}

@@ -21,7 +21,7 @@ func TestTrainingHandler_List(t *testing.T) {
 			},
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.List(w, req)
@@ -37,7 +37,7 @@ func TestTrainingHandler_List(t *testing.T) {
 			},
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.List(w, req)
@@ -55,7 +55,7 @@ func TestTrainingHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -69,7 +69,7 @@ func TestTrainingHandler_Get(t *testing.T) {
 
 	t.Run("invalid id", func(t *testing.T) {
 		h := NewTrainingHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodGet, "/abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "/abc", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "abc")
@@ -88,7 +88,7 @@ func TestTrainingHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -107,7 +107,7 @@ func TestTrainingHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -246,7 +246,7 @@ func TestTrainingHandler_Delete(t *testing.T) {
 			deleteTrainingFn: func(context.Context, sqlcdb.DeleteTrainingParams) error { return nil },
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/1", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -260,7 +260,7 @@ func TestTrainingHandler_Delete(t *testing.T) {
 
 	t.Run("invalid id", func(t *testing.T) {
 		h := NewTrainingHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodDelete, "/abc", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/abc", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "abc")
@@ -277,7 +277,7 @@ func TestTrainingHandler_Delete(t *testing.T) {
 			deleteTrainingFn: func(context.Context, sqlcdb.DeleteTrainingParams) error { return errors.New("fail") },
 		}
 		h := NewTrainingHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/1", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")

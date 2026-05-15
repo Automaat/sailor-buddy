@@ -76,17 +76,17 @@ type mockQuerier struct {
 	deleteVoyageOpinionFn      func(ctx context.Context, id int64) error
 
 	// yachts
-	listYachtsFn      func(ctx context.Context, ownerID int64) ([]sqlcdb.Yacht, error)
-	getYachtFn        func(ctx context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error)
-	createYachtFn     func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
-	updateYachtFn     func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
-	deleteYachtFn     func(ctx context.Context, arg sqlcdb.DeleteYachtParams) error
-	getYachtByNameFn  func(ctx context.Context, arg sqlcdb.GetYachtByNameParams) (sqlcdb.Yacht, error)
-	listOrgYachtsFn   func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.Yacht, error)
-	getOrgYachtFn     func(ctx context.Context, arg sqlcdb.GetOrgYachtParams) (sqlcdb.Yacht, error)
-	createOrgYachtFn  func(ctx context.Context, arg sqlcdb.CreateOrgYachtParams) (sqlcdb.Yacht, error)
-	updateOrgYachtFn  func(ctx context.Context, arg sqlcdb.UpdateOrgYachtParams) error
-	deleteOrgYachtFn  func(ctx context.Context, arg sqlcdb.DeleteOrgYachtParams) error
+	listYachtsFn     func(ctx context.Context, ownerID int64) ([]sqlcdb.Yacht, error)
+	getYachtFn       func(ctx context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error)
+	createYachtFn    func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
+	updateYachtFn    func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
+	deleteYachtFn    func(ctx context.Context, arg sqlcdb.DeleteYachtParams) error
+	getYachtByNameFn func(ctx context.Context, arg sqlcdb.GetYachtByNameParams) (sqlcdb.Yacht, error)
+	listOrgYachtsFn  func(ctx context.Context, orgID sql.NullInt64) ([]sqlcdb.Yacht, error)
+	getOrgYachtFn    func(ctx context.Context, arg sqlcdb.GetOrgYachtParams) (sqlcdb.Yacht, error)
+	createOrgYachtFn func(ctx context.Context, arg sqlcdb.CreateOrgYachtParams) (sqlcdb.Yacht, error)
+	updateOrgYachtFn func(ctx context.Context, arg sqlcdb.UpdateOrgYachtParams) error
+	deleteOrgYachtFn func(ctx context.Context, arg sqlcdb.DeleteOrgYachtParams) error
 
 	// trainings
 	listTrainingsFn  func(ctx context.Context, userID int64) ([]sqlcdb.Training, error)

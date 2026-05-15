@@ -21,7 +21,7 @@ func TestYachtHandler_List(t *testing.T) {
 			},
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.List(w, req)
@@ -37,7 +37,7 @@ func TestYachtHandler_List(t *testing.T) {
 			},
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		w := httptest.NewRecorder()
 		h.List(w, req)
@@ -55,7 +55,7 @@ func TestYachtHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -69,7 +69,7 @@ func TestYachtHandler_Get(t *testing.T) {
 
 	t.Run("invalid id", func(t *testing.T) {
 		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodGet, "/abc", nil)
+		req := httptest.NewRequest(http.MethodGet, "/abc", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "abc")
@@ -88,7 +88,7 @@ func TestYachtHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -107,7 +107,7 @@ func TestYachtHandler_Get(t *testing.T) {
 			},
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -246,7 +246,7 @@ func TestYachtHandler_Delete(t *testing.T) {
 			deleteYachtFn: func(context.Context, sqlcdb.DeleteYachtParams) error { return nil },
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/1", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")
@@ -260,7 +260,7 @@ func TestYachtHandler_Delete(t *testing.T) {
 
 	t.Run("invalid id", func(t *testing.T) {
 		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodDelete, "/abc", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/abc", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "abc")
@@ -277,7 +277,7 @@ func TestYachtHandler_Delete(t *testing.T) {
 			deleteYachtFn: func(context.Context, sqlcdb.DeleteYachtParams) error { return errors.New("fail") },
 		}
 		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/1", nil)
+		req := httptest.NewRequest(http.MethodDelete, "/1", http.NoBody)
 		req = req.WithContext(userCtx(req.Context()))
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("id", "1")

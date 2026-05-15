@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -218,7 +219,7 @@ func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 
 // completeTripTx wraps the trip → voyage transition. If orgID.Valid, scopes by org_id;
 // otherwise scopes by owner_id with org_id IS NULL.
-func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID int64, userID int64, req completeTripRequest) (sqlcdb.Voyage, error) {
+func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID, userID int64, req completeTripRequest) (sqlcdb.Voyage, error) {
 	ctx := r.Context()
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -241,70 +242,7 @@ func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID int
 		return sqlcdb.Voyage{}, sql.ErrNoRows
 	}
 
-	year := req.Year
-	if year == nil && trip.EmbarkDate.Valid {
-		if t, perr := time.Parse(time.DateOnly, trip.EmbarkDate.String); perr == nil {
-			y := int64(t.Year())
-			year = &y
-		}
-	}
-
-	var voyage sqlcdb.Voyage
-	if orgID.Valid {
-		voyage, err = qtx.CreateOrgVoyage(ctx, sqlcdb.CreateOrgVoyageParams{
-			OwnerID:       trip.OwnerID,
-			OrgID:         orgID,
-			CruiseID:      trip.CruiseID,
-			Name:          trip.Name,
-			Year:          nullInt64(year),
-			EmbarkDate:    trip.EmbarkDate,
-			DisembarkDate: trip.DisembarkDate,
-			Countries:     trip.Countries,
-			StartPort:     trip.StartPort,
-			EndPort:       trip.EndPort,
-			CaptainName:   trip.CaptainName,
-			YachtID:       trip.YachtID,
-			HoursTotal:    valOrZeroFloat(req.HoursTotal),
-			HoursSail:     valOrZeroFloat(req.HoursSail),
-			HoursEngine:   valOrZeroFloat(req.HoursEngine),
-			HoursOver6bf:  valOrZeroFloat(req.HoursOver6bf),
-			Miles:         valOrZeroFloat(req.Miles),
-			Days:          valOrZeroInt(req.Days),
-			TidalWaters:   valOrZeroInt(req.TidalWaters),
-			CostTotal:     trip.CostTotal,
-			CostPerPerson: trip.CostPerPerson,
-			ImageLogoUrl:  trip.ImageLogoUrl,
-			ImagePhotoUrl: trip.ImagePhotoUrl,
-			ImageRouteUrl: trip.ImageRouteUrl,
-			Description:   trip.Description,
-		})
-	} else {
-		voyage, err = qtx.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-			OwnerID:       trip.OwnerID,
-			Name:          trip.Name,
-			Year:          nullInt64(year),
-			EmbarkDate:    trip.EmbarkDate,
-			DisembarkDate: trip.DisembarkDate,
-			Countries:     trip.Countries,
-			StartPort:     trip.StartPort,
-			EndPort:       trip.EndPort,
-			CaptainName:   trip.CaptainName,
-			YachtID:       trip.YachtID,
-			HoursTotal:    valOrZeroFloat(req.HoursTotal),
-			HoursSail:     valOrZeroFloat(req.HoursSail),
-			HoursEngine:   valOrZeroFloat(req.HoursEngine),
-			HoursOver6bf:  valOrZeroFloat(req.HoursOver6bf),
-			Miles:         valOrZeroFloat(req.Miles),
-			Days:          valOrZeroInt(req.Days),
-			TidalWaters:   valOrZeroInt(req.TidalWaters),
-			CostTotal:     trip.CostTotal,
-			CostPerPerson: trip.CostPerPerson,
-			ImageLogoUrl:  trip.ImageLogoUrl,
-			ImagePhotoUrl: trip.ImagePhotoUrl,
-			ImageRouteUrl: trip.ImageRouteUrl,
-			Description:   trip.Description,
-		})
-	}
+	voyage, err := createVoyageFromTrip(ctx, qtx, orgID, trip, req)
 	if err != nil {
 		return sqlcdb.Voyage{}, err
 	}
@@ -334,4 +272,72 @@ func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID int
 		return sqlcdb.Voyage{}, err
 	}
 	return voyage, nil
+}
+
+// createVoyageFromTrip inserts the voyage row for a completed trip, choosing the
+// org-scoped or owner-scoped query based on orgID.Valid. The voyage year falls
+// back to the trip embark date when the request omits it.
+func createVoyageFromTrip(ctx context.Context, qtx *sqlcdb.Queries, orgID sql.NullInt64, trip sqlcdb.Trip, req completeTripRequest) (sqlcdb.Voyage, error) {
+	year := req.Year
+	if year == nil && trip.EmbarkDate.Valid {
+		if t, perr := time.Parse(time.DateOnly, trip.EmbarkDate.String); perr == nil {
+			y := int64(t.Year())
+			year = &y
+		}
+	}
+
+	if orgID.Valid {
+		return qtx.CreateOrgVoyage(ctx, sqlcdb.CreateOrgVoyageParams{
+			OwnerID:       trip.OwnerID,
+			OrgID:         orgID,
+			CruiseID:      trip.CruiseID,
+			Name:          trip.Name,
+			Year:          nullInt64(year),
+			EmbarkDate:    trip.EmbarkDate,
+			DisembarkDate: trip.DisembarkDate,
+			Countries:     trip.Countries,
+			StartPort:     trip.StartPort,
+			EndPort:       trip.EndPort,
+			CaptainName:   trip.CaptainName,
+			YachtID:       trip.YachtID,
+			HoursTotal:    valOrZeroFloat(req.HoursTotal),
+			HoursSail:     valOrZeroFloat(req.HoursSail),
+			HoursEngine:   valOrZeroFloat(req.HoursEngine),
+			HoursOver6bf:  valOrZeroFloat(req.HoursOver6bf),
+			Miles:         valOrZeroFloat(req.Miles),
+			Days:          valOrZeroInt(req.Days),
+			TidalWaters:   valOrZeroInt(req.TidalWaters),
+			CostTotal:     trip.CostTotal,
+			CostPerPerson: trip.CostPerPerson,
+			ImageLogoUrl:  trip.ImageLogoUrl,
+			ImagePhotoUrl: trip.ImagePhotoUrl,
+			ImageRouteUrl: trip.ImageRouteUrl,
+			Description:   trip.Description,
+		})
+	}
+	return qtx.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
+		OwnerID:       trip.OwnerID,
+		Name:          trip.Name,
+		Year:          nullInt64(year),
+		EmbarkDate:    trip.EmbarkDate,
+		DisembarkDate: trip.DisembarkDate,
+		Countries:     trip.Countries,
+		StartPort:     trip.StartPort,
+		EndPort:       trip.EndPort,
+		CaptainName:   trip.CaptainName,
+		YachtID:       trip.YachtID,
+		HoursTotal:    valOrZeroFloat(req.HoursTotal),
+		HoursSail:     valOrZeroFloat(req.HoursSail),
+		HoursEngine:   valOrZeroFloat(req.HoursEngine),
+		HoursOver6bf:  valOrZeroFloat(req.HoursOver6bf),
+		Miles:         valOrZeroFloat(req.Miles),
+		Days:          valOrZeroInt(req.Days),
+		TidalWaters:   valOrZeroInt(req.TidalWaters),
+		CostTotal:     trip.CostTotal,
+		CostPerPerson: trip.CostPerPerson,
+		ImageLogoUrl:  trip.ImageLogoUrl,
+		ImagePhotoUrl: trip.ImagePhotoUrl,
+		ImageRouteUrl: trip.ImageRouteUrl,
+		Description:   trip.Description,
+	})
 }

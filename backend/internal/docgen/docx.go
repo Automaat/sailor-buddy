@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"strconv"
 
 	"github.com/lukasjarosch/go-docx"
 )
@@ -35,7 +36,7 @@ func GenerateDOCX(data OpinionData) ([]byte, error) {
 		"EndPort":        data.EndPort,
 		"Countries":      data.Countries,
 		"Miles":          fmt.Sprintf("%.1f", data.Miles),
-		"Days":           fmt.Sprintf("%d", data.Days),
+		"Days":           strconv.FormatInt(data.Days, 10),
 		"HoursTotal":     fmt.Sprintf("%.1f", data.HoursTotal),
 		"HoursSail":      fmt.Sprintf("%.1f", data.HoursSail),
 		"HoursEngine":    fmt.Sprintf("%.1f", data.HoursEngine),

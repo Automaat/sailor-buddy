@@ -107,4 +107,3 @@ func (h *CruiseEnrollmentHandler) Delete(w http.ResponseWriter, r *http.Request)
 	}
 	respondJSON(w, http.StatusNoContent, nil)
 }
-

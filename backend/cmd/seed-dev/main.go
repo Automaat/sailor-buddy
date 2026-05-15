@@ -34,12 +34,18 @@ var devUsers = []devUser{
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 	cfg := config.Load()
 
 	database, err := db.Open(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("open database: %v", err)
+		return fmt.Errorf("open database: %w", err)
 	}
 	defer func() {
 		if err := database.Close(); err != nil {
@@ -48,7 +54,7 @@ func main() {
 	}()
 
 	if err := db.Migrate(database); err != nil {
-		log.Fatalf("run migrations: %v", err)
+		return fmt.Errorf("run migrations: %w", err)
 	}
 
 	authHost := os.Getenv("FIREBASE_AUTH_EMULATOR_HOST")
@@ -60,14 +66,14 @@ func main() {
 	for _, user := range devUsers {
 		uid, err := ensureFirebaseUser(ctx, authBaseURL, user)
 		if err != nil {
-			log.Fatalf("seed firebase user %s: %v", user.Email, err)
+			return fmt.Errorf("seed firebase user %s: %w", user.Email, err)
 		}
 		userID, err := upsertDBUser(ctx, database, user, uid)
 		if err != nil {
-			log.Fatalf("seed database user %s: %v", user.Email, err)
+			return fmt.Errorf("seed database user %s: %w", user.Email, err)
 		}
 		if err := seedUserData(ctx, database, userID, user); err != nil {
-			log.Fatalf("seed app data for %s: %v", user.Email, err)
+			return fmt.Errorf("seed app data for %s: %w", user.Email, err)
 		}
 	}
 
@@ -76,6 +82,7 @@ func main() {
 		emails[i] = u.Email
 	}
 	log.Printf("dev Google users ready: %s", strings.Join(emails, ", "))
+	return nil
 }
 
 func ensureFirebaseUser(ctx context.Context, baseURL string, user devUser) (string, error) {
@@ -118,11 +125,11 @@ func firebasePost(ctx context.Context, baseURL, method string, body map[string]a
 	if err != nil {
 		return fmt.Errorf("marshal firebase payload: %w", err)
 	}
-	url := fmt.Sprintf("%s/identitytoolkit.googleapis.com/v1/%s?key=fake-api-key", baseURL, method)
+	endpoint := fmt.Sprintf("%s/identitytoolkit.googleapis.com/v1/%s?key=fake-api-key", baseURL, method)
 	var lastErr error
 	client := &http.Client{Timeout: 3 * time.Second}
 	for attempt := range 20 {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 		if err != nil {
 			return fmt.Errorf("build firebase request: %w", err)
 		}
@@ -193,14 +200,49 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 	if err != nil {
 		return fmt.Errorf("begin seed tx: %w", err)
 	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
 
+	yachtID, err := seedPersonalYacht(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+	crewIDs, err := seedPersonalCrew(ctx, tx, userID, user)
+	if err != nil {
+		return err
+	}
+	voyageIDs, err := seedPersonalVoyages(ctx, tx, userID, yachtID, user.Name)
+	if err != nil {
+		return err
+	}
+	if err := seedPersonalTrips(ctx, tx, userID, yachtID, user.Name); err != nil {
+		return err
+	}
+	if err := seedCrewAssignments(ctx, tx, crewIDs, voyageIDs[0]); err != nil {
+		return err
+	}
+	if err := seedTrainings(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	if user.OrgRole != "" {
+		orgID, orgErr := seedOrg(ctx, tx, userID, user.OrgRole)
+		if orgErr != nil {
+			return orgErr
+		}
+		if err := seedOrgData(ctx, tx, userID, orgID); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit seed tx: %w", err)
+	}
+	return nil
+}
+
+func seedPersonalYacht(ctx context.Context, tx *sql.Tx, userID int64) (int64, error) {
 	var yachtID int64
-	err = tx.QueryRowContext(ctx, `
+	err := tx.QueryRowContext(ctx, `
 		WITH inserted AS (
 			INSERT INTO yachts (owner_id, name, registration_no, yacht_type)
 			SELECT $1, 'S/Y Polarna', 'POL-4242', 'Bavaria 37'
@@ -215,9 +257,12 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 		LIMIT 1
 	`, userID).Scan(&yachtID)
 	if err != nil {
-		return fmt.Errorf("seed yacht: %w", err)
+		return 0, fmt.Errorf("seed yacht: %w", err)
 	}
+	return yachtID, nil
+}
 
+func seedPersonalCrew(ctx context.Context, tx *sql.Tx, userID int64, user devUser) ([]int64, error) {
 	crewIDs := make([]int64, 0, 3)
 	for _, crew := range []struct {
 		name   string
@@ -229,7 +274,7 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 		{name: user.Name, email: user.Email, patent: "KPT-0001"},
 	} {
 		var crewID int64
-		err = tx.QueryRowContext(ctx, `
+		err := tx.QueryRowContext(ctx, `
 			WITH inserted AS (
 				INSERT INTO crew_members (owner_id, full_name, email, patent_number)
 				SELECT $1, $2, $3, $4
@@ -244,11 +289,14 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 			LIMIT 1
 		`, userID, crew.name, crew.email, crew.patent).Scan(&crewID)
 		if err != nil {
-			return fmt.Errorf("seed crew %s: %w", crew.name, err)
+			return nil, fmt.Errorf("seed crew %s: %w", crew.name, err)
 		}
 		crewIDs = append(crewIDs, crewID)
 	}
+	return crewIDs, nil
+}
 
+func seedPersonalVoyages(ctx context.Context, tx *sql.Tx, userID, yachtID int64, captainName string) ([]int64, error) {
 	personalVoyages := []voyageSeed{
 		{
 			name: "Baltyk 2025", year: 2025,
@@ -280,21 +328,23 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 	}
 
 	voyageIDs := make([]int64, 0, len(personalVoyages))
-	for _, v := range personalVoyages {
-		id, verr := seedVoyageRow(ctx, tx, userID, yachtID, user.Name, v)
-		if verr != nil {
-			err = verr
-			return verr
+	for i := range personalVoyages {
+		id, err := seedVoyageRow(ctx, tx, userID, yachtID, captainName, personalVoyages[i])
+		if err != nil {
+			return nil, err
 		}
 		voyageIDs = append(voyageIDs, id)
 	}
+	return voyageIDs, nil
+}
 
+func seedPersonalTrips(ctx context.Context, tx *sql.Tx, userID, yachtID int64, captainName string) error {
 	personalTrips := []tripSeed{
 		{
 			name:   "Majowka Hel 2026",
 			embark: "2026-05-23", disembark: "2026-05-26",
 			countries: "Polska", startPort: "Hel", endPort: "Gdynia",
-			captainName: user.Name, maxCrew: 6,
+			captainName: captainName, maxCrew: 6,
 			costTotal: 12400, costPerPerson: 3100,
 			description: "Krotki weekendowy wypad otwierajacy sezon.",
 		},
@@ -302,35 +352,40 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 			name:   "Dalmacja 2026",
 			embark: "2026-09-12", disembark: "2026-09-20",
 			countries: "Chorwacja", startPort: "Sibenik", endPort: "Trogir",
-			captainName: user.Name, maxCrew: 8,
+			captainName: captainName, maxCrew: 8,
 			costTotal: 16800, costPerPerson: 2400,
 			description: "Wrzesniowy rejs po wyspach Chorwacji.",
 		},
 	}
-	for _, t := range personalTrips {
-		if _, terr := seedTripRow(ctx, tx, userID, yachtID, t); terr != nil {
-			err = terr
-			return terr
+	for i := range personalTrips {
+		if _, err := seedTripRow(ctx, tx, userID, yachtID, personalTrips[i]); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	// Crew assigned to the most recent past voyage (Baltyk 2025).
+// seedCrewAssignments assigns the seeded crew to the most recent past voyage.
+func seedCrewAssignments(ctx context.Context, tx *sql.Tx, crewIDs []int64, voyageID int64) error {
 	for index, crewID := range crewIDs {
 		role := "zalogant"
 		if index == 2 {
 			role = "kapitan"
 		}
-		if _, err = tx.ExecContext(ctx, `
+		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
 			SELECT $1, $2, $3, NULL
 			WHERE NOT EXISTS (
 				SELECT 1 FROM crew_assignments WHERE voyage_id = $1 AND crew_member_id = $2
 			)
-		`, voyageIDs[0], crewID, role); err != nil {
+		`, voyageID, crewID, role); err != nil {
 			return fmt.Errorf("seed crew assignment: %w", err)
 		}
 	}
+	return nil
+}
 
+func seedTrainings(ctx context.Context, tx *sql.Tx, userID int64) error {
 	for _, training := range []struct {
 		date      string
 		name      string
@@ -341,7 +396,7 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 		{date: "2025-03-12", name: "SRC", organizer: "Sail Training Center", cost: 650, url: "https://example.dev/src"},
 		{date: "2025-11-08", name: "Pierwsza pomoc", organizer: "WOPR", cost: 280, url: "https://example.dev/first-aid"},
 	} {
-		if _, err = tx.ExecContext(ctx, `
+		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO trainings (user_id, date, name, organizer, cost, url)
 			SELECT $1, $2, $3, $4, $5, $6
 			WHERE NOT EXISTS (
@@ -350,21 +405,6 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 		`, userID, training.date, training.name, training.organizer, training.cost, training.url); err != nil {
 			return fmt.Errorf("seed training %s: %w", training.name, err)
 		}
-	}
-
-	if user.OrgRole != "" {
-		var orgID int64
-		orgID, err = seedOrg(ctx, tx, userID, user.OrgRole)
-		if err != nil {
-			return err
-		}
-		if err = seedOrgData(ctx, tx, userID, orgID); err != nil {
-			return err
-		}
-	}
-
-	if err = tx.Commit(); err != nil {
-		return fmt.Errorf("commit seed tx: %w", err)
 	}
 	return nil
 }

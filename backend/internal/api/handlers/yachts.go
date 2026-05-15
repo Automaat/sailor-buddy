@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -46,7 +47,7 @@ func (h *YachtHandler) Get(w http.ResponseWriter, r *http.Request) {
 		OwnerID: user.UserID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "yacht not found")
 			return
 		}

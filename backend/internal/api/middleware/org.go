@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -28,7 +29,7 @@ func OrgFromSlug(q sqlcdb.Querier) func(http.Handler) http.Handler {
 
 			org, err := q.GetOrganizationBySlug(r.Context(), slug)
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					http.Error(w, `{"error":"organization not found"}`, http.StatusNotFound)
 					return
 				}
@@ -42,7 +43,7 @@ func OrgFromSlug(q sqlcdb.Querier) func(http.Handler) http.Handler {
 				UserID: user.UserID,
 			})
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					http.Error(w, `{"error":"not a member of this organization"}`, http.StatusForbidden)
 					return
 				}
