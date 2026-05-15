@@ -5,28 +5,30 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/danielgtaylor/huma/v2/humatest"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
+
+func yachtTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	RegisterYachtRoutes(api, m)
+	return api
+}
 
 func TestYachtHandler_List(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
 			listYachtsFn: func(context.Context, int64) ([]sqlcdb.Yacht, error) {
-				return []sqlcdb.Yacht{{ID: 1, Name: "SY Odyssey"}}, nil
+				return []sqlcdb.Yacht{{ID: 1, Name: "Bavaria 46"}}, nil
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.List(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
+		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
 		}
 	})
 
@@ -36,13 +38,9 @@ func TestYachtHandler_List(t *testing.T) {
 				return nil, errors.New("fail")
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.List(w, req)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts")
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
 }
@@ -51,33 +49,12 @@ func TestYachtHandler_Get(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
 			getYachtFn: func(_ context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error) {
-				return sqlcdb.Yacht{ID: arg.ID, Name: "SY Odyssey"}, nil
+				return sqlcdb.Yacht{ID: arg.ID, Name: "Sun Odyssey"}, nil
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Get(w, req)
-		if w.Code != http.StatusOK {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusOK)
-		}
-	})
-
-	t.Run("invalid id", func(t *testing.T) {
-		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodGet, "/abc", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "abc")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Get(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts/1")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
 		}
 	})
 
@@ -87,16 +64,9 @@ func TestYachtHandler_Get(t *testing.T) {
 				return sqlcdb.Yacht{}, sql.ErrNoRows
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Get(w, req)
-		if w.Code != http.StatusNotFound {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusNotFound)
+		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts/1")
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want 404", resp.Code)
 		}
 	})
 
@@ -106,16 +76,9 @@ func TestYachtHandler_Get(t *testing.T) {
 				return sqlcdb.Yacht{}, errors.New("fail")
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodGet, "/1", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Get(w, req)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts/1")
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
 }
@@ -127,35 +90,16 @@ func TestYachtHandler_Create(t *testing.T) {
 				return sqlcdb.Yacht{ID: 1, Name: arg.Name}, nil
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"SY Odyssey"}`))
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Create(w, req)
-		if w.Code != http.StatusCreated {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusCreated)
+		resp := yachtTestAPI(t, m).PostCtx(userCtx(context.Background()), "/yachts", map[string]any{"name": "Oceanis"})
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
 	})
 
 	t.Run("missing name", func(t *testing.T) {
-		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Create(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("invalid json", func(t *testing.T) {
-		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{bad"))
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Create(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		resp := yachtTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/yachts", map[string]any{})
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("got %d, want 422", resp.Code)
 		}
 	})
 
@@ -165,13 +109,9 @@ func TestYachtHandler_Create(t *testing.T) {
 				return sqlcdb.Yacht{}, errors.New("fail")
 			},
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"X"}`))
-		req = req.WithContext(userCtx(req.Context()))
-		w := httptest.NewRecorder()
-		h.Create(w, req)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		resp := yachtTestAPI(t, m).PostCtx(userCtx(context.Background()), "/yachts", map[string]any{"name": "X"})
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
 }
@@ -181,44 +121,16 @@ func TestYachtHandler_Update(t *testing.T) {
 		m := &mockQuerier{
 			updateYachtFn: func(context.Context, sqlcdb.UpdateYachtParams) error { return nil },
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodPut, "/1", strings.NewReader(`{"name":"Updated"}`))
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Update(w, req)
-		if w.Code != http.StatusNoContent {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusNoContent)
-		}
-	})
-
-	t.Run("invalid id", func(t *testing.T) {
-		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPut, "/abc", strings.NewReader(`{"name":"X"}`))
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "abc")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Update(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		resp := yachtTestAPI(t, m).PutCtx(userCtx(context.Background()), "/yachts/1", map[string]any{"name": "Renamed"})
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
 		}
 	})
 
 	t.Run("missing name", func(t *testing.T) {
-		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodPut, "/1", strings.NewReader(`{}`))
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Update(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		resp := yachtTestAPI(t, &mockQuerier{}).PutCtx(userCtx(context.Background()), "/yachts/1", map[string]any{})
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("got %d, want 422", resp.Code)
 		}
 	})
 
@@ -226,16 +138,9 @@ func TestYachtHandler_Update(t *testing.T) {
 		m := &mockQuerier{
 			updateYachtFn: func(context.Context, sqlcdb.UpdateYachtParams) error { return errors.New("fail") },
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodPut, "/1", strings.NewReader(`{"name":"X"}`))
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Update(w, req)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		resp := yachtTestAPI(t, m).PutCtx(userCtx(context.Background()), "/yachts/1", map[string]any{"name": "X"})
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
 }
@@ -245,30 +150,9 @@ func TestYachtHandler_Delete(t *testing.T) {
 		m := &mockQuerier{
 			deleteYachtFn: func(context.Context, sqlcdb.DeleteYachtParams) error { return nil },
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/1", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Delete(w, req)
-		if w.Code != http.StatusNoContent {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusNoContent)
-		}
-	})
-
-	t.Run("invalid id", func(t *testing.T) {
-		h := NewYachtHandler(&mockQuerier{})
-		req := httptest.NewRequest(http.MethodDelete, "/abc", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "abc")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Delete(w, req)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusBadRequest)
+		resp := yachtTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/yachts/1")
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("got %d, want 204", resp.Code)
 		}
 	})
 
@@ -276,16 +160,9 @@ func TestYachtHandler_Delete(t *testing.T) {
 		m := &mockQuerier{
 			deleteYachtFn: func(context.Context, sqlcdb.DeleteYachtParams) error { return errors.New("fail") },
 		}
-		h := NewYachtHandler(m)
-		req := httptest.NewRequest(http.MethodDelete, "/1", http.NoBody)
-		req = req.WithContext(userCtx(req.Context()))
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "1")
-		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-		w := httptest.NewRecorder()
-		h.Delete(w, req)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want %d", w.Code, http.StatusInternalServerError)
+		resp := yachtTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/yachts/1")
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
 }

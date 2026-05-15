@@ -185,7 +185,7 @@ func (h *OrgTripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	voyage, err := completeTripTx(r, h.db, types.NullInt64{Int64: octx.OrgID, Valid: true}, id, user.UserID, req)
+	voyage, err := completeTripTx(r.Context(), h.db, types.NullInt64{Int64: octx.OrgID, Valid: true}, id, user.UserID, req)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			respondError(w, http.StatusNotFound, "trip not found or not in planned state")

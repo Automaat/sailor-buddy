@@ -31,6 +31,13 @@ run = "cd backend && go run cmd/migrate/main.go"
 description = "Generate sqlc code"
 run = "cd backend && sqlc generate"
 
+[tasks.gen-api]
+description = "Regenerate openapi.yaml from Go code, then the frontend TS types"
+run = [
+  "cd backend && go run ./cmd/openapi",
+  "cd frontend && npm run gen:api",
+]
+
 [tasks.test]
 description = "Run all tests"
 run = "cd backend && go test ./..."

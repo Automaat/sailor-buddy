@@ -1,13 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
@@ -20,115 +22,112 @@ func NewYachtHandler(q sqlcdb.Querier) *YachtHandler {
 	return &YachtHandler{q: q}
 }
 
-type yachtRequest struct {
-	Name           string  `json:"name"`
-	RegistrationNo *string `json:"registration_no"`
-	YachtType      *string `json:"yacht_type"`
+type yachtIDParam struct {
+	ID int64 `path:"yachtID" doc:"Yacht ID"`
 }
 
-func (h *YachtHandler) List(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	yachts, err := h.q.ListYachts(r.Context(), user.UserID)
+type createYachtInput struct {
+	Body dto.YachtBody
+}
+
+type updateYachtInput struct {
+	ID   int64 `path:"yachtID" doc:"Yacht ID"`
+	Body dto.YachtBody
+}
+
+type yachtOutput struct {
+	Body dto.Yacht
+}
+
+type yachtListOutput struct {
+	Body []dto.Yacht
+}
+
+// RegisterYachtRoutes wires the owner-scoped yacht operations onto the API.
+func RegisterYachtRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewYachtHandler(q)
+	tag := []string{"Yachts"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-yachts", Method: http.MethodGet, Path: "/yachts",
+		Summary: "List yachts", Tags: tag,
+	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-yacht", Method: http.MethodGet, Path: "/yachts/{yachtID}",
+		Summary: "Get a yacht", Tags: tag,
+	}, h.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-yacht", Method: http.MethodPost, Path: "/yachts",
+		Summary: "Create a yacht", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-yacht", Method: http.MethodPut, Path: "/yachts/{yachtID}",
+		Summary: "Update a yacht", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-yacht", Method: http.MethodDelete, Path: "/yachts/{yachtID}",
+		Summary: "Delete a yacht", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.delete)
+}
+
+func (h *YachtHandler) list(ctx context.Context, _ *struct{}) (*yachtListOutput, error) {
+	user := middleware.GetUser(ctx)
+	yachts, err := h.q.ListYachts(ctx, user.UserID)
 	if err != nil {
 		slog.Error("list yachts", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list yachts")
-		return
+		return nil, huma.Error500InternalServerError("failed to list yachts")
 	}
-	respondJSON(w, http.StatusOK, yachts)
+	return &yachtListOutput{Body: dto.YachtsFromDB(yachts)}, nil
 }
 
-func (h *YachtHandler) Get(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid yacht id")
-		return
-	}
-	yacht, err := h.q.GetYacht(r.Context(), sqlcdb.GetYachtParams{
-		ID:      id,
-		OwnerID: user.UserID,
-	})
+func (h *YachtHandler) get(ctx context.Context, in *yachtIDParam) (*yachtOutput, error) {
+	user := middleware.GetUser(ctx)
+	yacht, err := h.q.GetYacht(ctx, sqlcdb.GetYachtParams{ID: in.ID, OwnerID: user.UserID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "yacht not found")
-			return
+			return nil, huma.Error404NotFound("yacht not found")
 		}
-		slog.Error("get yacht", "yacht_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get yacht")
-		return
+		slog.Error("get yacht", "yacht_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get yacht")
 	}
-	respondJSON(w, http.StatusOK, yacht)
+	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
 }
 
-func (h *YachtHandler) Create(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	var req yachtRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	yacht, err := h.q.CreateYacht(r.Context(), sqlcdb.CreateYachtParams{
+func (h *YachtHandler) create(ctx context.Context, in *createYachtInput) (*yachtOutput, error) {
+	user := middleware.GetUser(ctx)
+	yacht, err := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
 		OwnerID:        user.UserID,
-		Name:           req.Name,
-		RegistrationNo: nullString(req.RegistrationNo),
-		YachtType:      nullString(req.YachtType),
+		Name:           in.Body.Name,
+		RegistrationNo: nullString(in.Body.RegistrationNo),
+		YachtType:      nullString(in.Body.YachtType),
 	})
 	if err != nil {
-		slog.Error("create yacht", "user_id", user.UserID, "name", req.Name, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create yacht")
-		return
+		slog.Error("create yacht", "user_id", user.UserID, "name", in.Body.Name, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create yacht")
 	}
-	respondJSON(w, http.StatusCreated, yacht)
+	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
 }
 
-func (h *YachtHandler) Update(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid yacht id")
-		return
-	}
-	var req yachtRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := h.q.UpdateYacht(r.Context(), sqlcdb.UpdateYachtParams{
-		Name:           req.Name,
-		RegistrationNo: nullString(req.RegistrationNo),
-		YachtType:      nullString(req.YachtType),
-		ID:             id,
+func (h *YachtHandler) update(ctx context.Context, in *updateYachtInput) (*noContentOutput, error) {
+	user := middleware.GetUser(ctx)
+	if err := h.q.UpdateYacht(ctx, sqlcdb.UpdateYachtParams{
+		Name:           in.Body.Name,
+		RegistrationNo: nullString(in.Body.RegistrationNo),
+		YachtType:      nullString(in.Body.YachtType),
+		ID:             in.ID,
 		OwnerID:        user.UserID,
 	}); err != nil {
-		slog.Error("update yacht", "yacht_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update yacht")
-		return
+		slog.Error("update yacht", "yacht_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update yacht")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *YachtHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid yacht id")
-		return
+func (h *YachtHandler) delete(ctx context.Context, in *yachtIDParam) (*noContentOutput, error) {
+	user := middleware.GetUser(ctx)
+	if err := h.q.DeleteYacht(ctx, sqlcdb.DeleteYachtParams{ID: in.ID, OwnerID: user.UserID}); err != nil {
+		slog.Error("delete yacht", "yacht_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete yacht")
 	}
-	if err := h.q.DeleteYacht(r.Context(), sqlcdb.DeleteYachtParams{
-		ID:      id,
-		OwnerID: user.UserID,
-	}); err != nil {
-		slog.Error("delete yacht", "yacht_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete yacht")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }

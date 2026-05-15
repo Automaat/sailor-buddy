@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -45,7 +46,8 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(fbClient, q))
-			mountCruiseRoutes(r, q, db, cfg)
+			registerHumaRoutes(humachi.New(r, humaConfig()), q, db)
+			mountCruiseRoutes(r, q, cfg)
 			mountCatalogRoutes(r, q, cfg)
 			mountOrgRoutes(r, q, db)
 		})
@@ -54,17 +56,12 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	return r
 }
 
-// mountCruiseRoutes registers the owner-scoped account, trip and voyage routes.
-func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, db *sql.DB, cfg *config.Config) {
-	authH := handlers.NewAuthHandler()
-	r.Get("/auth/me", authH.Me)
-
-	dashH := handlers.NewDashboardHandler(q)
-	r.Get("/dashboard", dashH.Get)
-
-	tripH := handlers.NewTripHandler(q, db)
-	voyH := handlers.NewVoyageHandler(q)
-	crewH := handlers.NewCrewHandler(q)
+// mountCruiseRoutes registers the chi routes that have not yet moved to huma:
+// the enrollment subtree and the voyage-opinion subroutes. Trip and voyage
+// CRUD and crew assignments are served by huma via registerHumaRoutes; the
+// subroutes here share the {tripID}/{voyageID} path parameters for routing
+// consistency.
+func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
 	opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
 	enrollH := handlers.NewEnrollmentHandler(q)
 
@@ -73,86 +70,23 @@ func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, db *sql.DB, cfg *config.
 		r.Post("/", enrollH.Enroll)
 	})
 
-	r.Route("/trips", func(r chi.Router) {
-		r.Get("/", tripH.List)
-		r.Post("/", tripH.Create)
-		r.Post("/{id}/complete", tripH.Complete)
-		r.Post("/{id}/cancel", tripH.Cancel)
-		r.Route("/{tripID}/crew", func(r chi.Router) {
-			r.Get("/", crewH.ListTripCrew)
-			r.Post("/", crewH.AssignTripCrew)
-			r.Delete("/{assignmentID}", crewH.RemoveTripCrew)
-		})
-		r.Post("/{tripID}/enroll-token", enrollH.GenerateToken)
-		r.Delete("/{tripID}/enroll-token", enrollH.ClearToken)
-		r.Get("/{tripID}/enrollments", enrollH.ListEnrollments)
-		r.Put("/{tripID}/enrollments/{id}/status", enrollH.UpdateStatus)
-		r.Delete("/{tripID}/enrollments/{id}", enrollH.DeleteEnrollment)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", tripH.Get)
-			r.Put("/", tripH.Update)
-			r.Delete("/", tripH.Delete)
-		})
-	})
+	r.Post("/trips/{tripID}/enroll-token", enrollH.GenerateToken)
+	r.Delete("/trips/{tripID}/enroll-token", enrollH.ClearToken)
+	r.Get("/trips/{tripID}/enrollments", enrollH.ListEnrollments)
+	r.Put("/trips/{tripID}/enrollments/{id}/status", enrollH.UpdateStatus)
+	r.Delete("/trips/{tripID}/enrollments/{id}", enrollH.DeleteEnrollment)
 
-	r.Route("/voyages", func(r chi.Router) {
-		r.Get("/", voyH.List)
-		r.Post("/", voyH.Create)
-		r.Route("/{voyageID}/crew", func(r chi.Router) {
-			r.Get("/", crewH.ListVoyageCrew)
-			r.Post("/", crewH.AssignVoyageCrew)
-			r.Delete("/{assignmentID}", crewH.RemoveVoyageCrew)
-		})
-		r.Route("/{voyageID}/opinions", func(r chi.Router) {
-			r.Get("/", opinH.List)
-			r.Post("/", opinH.Generate)
-			r.Get("/{id}/download", opinH.Download)
-			r.Delete("/{id}", opinH.Delete)
-		})
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", voyH.Get)
-			r.Put("/", voyH.Update)
-			r.Delete("/", voyH.Delete)
-		})
+	r.Route("/voyages/{voyageID}/opinions", func(r chi.Router) {
+		r.Get("/", opinH.List)
+		r.Post("/", opinH.Generate)
+		r.Get("/{id}/download", opinH.Download)
+		r.Delete("/{id}", opinH.Delete)
 	})
 }
 
-// mountCatalogRoutes registers the owner-scoped yacht, crew, training and
-// import routes.
+// mountCatalogRoutes registers the chi routes for uploads and import that have
+// not yet moved to huma.
 func mountCatalogRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
-	yachtH := handlers.NewYachtHandler(q)
-	r.Route("/yachts", func(r chi.Router) {
-		r.Get("/", yachtH.List)
-		r.Post("/", yachtH.Create)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", yachtH.Get)
-			r.Put("/", yachtH.Update)
-			r.Delete("/", yachtH.Delete)
-		})
-	})
-
-	crewH := handlers.NewCrewHandler(q)
-	r.Route("/crew", func(r chi.Router) {
-		r.Get("/", crewH.List)
-		r.Post("/", crewH.Create)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", crewH.Get)
-			r.Put("/", crewH.Update)
-			r.Delete("/", crewH.Delete)
-		})
-	})
-
-	trainingH := handlers.NewTrainingHandler(q)
-	r.Route("/trainings", func(r chi.Router) {
-		r.Get("/", trainingH.List)
-		r.Post("/", trainingH.Create)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", trainingH.Get)
-			r.Put("/", trainingH.Update)
-			r.Delete("/", trainingH.Delete)
-		})
-	})
-
 	uploadH := handlers.NewUploadHandler(cfg.UploadDir)
 	r.Post("/upload/image", uploadH.UploadImage)
 	r.Get("/uploads/*", uploadH.ServeFile)

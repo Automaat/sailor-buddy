@@ -1,0 +1,1684 @@
+components:
+  schemas:
+    CompleteTripBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CompleteTripBody.json
+          format: uri
+          readOnly: true
+          type: string
+        days:
+          format: int64
+          type: integer
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        miles:
+          format: double
+          type: number
+        tidal_waters:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      type: object
+    CrewAssignment:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CrewAssignment.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        crew_member_id:
+          format: int64
+          type: integer
+        email:
+          type: string
+        full_name:
+          type: string
+        id:
+          format: int64
+          type: integer
+        patent_number:
+          type: string
+        role:
+          type: string
+        trip_id:
+          format: int64
+          type: integer
+        voyage_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - crew_member_id
+        - role
+        - full_name
+        - created_at
+      type: object
+    CrewAssignmentBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CrewAssignmentBody.json
+          format: uri
+          readOnly: true
+          type: string
+        crew_member_id:
+          description: Crew member ID
+          format: int64
+          type: integer
+        patent_number:
+          type: string
+        role:
+          description: Assignment role
+          minLength: 1
+          type: string
+      required:
+        - crew_member_id
+        - role
+      type: object
+    CrewMember:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CrewMember.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        email:
+          type: string
+        emergency_contact_name:
+          type: string
+        emergency_contact_phone:
+          type: string
+        full_name:
+          type: string
+        id:
+          format: int64
+          type: integer
+        org_id:
+          format: int64
+          type: integer
+        owner_id:
+          format: int64
+          type: integer
+        patent_number:
+          type: string
+        phone:
+          type: string
+        pzz_license_number:
+          type: string
+        pzz_license_type:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        user_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - owner_id
+        - full_name
+        - created_at
+        - updated_at
+      type: object
+    CrewMemberBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CrewMemberBody.json
+          format: uri
+          readOnly: true
+          type: string
+        email:
+          type: string
+        full_name:
+          description: Crew member full name
+          minLength: 1
+          type: string
+        patent_number:
+          type: string
+      required:
+        - full_name
+      type: object
+    Dashboard:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Dashboard.json
+          format: uri
+          readOnly: true
+          type: string
+        by_year:
+          items:
+            $ref: "#/components/schemas/VoyagesByYear"
+          type:
+            - array
+            - "null"
+        total_days:
+          format: int64
+          type: integer
+        total_hours:
+          format: double
+          type: number
+        total_hours_engine:
+          format: double
+          type: number
+        total_hours_sail:
+          format: double
+          type: number
+        total_miles:
+          format: double
+          type: number
+        voyage_count:
+          format: int64
+          type: integer
+      required:
+        - voyage_count
+        - total_hours
+        - total_miles
+        - total_days
+        - total_hours_sail
+        - total_hours_engine
+        - by_year
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        location:
+          description: Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'
+          type: string
+        message:
+          description: Error message text
+          type: string
+        value:
+          description: The value at the given location
+      type: object
+    ErrorModel:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/ErrorModel.json
+          format: uri
+          readOnly: true
+          type: string
+        detail:
+          description: A human-readable explanation specific to this occurrence of the problem.
+          examples:
+            - Property foo is required but is missing.
+          type: string
+        errors:
+          description: Optional list of individual error details
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          type:
+            - array
+            - "null"
+        instance:
+          description: A URI reference that identifies the specific occurrence of the problem.
+          examples:
+            - https://example.com/error-log/abc123
+          format: uri
+          type: string
+        status:
+          description: HTTP status code
+          examples:
+            - 400
+          format: int64
+          type: integer
+        title:
+          description: A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+          examples:
+            - Bad Request
+          type: string
+        type:
+          default: about:blank
+          description: A URI reference to human-readable documentation for the error.
+          examples:
+            - https://example.com/errors/example
+          format: uri
+          type: string
+      type: object
+    Me:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Me.json
+          format: uri
+          readOnly: true
+          type: string
+        avatar_url:
+          type: string
+        email:
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+      required:
+        - id
+        - email
+        - name
+        - avatar_url
+      type: object
+    Training:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Training.json
+          format: uri
+          readOnly: true
+          type: string
+        cost:
+          format: double
+          type: number
+        created_at:
+          format: date-time
+          type: string
+        date:
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        organizer:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        url:
+          type: string
+        user_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - user_id
+        - name
+        - created_at
+        - updated_at
+      type: object
+    TrainingBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TrainingBody.json
+          format: uri
+          readOnly: true
+          type: string
+        cost:
+          format: double
+          type: number
+        date:
+          type: string
+        name:
+          description: Training name
+          minLength: 1
+          type: string
+        organizer:
+          type: string
+        url:
+          type: string
+      required:
+        - name
+      type: object
+    Trip:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Trip.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        enroll_token:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        owner_id:
+          format: int64
+          type: integer
+        start_port:
+          type: string
+        status:
+          enum:
+            - planned
+            - cancelled
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        yacht_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - owner_id
+        - name
+        - status
+        - created_at
+        - updated_at
+      type: object
+    TripBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TripBody.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          description: Trip name
+          minLength: 1
+          type: string
+        start_port:
+          type: string
+        yacht_id:
+          format: int64
+          type: integer
+      required:
+        - name
+      type: object
+    Voyage:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Voyage.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        days:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        miles:
+          format: double
+          type: number
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        owner_id:
+          format: int64
+          type: integer
+        start_port:
+          type: string
+        tidal_waters:
+          format: int64
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        yacht_id:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      required:
+        - id
+        - owner_id
+        - name
+        - hours_total
+        - hours_sail
+        - hours_engine
+        - hours_over_6bf
+        - miles
+        - days
+        - tidal_waters
+        - created_at
+        - updated_at
+      type: object
+    VoyageBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/VoyageBody.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        days:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        miles:
+          format: double
+          type: number
+        name:
+          description: Voyage name
+          minLength: 1
+          type: string
+        start_port:
+          type: string
+        tidal_waters:
+          format: int64
+          type: integer
+        yacht_id:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      required:
+        - name
+      type: object
+    VoyagesByYear:
+      additionalProperties: false
+      properties:
+        total_days:
+          format: int64
+          type: integer
+        total_hours:
+          format: double
+          type: number
+        total_miles:
+          format: double
+          type: number
+        voyage_count:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      required:
+        - voyage_count
+        - total_hours
+        - total_miles
+        - total_days
+      type: object
+    Yacht:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Yacht.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        owner_id:
+          format: int64
+          type: integer
+        registration_no:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        yacht_type:
+          type: string
+      required:
+        - id
+        - owner_id
+        - name
+        - created_at
+        - updated_at
+      type: object
+    YachtBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/YachtBody.json
+          format: uri
+          readOnly: true
+          type: string
+        name:
+          description: Yacht name
+          minLength: 1
+          type: string
+        registration_no:
+          type: string
+        yacht_type:
+          type: string
+      required:
+        - name
+      type: object
+info:
+  title: Sailor Buddy API
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /auth/me:
+    get:
+      operationId: get-me
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Current authenticated user
+      tags:
+        - Auth
+  /crew:
+    get:
+      operationId: list-crew
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CrewMember"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List crew members
+      tags:
+        - Crew
+    post:
+      operationId: create-crew-member
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewMemberBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewMember"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a crew member
+      tags:
+        - Crew
+  /crew/{crewID}:
+    delete:
+      operationId: delete-crew-member
+      parameters:
+        - description: Crew member ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Crew member ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a crew member
+      tags:
+        - Crew
+    get:
+      operationId: get-crew-member
+      parameters:
+        - description: Crew member ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Crew member ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewMember"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a crew member
+      tags:
+        - Crew
+    put:
+      operationId: update-crew-member
+      parameters:
+        - description: Crew member ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Crew member ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewMemberBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a crew member
+      tags:
+        - Crew
+  /dashboard:
+    get:
+      operationId: get-dashboard
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Owner sailing summary
+      tags:
+        - Dashboard
+  /trainings:
+    get:
+      operationId: list-trainings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Training"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List trainings
+      tags:
+        - Trainings
+    post:
+      operationId: create-training
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Training"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a training
+      tags:
+        - Trainings
+  /trainings/{trainingID}:
+    delete:
+      operationId: delete-training
+      parameters:
+        - description: Training ID
+          in: path
+          name: trainingID
+          required: true
+          schema:
+            description: Training ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a training
+      tags:
+        - Trainings
+    get:
+      operationId: get-training
+      parameters:
+        - description: Training ID
+          in: path
+          name: trainingID
+          required: true
+          schema:
+            description: Training ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Training"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a training
+      tags:
+        - Trainings
+    put:
+      operationId: update-training
+      parameters:
+        - description: Training ID
+          in: path
+          name: trainingID
+          required: true
+          schema:
+            description: Training ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a training
+      tags:
+        - Trainings
+  /trips:
+    get:
+      operationId: list-trips
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Trip"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List trips
+      tags:
+        - Trips
+    post:
+      operationId: create-trip
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a trip
+      tags:
+        - Trips
+  /trips/{tripID}:
+    delete:
+      operationId: delete-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a trip
+      tags:
+        - Trips
+    get:
+      operationId: get-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a trip
+      tags:
+        - Trips
+    put:
+      operationId: update-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a trip
+      tags:
+        - Trips
+  /trips/{tripID}/cancel:
+    post:
+      operationId: cancel-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Cancel a trip
+      tags:
+        - Trips
+  /trips/{tripID}/complete:
+    post:
+      operationId: complete-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteTripBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Complete a trip into a voyage
+      tags:
+        - Trips
+  /trips/{tripID}/crew:
+    get:
+      operationId: list-trip-crew
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CrewAssignment"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a trip's crew
+      tags:
+        - Crew
+    post:
+      operationId: assign-trip-crew
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewAssignmentBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewAssignment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Assign a crew member to a trip
+      tags:
+        - Crew
+  /trips/{tripID}/crew/{assignmentID}:
+    delete:
+      operationId: remove-trip-crew
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Assignment ID
+          in: path
+          name: assignmentID
+          required: true
+          schema:
+            description: Assignment ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove a crew assignment from a trip
+      tags:
+        - Crew
+  /voyages:
+    get:
+      operationId: list-voyages
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Voyage"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List voyages
+      tags:
+        - Voyages
+    post:
+      operationId: create-voyage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyageBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a voyage
+      tags:
+        - Voyages
+  /voyages/{voyageID}:
+    delete:
+      operationId: delete-voyage
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a voyage
+      tags:
+        - Voyages
+    get:
+      operationId: get-voyage
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a voyage
+      tags:
+        - Voyages
+    put:
+      operationId: update-voyage
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyageBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a voyage
+      tags:
+        - Voyages
+  /voyages/{voyageID}/crew:
+    get:
+      operationId: list-voyage-crew
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CrewAssignment"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a voyage's crew
+      tags:
+        - Crew
+    post:
+      operationId: assign-voyage-crew
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewAssignmentBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewAssignment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Assign a crew member to a voyage
+      tags:
+        - Crew
+  /voyages/{voyageID}/crew/{assignmentID}:
+    delete:
+      operationId: remove-voyage-crew
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Assignment ID
+          in: path
+          name: assignmentID
+          required: true
+          schema:
+            description: Assignment ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove a crew assignment from a voyage
+      tags:
+        - Crew
+  /yachts:
+    get:
+      operationId: list-yachts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Yacht"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List yachts
+      tags:
+        - Yachts
+    post:
+      operationId: create-yacht
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YachtBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Yacht"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a yacht
+      tags:
+        - Yachts
+  /yachts/{yachtID}:
+    delete:
+      operationId: delete-yacht
+      parameters:
+        - description: Yacht ID
+          in: path
+          name: yachtID
+          required: true
+          schema:
+            description: Yacht ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a yacht
+      tags:
+        - Yachts
+    get:
+      operationId: get-yacht
+      parameters:
+        - description: Yacht ID
+          in: path
+          name: yachtID
+          required: true
+          schema:
+            description: Yacht ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Yacht"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a yacht
+      tags:
+        - Yachts
+    put:
+      operationId: update-yacht
+      parameters:
+        - description: Yacht ID
+          in: path
+          name: yachtID
+          required: true
+          schema:
+            description: Yacht ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YachtBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a yacht
+      tags:
+        - Yachts
+servers:
+  - url: /api

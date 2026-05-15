@@ -6,10 +6,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -24,212 +25,199 @@ func NewTripHandler(q sqlcdb.Querier, db *sql.DB) *TripHandler {
 	return &TripHandler{q: q, db: db}
 }
 
-type tripRequest struct {
-	Name          string   `json:"name"`
-	EmbarkDate    *string  `json:"embark_date"`
-	DisembarkDate *string  `json:"disembark_date"`
-	Countries     *string  `json:"countries"`
-	StartPort     *string  `json:"start_port"`
-	EndPort       *string  `json:"end_port"`
-	CaptainName   *string  `json:"captain_name"`
-	YachtID       *int64   `json:"yacht_id"`
-	CostTotal     *float64 `json:"cost_total"`
-	CostPerPerson *float64 `json:"cost_per_person"`
-	MaxCrew       *int64   `json:"max_crew"`
-	ImageLogoUrl  *string  `json:"image_logo_url"`
-	ImagePhotoUrl *string  `json:"image_photo_url"`
-	ImageRouteUrl *string  `json:"image_route_url"`
-	Description   *string  `json:"description"`
-	CruiseID      *int64   `json:"cruise_id"`
+// tripRequest and completeTripRequest alias the DTO bodies so the chi-based
+// org trip handlers and the trip → voyage transaction helper share one type
+// with the huma-served owner-scoped trip routes.
+type (
+	tripRequest         = dto.TripBody
+	completeTripRequest = dto.CompleteTripBody
+)
+
+// --- huma operation input/output types ---
+
+type tripIDParam struct {
+	ID int64 `path:"tripID" doc:"Trip ID"`
 }
 
-type completeTripRequest struct {
-	Year         *int64   `json:"year"`
-	HoursTotal   *float64 `json:"hours_total"`
-	HoursSail    *float64 `json:"hours_sail"`
-	HoursEngine  *float64 `json:"hours_engine"`
-	HoursOver6bf *float64 `json:"hours_over_6bf"`
-	Miles        *float64 `json:"miles"`
-	Days         *int64   `json:"days"`
-	TidalWaters  *int64   `json:"tidal_waters"`
+type createTripInput struct {
+	Body dto.TripBody
 }
 
-func (h *TripHandler) List(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	trips, err := h.q.ListTrips(r.Context(), user.UserID)
+type updateTripInput struct {
+	ID   int64 `path:"tripID" doc:"Trip ID"`
+	Body dto.TripBody
+}
+
+type completeTripInput struct {
+	ID   int64 `path:"tripID" doc:"Trip ID"`
+	Body dto.CompleteTripBody
+}
+
+type tripOutput struct {
+	Body dto.Trip
+}
+
+type tripListOutput struct {
+	Body []dto.Trip
+}
+
+type voyageOutput struct {
+	Body dto.Voyage
+}
+
+type noContentOutput struct{}
+
+// RegisterTripRoutes wires the owner-scoped trip operations onto the huma API.
+func RegisterTripRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	h := NewTripHandler(q, db)
+	tag := []string{"Trips"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-trips", Method: http.MethodGet, Path: "/trips",
+		Summary: "List trips", Tags: tag,
+	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-trip", Method: http.MethodGet, Path: "/trips/{tripID}",
+		Summary: "Get a trip", Tags: tag,
+	}, h.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-trip", Method: http.MethodPost, Path: "/trips",
+		Summary: "Create a trip", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-trip", Method: http.MethodPut, Path: "/trips/{tripID}",
+		Summary: "Update a trip", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-trip", Method: http.MethodDelete, Path: "/trips/{tripID}",
+		Summary: "Delete a trip", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.delete)
+	huma.Register(api, huma.Operation{
+		OperationID: "complete-trip", Method: http.MethodPost, Path: "/trips/{tripID}/complete",
+		Summary: "Complete a trip into a voyage", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.complete)
+	huma.Register(api, huma.Operation{
+		OperationID: "cancel-trip", Method: http.MethodPost, Path: "/trips/{tripID}/cancel",
+		Summary: "Cancel a trip", Tags: tag,
+	}, h.cancel)
+}
+
+func (h *TripHandler) list(ctx context.Context, _ *struct{}) (*tripListOutput, error) {
+	user := middleware.GetUser(ctx)
+	trips, err := h.q.ListTrips(ctx, user.UserID)
 	if err != nil {
 		slog.Error("list trips", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list trips")
-		return
+		return nil, huma.Error500InternalServerError("failed to list trips")
 	}
-	respondJSON(w, http.StatusOK, trips)
+	return &tripListOutput{Body: dto.TripsFromDB(trips)}, nil
 }
 
-func (h *TripHandler) Get(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid trip id")
-		return
-	}
-	trip, err := h.q.GetTrip(r.Context(), sqlcdb.GetTripParams{ID: id, OwnerID: user.UserID})
+func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripOutput, error) {
+	user := middleware.GetUser(ctx)
+	trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, OwnerID: user.UserID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "trip not found")
-			return
+			return nil, huma.Error404NotFound("trip not found")
 		}
-		slog.Error("get trip", "trip_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get trip")
-		return
+		slog.Error("get trip", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get trip")
 	}
-	respondJSON(w, http.StatusOK, trip)
+	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
 }
 
-func (h *TripHandler) Create(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	var req tripRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	trip, err := h.q.CreateTrip(r.Context(), sqlcdb.CreateTripParams{
+func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOutput, error) {
+	user := middleware.GetUser(ctx)
+	trip, err := h.q.CreateTrip(ctx, sqlcdb.CreateTripParams{
 		OwnerID:       user.UserID,
-		Name:          req.Name,
-		EmbarkDate:    nullString(req.EmbarkDate),
-		DisembarkDate: nullString(req.DisembarkDate),
-		Countries:     nullString(req.Countries),
-		StartPort:     nullString(req.StartPort),
-		EndPort:       nullString(req.EndPort),
-		CaptainName:   nullString(req.CaptainName),
-		YachtID:       nullInt64(req.YachtID),
-		CostTotal:     nullFloat64(req.CostTotal),
-		CostPerPerson: nullFloat64(req.CostPerPerson),
-		MaxCrew:       nullInt64(req.MaxCrew),
-		ImageLogoUrl:  nullString(req.ImageLogoUrl),
-		ImagePhotoUrl: nullString(req.ImagePhotoUrl),
-		ImageRouteUrl: nullString(req.ImageRouteUrl),
-		Description:   nullString(req.Description),
+		Name:          in.Body.Name,
+		EmbarkDate:    nullString(in.Body.EmbarkDate),
+		DisembarkDate: nullString(in.Body.DisembarkDate),
+		Countries:     nullString(in.Body.Countries),
+		StartPort:     nullString(in.Body.StartPort),
+		EndPort:       nullString(in.Body.EndPort),
+		CaptainName:   nullString(in.Body.CaptainName),
+		YachtID:       nullInt64(in.Body.YachtID),
+		CostTotal:     nullFloat64(in.Body.CostTotal),
+		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
+		MaxCrew:       nullInt64(in.Body.MaxCrew),
+		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
+		Description:   nullString(in.Body.Description),
 		Status:        sqlcdb.TripStatusPlanned,
 	})
 	if err != nil {
-		slog.Error("create trip", "user_id", user.UserID, "name", req.Name, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create trip")
-		return
+		slog.Error("create trip", "user_id", user.UserID, "name", in.Body.Name, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
-	respondJSON(w, http.StatusCreated, trip)
+	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
 }
 
-func (h *TripHandler) Update(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid trip id")
-		return
-	}
-	var req tripRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := h.q.UpdateTrip(r.Context(), sqlcdb.UpdateTripParams{
-		Name:          req.Name,
-		EmbarkDate:    nullString(req.EmbarkDate),
-		DisembarkDate: nullString(req.DisembarkDate),
-		Countries:     nullString(req.Countries),
-		StartPort:     nullString(req.StartPort),
-		EndPort:       nullString(req.EndPort),
-		CaptainName:   nullString(req.CaptainName),
-		YachtID:       nullInt64(req.YachtID),
-		CostTotal:     nullFloat64(req.CostTotal),
-		CostPerPerson: nullFloat64(req.CostPerPerson),
-		MaxCrew:       nullInt64(req.MaxCrew),
-		ImageLogoUrl:  nullString(req.ImageLogoUrl),
-		ImagePhotoUrl: nullString(req.ImagePhotoUrl),
-		ImageRouteUrl: nullString(req.ImageRouteUrl),
-		Description:   nullString(req.Description),
-		ID:            id,
+func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noContentOutput, error) {
+	user := middleware.GetUser(ctx)
+	if err := h.q.UpdateTrip(ctx, sqlcdb.UpdateTripParams{
+		Name:          in.Body.Name,
+		EmbarkDate:    nullString(in.Body.EmbarkDate),
+		DisembarkDate: nullString(in.Body.DisembarkDate),
+		Countries:     nullString(in.Body.Countries),
+		StartPort:     nullString(in.Body.StartPort),
+		EndPort:       nullString(in.Body.EndPort),
+		CaptainName:   nullString(in.Body.CaptainName),
+		YachtID:       nullInt64(in.Body.YachtID),
+		CostTotal:     nullFloat64(in.Body.CostTotal),
+		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
+		MaxCrew:       nullInt64(in.Body.MaxCrew),
+		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
+		Description:   nullString(in.Body.Description),
+		ID:            in.ID,
 		OwnerID:       user.UserID,
 	}); err != nil {
-		slog.Error("update trip", "trip_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update trip")
-		return
+		slog.Error("update trip", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update trip")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *TripHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid trip id")
-		return
+func (h *TripHandler) delete(ctx context.Context, in *tripIDParam) (*noContentOutput, error) {
+	user := middleware.GetUser(ctx)
+	if err := h.q.DeleteTrip(ctx, sqlcdb.DeleteTripParams{ID: in.ID, OwnerID: user.UserID}); err != nil {
+		slog.Error("delete trip", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete trip")
 	}
-	if err := h.q.DeleteTrip(r.Context(), sqlcdb.DeleteTripParams{ID: id, OwnerID: user.UserID}); err != nil {
-		slog.Error("delete trip", "trip_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete trip")
-		return
-	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *TripHandler) Cancel(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid trip id")
-		return
-	}
-	trip, err := h.q.CancelTrip(r.Context(), sqlcdb.CancelTripParams{ID: id, OwnerID: user.UserID})
+func (h *TripHandler) cancel(ctx context.Context, in *tripIDParam) (*tripOutput, error) {
+	user := middleware.GetUser(ctx)
+	trip, err := h.q.CancelTrip(ctx, sqlcdb.CancelTripParams{ID: in.ID, OwnerID: user.UserID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "trip not found or invalid transition")
-			return
+			return nil, huma.Error404NotFound("trip not found or invalid transition")
 		}
-		slog.Error("cancel trip", "trip_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to cancel trip")
-		return
+		slog.Error("cancel trip", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to cancel trip")
 	}
-	respondJSON(w, http.StatusOK, trip)
+	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
 }
 
-func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid trip id")
-		return
-	}
-	var req completeTripRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
-	voyage, err := completeTripTx(r, h.db, types.NullInt64{}, id, user.UserID, req)
+func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voyageOutput, error) {
+	user := middleware.GetUser(ctx)
+	voyage, err := completeTripTx(ctx, h.db, types.NullInt64{}, in.ID, user.UserID, in.Body)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "trip not found or not in planned state")
-			return
+			return nil, huma.Error404NotFound("trip not found or not in planned state")
 		}
-		slog.Error("complete trip", "trip_id", id, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to complete trip")
-		return
+		slog.Error("complete trip", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to complete trip")
 	}
-	respondJSON(w, http.StatusCreated, voyage)
+	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
 }
 
 // completeTripTx wraps the trip → voyage transition. If orgID.Valid, scopes by org_id;
 // otherwise scopes by owner_id with org_id IS NULL.
-func completeTripTx(r *http.Request, db *sql.DB, orgID types.NullInt64, tripID, userID int64, req completeTripRequest) (sqlcdb.Voyage, error) {
-	ctx := r.Context()
+func completeTripTx(ctx context.Context, db *sql.DB, orgID types.NullInt64, tripID, userID int64, req completeTripRequest) (sqlcdb.Voyage, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return sqlcdb.Voyage{}, &QueryError{Op: "BeginTx", Err: err}

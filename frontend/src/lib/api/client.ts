@@ -21,7 +21,7 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}));
-		throw new Error(body.error || `Request failed: ${res.status}`);
+		throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
 	}
 
 	if (res.status === 204) return undefined as T;
@@ -44,7 +44,7 @@ async function upload<T>(path: string, formData: FormData): Promise<T> {
 
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}));
-		throw new Error(body.error || `Request failed: ${res.status}`);
+		throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
 	}
 
 	return res.json();
@@ -66,7 +66,7 @@ async function download(path: string): Promise<void> {
 
 	if (!res.ok) {
 		const body = await res.json().catch(() => ({}));
-		throw new Error(body.error || `Request failed: ${res.status}`);
+		throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
 	}
 
 	const disposition = res.headers.get('Content-Disposition') ?? '';
