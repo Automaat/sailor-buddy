@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -8,12 +9,12 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -29,424 +30,438 @@ func NewOrgHandler(q sqlcdb.Querier) *OrgHandler {
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
-type orgRequest struct {
-	Name          string  `json:"name"`
-	Slug          string  `json:"slug"`
-	Description   *string `json:"description"`
-	LogoUrl       *string `json:"logo_url"`
-	PzzClubNumber *string `json:"pzz_club_number"`
-	City          *string `json:"city"`
-	Website       *string `json:"website"`
+// --- huma I/O types ---
+
+type orgListOutput struct {
+	Body []dto.UserOrganization
 }
 
-func (h *OrgHandler) List(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	orgs, err := h.q.ListUserOrganizations(r.Context(), user.UserID)
+type orgOutput struct {
+	Body dto.Organization
+}
+
+type createOrgInput struct {
+	Body dto.OrgBody
+}
+
+type updateOrgInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	Body dto.OrgBody
+}
+
+type orgMembersOutput struct {
+	Body []dto.OrgMember
+}
+
+type memberParam struct {
+	Slug     string `path:"slug" doc:"Organization slug"`
+	MemberID int64  `path:"memberID" doc:"Org member ID"`
+}
+
+type memberRoleInput struct {
+	Slug     string `path:"slug" doc:"Organization slug"`
+	MemberID int64  `path:"memberID" doc:"Org member ID"`
+	Body     dto.MemberRoleBody
+}
+
+type createInviteInput struct {
+	Slug string `path:"slug" doc:"Organization slug"`
+	Body dto.InviteRequestBody
+}
+
+type orgInviteOutput struct {
+	Body dto.OrgInvite
+}
+
+type orgInvitesOutput struct {
+	Body []dto.OrgInvite
+}
+
+type inviteParam struct {
+	Slug     string `path:"slug" doc:"Organization slug"`
+	InviteID int64  `path:"inviteID" doc:"Invite ID"`
+}
+
+type joinTokenParam struct {
+	Token string `path:"token" doc:"Invite token"`
+}
+
+type inviteInfoOutput struct {
+	Body dto.InviteInfo
+}
+
+type inviteAcceptOutput struct {
+	Body dto.InviteAcceptResult
+}
+
+// RegisterOrgRoutes wires the organization, membership and invite operations.
+func RegisterOrgRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewOrgHandler(q)
+	tag := []string{"Organizations"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-orgs", Method: http.MethodGet, Path: "/orgs",
+		Summary: "List the caller's organizations", Tags: tag,
+	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "create-org", Method: http.MethodPost, Path: "/orgs",
+		Summary: "Create an organization", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.create)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-org", Method: http.MethodGet, Path: "/orgs/{slug}",
+		Summary: "Get an organization", Tags: tag,
+	}, h.get)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org", Method: http.MethodPut, Path: "/orgs/{slug}",
+		Summary: "Update an organization (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-org", Method: http.MethodDelete, Path: "/orgs/{slug}",
+		Summary: "Delete an organization (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.delete)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-members", Method: http.MethodGet, Path: "/orgs/{slug}/members",
+		Summary: "List organization members", Tags: tag,
+	}, h.listMembers)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-org-member-role", Method: http.MethodPut, Path: "/orgs/{slug}/members/{memberID}/role",
+		Summary: "Update a member's role (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.updateMemberRole)
+	huma.Register(api, huma.Operation{
+		OperationID: "remove-org-member", Method: http.MethodDelete, Path: "/orgs/{slug}/members/{memberID}",
+		Summary: "Remove a member (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.removeMember)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "create-org-invite", Method: http.MethodPost, Path: "/orgs/{slug}/invites",
+		Summary: "Create an invite link (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.createInvite)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-org-invites", Method: http.MethodGet, Path: "/orgs/{slug}/invites",
+		Summary: "List invite links (admin)", Tags: tag,
+	}, h.listInvites)
+	huma.Register(api, huma.Operation{
+		OperationID: "delete-org-invite", Method: http.MethodDelete, Path: "/orgs/{slug}/invites/{inviteID}",
+		Summary: "Delete an invite link (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.deleteInvite)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-invite-info", Method: http.MethodGet, Path: "/join/{token}",
+		Summary: "Resolve an invite token", Tags: tag,
+	}, h.getInviteInfo)
+	huma.Register(api, huma.Operation{
+		OperationID: "accept-invite", Method: http.MethodPost, Path: "/join/{token}",
+		Summary: "Accept an invite", Tags: tag,
+	}, h.acceptInvite)
+}
+
+func (h *OrgHandler) list(ctx context.Context, _ *struct{}) (*orgListOutput, error) {
+	user := middleware.GetUser(ctx)
+	orgs, err := h.q.ListUserOrganizations(ctx, user.UserID)
 	if err != nil {
 		slog.Error("list organizations", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list organizations")
-		return
+		return nil, huma.Error500InternalServerError("failed to list organizations")
 	}
-	respondJSON(w, http.StatusOK, orgs)
+	return &orgListOutput{Body: dto.UserOrganizationsFromDB(orgs)}, nil
 }
 
-func (h *OrgHandler) Create(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	var req orgRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
+func (h *OrgHandler) create(ctx context.Context, in *createOrgInput) (*orgOutput, error) {
+	user := middleware.GetUser(ctx)
+	if in.Body.Slug == nil || *in.Body.Slug == "" {
+		return nil, huma.Error422UnprocessableEntity("slug is required")
 	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if req.Slug == "" {
-		respondError(w, http.StatusBadRequest, "slug is required")
-		return
-	}
-	req.Slug = strings.ToLower(req.Slug)
-	if !slugRe.MatchString(req.Slug) {
-		respondError(w, http.StatusBadRequest, "slug must contain only lowercase letters, numbers, and hyphens")
-		return
+	slug := strings.ToLower(*in.Body.Slug)
+	if !slugRe.MatchString(slug) {
+		return nil, huma.Error422UnprocessableEntity("slug must contain only lowercase letters, numbers, and hyphens")
 	}
 
-	org, err := h.q.CreateOrganization(r.Context(), sqlcdb.CreateOrganizationParams{
-		Name:          req.Name,
-		Slug:          req.Slug,
-		Description:   nullString(req.Description),
-		LogoUrl:       nullString(req.LogoUrl),
-		PzzClubNumber: nullString(req.PzzClubNumber),
-		City:          nullString(req.City),
-		Website:       nullString(req.Website),
+	org, err := h.q.CreateOrganization(ctx, sqlcdb.CreateOrganizationParams{
+		Name:          in.Body.Name,
+		Slug:          slug,
+		Description:   nullString(in.Body.Description),
+		LogoUrl:       nullString(in.Body.LogoUrl),
+		PzzClubNumber: nullString(in.Body.PzzClubNumber),
+		City:          nullString(in.Body.City),
+		Website:       nullString(in.Body.Website),
 	})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			respondError(w, http.StatusConflict, "slug already taken")
-			return
+		if isUniqueViolation(err) {
+			return nil, huma.Error409Conflict("slug already taken")
 		}
-		slog.Error("create organization", "user_id", user.UserID, "slug", req.Slug, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create organization")
-		return
+		slog.Error("create organization", "user_id", user.UserID, "slug", slug, "err", err)
+		return nil, huma.Error500InternalServerError("failed to create organization")
 	}
 
-	_, err = h.q.AddOrgMember(r.Context(), sqlcdb.AddOrgMemberParams{
+	if _, err := h.q.AddOrgMember(ctx, sqlcdb.AddOrgMemberParams{
 		OrgID:  org.ID,
 		UserID: user.UserID,
 		Role:   "admin",
-	})
-	if err != nil {
+	}); err != nil {
 		slog.Error("add org creator as admin", "org_id", org.ID, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to add creator as admin")
-		return
+		return nil, huma.Error500InternalServerError("failed to add creator as admin")
 	}
-
-	respondJSON(w, http.StatusCreated, org)
+	return &orgOutput{Body: dto.OrganizationFromDB(org)}, nil
 }
 
-func (h *OrgHandler) Get(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	org, err := h.q.GetOrganizationBySlug(r.Context(), slug)
+func (h *OrgHandler) get(ctx context.Context, in *orgSlugParam) (*orgOutput, error) {
+	if _, err := resolveOrg(ctx, h.q, in.Slug, false); err != nil {
+		return nil, err
+	}
+	org, err := h.q.GetOrganizationBySlug(ctx, in.Slug)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "organization not found")
-			return
-		}
-		slog.Error("get organization", "slug", slug, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get organization")
-		return
+		slog.Error("get organization", "slug", in.Slug, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get organization")
 	}
-	respondJSON(w, http.StatusOK, org)
+	return &orgOutput{Body: dto.OrganizationFromDB(org)}, nil
 }
 
-func (h *OrgHandler) Update(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	var req orgRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
+func (h *OrgHandler) update(ctx context.Context, in *updateOrgInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
 	}
-	if req.Name == "" {
-		respondError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	if err := h.q.UpdateOrganization(r.Context(), sqlcdb.UpdateOrganizationParams{
-		Name:          req.Name,
-		Description:   nullString(req.Description),
-		LogoUrl:       nullString(req.LogoUrl),
-		PzzClubNumber: nullString(req.PzzClubNumber),
-		City:          nullString(req.City),
-		Website:       nullString(req.Website),
+	if err := h.q.UpdateOrganization(ctx, sqlcdb.UpdateOrganizationParams{
+		Name:          in.Body.Name,
+		Description:   nullString(in.Body.Description),
+		LogoUrl:       nullString(in.Body.LogoUrl),
+		PzzClubNumber: nullString(in.Body.PzzClubNumber),
+		City:          nullString(in.Body.City),
+		Website:       nullString(in.Body.Website),
 		ID:            octx.OrgID,
 	}); err != nil {
 		slog.Error("update organization", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update organization")
-		return
+		return nil, huma.Error500InternalServerError("failed to update organization")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	if err := h.q.DeleteOrganization(r.Context(), octx.OrgID); err != nil {
+func (h *OrgHandler) delete(ctx context.Context, in *orgSlugParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.DeleteOrganization(ctx, octx.OrgID); err != nil {
 		slog.Error("delete organization", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete organization")
-		return
+		return nil, huma.Error500InternalServerError("failed to delete organization")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
+func (h *OrgHandler) listMembers(ctx context.Context, in *orgSlugParam) (*orgMembersOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
+	if err != nil {
+		return nil, err
+	}
+	members, err := h.q.ListOrgMembers(ctx, octx.OrgID)
 	if err != nil {
 		slog.Error("list org members", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list members")
-		return
+		return nil, huma.Error500InternalServerError("failed to list members")
 	}
-	respondJSON(w, http.StatusOK, members)
+	return &orgMembersOutput{Body: dto.OrgMembersFromDB(members)}, nil
 }
 
-type updateRoleRequest struct {
-	Role string `json:"role"`
-}
-
-func (h *OrgHandler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	memberID, err := strconv.ParseInt(chi.URLParam(r, "memberID"), 10, 64)
+func (h *OrgHandler) updateMemberRole(ctx context.Context, in *memberRoleInput) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid member id")
-		return
+		return nil, err
 	}
-	var req updateRoleRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	switch req.Role {
-	case "admin", "captain", "crew":
-	default:
-		respondError(w, http.StatusBadRequest, "invalid role")
-		return
-	}
-	if req.Role != "admin" {
-		members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
+	if in.Body.Role != "admin" {
+		members, err := h.q.ListOrgMembers(ctx, octx.OrgID)
 		if err != nil {
 			slog.Error("list org members for role check", "org_id", octx.OrgID, "err", err)
-			respondError(w, http.StatusInternalServerError, "failed to check members")
-			return
+			return nil, huma.Error500InternalServerError("failed to check members")
 		}
 		var isAdmin bool
 		for i := range members {
-			m := &members[i]
-			if m.ID == memberID && m.Role == "admin" {
+			if members[i].ID == in.MemberID && members[i].Role == "admin" {
 				isAdmin = true
 				break
 			}
 		}
 		if isAdmin {
-			count, err := h.q.CountOrgAdmins(r.Context(), octx.OrgID)
+			count, err := h.q.CountOrgAdmins(ctx, octx.OrgID)
 			if err != nil {
 				slog.Error("count org admins", "org_id", octx.OrgID, "err", err)
-				respondError(w, http.StatusInternalServerError, "failed to check admins")
-				return
+				return nil, huma.Error500InternalServerError("failed to check admins")
 			}
 			if count <= 1 {
-				respondError(w, http.StatusBadRequest, "cannot demote the last admin")
-				return
+				return nil, huma.Error422UnprocessableEntity("cannot demote the last admin")
 			}
 		}
 	}
-	if err := h.q.UpdateOrgMemberRole(r.Context(), sqlcdb.UpdateOrgMemberRoleParams{
-		Role:  req.Role,
-		ID:    memberID,
+	if err := h.q.UpdateOrgMemberRole(ctx, sqlcdb.UpdateOrgMemberRoleParams{
+		Role:  in.Body.Role,
+		ID:    in.MemberID,
 		OrgID: octx.OrgID,
 	}); err != nil {
-		slog.Error("update org member role", "org_id", octx.OrgID, "member_id", memberID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to update role")
-		return
+		slog.Error("update org member role", "org_id", octx.OrgID, "member_id", in.MemberID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update role")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	memberID, err := strconv.ParseInt(chi.URLParam(r, "memberID"), 10, 64)
+func (h *OrgHandler) removeMember(ctx context.Context, in *memberParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid member id")
-		return
+		return nil, err
 	}
-
-	count, err := h.q.CountOrgAdmins(r.Context(), octx.OrgID)
+	count, err := h.q.CountOrgAdmins(ctx, octx.OrgID)
 	if err != nil {
 		slog.Error("count org admins", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to check admins")
-		return
+		return nil, huma.Error500InternalServerError("failed to check admins")
 	}
-
-	members, err := h.q.ListOrgMembers(r.Context(), octx.OrgID)
+	members, err := h.q.ListOrgMembers(ctx, octx.OrgID)
 	if err != nil {
 		slog.Error("list org members", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list members")
-		return
+		return nil, huma.Error500InternalServerError("failed to list members")
 	}
 	for i := range members {
-		m := &members[i]
-		if m.ID == memberID && m.Role == "admin" && count <= 1 {
-			respondError(w, http.StatusBadRequest, "cannot remove the last admin")
-			return
+		if members[i].ID == in.MemberID && members[i].Role == "admin" && count <= 1 {
+			return nil, huma.Error422UnprocessableEntity("cannot remove the last admin")
 		}
 	}
-
-	if err := h.q.RemoveOrgMember(r.Context(), sqlcdb.RemoveOrgMemberParams{
-		ID:    memberID,
-		OrgID: octx.OrgID,
-	}); err != nil {
-		slog.Error("remove org member", "org_id", octx.OrgID, "member_id", memberID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to remove member")
-		return
+	if err := h.q.RemoveOrgMember(ctx, sqlcdb.RemoveOrgMemberParams{ID: in.MemberID, OrgID: octx.OrgID}); err != nil {
+		slog.Error("remove org member", "org_id", octx.OrgID, "member_id", in.MemberID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to remove member")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-type createInviteRequest struct {
-	Role      string `json:"role"`
-	ExpiresIn *int64 `json:"expires_in_hours"`
-	MaxUses   *int64 `json:"max_uses"`
-}
-
-func (h *OrgHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	user := middleware.GetUser(r.Context())
-	var req createInviteRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
+func (h *OrgHandler) createInvite(ctx context.Context, in *createInviteInput) (*orgInviteOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
 	}
-	switch req.Role {
+	user := middleware.GetUser(ctx)
+
+	role := in.Body.Role
+	switch role {
 	case "admin", "captain", "crew":
 	default:
-		req.Role = "crew"
+		role = "crew"
 	}
-	if req.ExpiresIn != nil && *req.ExpiresIn <= 0 {
-		respondError(w, http.StatusBadRequest, "expires_in_hours must be greater than 0")
-		return
+	if in.Body.ExpiresInHours != nil && *in.Body.ExpiresInHours <= 0 {
+		return nil, huma.Error422UnprocessableEntity("expires_in_hours must be greater than 0")
 	}
-	if req.MaxUses != nil && *req.MaxUses <= 0 {
-		respondError(w, http.StatusBadRequest, "max_uses must be greater than 0")
-		return
+	if in.Body.MaxUses != nil && *in.Body.MaxUses <= 0 {
+		return nil, huma.Error422UnprocessableEntity("max_uses must be greater than 0")
 	}
 
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to generate token")
-		return
+		return nil, huma.Error500InternalServerError("failed to generate token")
 	}
-	token := hex.EncodeToString(b)
 
 	var expiresAt types.NullTime
-	if req.ExpiresIn != nil {
-		expiresAt = types.NullTime{
-			Time:  time.Now().Add(time.Duration(*req.ExpiresIn) * time.Hour),
-			Valid: true,
-		}
+	if in.Body.ExpiresInHours != nil {
+		expiresAt = types.NullTime{Time: time.Now().Add(time.Duration(*in.Body.ExpiresInHours) * time.Hour), Valid: true}
 	}
 
-	invite, err := h.q.CreateOrgInvite(r.Context(), sqlcdb.CreateOrgInviteParams{
+	invite, err := h.q.CreateOrgInvite(ctx, sqlcdb.CreateOrgInviteParams{
 		OrgID:     octx.OrgID,
-		Token:     token,
-		Role:      req.Role,
+		Token:     hex.EncodeToString(b),
+		Role:      role,
 		CreatedBy: user.UserID,
 		ExpiresAt: expiresAt,
-		MaxUses:   nullInt64(req.MaxUses),
+		MaxUses:   nullInt64(in.Body.MaxUses),
 	})
 	if err != nil {
 		slog.Error("create org invite", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to create invite")
-		return
+		return nil, huma.Error500InternalServerError("failed to create invite")
 	}
-	respondJSON(w, http.StatusCreated, invite)
+	return &orgInviteOutput{Body: dto.OrgInviteFromDB(invite)}, nil
 }
 
-func (h *OrgHandler) ListInvites(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	invites, err := h.q.ListOrgInvites(r.Context(), octx.OrgID)
+func (h *OrgHandler) listInvites(ctx context.Context, in *orgSlugParam) (*orgInvitesOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
+	if err != nil {
+		return nil, err
+	}
+	invites, err := h.q.ListOrgInvites(ctx, octx.OrgID)
 	if err != nil {
 		slog.Error("list org invites", "org_id", octx.OrgID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to list invites")
-		return
+		return nil, huma.Error500InternalServerError("failed to list invites")
 	}
-	respondJSON(w, http.StatusOK, invites)
+	return &orgInvitesOutput{Body: dto.OrgInvitesFromDB(invites)}, nil
 }
 
-func (h *OrgHandler) DeleteInvite(w http.ResponseWriter, r *http.Request) {
-	octx := middleware.GetOrg(r.Context())
-	inviteID, err := strconv.ParseInt(chi.URLParam(r, "inviteID"), 10, 64)
+func (h *OrgHandler) deleteInvite(ctx context.Context, in *inviteParam) (*noContentOutput, error) {
+	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid invite id")
-		return
+		return nil, err
 	}
-	if err := h.q.DeleteOrgInvite(r.Context(), sqlcdb.DeleteOrgInviteParams{
-		ID:    inviteID,
-		OrgID: octx.OrgID,
-	}); err != nil {
-		slog.Error("delete org invite", "org_id", octx.OrgID, "invite_id", inviteID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to delete invite")
-		return
+	if err := h.q.DeleteOrgInvite(ctx, sqlcdb.DeleteOrgInviteParams{ID: in.InviteID, OrgID: octx.OrgID}); err != nil {
+		slog.Error("delete org invite", "org_id", octx.OrgID, "invite_id", in.InviteID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete invite")
 	}
-	respondJSON(w, http.StatusNoContent, nil)
+	return &noContentOutput{}, nil
 }
 
-func (h *OrgHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-	user := middleware.GetUser(r.Context())
-
-	invite, err := h.q.GetOrgInviteByToken(r.Context(), token)
+func (h *OrgHandler) getInviteInfo(ctx context.Context, in *joinTokenParam) (*inviteInfoOutput, error) {
+	invite, err := h.q.GetOrgInviteByToken(ctx, in.Token)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "invalid invite link")
-			return
+			return nil, huma.Error404NotFound("invalid invite link")
+		}
+		slog.Error("get org invite info", "err", err)
+		return nil, huma.Error500InternalServerError("failed to get invite")
+	}
+	if invite.ExpiresAt.Valid && invite.ExpiresAt.Time.Before(time.Now()) {
+		return nil, huma.Error410Gone("invite has expired")
+	}
+	if invite.MaxUses.Valid && invite.UseCount >= invite.MaxUses.Int64 {
+		return nil, huma.Error410Gone("invite has reached maximum uses")
+	}
+
+	user := middleware.GetUser(ctx)
+	_, memberErr := h.q.GetOrgMembership(ctx, sqlcdb.GetOrgMembershipParams{OrgID: invite.OrgID, UserID: user.UserID})
+	return &inviteInfoOutput{Body: dto.InviteInfo{
+		OrgName:       invite.OrgName,
+		OrgSlug:       invite.OrgSlug,
+		Role:          invite.Role,
+		AlreadyMember: memberErr == nil,
+	}}, nil
+}
+
+func (h *OrgHandler) acceptInvite(ctx context.Context, in *joinTokenParam) (*inviteAcceptOutput, error) {
+	user := middleware.GetUser(ctx)
+	invite, err := h.q.GetOrgInviteByToken(ctx, in.Token)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("invalid invite link")
 		}
 		slog.Error("get org invite by token", "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get invite")
-		return
+		return nil, huma.Error500InternalServerError("failed to get invite")
 	}
-
 	if invite.ExpiresAt.Valid && invite.ExpiresAt.Time.Before(time.Now()) {
-		respondError(w, http.StatusGone, "invite has expired")
-		return
+		return nil, huma.Error410Gone("invite has expired")
 	}
-
 	if invite.MaxUses.Valid {
-		rows, err := h.q.IncrementInviteUseCount(r.Context(), invite.ID)
+		rows, err := h.q.IncrementInviteUseCount(ctx, invite.ID)
 		if err != nil {
 			slog.Error("increment invite use count", "invite_id", invite.ID, "err", err)
-			respondError(w, http.StatusInternalServerError, "failed to claim invite")
-			return
+			return nil, huma.Error500InternalServerError("failed to claim invite")
 		}
 		if rows == 0 {
-			respondError(w, http.StatusGone, "invite has reached maximum uses")
-			return
+			return nil, huma.Error410Gone("invite has reached maximum uses")
 		}
 	}
 
-	_, err = h.q.AddOrgMember(r.Context(), sqlcdb.AddOrgMemberParams{
+	if _, err := h.q.AddOrgMember(ctx, sqlcdb.AddOrgMemberParams{
 		OrgID:  invite.OrgID,
 		UserID: user.UserID,
 		Role:   invite.Role,
-	})
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			respondError(w, http.StatusConflict, "already a member")
-			return
+	}); err != nil {
+		if isUniqueViolation(err) {
+			return nil, huma.Error409Conflict("already a member")
 		}
 		slog.Error("add org member via invite", "org_id", invite.OrgID, "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to join organization")
-		return
+		return nil, huma.Error500InternalServerError("failed to join organization")
 	}
-
-	respondJSON(w, http.StatusOK, map[string]any{
-		"org_name": invite.OrgName,
-		"org_slug": invite.OrgSlug,
-		"role":     invite.Role,
-	})
-}
-
-func (h *OrgHandler) GetInviteInfo(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
-
-	invite, err := h.q.GetOrgInviteByToken(r.Context(), token)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondError(w, http.StatusNotFound, "invalid invite link")
-			return
-		}
-		slog.Error("get org invite info", "err", err)
-		respondError(w, http.StatusInternalServerError, "failed to get invite")
-		return
-	}
-
-	if invite.ExpiresAt.Valid && invite.ExpiresAt.Time.Before(time.Now()) {
-		respondError(w, http.StatusGone, "invite has expired")
-		return
-	}
-	if invite.MaxUses.Valid && invite.UseCount >= invite.MaxUses.Int64 {
-		respondError(w, http.StatusGone, "invite has reached maximum uses")
-		return
-	}
-
-	user := middleware.GetUser(r.Context())
-	_, memberErr := h.q.GetOrgMembership(r.Context(), sqlcdb.GetOrgMembershipParams{
-		OrgID:  invite.OrgID,
-		UserID: user.UserID,
-	})
-
-	respondJSON(w, http.StatusOK, map[string]any{
-		"org_name":       invite.OrgName,
-		"org_slug":       invite.OrgSlug,
-		"role":           invite.Role,
-		"already_member": memberErr == nil,
-	})
+	return &inviteAcceptOutput{Body: dto.InviteAcceptResult{
+		OrgName: invite.OrgName,
+		OrgSlug: invite.OrgSlug,
+		Role:    invite.Role,
+	}}, nil
 }

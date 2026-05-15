@@ -280,5 +280,8 @@ func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnroll
 // isUniqueViolation reports whether err is a PostgreSQL unique-constraint error.
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23505"
 }

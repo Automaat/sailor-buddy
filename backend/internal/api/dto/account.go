@@ -44,3 +44,18 @@ func VoyagesByYearFromDB(rows []sqlcdb.GetVoyagesByYearRow) []VoyagesByYear {
 	}
 	return out
 }
+
+// OrgVoyagesByYearFromDB maps the org per-year rows, returning a non-nil slice.
+func OrgVoyagesByYearFromDB(rows []sqlcdb.GetOrgVoyagesByYearRow) []VoyagesByYear {
+	out := make([]VoyagesByYear, len(rows))
+	for i := range rows {
+		out[i] = VoyagesByYear{
+			Year:        intPtr(rows[i].Year),
+			VoyageCount: rows[i].VoyageCount,
+			TotalHours:  rows[i].TotalHours,
+			TotalMiles:  rows[i].TotalMiles,
+			TotalDays:   rows[i].TotalDays,
+		}
+	}
+	return out
+}

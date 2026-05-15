@@ -26,6 +26,37 @@ type TripEnrollmentDetail struct {
 	UserEmail string `json:"user_email"`
 }
 
+// CruiseEnrollmentDetail is a cruise enrollment joined with the enrolled user.
+type CruiseEnrollmentDetail struct {
+	Enrollment
+	UserName  string `json:"user_name"`
+	UserEmail string `json:"user_email"`
+}
+
+// CruiseEnrollmentsFromDB maps the joined cruise-enrollment rows.
+func CruiseEnrollmentsFromDB(rows []sqlcdb.ListCruiseEnrollmentsRow) []CruiseEnrollmentDetail {
+	out := make([]CruiseEnrollmentDetail, len(rows))
+	for i := range rows {
+		r := rows[i]
+		cid := r.CruiseID
+		out[i] = CruiseEnrollmentDetail{
+			Enrollment: Enrollment{
+				ID:        r.ID,
+				CruiseID:  &cid,
+				TripID:    intPtr(r.TripID),
+				UserID:    r.UserID,
+				Note:      strPtr(r.Note),
+				Status:    r.Status,
+				CreatedAt: timeVal(r.CreatedAt),
+				UpdatedAt: timeVal(r.UpdatedAt),
+			},
+			UserName:  r.UserName,
+			UserEmail: r.UserEmail,
+		}
+	}
+	return out
+}
+
 // EnrollTrip is the trip summary returned when resolving an enrollment token.
 type EnrollTrip struct {
 	ID            int64   `json:"id"`
@@ -78,6 +109,11 @@ type EnrollBody struct {
 // EnrollmentStatusBody updates an enrollment's review status.
 type EnrollmentStatusBody struct {
 	Status string `json:"status" enum:"accepted,rejected,waitlisted,pending" doc:"Enrollment status"`
+}
+
+// AssignTripBody assigns a cruise enrollment to a trip; a null trip_id unassigns.
+type AssignTripBody struct {
+	TripID *int64 `json:"trip_id,omitempty" doc:"Trip ID, or null to unassign"`
 }
 
 // TripEnrollmentToDTO maps a trip enrollment row to the unified model.

@@ -38,19 +38,32 @@ automatically on the first authenticated request.
 
 ## Error responses
 
-All errors return a JSON envelope with a single `error` field — a
-human-readable message:
+Errors use huma's RFC 9457 problem-details envelope:
 
 ```json
-{ "error": "trip not found" }
+{
+  "title": "Not Found",
+  "status": 404,
+  "detail": "trip not found"
+}
 ```
 
-There is no machine-readable `code` field today. Clients should branch on the
-HTTP status code, not on the message string (messages are not a stable API).
+Validation failures (`422`) additionally carry a per-field `errors` array:
 
-`Content-Type` is `application/json` for handler-level errors. The auth and
-org-resolution middleware emit the same `{"error": "..."}` shape via
-`http.Error`, which sets `Content-Type: text/plain`.
+```json
+{
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "validation failed",
+  "errors": [
+    { "location": "body.name", "message": "expected string" }
+  ]
+}
+```
+
+Clients should branch on the HTTP status code (or `status`), not on the
+`detail` string. The auth middleware still emits a legacy `{"error": "..."}`
+body for `401` responses via `http.Error`.
 
 ## Status code conventions
 
@@ -69,14 +82,12 @@ org-resolution middleware emit the same `{"error": "..."}` shape via
 
 Notes:
 
-- **Two route stacks during the OpenAPI migration.** Trip CRUD is served by
-  the huma framework and described by `openapi.yaml`; the remaining resources
-  are legacy chi handlers. They differ only in validation status codes:
-  - **huma routes** (`/trips`) return `422` for malformed bodies and
-    unparseable path ids, with a body-level error list.
-  - **legacy routes** return `400` for the same — required-field and format
-    checks (`name is required`, slug regex, invalid enum) and `invalid
-    <resource> id` before any DB lookup.
+- The whole API is served by the huma framework and described by
+  `backend/openapi.yaml`. Malformed request bodies and unparseable path ids
+  return `422` with a body-level error list. Some semantic checks still return
+  `422` from the handler (`slug is required`, `cannot demote the last admin`).
+- The error envelope is huma's RFC 9457 problem shape (`title`, `status`,
+  `detail`, `errors`), not the legacy `{"error": "..."}` object.
 - **Ownership is enforced via the query, not a separate check.** Requesting a
   resource owned by another user returns `404` (`sql.ErrNoRows`), not `403`.
 - **Empty list responses serialize as `[]`**, never `null`.

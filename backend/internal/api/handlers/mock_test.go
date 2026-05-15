@@ -940,9 +940,3 @@ func userCtx(ctx context.Context) context.Context {
 		UserID: 1, Email: "test@example.com", Name: "Test User",
 	})
 }
-
-func orgCtx(ctx context.Context) context.Context {
-	return context.WithValue(ctx, middleware.OrgCtxKey, &middleware.OrgContext{
-		OrgID: 1, Slug: "test-org", Role: "admin",
-	})
-}

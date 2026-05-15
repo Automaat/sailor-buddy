@@ -40,6 +40,12 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 	handlers.RegisterVoyageOpinionRoutes(api, q, uploadDir)
 	handlers.RegisterUploadRoutes(api, uploadDir)
 	handlers.RegisterImportRoutes(api, q)
+	handlers.RegisterOrgRoutes(api, q)
+	handlers.RegisterOrgResourceRoutes(api, q)
+	handlers.RegisterOrgTripRoutes(api, q, db)
+	handlers.RegisterOrgVoyageRoutes(api, q)
+	handlers.RegisterOrgCruiseRoutes(api, q)
+	handlers.RegisterCruiseEnrollmentRoutes(api, q)
 }
 
 // OpenAPIYAML builds the OpenAPI document for all huma-served routes and
