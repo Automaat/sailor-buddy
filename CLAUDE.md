@@ -52,6 +52,11 @@ mise run dev-backend   # backend hot reload
 mise run dev-frontend  # frontend dev
 ```
 
+## API Reference
+
+See `backend/API.md` for the error response envelope, status code
+conventions, authentication format, and the full endpoint reference.
+
 ## Key Conventions
 
 - sqlc-generated code in `db/sqlcdb/` is auto-generated - edit `db/queries/*.sql` instead
