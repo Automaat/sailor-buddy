@@ -14,6 +14,12 @@
 
 	let form = $state({ name: '', description: '', city: '', website: '', pzz_club_number: '', logo_url: '' });
 
+	$effect(() => {
+		if (!orgStore.loading && orgStore.orgs.length > 0 && !orgStore.isOrgAdmin) {
+			goto('/');
+		}
+	});
+
 	async function load() {
 		loading = true;
 		error = '';

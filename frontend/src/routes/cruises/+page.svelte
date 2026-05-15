@@ -38,7 +38,7 @@
 				Rejsy wieloyachtowe z otwartymi zapisami
 			</p>
 		</div>
-		{#if orgStore.isOrgMode}
+		{#if orgStore.isOrgMode && orgStore.isOrgAdmin}
 			<a
 				href="/cruises/new"
 				class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
@@ -65,9 +65,11 @@
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak wydarzeń</p>
-			<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
-				Utwórz pierwsze wydarzenie
-			</a>
+			{#if orgStore.isOrgAdmin}
+				<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
+					Utwórz pierwsze wydarzenie
+				</a>
+			{/if}
 		</div>
 	{:else}
 		<div class="grid gap-4">

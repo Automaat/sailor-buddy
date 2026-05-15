@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import type { OrgMember, OrgInvite } from '$lib/api/types';
 	import { orgStore } from '$lib/stores/org.svelte';
 
@@ -11,6 +12,12 @@
 	let error = $state('');
 
 	let isAdmin = $derived(orgStore.current?.role === 'admin');
+
+	$effect(() => {
+		if (!orgStore.loading && orgStore.orgs.length > 0 && !isAdmin) {
+			goto('/');
+		}
+	});
 
 	let showInviteForm = $state(false);
 	let inviteRole = $state('crew');

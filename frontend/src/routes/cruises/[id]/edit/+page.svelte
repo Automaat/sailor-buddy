@@ -24,6 +24,12 @@
 
 	const id = $derived(page.params.id);
 
+	$effect(() => {
+		if (!orgStore.loading && !orgStore.isOrgAdmin) {
+			goto(`/cruises/${id}`);
+		}
+	});
+
 	onMount(async () => {
 		try {
 			const cruise = await api.get<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}`);

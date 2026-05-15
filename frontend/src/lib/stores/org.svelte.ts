@@ -29,6 +29,13 @@ function createOrgStore() {
 		get isOrgMode() {
 			return currentSlug !== null;
 		},
+		get isOrgAdmin() {
+			if (!currentSlug) return false;
+			return orgs.find((o) => o.slug === currentSlug)?.role === 'admin';
+		},
+		get canSwitch() {
+			return orgs.length > 1 && orgs.some((o) => o.role === 'admin');
+		},
 		select(slug: string | null) {
 			currentSlug = slug;
 			if (typeof window !== 'undefined') {
@@ -45,7 +52,14 @@ function createOrgStore() {
 				orgs = await api.get<Organization[]>('/orgs');
 				if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
 					currentSlug = null;
-					if (typeof window !== 'undefined') {
+				}
+				if (!currentSlug && orgs.length > 0) {
+					currentSlug = orgs[0].slug;
+				}
+				if (typeof window !== 'undefined') {
+					if (currentSlug) {
+						localStorage.setItem(LS_KEY, currentSlug);
+					} else {
 						localStorage.removeItem(LS_KEY);
 					}
 				}
