@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type OrgCruiseHandler struct {
@@ -179,7 +180,7 @@ func (h *OrgCruiseHandler) GenerateEnrollToken(w http.ResponseWriter, r *http.Re
 	}
 	token := hex.EncodeToString(b)
 	if err := h.q.SetCruiseEnrollToken(r.Context(), sqlcdb.SetCruiseEnrollTokenParams{
-		EnrollToken: sql.NullString{String: token, Valid: true},
+		EnrollToken: types.NullString{String: token, Valid: true},
 		ID:          id,
 		OrgID:       octx.OrgID,
 	}); err != nil {
@@ -221,7 +222,7 @@ func (h *OrgCruiseHandler) ListChildTrips(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
 		return
 	}
-	trips, err := h.q.ListCruiseTrips(r.Context(), sql.NullInt64{Int64: id, Valid: true})
+	trips, err := h.q.ListCruiseTrips(r.Context(), types.NullInt64{Int64: id, Valid: true})
 	if err != nil {
 		slog.Error("list cruise child trips", "cruise_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list trips")
@@ -246,7 +247,7 @@ func (h *OrgCruiseHandler) ListChildVoyages(w http.ResponseWriter, r *http.Reque
 		respondError(w, http.StatusInternalServerError, "failed to verify cruise")
 		return
 	}
-	voyages, err := h.q.ListCruiseVoyages(r.Context(), sql.NullInt64{Int64: id, Valid: true})
+	voyages, err := h.q.ListCruiseVoyages(r.Context(), types.NullInt64{Int64: id, Valid: true})
 	if err != nil {
 		slog.Error("list cruise child voyages", "cruise_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list voyages")

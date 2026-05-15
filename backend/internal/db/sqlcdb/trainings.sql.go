@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createTraining = `-- name: CreateTraining :one
@@ -15,12 +16,12 @@ INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2
 `
 
 type CreateTrainingParams struct {
-	UserID    int64           `json:"user_id"`
-	Date      sql.NullString  `json:"date"`
-	Name      string          `json:"name"`
-	Organizer sql.NullString  `json:"organizer"`
-	Cost      sql.NullFloat64 `json:"cost"`
-	Url       sql.NullString  `json:"url"`
+	UserID    int64             `json:"user_id"`
+	Date      types.NullString  `json:"date"`
+	Name      string            `json:"name"`
+	Organizer types.NullString  `json:"organizer"`
+	Cost      types.NullFloat64 `json:"cost"`
+	Url       types.NullString  `json:"url"`
 }
 
 func (q *Queries) CreateTraining(ctx context.Context, arg CreateTrainingParams) (Training, error) {
@@ -129,13 +130,13 @@ UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, 
 `
 
 type UpdateTrainingParams struct {
-	Date      sql.NullString  `json:"date"`
-	Name      string          `json:"name"`
-	Organizer sql.NullString  `json:"organizer"`
-	Cost      sql.NullFloat64 `json:"cost"`
-	Url       sql.NullString  `json:"url"`
-	ID        int64           `json:"id"`
-	UserID    int64           `json:"user_id"`
+	Date      types.NullString  `json:"date"`
+	Name      string            `json:"name"`
+	Organizer types.NullString  `json:"organizer"`
+	Cost      types.NullFloat64 `json:"cost"`
+	Url       types.NullString  `json:"url"`
+	ID        int64             `json:"id"`
+	UserID    int64             `json:"user_id"`
 }
 
 func (q *Queries) UpdateTraining(ctx context.Context, arg UpdateTrainingParams) error {

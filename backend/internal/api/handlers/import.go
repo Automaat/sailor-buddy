@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"math"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -195,9 +195,9 @@ func (h *ImportHandler) resolveYacht(ctx context.Context, ownerID int64, yachtID
 		yachtIDs[name] = existing.ID
 		return false, nil
 	}
-	yachtType := sql.NullString{}
+	yachtType := types.NullString{}
 	if yachtTypePtr != nil {
-		yachtType = sql.NullString{String: *yachtTypePtr, Valid: true}
+		yachtType = types.NullString{String: *yachtTypePtr, Valid: true}
 	}
 	row, createErr := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
 		OwnerID:   ownerID,
@@ -235,9 +235,9 @@ func (h *ImportHandler) createImportVoyages(ctx context.Context, ownerID int64, 
 		if c.Name == "" {
 			continue
 		}
-		var yachtID sql.NullInt64
+		var yachtID types.NullInt64
 		if c.YachtName != nil && *c.YachtName != "" {
-			yachtID = sql.NullInt64{Int64: yachtIDs[*c.YachtName], Valid: true}
+			yachtID = types.NullInt64{Int64: yachtIDs[*c.YachtName], Valid: true}
 		}
 		_, err := h.q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
 			OwnerID:       ownerID,

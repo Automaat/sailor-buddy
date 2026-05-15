@@ -16,6 +16,7 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type VoyageOpinionHandler struct {
@@ -69,7 +70,7 @@ func (h *VoyageOpinionHandler) Generate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	assignment, err := h.q.GetVoyageCrewAssignmentByMember(r.Context(), sqlcdb.GetVoyageCrewAssignmentByMemberParams{
-		VoyageID:     sql.NullInt64{Int64: voyageID, Valid: true},
+		VoyageID:     types.NullInt64{Int64: voyageID, Valid: true},
 		CrewMemberID: req.CrewMemberID,
 	})
 	if err != nil {

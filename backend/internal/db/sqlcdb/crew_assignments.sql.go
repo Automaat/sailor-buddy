@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createTripCrewAssignment = `-- name: CreateTripCrewAssignment :one
@@ -16,10 +17,10 @@ VALUES ($1, $2, $3, $4) RETURNING id, crew_member_id, role, patent_number, creat
 `
 
 type CreateTripCrewAssignmentParams struct {
-	TripID       sql.NullInt64  `json:"trip_id"`
-	CrewMemberID int64          `json:"crew_member_id"`
-	Role         string         `json:"role"`
-	PatentNumber sql.NullString `json:"patent_number"`
+	TripID       types.NullInt64  `json:"trip_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Role         string           `json:"role"`
+	PatentNumber types.NullString `json:"patent_number"`
 }
 
 func (q *Queries) CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error) {
@@ -48,10 +49,10 @@ VALUES ($1, $2, $3, $4) RETURNING id, crew_member_id, role, patent_number, creat
 `
 
 type CreateVoyageCrewAssignmentParams struct {
-	VoyageID     sql.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64          `json:"crew_member_id"`
-	Role         string         `json:"role"`
-	PatentNumber sql.NullString `json:"patent_number"`
+	VoyageID     types.NullInt64  `json:"voyage_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Role         string           `json:"role"`
+	PatentNumber types.NullString `json:"patent_number"`
 }
 
 func (q *Queries) CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoyageCrewAssignmentParams) (CrewAssignment, error) {
@@ -145,30 +146,30 @@ ORDER BY t.embark_date ASC
 `
 
 type GetCrewMemberTripsRow struct {
-	ID            int64           `json:"id"`
-	OwnerID       int64           `json:"owner_id"`
-	OrgID         sql.NullInt64   `json:"org_id"`
-	Name          string          `json:"name"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	CaptainName   sql.NullString  `json:"captain_name"`
-	YachtID       sql.NullInt64   `json:"yacht_id"`
-	CostTotal     sql.NullFloat64 `json:"cost_total"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	MaxCrew       sql.NullInt64   `json:"max_crew"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	Description   sql.NullString  `json:"description"`
-	Status        TripStatus      `json:"status"`
-	EnrollToken   sql.NullString  `json:"enroll_token"`
-	CreatedAt     sql.NullTime    `json:"created_at"`
-	UpdatedAt     sql.NullTime    `json:"updated_at"`
-	CruiseID      sql.NullInt64   `json:"cruise_id"`
-	Role          string          `json:"role"`
+	ID            int64             `json:"id"`
+	OwnerID       int64             `json:"owner_id"`
+	OrgID         types.NullInt64   `json:"org_id"`
+	Name          string            `json:"name"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	CaptainName   types.NullString  `json:"captain_name"`
+	YachtID       types.NullInt64   `json:"yacht_id"`
+	CostTotal     types.NullFloat64 `json:"cost_total"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	MaxCrew       types.NullInt64   `json:"max_crew"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	Description   types.NullString  `json:"description"`
+	Status        TripStatus        `json:"status"`
+	EnrollToken   types.NullString  `json:"enroll_token"`
+	CreatedAt     types.NullTime    `json:"created_at"`
+	UpdatedAt     types.NullTime    `json:"updated_at"`
+	CruiseID      types.NullInt64   `json:"cruise_id"`
+	Role          string            `json:"role"`
 }
 
 func (q *Queries) GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([]GetCrewMemberTripsRow, error) {
@@ -228,35 +229,35 @@ ORDER BY v.year DESC, v.embark_date DESC
 `
 
 type GetCrewMemberVoyagesRow struct {
-	ID            int64           `json:"id"`
-	OwnerID       int64           `json:"owner_id"`
-	OrgID         sql.NullInt64   `json:"org_id"`
-	Name          string          `json:"name"`
-	Year          sql.NullInt64   `json:"year"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	CaptainName   sql.NullString  `json:"captain_name"`
-	YachtID       sql.NullInt64   `json:"yacht_id"`
-	HoursTotal    float64         `json:"hours_total"`
-	HoursSail     float64         `json:"hours_sail"`
-	HoursEngine   float64         `json:"hours_engine"`
-	HoursOver6bf  float64         `json:"hours_over_6bf"`
-	Miles         float64         `json:"miles"`
-	Days          int64           `json:"days"`
-	TidalWaters   int64           `json:"tidal_waters"`
-	CostTotal     sql.NullFloat64 `json:"cost_total"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	Description   sql.NullString  `json:"description"`
-	CreatedAt     sql.NullTime    `json:"created_at"`
-	UpdatedAt     sql.NullTime    `json:"updated_at"`
-	CruiseID      sql.NullInt64   `json:"cruise_id"`
-	Role          string          `json:"role"`
+	ID            int64             `json:"id"`
+	OwnerID       int64             `json:"owner_id"`
+	OrgID         types.NullInt64   `json:"org_id"`
+	Name          string            `json:"name"`
+	Year          types.NullInt64   `json:"year"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	CaptainName   types.NullString  `json:"captain_name"`
+	YachtID       types.NullInt64   `json:"yacht_id"`
+	HoursTotal    float64           `json:"hours_total"`
+	HoursSail     float64           `json:"hours_sail"`
+	HoursEngine   float64           `json:"hours_engine"`
+	HoursOver6bf  float64           `json:"hours_over_6bf"`
+	Miles         float64           `json:"miles"`
+	Days          int64             `json:"days"`
+	TidalWaters   int64             `json:"tidal_waters"`
+	CostTotal     types.NullFloat64 `json:"cost_total"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	Description   types.NullString  `json:"description"`
+	CreatedAt     types.NullTime    `json:"created_at"`
+	UpdatedAt     types.NullTime    `json:"updated_at"`
+	CruiseID      types.NullInt64   `json:"cruise_id"`
+	Role          string            `json:"role"`
 }
 
 func (q *Queries) GetCrewMemberVoyages(ctx context.Context, crewMemberID int64) ([]GetCrewMemberVoyagesRow, error) {
@@ -320,20 +321,20 @@ WHERE ca.voyage_id = $1 AND ca.crew_member_id = $2
 `
 
 type GetVoyageCrewAssignmentByMemberParams struct {
-	VoyageID     sql.NullInt64 `json:"voyage_id"`
-	CrewMemberID int64         `json:"crew_member_id"`
+	VoyageID     types.NullInt64 `json:"voyage_id"`
+	CrewMemberID int64           `json:"crew_member_id"`
 }
 
 type GetVoyageCrewAssignmentByMemberRow struct {
-	ID           int64          `json:"id"`
-	CrewMemberID int64          `json:"crew_member_id"`
-	Role         string         `json:"role"`
-	PatentNumber sql.NullString `json:"patent_number"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	TripID       sql.NullInt64  `json:"trip_id"`
-	VoyageID     sql.NullInt64  `json:"voyage_id"`
-	FullName     string         `json:"full_name"`
-	MemberPatent sql.NullString `json:"member_patent"`
+	ID           int64            `json:"id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Role         string           `json:"role"`
+	PatentNumber types.NullString `json:"patent_number"`
+	CreatedAt    types.NullTime   `json:"created_at"`
+	TripID       types.NullInt64  `json:"trip_id"`
+	VoyageID     types.NullInt64  `json:"voyage_id"`
+	FullName     string           `json:"full_name"`
+	MemberPatent types.NullString `json:"member_patent"`
 }
 
 func (q *Queries) GetVoyageCrewAssignmentByMember(ctx context.Context, arg GetVoyageCrewAssignmentByMemberParams) (GetVoyageCrewAssignmentByMemberRow, error) {
@@ -364,20 +365,20 @@ ORDER BY cm.full_name
 `
 
 type ListTripCrewAssignmentsParams struct {
-	TripID  sql.NullInt64 `json:"trip_id"`
-	OwnerID int64         `json:"owner_id"`
+	TripID  types.NullInt64 `json:"trip_id"`
+	OwnerID int64           `json:"owner_id"`
 }
 
 type ListTripCrewAssignmentsRow struct {
-	ID           int64          `json:"id"`
-	TripID       sql.NullInt64  `json:"trip_id"`
-	VoyageID     sql.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64          `json:"crew_member_id"`
-	Role         string         `json:"role"`
-	PatentNumber sql.NullString `json:"patent_number"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	FullName     string         `json:"full_name"`
-	Email        sql.NullString `json:"email"`
+	ID           int64            `json:"id"`
+	TripID       types.NullInt64  `json:"trip_id"`
+	VoyageID     types.NullInt64  `json:"voyage_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Role         string           `json:"role"`
+	PatentNumber types.NullString `json:"patent_number"`
+	CreatedAt    types.NullTime   `json:"created_at"`
+	FullName     string           `json:"full_name"`
+	Email        types.NullString `json:"email"`
 }
 
 func (q *Queries) ListTripCrewAssignments(ctx context.Context, arg ListTripCrewAssignmentsParams) ([]ListTripCrewAssignmentsRow, error) {
@@ -424,20 +425,20 @@ ORDER BY cm.full_name
 `
 
 type ListVoyageCrewAssignmentsParams struct {
-	VoyageID sql.NullInt64 `json:"voyage_id"`
-	OwnerID  int64         `json:"owner_id"`
+	VoyageID types.NullInt64 `json:"voyage_id"`
+	OwnerID  int64           `json:"owner_id"`
 }
 
 type ListVoyageCrewAssignmentsRow struct {
-	ID           int64          `json:"id"`
-	TripID       sql.NullInt64  `json:"trip_id"`
-	VoyageID     sql.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64          `json:"crew_member_id"`
-	Role         string         `json:"role"`
-	PatentNumber sql.NullString `json:"patent_number"`
-	CreatedAt    sql.NullTime   `json:"created_at"`
-	FullName     string         `json:"full_name"`
-	Email        sql.NullString `json:"email"`
+	ID           int64            `json:"id"`
+	TripID       types.NullInt64  `json:"trip_id"`
+	VoyageID     types.NullInt64  `json:"voyage_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Role         string           `json:"role"`
+	PatentNumber types.NullString `json:"patent_number"`
+	CreatedAt    types.NullTime   `json:"created_at"`
+	FullName     string           `json:"full_name"`
+	Email        types.NullString `json:"email"`
 }
 
 func (q *Queries) ListVoyageCrewAssignments(ctx context.Context, arg ListVoyageCrewAssignmentsParams) ([]ListVoyageCrewAssignmentsRow, error) {
@@ -479,8 +480,8 @@ WHERE trip_id = $2
 `
 
 type RepointCrewAssignmentsToVoyageParams struct {
-	VoyageID sql.NullInt64 `json:"voyage_id"`
-	TripID   sql.NullInt64 `json:"trip_id"`
+	VoyageID types.NullInt64 `json:"voyage_id"`
+	TripID   types.NullInt64 `json:"trip_id"`
 }
 
 func (q *Queries) RepointCrewAssignmentsToVoyage(ctx context.Context, arg RepointCrewAssignmentsToVoyageParams) error {

@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"bytes"
-	"database/sql"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -10,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 // --- null helpers (cruises.go) ---
@@ -20,10 +20,10 @@ func TestNullString(t *testing.T) {
 	tests := []struct {
 		name string
 		in   *string
-		want sql.NullString
+		want types.NullString
 	}{
-		{"nil", nil, sql.NullString{}},
-		{"valid", &s, sql.NullString{String: "hello", Valid: true}},
+		{"nil", nil, types.NullString{}},
+		{"valid", &s, types.NullString{String: "hello", Valid: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,10 +41,10 @@ func TestNullInt64(t *testing.T) {
 	tests := []struct {
 		name string
 		in   *int64
-		want sql.NullInt64
+		want types.NullInt64
 	}{
-		{"nil", nil, sql.NullInt64{}},
-		{"valid", &v, sql.NullInt64{Int64: 42, Valid: true}},
+		{"nil", nil, types.NullInt64{}},
+		{"valid", &v, types.NullInt64{Int64: 42, Valid: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,10 +62,10 @@ func TestNullFloat64(t *testing.T) {
 	tests := []struct {
 		name string
 		in   *float64
-		want sql.NullFloat64
+		want types.NullFloat64
 	}{
-		{"nil", nil, sql.NullFloat64{}},
-		{"valid", &v, sql.NullFloat64{Float64: 3.14, Valid: true}},
+		{"nil", nil, types.NullFloat64{}},
+		{"valid", &v, types.NullFloat64{Float64: 3.14, Valid: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -264,72 +264,11 @@ func TestExcelSerialToTime(t *testing.T) {
 
 // --- respond helpers (respond.go) ---
 
-func TestFlattenNulls(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		in   any
-		want any
-	}{
-		{
-			"valid NullString flattened to string value",
-			map[string]any{"String": "x", "Valid": true},
-			"x",
-		},
-		{
-			"invalid NullString flattened to nil",
-			map[string]any{"String": "", "Valid": false},
-			nil,
-		},
-		{
-			"valid NullInt64 flattened to int value",
-			map[string]any{"Int64": float64(42), "Valid": true},
-			float64(42),
-		},
-		{
-			"invalid NullInt64 flattened to nil",
-			map[string]any{"Int64": float64(0), "Valid": false},
-			nil,
-		},
-		{
-			"struct with NullString field",
-			map[string]any{
-				"name": map[string]any{"String": "Alice", "Valid": true},
-				"note": map[string]any{"String": "", "Valid": false},
-			},
-			map[string]any{"name": "Alice", "note": nil},
-		},
-		{
-			"non-null-struct map unchanged",
-			map[string]any{"foo": "bar", "baz": float64(1)},
-			map[string]any{"foo": "bar", "baz": float64(1)},
-		},
-		{
-			"slice with null structs",
-			[]any{
-				map[string]any{"String": "a", "Valid": true},
-				map[string]any{"String": "", "Valid": false},
-			},
-			[]any{"a", nil},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := flattenNulls(tt.in)
-			gotJSON, _ := json.Marshal(got)
-			wantJSON, _ := json.Marshal(tt.want)
-			if !bytes.Equal(gotJSON, wantJSON) {
-				t.Errorf("got %s, want %s", gotJSON, wantJSON)
-			}
-		})
-	}
-}
-
-func TestRespondJSONFlattenNulls(t *testing.T) {
+func TestRespondJSONNullFields(t *testing.T) {
 	t.Parallel()
 	type row struct {
-		Name sql.NullString
-		Age  sql.NullInt64
+		Name types.NullString
+		Age  types.NullInt64
 	}
 	tests := []struct {
 		name     string
@@ -337,20 +276,20 @@ func TestRespondJSONFlattenNulls(t *testing.T) {
 		wantBody string
 	}{
 		{
-			"valid fields flattened",
+			"valid fields render as plain values",
 			row{
-				Name: sql.NullString{String: "Alice", Valid: true},
-				Age:  sql.NullInt64{Int64: 30, Valid: true},
+				Name: types.NullString{String: "Alice", Valid: true},
+				Age:  types.NullInt64{Int64: 30, Valid: true},
 			},
-			`{"Age":30,"Name":"Alice"}` + "\n",
+			`{"Name":"Alice","Age":30}` + "\n",
 		},
 		{
 			"invalid fields become null",
 			row{
-				Name: sql.NullString{},
-				Age:  sql.NullInt64{},
+				Name: types.NullString{},
+				Age:  types.NullInt64{},
 			},
-			`{"Age":null,"Name":null}` + "\n",
+			`{"Name":null,"Age":null}` + "\n",
 		},
 	}
 	for _, tt := range tests {

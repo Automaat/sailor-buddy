@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const addOrgMember = `-- name: AddOrgMember :one
@@ -51,12 +52,12 @@ VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, org_id, token, role, created_by, e
 `
 
 type CreateOrgInviteParams struct {
-	OrgID     int64         `json:"org_id"`
-	Token     string        `json:"token"`
-	Role      string        `json:"role"`
-	CreatedBy int64         `json:"created_by"`
-	ExpiresAt sql.NullTime  `json:"expires_at"`
-	MaxUses   sql.NullInt64 `json:"max_uses"`
+	OrgID     int64           `json:"org_id"`
+	Token     string          `json:"token"`
+	Role      string          `json:"role"`
+	CreatedBy int64           `json:"created_by"`
+	ExpiresAt types.NullTime  `json:"expires_at"`
+	MaxUses   types.NullInt64 `json:"max_uses"`
 }
 
 func (q *Queries) CreateOrgInvite(ctx context.Context, arg CreateOrgInviteParams) (OrgInvite, error) {
@@ -89,13 +90,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, slug, description, logo_
 `
 
 type CreateOrganizationParams struct {
-	Name          string         `json:"name"`
-	Slug          string         `json:"slug"`
-	Description   sql.NullString `json:"description"`
-	LogoUrl       sql.NullString `json:"logo_url"`
-	PzzClubNumber sql.NullString `json:"pzz_club_number"`
-	City          sql.NullString `json:"city"`
-	Website       sql.NullString `json:"website"`
+	Name          string           `json:"name"`
+	Slug          string           `json:"slug"`
+	Description   types.NullString `json:"description"`
+	LogoUrl       types.NullString `json:"logo_url"`
+	PzzClubNumber types.NullString `json:"pzz_club_number"`
+	City          types.NullString `json:"city"`
+	Website       types.NullString `json:"website"`
 }
 
 func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error) {
@@ -155,17 +156,17 @@ WHERE oi.token = $1
 `
 
 type GetOrgInviteByTokenRow struct {
-	ID        int64         `json:"id"`
-	OrgID     int64         `json:"org_id"`
-	Token     string        `json:"token"`
-	Role      string        `json:"role"`
-	CreatedBy int64         `json:"created_by"`
-	ExpiresAt sql.NullTime  `json:"expires_at"`
-	MaxUses   sql.NullInt64 `json:"max_uses"`
-	UseCount  int64         `json:"use_count"`
-	CreatedAt sql.NullTime  `json:"created_at"`
-	OrgName   string        `json:"org_name"`
-	OrgSlug   string        `json:"org_slug"`
+	ID        int64           `json:"id"`
+	OrgID     int64           `json:"org_id"`
+	Token     string          `json:"token"`
+	Role      string          `json:"role"`
+	CreatedBy int64           `json:"created_by"`
+	ExpiresAt types.NullTime  `json:"expires_at"`
+	MaxUses   types.NullInt64 `json:"max_uses"`
+	UseCount  int64           `json:"use_count"`
+	CreatedAt types.NullTime  `json:"created_at"`
+	OrgName   string          `json:"org_name"`
+	OrgSlug   string          `json:"org_slug"`
 }
 
 func (q *Queries) GetOrgInviteByToken(ctx context.Context, token string) (GetOrgInviteByTokenRow, error) {
@@ -200,12 +201,12 @@ type GetOrgMembershipParams struct {
 }
 
 type GetOrgMembershipRow struct {
-	ID       int64        `json:"id"`
-	OrgID    int64        `json:"org_id"`
-	UserID   int64        `json:"user_id"`
-	Role     string       `json:"role"`
-	JoinedAt sql.NullTime `json:"joined_at"`
-	Slug     string       `json:"slug"`
+	ID       int64          `json:"id"`
+	OrgID    int64          `json:"org_id"`
+	UserID   int64          `json:"user_id"`
+	Role     string         `json:"role"`
+	JoinedAt types.NullTime `json:"joined_at"`
+	Slug     string         `json:"slug"`
 }
 
 func (q *Queries) GetOrgMembership(ctx context.Context, arg GetOrgMembershipParams) (GetOrgMembershipRow, error) {
@@ -312,16 +313,16 @@ ORDER BY oi.created_at DESC
 `
 
 type ListOrgInvitesRow struct {
-	ID          int64         `json:"id"`
-	OrgID       int64         `json:"org_id"`
-	Token       string        `json:"token"`
-	Role        string        `json:"role"`
-	CreatedBy   int64         `json:"created_by"`
-	ExpiresAt   sql.NullTime  `json:"expires_at"`
-	MaxUses     sql.NullInt64 `json:"max_uses"`
-	UseCount    int64         `json:"use_count"`
-	CreatedAt   sql.NullTime  `json:"created_at"`
-	CreatorName string        `json:"creator_name"`
+	ID          int64           `json:"id"`
+	OrgID       int64           `json:"org_id"`
+	Token       string          `json:"token"`
+	Role        string          `json:"role"`
+	CreatedBy   int64           `json:"created_by"`
+	ExpiresAt   types.NullTime  `json:"expires_at"`
+	MaxUses     types.NullInt64 `json:"max_uses"`
+	UseCount    int64           `json:"use_count"`
+	CreatedAt   types.NullTime  `json:"created_at"`
+	CreatorName string          `json:"creator_name"`
 }
 
 func (q *Queries) ListOrgInvites(ctx context.Context, orgID int64) ([]ListOrgInvitesRow, error) {
@@ -368,14 +369,14 @@ ORDER BY om.role, u.name
 `
 
 type ListOrgMembersRow struct {
-	ID            int64          `json:"id"`
-	OrgID         int64          `json:"org_id"`
-	UserID        int64          `json:"user_id"`
-	Role          string         `json:"role"`
-	JoinedAt      sql.NullTime   `json:"joined_at"`
-	UserName      string         `json:"user_name"`
-	UserEmail     string         `json:"user_email"`
-	UserAvatarUrl sql.NullString `json:"user_avatar_url"`
+	ID            int64            `json:"id"`
+	OrgID         int64            `json:"org_id"`
+	UserID        int64            `json:"user_id"`
+	Role          string           `json:"role"`
+	JoinedAt      types.NullTime   `json:"joined_at"`
+	UserName      string           `json:"user_name"`
+	UserEmail     string           `json:"user_email"`
+	UserAvatarUrl types.NullString `json:"user_avatar_url"`
 }
 
 func (q *Queries) ListOrgMembers(ctx context.Context, orgID int64) ([]ListOrgMembersRow, error) {
@@ -419,17 +420,17 @@ ORDER BY o.name
 `
 
 type ListUserOrganizationsRow struct {
-	ID            int64          `json:"id"`
-	Name          string         `json:"name"`
-	Slug          string         `json:"slug"`
-	Description   sql.NullString `json:"description"`
-	LogoUrl       sql.NullString `json:"logo_url"`
-	PzzClubNumber sql.NullString `json:"pzz_club_number"`
-	City          sql.NullString `json:"city"`
-	Website       sql.NullString `json:"website"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
-	UpdatedAt     sql.NullTime   `json:"updated_at"`
-	Role          string         `json:"role"`
+	ID            int64            `json:"id"`
+	Name          string           `json:"name"`
+	Slug          string           `json:"slug"`
+	Description   types.NullString `json:"description"`
+	LogoUrl       types.NullString `json:"logo_url"`
+	PzzClubNumber types.NullString `json:"pzz_club_number"`
+	City          types.NullString `json:"city"`
+	Website       types.NullString `json:"website"`
+	CreatedAt     types.NullTime   `json:"created_at"`
+	UpdatedAt     types.NullTime   `json:"updated_at"`
+	Role          string           `json:"role"`
 }
 
 func (q *Queries) ListUserOrganizations(ctx context.Context, userID int64) ([]ListUserOrganizationsRow, error) {
@@ -505,13 +506,13 @@ WHERE id = $7
 `
 
 type UpdateOrganizationParams struct {
-	Name          string         `json:"name"`
-	Description   sql.NullString `json:"description"`
-	LogoUrl       sql.NullString `json:"logo_url"`
-	PzzClubNumber sql.NullString `json:"pzz_club_number"`
-	City          sql.NullString `json:"city"`
-	Website       sql.NullString `json:"website"`
-	ID            int64          `json:"id"`
+	Name          string           `json:"name"`
+	Description   types.NullString `json:"description"`
+	LogoUrl       types.NullString `json:"logo_url"`
+	PzzClubNumber types.NullString `json:"pzz_club_number"`
+	City          types.NullString `json:"city"`
+	Website       types.NullString `json:"website"`
+	ID            int64            `json:"id"`
 }
 
 func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) error {

@@ -177,6 +177,14 @@ linters:
           - funlen
           - gosec
         path: _test\.go
+      # null.go mirrors database/sql's Null* types: driver.Valuer must return
+      # (nil, nil) to signal SQL NULL, and Scan/UnmarshalJSON need pointer
+      # receivers while Value/MarshalJSON need value receivers — the same
+      # mixed-receiver shape as stdlib sql.NullString.
+      - linters:
+          - nilnil
+          - recvcheck
+        path: internal/types/null\.go
       # seed-dev is a local-only CLI; its only outbound request targets the
       # Firebase Auth emulator whose host comes from a dev env var, not a
       # network-facing input — gosec's SSRF taint guard cannot see that.

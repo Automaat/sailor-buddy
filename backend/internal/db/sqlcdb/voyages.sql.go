@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createOrgVoyage = `-- name: CreateOrgVoyage :one
@@ -21,31 +22,31 @@ INSERT INTO voyages (
 `
 
 type CreateOrgVoyageParams struct {
-	OwnerID       int64           `json:"owner_id"`
-	OrgID         sql.NullInt64   `json:"org_id"`
-	CruiseID      sql.NullInt64   `json:"cruise_id"`
-	Name          string          `json:"name"`
-	Year          sql.NullInt64   `json:"year"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	CaptainName   sql.NullString  `json:"captain_name"`
-	YachtID       sql.NullInt64   `json:"yacht_id"`
-	HoursTotal    float64         `json:"hours_total"`
-	HoursSail     float64         `json:"hours_sail"`
-	HoursEngine   float64         `json:"hours_engine"`
-	HoursOver6bf  float64         `json:"hours_over_6bf"`
-	Miles         float64         `json:"miles"`
-	Days          int64           `json:"days"`
-	TidalWaters   int64           `json:"tidal_waters"`
-	CostTotal     sql.NullFloat64 `json:"cost_total"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	Description   sql.NullString  `json:"description"`
+	OwnerID       int64             `json:"owner_id"`
+	OrgID         types.NullInt64   `json:"org_id"`
+	CruiseID      types.NullInt64   `json:"cruise_id"`
+	Name          string            `json:"name"`
+	Year          types.NullInt64   `json:"year"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	CaptainName   types.NullString  `json:"captain_name"`
+	YachtID       types.NullInt64   `json:"yacht_id"`
+	HoursTotal    float64           `json:"hours_total"`
+	HoursSail     float64           `json:"hours_sail"`
+	HoursEngine   float64           `json:"hours_engine"`
+	HoursOver6bf  float64           `json:"hours_over_6bf"`
+	Miles         float64           `json:"miles"`
+	Days          int64             `json:"days"`
+	TidalWaters   int64             `json:"tidal_waters"`
+	CostTotal     types.NullFloat64 `json:"cost_total"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	Description   types.NullString  `json:"description"`
 }
 
 func (q *Queries) CreateOrgVoyage(ctx context.Context, arg CreateOrgVoyageParams) (Voyage, error) {
@@ -121,29 +122,29 @@ INSERT INTO voyages (
 `
 
 type CreateVoyageParams struct {
-	OwnerID       int64           `json:"owner_id"`
-	Name          string          `json:"name"`
-	Year          sql.NullInt64   `json:"year"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	CaptainName   sql.NullString  `json:"captain_name"`
-	YachtID       sql.NullInt64   `json:"yacht_id"`
-	HoursTotal    float64         `json:"hours_total"`
-	HoursSail     float64         `json:"hours_sail"`
-	HoursEngine   float64         `json:"hours_engine"`
-	HoursOver6bf  float64         `json:"hours_over_6bf"`
-	Miles         float64         `json:"miles"`
-	Days          int64           `json:"days"`
-	TidalWaters   int64           `json:"tidal_waters"`
-	CostTotal     sql.NullFloat64 `json:"cost_total"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	Description   sql.NullString  `json:"description"`
+	OwnerID       int64             `json:"owner_id"`
+	Name          string            `json:"name"`
+	Year          types.NullInt64   `json:"year"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	CaptainName   types.NullString  `json:"captain_name"`
+	YachtID       types.NullInt64   `json:"yacht_id"`
+	HoursTotal    float64           `json:"hours_total"`
+	HoursSail     float64           `json:"hours_sail"`
+	HoursEngine   float64           `json:"hours_engine"`
+	HoursOver6bf  float64           `json:"hours_over_6bf"`
+	Miles         float64           `json:"miles"`
+	Days          int64             `json:"days"`
+	TidalWaters   int64             `json:"tidal_waters"`
+	CostTotal     types.NullFloat64 `json:"cost_total"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	Description   types.NullString  `json:"description"`
 }
 
 func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voyage, error) {
@@ -211,8 +212,8 @@ DELETE FROM voyages WHERE id = $1 AND org_id = $2
 `
 
 type DeleteOrgVoyageParams struct {
-	ID    int64         `json:"id"`
-	OrgID sql.NullInt64 `json:"org_id"`
+	ID    int64           `json:"id"`
+	OrgID types.NullInt64 `json:"org_id"`
 }
 
 func (q *Queries) DeleteOrgVoyage(ctx context.Context, arg DeleteOrgVoyageParams) error {
@@ -288,7 +289,7 @@ type GetOrgDashboardStatsRow struct {
 	TotalHoursEngine float64 `json:"total_hours_engine"`
 }
 
-func (q *Queries) GetOrgDashboardStats(ctx context.Context, orgID sql.NullInt64) (GetOrgDashboardStatsRow, error) {
+func (q *Queries) GetOrgDashboardStats(ctx context.Context, orgID types.NullInt64) (GetOrgDashboardStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrgDashboardStats, orgID)
 	var i GetOrgDashboardStatsRow
 	err := row.Scan(
@@ -307,8 +308,8 @@ SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries,
 `
 
 type GetOrgVoyageParams struct {
-	ID    int64         `json:"id"`
-	OrgID sql.NullInt64 `json:"org_id"`
+	ID    int64           `json:"id"`
+	OrgID types.NullInt64 `json:"org_id"`
 }
 
 func (q *Queries) GetOrgVoyage(ctx context.Context, arg GetOrgVoyageParams) (Voyage, error) {
@@ -358,14 +359,14 @@ FROM voyages WHERE org_id = $1 GROUP BY year ORDER BY year
 `
 
 type GetOrgVoyagesByYearRow struct {
-	Year        sql.NullInt64 `json:"year"`
-	VoyageCount int64         `json:"voyage_count"`
-	TotalHours  float64       `json:"total_hours"`
-	TotalMiles  float64       `json:"total_miles"`
-	TotalDays   int64         `json:"total_days"`
+	Year        types.NullInt64 `json:"year"`
+	VoyageCount int64           `json:"voyage_count"`
+	TotalHours  float64         `json:"total_hours"`
+	TotalMiles  float64         `json:"total_miles"`
+	TotalDays   int64           `json:"total_days"`
 }
 
-func (q *Queries) GetOrgVoyagesByYear(ctx context.Context, orgID sql.NullInt64) ([]GetOrgVoyagesByYearRow, error) {
+func (q *Queries) GetOrgVoyagesByYear(ctx context.Context, orgID types.NullInt64) ([]GetOrgVoyagesByYearRow, error) {
 	rows, err := q.db.QueryContext(ctx, getOrgVoyagesByYear, orgID)
 	if err != nil {
 		return nil, err
@@ -450,11 +451,11 @@ FROM voyages WHERE owner_id = $1 AND org_id IS NULL GROUP BY year ORDER BY year
 `
 
 type GetVoyagesByYearRow struct {
-	Year        sql.NullInt64 `json:"year"`
-	VoyageCount int64         `json:"voyage_count"`
-	TotalHours  float64       `json:"total_hours"`
-	TotalMiles  float64       `json:"total_miles"`
-	TotalDays   int64         `json:"total_days"`
+	Year        types.NullInt64 `json:"year"`
+	VoyageCount int64           `json:"voyage_count"`
+	TotalHours  float64         `json:"total_hours"`
+	TotalMiles  float64         `json:"total_miles"`
+	TotalDays   int64           `json:"total_days"`
 }
 
 func (q *Queries) GetVoyagesByYear(ctx context.Context, ownerID int64) ([]GetVoyagesByYearRow, error) {
@@ -490,7 +491,7 @@ const listOrgVoyages = `-- name: ListOrgVoyages :many
 SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
 `
 
-func (q *Queries) ListOrgVoyages(ctx context.Context, orgID sql.NullInt64) ([]Voyage, error) {
+func (q *Queries) ListOrgVoyages(ctx context.Context, orgID types.NullInt64) ([]Voyage, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgVoyages, orgID)
 	if err != nil {
 		return nil, err
@@ -612,31 +613,31 @@ WHERE id = $24 AND org_id = $25
 `
 
 type UpdateOrgVoyageParams struct {
-	Name          string          `json:"name"`
-	Year          sql.NullInt64   `json:"year"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	CaptainName   sql.NullString  `json:"captain_name"`
-	YachtID       sql.NullInt64   `json:"yacht_id"`
-	HoursTotal    float64         `json:"hours_total"`
-	HoursSail     float64         `json:"hours_sail"`
-	HoursEngine   float64         `json:"hours_engine"`
-	HoursOver6bf  float64         `json:"hours_over_6bf"`
-	Miles         float64         `json:"miles"`
-	Days          int64           `json:"days"`
-	TidalWaters   int64           `json:"tidal_waters"`
-	CostTotal     sql.NullFloat64 `json:"cost_total"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	Description   sql.NullString  `json:"description"`
-	CruiseID      sql.NullInt64   `json:"cruise_id"`
-	ID            int64           `json:"id"`
-	OrgID         sql.NullInt64   `json:"org_id"`
+	Name          string            `json:"name"`
+	Year          types.NullInt64   `json:"year"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	CaptainName   types.NullString  `json:"captain_name"`
+	YachtID       types.NullInt64   `json:"yacht_id"`
+	HoursTotal    float64           `json:"hours_total"`
+	HoursSail     float64           `json:"hours_sail"`
+	HoursEngine   float64           `json:"hours_engine"`
+	HoursOver6bf  float64           `json:"hours_over_6bf"`
+	Miles         float64           `json:"miles"`
+	Days          int64             `json:"days"`
+	TidalWaters   int64             `json:"tidal_waters"`
+	CostTotal     types.NullFloat64 `json:"cost_total"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	Description   types.NullString  `json:"description"`
+	CruiseID      types.NullInt64   `json:"cruise_id"`
+	ID            int64             `json:"id"`
+	OrgID         types.NullInt64   `json:"org_id"`
 }
 
 func (q *Queries) UpdateOrgVoyage(ctx context.Context, arg UpdateOrgVoyageParams) error {
@@ -683,30 +684,30 @@ WHERE id = $23 AND owner_id = $24 AND org_id IS NULL
 `
 
 type UpdateVoyageParams struct {
-	Name          string          `json:"name"`
-	Year          sql.NullInt64   `json:"year"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	CaptainName   sql.NullString  `json:"captain_name"`
-	YachtID       sql.NullInt64   `json:"yacht_id"`
-	HoursTotal    float64         `json:"hours_total"`
-	HoursSail     float64         `json:"hours_sail"`
-	HoursEngine   float64         `json:"hours_engine"`
-	HoursOver6bf  float64         `json:"hours_over_6bf"`
-	Miles         float64         `json:"miles"`
-	Days          int64           `json:"days"`
-	TidalWaters   int64           `json:"tidal_waters"`
-	CostTotal     sql.NullFloat64 `json:"cost_total"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	Description   sql.NullString  `json:"description"`
-	ID            int64           `json:"id"`
-	OwnerID       int64           `json:"owner_id"`
+	Name          string            `json:"name"`
+	Year          types.NullInt64   `json:"year"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	CaptainName   types.NullString  `json:"captain_name"`
+	YachtID       types.NullInt64   `json:"yacht_id"`
+	HoursTotal    float64           `json:"hours_total"`
+	HoursSail     float64           `json:"hours_sail"`
+	HoursEngine   float64           `json:"hours_engine"`
+	HoursOver6bf  float64           `json:"hours_over_6bf"`
+	Miles         float64           `json:"miles"`
+	Days          int64             `json:"days"`
+	TidalWaters   int64             `json:"tidal_waters"`
+	CostTotal     types.NullFloat64 `json:"cost_total"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	Description   types.NullString  `json:"description"`
+	ID            int64             `json:"id"`
+	OwnerID       int64             `json:"owner_id"`
 }
 
 func (q *Queries) UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) error {

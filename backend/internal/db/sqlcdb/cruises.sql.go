@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const clearCruiseEnrollToken = `-- name: ClearCruiseEnrollToken :exec
@@ -34,19 +35,19 @@ INSERT INTO cruises (
 `
 
 type CreateCruiseParams struct {
-	OrgID         int64           `json:"org_id"`
-	Name          string          `json:"name"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	Description   sql.NullString  `json:"description"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	MaxCrew       sql.NullInt64   `json:"max_crew"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	OrgID         int64             `json:"org_id"`
+	Name          string            `json:"name"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	Description   types.NullString  `json:"description"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	MaxCrew       types.NullInt64   `json:"max_crew"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
 }
 
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
@@ -143,21 +144,21 @@ FROM cruises WHERE enroll_token = $1
 `
 
 type GetCruiseByEnrollTokenRow struct {
-	ID            int64           `json:"id"`
-	OrgID         int64           `json:"org_id"`
-	Name          string          `json:"name"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	Description   sql.NullString  `json:"description"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	MaxCrew       sql.NullInt64   `json:"max_crew"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
+	ID            int64             `json:"id"`
+	OrgID         int64             `json:"org_id"`
+	Name          string            `json:"name"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	Description   types.NullString  `json:"description"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	MaxCrew       types.NullInt64   `json:"max_crew"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
 }
 
-func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken sql.NullString) (GetCruiseByEnrollTokenRow, error) {
+func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getCruiseByEnrollToken, enrollToken)
 	var i GetCruiseByEnrollTokenRow
 	err := row.Scan(
@@ -181,7 +182,7 @@ const listCruiseTrips = `-- name: ListCruiseTrips :many
 SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 `
 
-func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID sql.NullInt64) ([]Trip, error) {
+func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseTrips, cruiseID)
 	if err != nil {
 		return nil, err
@@ -232,7 +233,7 @@ const listCruiseVoyages = `-- name: ListCruiseVoyages :many
 SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
 `
 
-func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID sql.NullInt64) ([]Voyage, error) {
+func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseVoyages, cruiseID)
 	if err != nil {
 		return nil, err
@@ -335,9 +336,9 @@ WHERE id = $2 AND org_id = $3
 `
 
 type SetCruiseEnrollTokenParams struct {
-	EnrollToken sql.NullString `json:"enroll_token"`
-	ID          int64          `json:"id"`
-	OrgID       int64          `json:"org_id"`
+	EnrollToken types.NullString `json:"enroll_token"`
+	ID          int64            `json:"id"`
+	OrgID       int64            `json:"org_id"`
 }
 
 func (q *Queries) SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error {
@@ -356,20 +357,20 @@ WHERE id = $13 AND org_id = $14
 `
 
 type UpdateCruiseParams struct {
-	Name          string          `json:"name"`
-	EmbarkDate    sql.NullString  `json:"embark_date"`
-	DisembarkDate sql.NullString  `json:"disembark_date"`
-	Countries     sql.NullString  `json:"countries"`
-	StartPort     sql.NullString  `json:"start_port"`
-	EndPort       sql.NullString  `json:"end_port"`
-	Description   sql.NullString  `json:"description"`
-	ImageLogoUrl  sql.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl sql.NullString  `json:"image_photo_url"`
-	ImageRouteUrl sql.NullString  `json:"image_route_url"`
-	MaxCrew       sql.NullInt64   `json:"max_crew"`
-	CostPerPerson sql.NullFloat64 `json:"cost_per_person"`
-	ID            int64           `json:"id"`
-	OrgID         int64           `json:"org_id"`
+	Name          string            `json:"name"`
+	EmbarkDate    types.NullString  `json:"embark_date"`
+	DisembarkDate types.NullString  `json:"disembark_date"`
+	Countries     types.NullString  `json:"countries"`
+	StartPort     types.NullString  `json:"start_port"`
+	EndPort       types.NullString  `json:"end_port"`
+	Description   types.NullString  `json:"description"`
+	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl types.NullString  `json:"image_route_url"`
+	MaxCrew       types.NullInt64   `json:"max_crew"`
+	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
+	ID            int64             `json:"id"`
+	OrgID         int64             `json:"org_id"`
 }
 
 func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error {

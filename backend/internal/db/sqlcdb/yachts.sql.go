@@ -7,7 +7,8 @@ package sqlcdb
 
 import (
 	"context"
-	"database/sql"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createOrgYacht = `-- name: CreateOrgYacht :one
@@ -15,11 +16,11 @@ INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES 
 `
 
 type CreateOrgYachtParams struct {
-	OwnerID        int64          `json:"owner_id"`
-	OrgID          sql.NullInt64  `json:"org_id"`
-	Name           string         `json:"name"`
-	RegistrationNo sql.NullString `json:"registration_no"`
-	YachtType      sql.NullString `json:"yacht_type"`
+	OwnerID        int64            `json:"owner_id"`
+	OrgID          types.NullInt64  `json:"org_id"`
+	Name           string           `json:"name"`
+	RegistrationNo types.NullString `json:"registration_no"`
+	YachtType      types.NullString `json:"yacht_type"`
 }
 
 func (q *Queries) CreateOrgYacht(ctx context.Context, arg CreateOrgYachtParams) (Yacht, error) {
@@ -49,10 +50,10 @@ INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2,
 `
 
 type CreateYachtParams struct {
-	OwnerID        int64          `json:"owner_id"`
-	Name           string         `json:"name"`
-	RegistrationNo sql.NullString `json:"registration_no"`
-	YachtType      sql.NullString `json:"yacht_type"`
+	OwnerID        int64            `json:"owner_id"`
+	Name           string           `json:"name"`
+	RegistrationNo types.NullString `json:"registration_no"`
+	YachtType      types.NullString `json:"yacht_type"`
 }
 
 func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error) {
@@ -81,8 +82,8 @@ DELETE FROM yachts WHERE id = $1 AND org_id = $2
 `
 
 type DeleteOrgYachtParams struct {
-	ID    int64         `json:"id"`
-	OrgID sql.NullInt64 `json:"org_id"`
+	ID    int64           `json:"id"`
+	OrgID types.NullInt64 `json:"org_id"`
 }
 
 func (q *Queries) DeleteOrgYacht(ctx context.Context, arg DeleteOrgYachtParams) error {
@@ -109,8 +110,8 @@ SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, 
 `
 
 type GetOrgYachtParams struct {
-	ID    int64         `json:"id"`
-	OrgID sql.NullInt64 `json:"org_id"`
+	ID    int64           `json:"id"`
+	OrgID types.NullInt64 `json:"org_id"`
 }
 
 func (q *Queries) GetOrgYacht(ctx context.Context, arg GetOrgYachtParams) (Yacht, error) {
@@ -183,7 +184,7 @@ const listOrgYachts = `-- name: ListOrgYachts :many
 SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
 `
 
-func (q *Queries) ListOrgYachts(ctx context.Context, orgID sql.NullInt64) ([]Yacht, error) {
+func (q *Queries) ListOrgYachts(ctx context.Context, orgID types.NullInt64) ([]Yacht, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgYachts, orgID)
 	if err != nil {
 		return nil, err
@@ -256,11 +257,11 @@ UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at =
 `
 
 type UpdateOrgYachtParams struct {
-	Name           string         `json:"name"`
-	RegistrationNo sql.NullString `json:"registration_no"`
-	YachtType      sql.NullString `json:"yacht_type"`
-	ID             int64          `json:"id"`
-	OrgID          sql.NullInt64  `json:"org_id"`
+	Name           string           `json:"name"`
+	RegistrationNo types.NullString `json:"registration_no"`
+	YachtType      types.NullString `json:"yacht_type"`
+	ID             int64            `json:"id"`
+	OrgID          types.NullInt64  `json:"org_id"`
 }
 
 func (q *Queries) UpdateOrgYacht(ctx context.Context, arg UpdateOrgYachtParams) error {
@@ -279,11 +280,11 @@ UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at =
 `
 
 type UpdateYachtParams struct {
-	Name           string         `json:"name"`
-	RegistrationNo sql.NullString `json:"registration_no"`
-	YachtType      sql.NullString `json:"yacht_type"`
-	ID             int64          `json:"id"`
-	OwnerID        int64          `json:"owner_id"`
+	Name           string           `json:"name"`
+	RegistrationNo types.NullString `json:"registration_no"`
+	YachtType      types.NullString `json:"yacht_type"`
+	ID             int64            `json:"id"`
+	OwnerID        int64            `json:"owner_id"`
 }
 
 func (q *Queries) UpdateYacht(ctx context.Context, arg UpdateYachtParams) error {

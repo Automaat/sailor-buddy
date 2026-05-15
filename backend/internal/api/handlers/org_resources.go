@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type OrgYachtHandler struct {
@@ -22,7 +23,7 @@ func NewOrgYachtHandler(q sqlcdb.Querier) *OrgYachtHandler {
 
 func (h *OrgYachtHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
-	yachts, err := h.q.ListOrgYachts(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
+	yachts, err := h.q.ListOrgYachts(r.Context(), types.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
 		slog.Error("list org yachts", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list yachts")
@@ -40,7 +41,7 @@ func (h *OrgYachtHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	yacht, err := h.q.GetOrgYacht(r.Context(), sqlcdb.GetOrgYachtParams{
 		ID:    id,
-		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -72,7 +73,7 @@ func (h *OrgYachtHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	yacht, err := h.q.CreateOrgYacht(r.Context(), sqlcdb.CreateOrgYachtParams{
 		OwnerID:        user.UserID,
-		OrgID:          sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:          types.NullInt64{Int64: octx.OrgID, Valid: true},
 		Name:           req.Name,
 		RegistrationNo: nullString(req.RegistrationNo),
 		YachtType:      nullString(req.YachtType),
@@ -110,7 +111,7 @@ func (h *OrgYachtHandler) Update(w http.ResponseWriter, r *http.Request) {
 		RegistrationNo: nullString(req.RegistrationNo),
 		YachtType:      nullString(req.YachtType),
 		ID:             id,
-		OrgID:          sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:          types.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
 		slog.Error("update org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update yacht")
@@ -128,7 +129,7 @@ func (h *OrgYachtHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.q.DeleteOrgYacht(r.Context(), sqlcdb.DeleteOrgYachtParams{
 		ID:    id,
-		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
 		slog.Error("delete org yacht", "yacht_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete yacht")
@@ -147,7 +148,7 @@ func NewOrgCrewHandler(q sqlcdb.Querier) *OrgCrewHandler {
 
 func (h *OrgCrewHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
-	crew, err := h.q.ListOrgCrewMembers(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
+	crew, err := h.q.ListOrgCrewMembers(r.Context(), types.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
 		slog.Error("list org crew members", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list crew members")
@@ -165,7 +166,7 @@ func (h *OrgCrewHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	member, err := h.q.GetOrgCrewMember(r.Context(), sqlcdb.GetOrgCrewMemberParams{
 		ID:    id,
-		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -204,8 +205,8 @@ func (h *OrgCrewHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	member, err := h.q.CreateOrgCrewMember(r.Context(), sqlcdb.CreateOrgCrewMemberParams{
 		OwnerID:               user.UserID,
-		OrgID:                 sql.NullInt64{Int64: octx.OrgID, Valid: true},
-		UserID:                sql.NullInt64{},
+		OrgID:                 types.NullInt64{Int64: octx.OrgID, Valid: true},
+		UserID:                types.NullInt64{},
 		FullName:              req.FullName,
 		Email:                 nullString(req.Email),
 		PatentNumber:          nullString(req.PatentNumber),
@@ -249,7 +250,7 @@ func (h *OrgCrewHandler) Update(w http.ResponseWriter, r *http.Request) {
 		EmergencyContactName:  nullString(req.EmergencyContactName),
 		EmergencyContactPhone: nullString(req.EmergencyContactPhone),
 		ID:                    id,
-		OrgID:                 sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID:                 types.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
 		slog.Error("update org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update crew member")
@@ -267,7 +268,7 @@ func (h *OrgCrewHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.q.DeleteOrgCrewMember(r.Context(), sqlcdb.DeleteOrgCrewMemberParams{
 		ID:    id,
-		OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true},
+		OrgID: types.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
 		slog.Error("delete org crew member", "crew_member_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete crew member")
@@ -286,7 +287,7 @@ func NewOrgDashboardHandler(q sqlcdb.Querier) *OrgDashboardHandler {
 
 func (h *OrgDashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
-	orgID := sql.NullInt64{Int64: octx.OrgID, Valid: true}
+	orgID := types.NullInt64{Int64: octx.OrgID, Valid: true}
 
 	stats, err := h.q.GetOrgDashboardStats(r.Context(), orgID)
 	if err != nil {
