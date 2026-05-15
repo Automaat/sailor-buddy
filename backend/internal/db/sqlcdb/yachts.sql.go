@@ -23,6 +23,9 @@ type CreateOrgYachtParams struct {
 	YachtType      types.NullString `json:"yacht_type"`
 }
 
+// CreateOrgYacht
+//
+//	INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
 func (q *Queries) CreateOrgYacht(ctx context.Context, arg CreateOrgYachtParams) (Yacht, error) {
 	row := q.db.QueryRowContext(ctx, createOrgYacht,
 		arg.OwnerID,
@@ -56,6 +59,9 @@ type CreateYachtParams struct {
 	YachtType      types.NullString `json:"yacht_type"`
 }
 
+// CreateYacht
+//
+//	INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
 func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error) {
 	row := q.db.QueryRowContext(ctx, createYacht,
 		arg.OwnerID,
@@ -86,6 +92,9 @@ type DeleteOrgYachtParams struct {
 	OrgID types.NullInt64 `json:"org_id"`
 }
 
+// DeleteOrgYacht
+//
+//	DELETE FROM yachts WHERE id = $1 AND org_id = $2
 func (q *Queries) DeleteOrgYacht(ctx context.Context, arg DeleteOrgYachtParams) error {
 	_, err := q.db.ExecContext(ctx, deleteOrgYacht, arg.ID, arg.OrgID)
 	return err
@@ -100,6 +109,9 @@ type DeleteYachtParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// DeleteYacht
+//
+//	DELETE FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 func (q *Queries) DeleteYacht(ctx context.Context, arg DeleteYachtParams) error {
 	_, err := q.db.ExecContext(ctx, deleteYacht, arg.ID, arg.OwnerID)
 	return err
@@ -114,6 +126,9 @@ type GetOrgYachtParams struct {
 	OrgID types.NullInt64 `json:"org_id"`
 }
 
+// GetOrgYacht
+//
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND org_id = $2
 func (q *Queries) GetOrgYacht(ctx context.Context, arg GetOrgYachtParams) (Yacht, error) {
 	row := q.db.QueryRowContext(ctx, getOrgYacht, arg.ID, arg.OrgID)
 	var i Yacht
@@ -139,6 +154,9 @@ type GetYachtParams struct {
 	OwnerID int64 `json:"owner_id"`
 }
 
+// GetYacht
+//
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
 func (q *Queries) GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error) {
 	row := q.db.QueryRowContext(ctx, getYacht, arg.ID, arg.OwnerID)
 	var i Yacht
@@ -164,6 +182,9 @@ type GetYachtByNameParams struct {
 	Name    string `json:"name"`
 }
 
+// GetYachtByName
+//
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 func (q *Queries) GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error) {
 	row := q.db.QueryRowContext(ctx, getYachtByName, arg.OwnerID, arg.Name)
 	var i Yacht
@@ -184,6 +205,9 @@ const listOrgYachts = `-- name: ListOrgYachts :many
 SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
 `
 
+// ListOrgYachts
+//
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
 func (q *Queries) ListOrgYachts(ctx context.Context, orgID types.NullInt64) ([]Yacht, error) {
 	rows, err := q.db.QueryContext(ctx, listOrgYachts, orgID)
 	if err != nil {
@@ -220,6 +244,9 @@ const listYachts = `-- name: ListYachts :many
 SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
 `
 
+// ListYachts
+//
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
 func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error) {
 	rows, err := q.db.QueryContext(ctx, listYachts, ownerID)
 	if err != nil {
@@ -264,6 +291,9 @@ type UpdateOrgYachtParams struct {
 	OrgID          types.NullInt64  `json:"org_id"`
 }
 
+// UpdateOrgYacht
+//
+//	UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND org_id = $5
 func (q *Queries) UpdateOrgYacht(ctx context.Context, arg UpdateOrgYachtParams) error {
 	_, err := q.db.ExecContext(ctx, updateOrgYacht,
 		arg.Name,
@@ -287,6 +317,9 @@ type UpdateYachtParams struct {
 	OwnerID        int64            `json:"owner_id"`
 }
 
+// UpdateYacht
+//
+//	UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
 func (q *Queries) UpdateYacht(ctx context.Context, arg UpdateYachtParams) error {
 	_, err := q.db.ExecContext(ctx, updateYacht,
 		arg.Name,
