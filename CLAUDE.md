@@ -59,8 +59,8 @@ conventions, authentication format, and the full endpoint reference.
 
 ### OpenAPI / type generation
 
-The API is migrating from hand-written chi handlers to the huma framework,
-which derives an OpenAPI 3.1 spec from Go types. Pipeline:
+The API is served by the huma framework, which derives an OpenAPI 3.1
+spec from Go types. Pipeline:
 
 ```
 Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
