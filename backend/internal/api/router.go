@@ -47,7 +47,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(fbClient, q))
 			registerHumaRoutes(humachi.New(r, humaConfig()), q, db, cfg.UploadDir)
-			mountCatalogRoutes(r, q, cfg)
+			mountStaticRoutes(r, cfg)
 			mountOrgRoutes(r, q, db)
 		})
 	})
@@ -55,16 +55,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	return r
 }
 
-// mountCatalogRoutes registers the chi routes for uploads and import that have
-// not yet moved to huma.
-func mountCatalogRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
+// mountStaticRoutes registers chi routes for static asset delivery, which is
+// not modelled as an API operation in the OpenAPI spec.
+func mountStaticRoutes(r chi.Router, cfg *config.Config) {
 	uploadH := handlers.NewUploadHandler(cfg.UploadDir)
-	r.Post("/upload/image", uploadH.UploadImage)
 	r.Get("/uploads/*", uploadH.ServeFile)
-
-	importH := handlers.NewImportHandler(q)
-	r.Post("/import/xlsx", importH.Upload)
-	r.Post("/import/confirm", importH.Confirm)
 }
 
 // mountOrgRoutes registers the org invite routes and the org subtree.

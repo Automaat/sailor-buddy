@@ -10,10 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/xuri/excelize/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
-	"github.com/xuri/excelize/v2"
 )
 
 type ImportHandler struct {
@@ -24,135 +27,98 @@ func NewImportHandler(q sqlcdb.Querier) *ImportHandler {
 	return &ImportHandler{q: q}
 }
 
-type importCruiseRow struct {
-	Name          string   `json:"name"`
-	Year          *int64   `json:"year"`
-	EmbarkDate    *string  `json:"embark_date"`
-	DisembarkDate *string  `json:"disembark_date"`
-	Countries     *string  `json:"countries"`
-	StartPort     *string  `json:"start_port"`
-	EndPort       *string  `json:"end_port"`
-	HoursTotal    *float64 `json:"hours_total"`
-	HoursSail     *float64 `json:"hours_sail"`
-	HoursEngine   *float64 `json:"hours_engine"`
-	HoursOver6bf  *float64 `json:"hours_over_6bf"`
-	Miles         *float64 `json:"miles"`
-	Days          *int64   `json:"days"`
-	CaptainName   *string  `json:"captain_name"`
-	YachtName     *string  `json:"yacht_name"`
-	YachtType     *string  `json:"yacht_type"`
-	TidalWaters   *int64   `json:"tidal_waters"`
-	CostTotal     *float64 `json:"cost_total"`
-	CostPerPerson *float64 `json:"cost_per_person"`
-	Description   *string  `json:"description"`
+// importCruiseRow and importTrainingRow alias the DTO rows so the spreadsheet
+// parsing helpers and the huma handlers share one type.
+type (
+	importCruiseRow   = dto.ImportVoyageRow
+	importTrainingRow = dto.ImportTrainingRow
+)
+
+type importUploadInput struct {
+	RawBody huma.MultipartFormFiles[struct {
+		File huma.FormFile `form:"file" required:"true" doc:"XLSX spreadsheet to import"`
+	}]
 }
 
-type importTrainingRow struct {
-	Date      *string  `json:"date"`
-	Name      string   `json:"name"`
-	Organizer *string  `json:"organizer"`
-	Cost      *float64 `json:"cost"`
-	Url       *string  `json:"url"`
+type importPreviewOutput struct {
+	Body dto.ImportData
 }
 
-type importPreview struct {
-	Voyages   []importCruiseRow   `json:"voyages"`
-	Trainings []importTrainingRow `json:"trainings"`
+type importConfirmInput struct {
+	Body dto.ImportData
 }
 
-type importConfirmRequest struct {
-	Voyages   []importCruiseRow   `json:"voyages"`
-	Trainings []importTrainingRow `json:"trainings"`
+type importResultOutput struct {
+	Body dto.ImportResult
 }
 
-type importConfirmResult struct {
-	VoyagesCreated   int `json:"voyages_created"`
-	TrainingsCreated int `json:"trainings_created"`
-	YachtsCreated    int `json:"yachts_created"`
-	CrewCreated      int `json:"crew_created"`
+// RegisterImportRoutes wires the XLSX import operations onto the API.
+func RegisterImportRoutes(api huma.API, q sqlcdb.Querier) {
+	h := NewImportHandler(q)
+	tag := []string{"Import"}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "import-xlsx", Method: http.MethodPost, Path: "/import/xlsx",
+		Summary: "Upload an XLSX file and preview the parsed records", Tags: tag,
+	}, h.upload)
+	huma.Register(api, huma.Operation{
+		OperationID: "import-confirm", Method: http.MethodPost, Path: "/import/confirm",
+		Summary: "Persist the reviewed import preview", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.confirm)
 }
 
-func (h *ImportHandler) Upload(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		respondError(w, http.StatusBadRequest, "failed to parse multipart form")
-		return
+func (h *ImportHandler) upload(_ context.Context, in *importUploadInput) (*importPreviewOutput, error) {
+	file := in.RawBody.Data().File
+	if !file.IsSet {
+		return nil, huma.Error400BadRequest("missing file field")
 	}
-
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "missing file field")
-		return
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			slog.Error("close uploaded file", "err", err)
-		}
-	}()
+	defer func() { _ = file.Close() }()
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "failed to parse xlsx file")
-		return
+		return nil, huma.Error400BadRequest("failed to parse xlsx file")
 	}
 	defer func() {
-		if err := f.Close(); err != nil {
-			slog.Error("close xlsx file", "err", err)
+		if cerr := f.Close(); cerr != nil {
+			slog.Error("close xlsx file", "err", cerr)
 		}
 	}()
 
 	cruises, err := parseOpinionSheet(f)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("failed to parse opinie sheet: %v", err))
-		return
+		return nil, huma.Error400BadRequest(fmt.Sprintf("failed to parse opinie sheet: %v", err))
 	}
-
 	trainings, err := parseTrainingSheet(f)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, fmt.Sprintf("failed to parse szkolenia sheet: %v", err))
-		return
+		return nil, huma.Error400BadRequest(fmt.Sprintf("failed to parse szkolenia sheet: %v", err))
 	}
-
-	respondJSON(w, http.StatusOK, importPreview{
-		Voyages:   cruises,
-		Trainings: trainings,
-	})
+	return &importPreviewOutput{Body: dto.ImportData{Voyages: cruises, Trainings: trainings}}, nil
 }
 
-func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
-	var req importConfirmRequest
-	if err := decodeJSON(r, &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
+func (h *ImportHandler) confirm(ctx context.Context, in *importConfirmInput) (*importResultOutput, error) {
+	user := middleware.GetUser(ctx)
 
-	yachtIDs, yachtsCreated, crewCreated, err := h.resolveImportEntities(r.Context(), user.UserID, req.Voyages)
+	yachtIDs, yachtsCreated, crewCreated, err := h.resolveImportEntities(ctx, user.UserID, in.Body.Voyages)
 	if err != nil {
 		slog.Error("import resolve entities", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, huma.Error500InternalServerError(err.Error())
 	}
-
-	voyagesCreated, err := h.createImportVoyages(r.Context(), user.UserID, req.Voyages, yachtIDs)
+	voyagesCreated, err := h.createImportVoyages(ctx, user.UserID, in.Body.Voyages, yachtIDs)
 	if err != nil {
 		slog.Error("import create voyages", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, huma.Error500InternalServerError(err.Error())
 	}
-
-	trainingsCreated, err := h.createImportTrainings(r.Context(), user.UserID, req.Trainings)
+	trainingsCreated, err := h.createImportTrainings(ctx, user.UserID, in.Body.Trainings)
 	if err != nil {
 		slog.Error("import create trainings", "user_id", user.UserID, "err", err)
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, huma.Error500InternalServerError(err.Error())
 	}
-
-	respondJSON(w, http.StatusCreated, importConfirmResult{
+	return &importResultOutput{Body: dto.ImportResult{
 		VoyagesCreated:   voyagesCreated,
 		TrainingsCreated: trainingsCreated,
 		YachtsCreated:    yachtsCreated,
 		CrewCreated:      crewCreated,
-	})
+	}}, nil
 }
 
 // resolveImportEntities ensures every yacht and captain referenced by the
@@ -308,7 +274,7 @@ func parseOpinionSheet(f *excelize.File) ([]importCruiseRow, error) {
 			continue
 		}
 
-		cruise := importCruiseRow{
+		cruises = append(cruises, importCruiseRow{
 			Name:          strings.TrimSpace(cellAt(row, 0)),
 			Year:          parseInt64(cellAt(row, 1)),
 			EmbarkDate:    parseExcelDate(f, sheetName, i+1, 2),
@@ -329,8 +295,7 @@ func parseOpinionSheet(f *excelize.File) ([]importCruiseRow, error) {
 			CostTotal:     parseFloat(cellAt(row, 17)),
 			CostPerPerson: parseFloat(cellAt(row, 18)),
 			Description:   optString(cellAt(row, 19)),
-		}
-		cruises = append(cruises, cruise)
+		})
 	}
 	return cruises, nil
 }
@@ -351,14 +316,13 @@ func parseTrainingSheet(f *excelize.File) ([]importTrainingRow, error) {
 			continue
 		}
 
-		training := importTrainingRow{
+		trainings = append(trainings, importTrainingRow{
 			Date:      optString(cellAt(row, 0)),
 			Name:      strings.TrimSpace(cellAt(row, 1)),
 			Organizer: optString(cellAt(row, 2)),
 			Cost:      parseFloat(cellAt(row, 3)),
 			Url:       optString(cellAt(row, 4)),
-		}
-		trainings = append(trainings, training)
+		})
 	}
 	return trainings, nil
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,8 +10,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 )
 
@@ -28,68 +31,73 @@ var allowedMIME = map[string]string{
 	"image/webp": ".webp",
 }
 
-func (h *UploadHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
-	user := middleware.GetUser(r.Context())
+type uploadImageInput struct {
+	RawBody huma.MultipartFormFiles[struct {
+		File huma.FormFile `form:"file" required:"true" doc:"Image file (jpeg, png or webp; max 5 MB)"`
+	}]
+}
 
-	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
-	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		respondError(w, http.StatusBadRequest, "file too large (max 5MB)")
-		return
+type uploadURLOutput struct {
+	Body struct {
+		URL string `json:"url"`
 	}
-	defer func() {
-		if r.MultipartForm != nil {
-			_ = r.MultipartForm.RemoveAll()
-		}
-	}()
+}
 
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "missing file field")
-		return
+// RegisterUploadRoutes wires the image upload operation onto the API. Static
+// file serving (GET /uploads/*) stays on chi as it is not an API operation.
+func RegisterUploadRoutes(api huma.API, uploadDir string) {
+	h := NewUploadHandler(uploadDir)
+	huma.Register(api, huma.Operation{
+		OperationID: "upload-image", Method: http.MethodPost, Path: "/upload/image",
+		Summary: "Upload an image", Tags: []string{"Uploads"},
+	}, h.uploadImage)
+}
+
+func (h *UploadHandler) uploadImage(ctx context.Context, in *uploadImageInput) (*uploadURLOutput, error) {
+	user := middleware.GetUser(ctx)
+	file := in.RawBody.Data().File
+	if !file.IsSet {
+		return nil, huma.Error400BadRequest("missing file field")
 	}
 	defer func() { _ = file.Close() }()
+	if file.Size > 5<<20 {
+		return nil, huma.Error400BadRequest("file too large (max 5MB)")
+	}
 
 	buf := make([]byte, 512)
 	n, err := file.Read(buf)
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "cannot read file")
-		return
+		return nil, huma.Error400BadRequest("cannot read file")
 	}
-	mime := http.DetectContentType(buf[:n])
-	ext, ok := allowedMIME[mime]
+	ext, ok := allowedMIME[http.DetectContentType(buf[:n])]
 	if !ok {
-		respondError(w, http.StatusBadRequest, "unsupported file type; allowed: jpeg, png, webp")
-		return
+		return nil, huma.Error400BadRequest("unsupported file type; allowed: jpeg, png, webp")
 	}
-
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to process file")
-		return
+		return nil, huma.Error500InternalServerError("failed to process file")
 	}
 
 	userDir := filepath.Join(h.uploadDir, strconv.FormatInt(user.UserID, 10), "images")
 	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create upload directory")
-		return
+		return nil, huma.Error500InternalServerError("failed to create upload directory")
 	}
-
 	filename := uuid.New().String() + ext
 	dst, err := os.Create(filepath.Join(userDir, filename))
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to save file")
-		return
+		return nil, huma.Error500InternalServerError("failed to save file")
 	}
 	defer func() { _ = dst.Close() }()
-
 	if _, err := io.Copy(dst, file); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to write file")
-		return
+		return nil, huma.Error500InternalServerError("failed to write file")
 	}
 
-	url := fmt.Sprintf("/api/uploads/%d/images/%s", user.UserID, filename)
-	respondJSON(w, http.StatusOK, map[string]string{"url": url})
+	out := &uploadURLOutput{}
+	out.Body.URL = fmt.Sprintf("/api/uploads/%d/images/%s", user.UserID, filename)
+	return out, nil
 }
 
+// ServeFile serves a previously uploaded file. It stays on chi: static asset
+// delivery under a wildcard path is not modelled as an API operation.
 func (h *UploadHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 

@@ -455,6 +455,24 @@ components:
           format: uri
           type: string
       type: object
+    FormFile:
+      additionalProperties: false
+      properties:
+        ContentType:
+          type: string
+        Filename:
+          type: string
+        IsSet:
+          type: boolean
+        Size:
+          format: int64
+          type: integer
+      required:
+        - ContentType
+        - IsSet
+        - Size
+        - Filename
+      type: object
     GenerateOpinionBody:
       additionalProperties: false
       properties:
@@ -478,6 +496,133 @@ components:
           type: string
       required:
         - crew_member_id
+      type: object
+    ImportData:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/ImportData.json
+          format: uri
+          readOnly: true
+          type: string
+        trainings:
+          items:
+            $ref: "#/components/schemas/ImportTrainingRow"
+          type:
+            - array
+            - "null"
+        voyages:
+          items:
+            $ref: "#/components/schemas/ImportVoyageRow"
+          type:
+            - array
+            - "null"
+      required:
+        - voyages
+        - trainings
+      type: object
+    ImportResult:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/ImportResult.json
+          format: uri
+          readOnly: true
+          type: string
+        crew_created:
+          format: int64
+          type: integer
+        trainings_created:
+          format: int64
+          type: integer
+        voyages_created:
+          format: int64
+          type: integer
+        yachts_created:
+          format: int64
+          type: integer
+      required:
+        - voyages_created
+        - trainings_created
+        - yachts_created
+        - crew_created
+      type: object
+    ImportTrainingRow:
+      additionalProperties: false
+      properties:
+        cost:
+          format: double
+          type: number
+        date:
+          type: string
+        name:
+          type: string
+        organizer:
+          type: string
+        url:
+          type: string
+      required:
+        - name
+      type: object
+    ImportVoyageRow:
+      additionalProperties: false
+      properties:
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        days:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        miles:
+          format: double
+          type: number
+        name:
+          type: string
+        start_port:
+          type: string
+        tidal_waters:
+          format: int64
+          type: integer
+        yacht_name:
+          type: string
+        yacht_type:
+          type: string
+        year:
+          format: int64
+          type: integer
+      required:
+        - name
       type: object
     Me:
       additionalProperties: false
@@ -751,6 +896,21 @@ components:
         - status
         - created_at
         - updated_at
+      type: object
+    UploadURLOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/UploadURLOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        url:
+          type: string
+      required:
+        - url
       type: object
     Voyage:
       additionalProperties: false
@@ -1267,6 +1427,67 @@ paths:
       summary: Self-enroll via a share token
       tags:
         - Enrollment
+  /import/confirm:
+    post:
+      operationId: import-confirm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportData"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Persist the reviewed import preview
+      tags:
+        - Import
+  /import/xlsx:
+    post:
+      operationId: import-xlsx
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              file:
+                contentType: application/octet-stream
+            schema:
+              properties:
+                file:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  description: XLSX spreadsheet to import
+                  format: binary
+                  type: string
+              required:
+                - file
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportData"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Upload an XLSX file and preview the parsed records
+      tags:
+        - Import
   /trainings:
     get:
       operationId: list-trainings
@@ -1833,6 +2054,42 @@ paths:
       summary: Update a trip enrollment's status
       tags:
         - Enrollment
+  /upload/image:
+    post:
+      operationId: upload-image
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              file:
+                contentType: application/octet-stream
+            schema:
+              properties:
+                file:
+                  contentEncoding: binary
+                  contentMediaType: application/octet-stream
+                  description: Image file (jpeg, png or webp; max 5 MB)
+                  format: binary
+                  type: string
+              required:
+                - file
+              type: object
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadURLOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Upload an image
+      tags:
+        - Uploads
   /voyages:
     get:
       operationId: list-voyages
