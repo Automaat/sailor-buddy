@@ -7,6 +7,8 @@ function createOrgStore() {
 	let orgs = $state<Organization[]>([]);
 	let currentSlug = $state<string | null>(null);
 	let loading = $state(false);
+	// true once the org list has been fetched at least once — guards wait for this
+	let loaded = $state(false);
 
 	if (typeof window !== 'undefined') {
 		currentSlug = localStorage.getItem(LS_KEY);
@@ -26,6 +28,9 @@ function createOrgStore() {
 		get loading() {
 			return loading;
 		},
+		get loaded() {
+			return loaded;
+		},
 		get isOrgMode() {
 			return currentSlug !== null;
 		},
@@ -33,6 +38,8 @@ function createOrgStore() {
 			if (!currentSlug) return false;
 			return orgs.find((o) => o.slug === currentSlug)?.role === 'admin';
 		},
+		// Switching org context is an admin tool — intentionally unavailable to
+		// non-admin members, even when they belong to several orgs.
 		get canSwitch() {
 			return orgs.length > 1 && orgs.some((o) => o.role === 'admin');
 		},
@@ -50,6 +57,7 @@ function createOrgStore() {
 			loading = true;
 			try {
 				orgs = await api.get<Organization[]>('/orgs');
+				loaded = true;
 				if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
 					currentSlug = null;
 				}
@@ -70,6 +78,7 @@ function createOrgStore() {
 		clear() {
 			orgs = [];
 			currentSlug = null;
+			loaded = false;
 			if (typeof window !== 'undefined') {
 				localStorage.removeItem(LS_KEY);
 			}

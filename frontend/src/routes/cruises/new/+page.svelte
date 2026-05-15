@@ -8,7 +8,7 @@
 	let loading = $state(false);
 
 	$effect(() => {
-		if (!orgStore.loading && !orgStore.isOrgAdmin) {
+		if (orgStore.loaded && !orgStore.isOrgAdmin) {
 			goto('/cruises');
 		}
 	});

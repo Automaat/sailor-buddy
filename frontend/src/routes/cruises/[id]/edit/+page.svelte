@@ -25,7 +25,7 @@
 	const id = $derived(page.params.id);
 
 	$effect(() => {
-		if (!orgStore.loading && !orgStore.isOrgAdmin) {
+		if (orgStore.loaded && !orgStore.isOrgAdmin) {
 			goto(`/cruises/${id}`);
 		}
 	});

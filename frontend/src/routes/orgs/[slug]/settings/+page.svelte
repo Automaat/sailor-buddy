@@ -14,8 +14,11 @@
 
 	let form = $state({ name: '', description: '', city: '', website: '', pzz_club_number: '', logo_url: '' });
 
+	// admin status for the org in the route, not the globally-selected one
+	let isAdmin = $derived(orgStore.orgs.find((o) => o.slug === slug)?.role === 'admin');
+
 	$effect(() => {
-		if (!orgStore.loading && orgStore.orgs.length > 0 && !orgStore.isOrgAdmin) {
+		if (orgStore.loaded && !isAdmin) {
 			goto('/');
 		}
 	});

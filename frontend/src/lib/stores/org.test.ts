@@ -57,6 +57,13 @@ describe('orgStore.refresh', () => {
 		expect(orgStore.isOrgMode).toBe(false);
 		expect(localStorage.getItem('sailor-buddy-org')).toBeNull();
 	});
+
+	it('marks the store loaded after a successful refresh', async () => {
+		expect(orgStore.loaded).toBe(false);
+		mockGet.mockResolvedValue([org('alfa', 'admin')]);
+		await orgStore.refresh();
+		expect(orgStore.loaded).toBe(true);
+	});
 });
 
 describe('orgStore.isOrgAdmin', () => {
@@ -116,6 +123,7 @@ describe('orgStore selection helpers', () => {
 		orgStore.clear();
 		expect(orgStore.orgs).toEqual([]);
 		expect(orgStore.currentSlug).toBeNull();
+		expect(orgStore.loaded).toBe(false);
 		expect(localStorage.getItem('sailor-buddy-org')).toBeNull();
 	});
 });

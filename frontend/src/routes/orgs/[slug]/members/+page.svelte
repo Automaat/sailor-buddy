@@ -11,10 +11,11 @@
 	let loading = $state(true);
 	let error = $state('');
 
-	let isAdmin = $derived(orgStore.current?.role === 'admin');
+	// admin status for the org in the route, not the globally-selected one
+	let isAdmin = $derived(orgStore.orgs.find((o) => o.slug === slug)?.role === 'admin');
 
 	$effect(() => {
-		if (!orgStore.loading && orgStore.orgs.length > 0 && !isAdmin) {
+		if (orgStore.loaded && !isAdmin) {
 			goto('/');
 		}
 	});
