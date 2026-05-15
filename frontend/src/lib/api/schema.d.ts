@@ -75,6 +75,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/enroll/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve an enrollment token to its trip or cruise */
+        get: operations["resolve-enroll-token"];
+        put?: never;
+        /** Self-enroll via a share token */
+        post: operations["enroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trainings": {
         parameters: {
             query?: never;
@@ -213,6 +231,75 @@ export interface paths {
         post?: never;
         /** Remove a crew assignment from a trip */
         delete: operations["remove-trip-crew"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a trip enrollment share token */
+        post: operations["generate-trip-enroll-token"];
+        /** Clear a trip enrollment share token */
+        delete: operations["clear-trip-enroll-token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a trip's enrollments */
+        get: operations["list-trip-enrollments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/enrollments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a trip enrollment */
+        delete: operations["delete-trip-enrollment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/enrollments/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a trip enrollment's status */
+        put: operations["update-trip-enrollment-status"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -454,6 +541,103 @@ export interface components {
             /** Format: int64 */
             voyage_count: number;
         };
+        EnrollBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/EnrollBody.json
+             */
+            readonly $schema?: string;
+            /** @description Optional note to the organizer */
+            note?: string;
+        };
+        EnrollCruise: {
+            /** Format: double */
+            cost_per_person?: number;
+            countries?: string;
+            description?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            /** Format: int64 */
+            id: number;
+            image_photo_url?: string;
+            /** Format: int64 */
+            max_crew?: number;
+            name: string;
+            /** Format: int64 */
+            org_id: number;
+            start_port?: string;
+        };
+        EnrollInfo: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/EnrollInfo.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            accepted_count: number;
+            cruise?: components["schemas"]["EnrollCruise"];
+            enrolled: boolean;
+            enrollment?: components["schemas"]["Enrollment"];
+            /** @enum {string} */
+            kind: "trip" | "cruise";
+            /** Format: int64 */
+            total_count: number;
+            trip?: components["schemas"]["EnrollTrip"];
+            trips?: components["schemas"]["Trip"][] | null;
+        };
+        EnrollTrip: {
+            captain_name?: string;
+            countries?: string;
+            description?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            /** Format: int64 */
+            id: number;
+            image_photo_url?: string;
+            /** Format: int64 */
+            max_crew?: number;
+            name: string;
+            start_port?: string;
+        };
+        Enrollment: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/Enrollment.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            cruise_id?: number;
+            /** Format: int64 */
+            id: number;
+            note?: string;
+            status: string;
+            /** Format: int64 */
+            trip_id?: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: int64 */
+            user_id: number;
+        };
+        EnrollmentStatusBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/EnrollmentStatusBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description Enrollment status
+             * @enum {string}
+             */
+            status: "accepted" | "rejected" | "waitlisted" | "pending";
+        };
         ErrorDetail: {
             /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
             location?: string;
@@ -513,6 +697,15 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        TokenOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/TokenOutputBody.json
+             */
+            readonly $schema?: string;
+            token: string;
         };
         Training: {
             /**
@@ -622,6 +815,24 @@ export interface components {
             start_port?: string;
             /** Format: int64 */
             yacht_id?: number;
+        };
+        TripEnrollmentDetail: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            cruise_id?: number;
+            /** Format: int64 */
+            id: number;
+            note?: string;
+            status: string;
+            /** Format: int64 */
+            trip_id?: number;
+            /** Format: date-time */
+            updated_at: string;
+            user_email: string;
+            /** Format: int64 */
+            user_id: number;
+            user_name: string;
         };
         Voyage: {
             /**
@@ -977,6 +1188,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "resolve-enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Enrollment share token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollInfo"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    enroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Enrollment share token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
                 };
             };
             /** @description Error */
@@ -1455,6 +1734,168 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "generate-trip-enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-trip-enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-trip-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripEnrollmentDetail"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-trip-enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+                /** @description Enrollment ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-trip-enrollment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+                /** @description Enrollment ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentStatusBody"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {

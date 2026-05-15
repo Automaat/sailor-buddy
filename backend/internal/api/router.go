@@ -57,24 +57,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 }
 
 // mountCruiseRoutes registers the chi routes that have not yet moved to huma:
-// the enrollment subtree and the voyage-opinion subroutes. Trip and voyage
-// CRUD and crew assignments are served by huma via registerHumaRoutes; the
-// subroutes here share the {tripID}/{voyageID} path parameters for routing
-// consistency.
+// the voyage-opinion subroutes. Trip and voyage CRUD, crew assignments and
+// enrollment are served by huma via registerHumaRoutes; the subroutes here
+// share the {voyageID} path parameter for routing consistency.
 func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
 	opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
-	enrollH := handlers.NewEnrollmentHandler(q)
-
-	r.Route("/enroll/{token}", func(r chi.Router) {
-		r.Get("/", enrollH.GetByToken)
-		r.Post("/", enrollH.Enroll)
-	})
-
-	r.Post("/trips/{tripID}/enroll-token", enrollH.GenerateToken)
-	r.Delete("/trips/{tripID}/enroll-token", enrollH.ClearToken)
-	r.Get("/trips/{tripID}/enrollments", enrollH.ListEnrollments)
-	r.Put("/trips/{tripID}/enrollments/{id}/status", enrollH.UpdateStatus)
-	r.Delete("/trips/{tripID}/enrollments/{id}", enrollH.DeleteEnrollment)
 
 	r.Route("/voyages/{voyageID}/opinions", func(r chi.Router) {
 		r.Get("/", opinH.List)
