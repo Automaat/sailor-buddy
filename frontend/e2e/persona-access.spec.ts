@@ -1,11 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import {
-	registerViaUI,
-	loginViaUI,
-	clearFirebaseUsers,
-	signInTestUser,
-	apiRequest
-} from './helpers';
+import { createTestUser, loginViaUI, clearFirebaseUsers, apiRequest } from './helpers';
 
 const RUN_ID = Date.now().toString(36);
 const PASSWORD = 'TestPass123!';
@@ -68,8 +62,6 @@ const personas: Persona[] = [
 	}
 ];
 
-const byKey = (key: string) => personas.find((p) => p.key === key)!;
-
 // An org member has their org auto-selected on login; wait for the nav to settle.
 async function settleOrgContext(page: Page, persona: Persona) {
 	if (persona.role) {
@@ -82,23 +74,25 @@ test.describe.serial('Persona access matrix', () => {
 		await clearFirebaseUsers();
 	});
 
-	test('setup: provision personas, org and role assignments', async ({ page }) => {
-		// register every persona through the UI (creates Firebase + DB user)
+	test('setup: provision personas, org and role assignments', async () => {
+		// create every persona via the Firebase API; the backend auto-provisions
+		// the DB user on the first authenticated request
+		const tokens: Record<string, string> = {};
 		for (const persona of personas) {
-			await registerViaUI(page, persona.name, persona.email, PASSWORD);
+			const user = await createTestUser(persona.email, PASSWORD, persona.name);
+			tokens[persona.key] = user.idToken;
 		}
 
 		// admin creates the org (creator becomes admin) and role-scoped invites
-		const adminAuth = await signInTestUser(byKey('admin').email, PASSWORD);
-		await apiRequest(adminAuth.idToken, 'POST', '/orgs', {
+		await apiRequest(tokens.admin, 'POST', '/orgs', {
 			name: orgDisplayName,
 			slug: orgSlug
 		});
-		await apiRequest(adminAuth.idToken, 'POST', `/orgs/${orgSlug}/invites`, { role: 'captain' });
-		await apiRequest(adminAuth.idToken, 'POST', `/orgs/${orgSlug}/invites`, { role: 'crew' });
+		await apiRequest(tokens.admin, 'POST', `/orgs/${orgSlug}/invites`, { role: 'captain' });
+		await apiRequest(tokens.admin, 'POST', `/orgs/${orgSlug}/invites`, { role: 'crew' });
 
 		const invites = (await apiRequest(
-			adminAuth.idToken,
+			tokens.admin,
 			'GET',
 			`/orgs/${orgSlug}/invites`
 		)) as Array<{ token: string; role: string }>;
@@ -106,11 +100,8 @@ test.describe.serial('Persona access matrix', () => {
 		const crewToken = invites.find((i) => i.role === 'crew')!.token;
 
 		// captain and crew join with their role-scoped invites
-		const capAuth = await signInTestUser(byKey('captain').email, PASSWORD);
-		await apiRequest(capAuth.idToken, 'POST', `/join/${capToken}`);
-
-		const crewAuth = await signInTestUser(byKey('crew').email, PASSWORD);
-		await apiRequest(crewAuth.idToken, 'POST', `/join/${crewToken}`);
+		await apiRequest(tokens.captain, 'POST', `/join/${capToken}`);
+		await apiRequest(tokens.crew, 'POST', `/join/${crewToken}`);
 		// solo persona intentionally joins no org
 	});
 
