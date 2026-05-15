@@ -57,6 +57,23 @@ mise run dev-frontend  # frontend dev
 See `backend/API.md` for the error response envelope, status code
 conventions, authentication format, and the full endpoint reference.
 
+### OpenAPI / type generation
+
+The API is migrating from hand-written chi handlers to the huma framework,
+which derives an OpenAPI 3.1 spec from Go types. Pipeline:
+
+```
+Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
+  → openapi-typescript → frontend/src/lib/api/schema.d.ts
+```
+
+- API wire models live in `internal/api/dto/`, kept separate from the
+  sqlc row structs so the HTTP contract is decoupled from the schema.
+- huma operations are registered per resource (e.g. `RegisterTripRoutes`).
+- Regenerate both artifacts after changing a DTO or operation:
+  `mise run gen-api`. `openapi.yaml` and `schema.d.ts` are committed.
+- Migrated so far: trips. Other resources remain legacy chi handlers.
+
 ## Key Conventions
 
 - sqlc-generated code in `db/sqlcdb/` is auto-generated - edit `db/queries/*.sql` instead

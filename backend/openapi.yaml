@@ -1,0 +1,475 @@
+components:
+  schemas:
+    ApiError:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/ApiError.json
+          format: uri
+          readOnly: true
+          type: string
+        error:
+          description: Human-readable error message
+          type: string
+      required:
+        - error
+      type: object
+    CompleteTripBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CompleteTripBody.json
+          format: uri
+          readOnly: true
+          type: string
+        days:
+          format: int64
+          type: integer
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        miles:
+          format: double
+          type: number
+        tidal_waters:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      type: object
+    Trip:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Trip.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        enroll_token:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        owner_id:
+          format: int64
+          type: integer
+        start_port:
+          type: string
+        status:
+          enum:
+            - planned
+            - cancelled
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        yacht_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - owner_id
+        - name
+        - status
+        - created_at
+        - updated_at
+      type: object
+    TripBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TripBody.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          description: Trip name
+          minLength: 1
+          type: string
+        start_port:
+          type: string
+        yacht_id:
+          format: int64
+          type: integer
+      required:
+        - name
+      type: object
+    Voyage:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/Voyage.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        cruise_id:
+          format: int64
+          type: integer
+        days:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        miles:
+          format: double
+          type: number
+        name:
+          type: string
+        org_id:
+          format: int64
+          type: integer
+        owner_id:
+          format: int64
+          type: integer
+        start_port:
+          type: string
+        tidal_waters:
+          format: int64
+          type: integer
+        updated_at:
+          format: date-time
+          type: string
+        yacht_id:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      required:
+        - id
+        - owner_id
+        - name
+        - hours_total
+        - hours_sail
+        - hours_engine
+        - hours_over_6bf
+        - miles
+        - days
+        - tidal_waters
+        - created_at
+        - updated_at
+      type: object
+info:
+  title: Sailor Buddy API
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /trips:
+    get:
+      operationId: list-trips
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Trip"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: List trips
+      tags:
+        - Trips
+    post:
+      operationId: create-trip
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: Create a trip
+      tags:
+        - Trips
+  /trips/{tripID}:
+    delete:
+      operationId: delete-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: Delete a trip
+      tags:
+        - Trips
+    get:
+      operationId: get-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: Get a trip
+      tags:
+        - Trips
+    put:
+      operationId: update-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: Update a trip
+      tags:
+        - Trips
+  /trips/{tripID}/cancel:
+    post:
+      operationId: cancel-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: Cancel a trip
+      tags:
+        - Trips
+  /trips/{tripID}/complete:
+    post:
+      operationId: complete-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteTripBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+          description: Error
+      summary: Complete a trip into a voyage
+      tags:
+        - Trips
+servers:
+  - url: /api

@@ -69,10 +69,14 @@ org-resolution middleware emit the same `{"error": "..."}` shape via
 
 Notes:
 
-- **Validation errors use `400`, not `422`.** Required-field and format checks
-  (`name is required`, slug regex, invalid enum value) all return `400`.
-- **Unparseable path ids return `400`** with `invalid <resource> id` before any
-  DB lookup.
+- **Two route stacks during the OpenAPI migration.** Trip CRUD is served by
+  the huma framework and described by `openapi.yaml`; the remaining resources
+  are legacy chi handlers. They differ only in validation status codes:
+  - **huma routes** (`/trips`) return `422` for malformed bodies and
+    unparseable path ids, with a body-level error list.
+  - **legacy routes** return `400` for the same — required-field and format
+    checks (`name is required`, slug regex, invalid enum) and `invalid
+    <resource> id` before any DB lookup.
 - **Ownership is enforced via the query, not a separate check.** Requesting a
   resource owned by another user returns `404` (`sql.ErrNoRows`), not `403`.
 - **Empty list responses serialize as `[]`**, never `null`.

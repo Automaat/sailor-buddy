@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -45,7 +46,8 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(fbClient, q))
-			mountCruiseRoutes(r, q, db, cfg)
+			registerHumaRoutes(humachi.New(r, humaConfig()), q, db)
+			mountCruiseRoutes(r, q, cfg)
 			mountCatalogRoutes(r, q, cfg)
 			mountOrgRoutes(r, q, db)
 		})
@@ -55,14 +57,16 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 }
 
 // mountCruiseRoutes registers the owner-scoped account, trip and voyage routes.
-func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, db *sql.DB, cfg *config.Config) {
+// Trip CRUD (list/get/create/update/delete/complete/cancel) is served by huma
+// via registerHumaRoutes; the trip-crew and enrollment subroutes below remain
+// on chi and share the {tripID} path parameter for routing consistency.
+func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, cfg *config.Config) {
 	authH := handlers.NewAuthHandler()
 	r.Get("/auth/me", authH.Me)
 
 	dashH := handlers.NewDashboardHandler(q)
 	r.Get("/dashboard", dashH.Get)
 
-	tripH := handlers.NewTripHandler(q, db)
 	voyH := handlers.NewVoyageHandler(q)
 	crewH := handlers.NewCrewHandler(q)
 	opinH := handlers.NewVoyageOpinionHandler(q, cfg.UploadDir)
@@ -73,27 +77,16 @@ func mountCruiseRoutes(r chi.Router, q *sqlcdb.Queries, db *sql.DB, cfg *config.
 		r.Post("/", enrollH.Enroll)
 	})
 
-	r.Route("/trips", func(r chi.Router) {
-		r.Get("/", tripH.List)
-		r.Post("/", tripH.Create)
-		r.Post("/{id}/complete", tripH.Complete)
-		r.Post("/{id}/cancel", tripH.Cancel)
-		r.Route("/{tripID}/crew", func(r chi.Router) {
-			r.Get("/", crewH.ListTripCrew)
-			r.Post("/", crewH.AssignTripCrew)
-			r.Delete("/{assignmentID}", crewH.RemoveTripCrew)
-		})
-		r.Post("/{tripID}/enroll-token", enrollH.GenerateToken)
-		r.Delete("/{tripID}/enroll-token", enrollH.ClearToken)
-		r.Get("/{tripID}/enrollments", enrollH.ListEnrollments)
-		r.Put("/{tripID}/enrollments/{id}/status", enrollH.UpdateStatus)
-		r.Delete("/{tripID}/enrollments/{id}", enrollH.DeleteEnrollment)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", tripH.Get)
-			r.Put("/", tripH.Update)
-			r.Delete("/", tripH.Delete)
-		})
+	r.Route("/trips/{tripID}/crew", func(r chi.Router) {
+		r.Get("/", crewH.ListTripCrew)
+		r.Post("/", crewH.AssignTripCrew)
+		r.Delete("/{assignmentID}", crewH.RemoveTripCrew)
 	})
+	r.Post("/trips/{tripID}/enroll-token", enrollH.GenerateToken)
+	r.Delete("/trips/{tripID}/enroll-token", enrollH.ClearToken)
+	r.Get("/trips/{tripID}/enrollments", enrollH.ListEnrollments)
+	r.Put("/trips/{tripID}/enrollments/{id}/status", enrollH.UpdateStatus)
+	r.Delete("/trips/{tripID}/enrollments/{id}", enrollH.DeleteEnrollment)
 
 	r.Route("/voyages", func(r chi.Router) {
 		r.Get("/", voyH.List)
