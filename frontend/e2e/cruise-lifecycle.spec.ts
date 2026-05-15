@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { registerViaUI, loginViaUI, clearFirebaseUsers } from './helpers';
 
 const RUN_ID = Date.now().toString(36);
@@ -7,6 +7,10 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 	const adminEmail = `cl-admin-${RUN_ID}@test.local`;
 	const adminPassword = 'TestPass123!';
 	const adminName = 'Cruise Admin';
+
+	const soloEmail = `cl-solo-${RUN_ID}@test.local`;
+	const soloPassword = 'TestPass123!';
+	const soloName = 'Solo Sailor';
 
 	const orgName = `Sail ${RUN_ID}`;
 	const orgSlug = `sail-${RUN_ID}`;
@@ -20,16 +24,9 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 		await clearFirebaseUsers();
 	});
 
-	async function selectOrg(page: import('@playwright/test').Page) {
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
-	}
-
-	async function selectPersonal(page: import('@playwright/test').Page) {
-		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: 'Osobisty' }).last().click();
-		await page.waitForURL('/');
+	// A single-org user has their org auto-selected on login — it shows in the nav.
+	async function expectOrgActive(page: Page) {
+		await expect(page.locator('nav').getByText(orgName)).toBeVisible();
 	}
 
 	test('admin registers and creates org', async ({ page }) => {
@@ -41,12 +38,12 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 		await page.getByLabel('Slug *').fill(orgSlug);
 		await page.getByRole('button', { name: 'Utwórz' }).click();
 		await page.waitForURL('/', { timeout: 10_000 });
-		await expect(page.getByText(orgName)).toBeVisible();
+		await expectOrgActive(page);
 	});
 
 	test('org: create planned trip', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-		await selectOrg(page);
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Planowane' }).click();
 		await page.waitForURL('/trips');
@@ -68,7 +65,7 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 
 	test('org: trip visible in planned list', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-		await selectOrg(page);
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Planowane' }).click();
 		await page.waitForURL('/trips');
@@ -77,7 +74,7 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 
 	test('org: complete trip into voyage', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-		await selectOrg(page);
+		await expectOrgActive(page);
 
 		await page.goto(`/trips/${orgTripId}`);
 		page.on('dialog', (d) => d.accept());
@@ -96,16 +93,22 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 
 	test('org: voyage in completed list', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-		await selectOrg(page);
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Zrealizowane' }).click();
 		await page.waitForURL('/voyages');
 		await expect(page.getByText(orgTripName)).toBeVisible();
 	});
 
+	test('solo user registers without an org', async ({ page }) => {
+		await registerViaUI(page, soloName, soloEmail, soloPassword);
+
+		// no org -> no club-only nav items
+		await expect(page.getByRole('link', { name: 'Wydarzenia' })).toHaveCount(0);
+	});
+
 	test('personal: create planned trip', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
-		await selectPersonal(page);
+		await loginViaUI(page, soloEmail, soloPassword);
 
 		await page.getByRole('link', { name: 'Planowane' }).click();
 		await page.waitForURL('/trips');
@@ -125,8 +128,7 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 	});
 
 	test('personal: enrollment toggle on planned trip', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
-		await selectPersonal(page);
+		await loginViaUI(page, soloEmail, soloPassword);
 
 		await page.goto(`/trips/${personalTripId}`);
 		await page.getByRole('button', { name: 'Włącz zapisy' }).click();
@@ -134,8 +136,7 @@ test.describe.serial('Trip/Voyage Lifecycle', () => {
 	});
 
 	test('personal: cancel trip', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
-		await selectPersonal(page);
+		await loginViaUI(page, soloEmail, soloPassword);
 
 		await page.goto(`/trips/${personalTripId}`);
 		page.on('dialog', (d) => d.accept());
