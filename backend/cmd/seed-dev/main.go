@@ -20,14 +20,17 @@ import (
 )
 
 type devUser struct {
-	Email string
-	Name  string
-	Sub   string
+	Email   string
+	Name    string
+	Sub     string
+	OrgRole string
 }
 
 var devUsers = []devUser{
-	{Email: "kasia.dev@gmail.com", Name: "Kasia Kapitan", Sub: "dev-google-captain"},
-	{Email: "marek.dev@gmail.com", Name: "Marek Zaloga", Sub: "dev-google-crew"},
+	{Email: "kasia.dev@gmail.com", Name: "Kasia Admin", Sub: "dev-google-captain", OrgRole: "admin"},
+	{Email: "marek.dev@gmail.com", Name: "Marek Zaloga", Sub: "dev-google-crew", OrgRole: "crew"},
+	{Email: "jan.dev@gmail.com", Name: "Jan Kapitan", Sub: "dev-google-jan", OrgRole: "captain"},
+	{Email: "aneta.dev@gmail.com", Name: "Aneta Solo", Sub: "dev-google-aneta"},
 }
 
 func main() {
@@ -68,7 +71,11 @@ func main() {
 		}
 	}
 
-	log.Printf("dev Google users ready: %s, %s", devUsers[0].Email, devUsers[1].Email)
+	emails := make([]string, len(devUsers))
+	for i, u := range devUsers {
+		emails[i] = u.Email
+	}
+	log.Printf("dev Google users ready: %s", strings.Join(emails, ", "))
 }
 
 func ensureFirebaseUser(ctx context.Context, baseURL string, user devUser) (string, error) {
@@ -284,7 +291,7 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 
 	personalTrips := []tripSeed{
 		{
-			name: "Majowka Hel 2026",
+			name:   "Majowka Hel 2026",
 			embark: "2026-05-23", disembark: "2026-05-26",
 			countries: "Polska", startPort: "Hel", endPort: "Gdynia",
 			captainName: user.Name, maxCrew: 6,
@@ -292,7 +299,7 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 			description: "Krotki weekendowy wypad otwierajacy sezon.",
 		},
 		{
-			name: "Dalmacja 2026",
+			name:   "Dalmacja 2026",
 			embark: "2026-09-12", disembark: "2026-09-20",
 			countries: "Chorwacja", startPort: "Sibenik", endPort: "Trogir",
 			captainName: user.Name, maxCrew: 8,
@@ -345,12 +352,15 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 		}
 	}
 
-	orgID, err := seedOrg(ctx, tx, userID)
-	if err != nil {
-		return err
-	}
-	if err = seedOrgData(ctx, tx, userID, orgID); err != nil {
-		return err
+	if user.OrgRole != "" {
+		orgID, oerr := seedOrg(ctx, tx, userID, user.OrgRole)
+		if oerr != nil {
+			err = oerr
+			return err
+		}
+		if err = seedOrgData(ctx, tx, userID, orgID); err != nil {
+			return err
+		}
 	}
 
 	if err = tx.Commit(); err != nil {
@@ -360,13 +370,13 @@ func seedUserData(ctx context.Context, database *sql.DB, userID int64, user devU
 }
 
 type voyageSeed struct {
-	name                                                         string
-	year                                                         int64
-	embark, disembark, countries, startPort, endPort             string
-	hoursTotal, hoursSail, hoursEngine, hoursOver6bf, miles      float64
-	days, tidalWaters                                            int64
-	costTotal, costPerPerson                                     float64
-	description                                                  string
+	name                                                    string
+	year                                                    int64
+	embark, disembark, countries, startPort, endPort        string
+	hoursTotal, hoursSail, hoursEngine, hoursOver6bf, miles float64
+	days, tidalWaters                                       int64
+	costTotal, costPerPerson                                float64
+	description                                             string
 }
 
 type tripSeed struct {
@@ -388,7 +398,7 @@ func seedVoyageRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, v voy
 			)
 			SELECT $1, $2, $3, $4, $5, $6, $7, $8,
 				$9, $10, $11, $12, $13, $14,
-				'Kasia Kapitan', $15, $16, $17, $18, $19
+				'Kasia Admin', $15, $16, $17, $18, $19
 			WHERE NOT EXISTS (
 				SELECT 1 FROM voyages WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
 			)
@@ -436,7 +446,7 @@ func seedTripRow(ctx context.Context, tx *sql.Tx, userID, yachtID int64, t tripS
 	return id, nil
 }
 
-func seedOrg(ctx context.Context, tx *sql.Tx, userID int64) (int64, error) {
+func seedOrg(ctx context.Context, tx *sql.Tx, userID int64, role string) (int64, error) {
 	var orgID int64
 	err := tx.QueryRowContext(ctx, `
 		WITH inserted AS (
@@ -455,11 +465,11 @@ func seedOrg(ctx context.Context, tx *sql.Tx, userID int64) (int64, error) {
 	}
 	if _, err = tx.ExecContext(ctx, `
 		INSERT INTO org_members (org_id, user_id, role)
-		SELECT $1, $2, 'admin'
+		SELECT $1, $2, $3
 		WHERE NOT EXISTS (
 			SELECT 1 FROM org_members WHERE org_id = $1 AND user_id = $2
 		)
-	`, orgID, userID); err != nil {
+	`, orgID, userID, role); err != nil {
 		return 0, fmt.Errorf("seed org member: %w", err)
 	}
 	return orgID, nil
@@ -499,7 +509,7 @@ func seedOrgData(ctx context.Context, tx *sql.Tx, userID, orgID int64) error {
 		return err
 	}
 	if err := upsertOrgTripWithCruise(ctx, tx, userID, orgID, bornholmID, yachtKlubowa,
-		"Bornholm 2026 - S/Y Klubowa", "Kasia Kapitan",
+		"Bornholm 2026 - S/Y Klubowa", "Kasia Admin",
 		"2026-08-01", "2026-08-09", "Polska, Dania", "Kolobrzeg", "Nexo",
 		"Jacht prowadzacy flotylli.", 8, 18000, 3000); err != nil {
 		return err
