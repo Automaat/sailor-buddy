@@ -42,8 +42,8 @@ func YachtFromDB(y sqlcdb.Yacht) Yacht {
 // YachtsFromDB maps a slice of database rows, returning a non-nil slice.
 func YachtsFromDB(ys []sqlcdb.Yacht) []Yacht {
 	out := make([]Yacht, len(ys))
-	for i, y := range ys {
-		out[i] = YachtFromDB(y)
+	for i := range ys {
+		out[i] = YachtFromDB(ys[i])
 	}
 	return out
 }

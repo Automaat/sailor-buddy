@@ -46,8 +46,8 @@ func TrainingFromDB(t sqlcdb.Training) Training {
 // TrainingsFromDB maps a slice of database rows, returning a non-nil slice.
 func TrainingsFromDB(ts []sqlcdb.Training) []Training {
 	out := make([]Training, len(ts))
-	for i, t := range ts {
-		out[i] = TrainingFromDB(t)
+	for i := range ts {
+		out[i] = TrainingFromDB(ts[i])
 	}
 	return out
 }

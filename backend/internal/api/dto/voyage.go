@@ -68,8 +68,8 @@ type VoyageBody struct {
 // VoyagesFromDB maps a slice of database rows, returning a non-nil slice.
 func VoyagesFromDB(vs []sqlcdb.Voyage) []Voyage {
 	out := make([]Voyage, len(vs))
-	for i, v := range vs {
-		out[i] = VoyageFromDB(v)
+	for i := range vs {
+		out[i] = VoyageFromDB(vs[i])
 	}
 	return out
 }

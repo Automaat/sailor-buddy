@@ -74,8 +74,8 @@ func CrewMemberFromDB(m sqlcdb.CrewMember) CrewMember {
 // CrewMembersFromDB maps a slice of database rows, returning a non-nil slice.
 func CrewMembersFromDB(ms []sqlcdb.CrewMember) []CrewMember {
 	out := make([]CrewMember, len(ms))
-	for i, m := range ms {
-		out[i] = CrewMemberFromDB(m)
+	for i := range ms {
+		out[i] = CrewMemberFromDB(ms[i])
 	}
 	return out
 }
@@ -96,7 +96,8 @@ func CrewAssignmentFromDB(a sqlcdb.CrewAssignment) CrewAssignment {
 // TripCrewFromDB maps the joined trip-crew rows, returning a non-nil slice.
 func TripCrewFromDB(rows []sqlcdb.ListTripCrewAssignmentsRow) []CrewAssignment {
 	out := make([]CrewAssignment, len(rows))
-	for i, r := range rows {
+	for i := range rows {
+		r := rows[i]
 		out[i] = CrewAssignment{
 			ID:           r.ID,
 			TripID:       intPtr(r.TripID),
@@ -115,7 +116,8 @@ func TripCrewFromDB(rows []sqlcdb.ListTripCrewAssignmentsRow) []CrewAssignment {
 // VoyageCrewFromDB maps the joined voyage-crew rows, returning a non-nil slice.
 func VoyageCrewFromDB(rows []sqlcdb.ListVoyageCrewAssignmentsRow) []CrewAssignment {
 	out := make([]CrewAssignment, len(rows))
-	for i, r := range rows {
+	for i := range rows {
+		r := rows[i]
 		out[i] = CrewAssignment{
 			ID:           r.ID,
 			TripID:       intPtr(r.TripID),

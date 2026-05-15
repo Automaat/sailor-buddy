@@ -33,13 +33,13 @@ type Dashboard struct {
 // VoyagesByYearFromDB maps the per-year rows, returning a non-nil slice.
 func VoyagesByYearFromDB(rows []sqlcdb.GetVoyagesByYearRow) []VoyagesByYear {
 	out := make([]VoyagesByYear, len(rows))
-	for i, r := range rows {
+	for i := range rows {
 		out[i] = VoyagesByYear{
-			Year:        intPtr(r.Year),
-			VoyageCount: r.VoyageCount,
-			TotalHours:  r.TotalHours,
-			TotalMiles:  r.TotalMiles,
-			TotalDays:   r.TotalDays,
+			Year:        intPtr(rows[i].Year),
+			VoyageCount: rows[i].VoyageCount,
+			TotalHours:  rows[i].TotalHours,
+			TotalMiles:  rows[i].TotalMiles,
+			TotalDays:   rows[i].TotalDays,
 		}
 	}
 	return out

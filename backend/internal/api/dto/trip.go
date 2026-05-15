@@ -99,8 +99,8 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 // JSON response serializes to [] rather than null when empty.
 func TripsFromDB(ts []sqlcdb.Trip) []Trip {
 	out := make([]Trip, len(ts))
-	for i, t := range ts {
-		out[i] = TripFromDB(t)
+	for i := range ts {
+		out[i] = TripFromDB(ts[i])
 	}
 	return out
 }
