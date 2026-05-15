@@ -13,7 +13,6 @@
 	import Download from '@lucide/svelte/icons/download';
 	import Users from '@lucide/svelte/icons/users';
 	import Settings from '@lucide/svelte/icons/settings';
-	import UserIcon from '@lucide/svelte/icons/user';
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronUp from '@lucide/svelte/icons/chevron-up';
@@ -21,23 +20,36 @@
 
 	let { children } = $props();
 
-	const navItems = [
+	type NavItem = {
+		href: string;
+		label: string;
+		icon: typeof Anchor;
+		orgOnly?: boolean;
+		adminOnly?: boolean;
+	};
+
+	const navItems = $derived<NavItem[]>([
 		{ href: '/', label: 'Pulpit', icon: Anchor },
+		{ href: '/cruises', label: 'Wydarzenia', icon: Sailboat, orgOnly: true },
 		{ href: '/trips', label: 'Planowane', icon: Sailboat },
 		{ href: '/voyages', label: 'Zrealizowane', icon: Sailboat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
-		{ href: '/import', label: 'Import', icon: Download }
-	];
-
-	const orgNavItems = $derived([
-		{ href: '/', label: 'Pulpit', icon: Anchor },
-		{ href: '/cruises', label: 'Wydarzenia', icon: Sailboat },
-		{ href: '/trips', label: 'Planowane', icon: Sailboat },
-		{ href: '/voyages', label: 'Zrealizowane', icon: Sailboat },
-		{ href: '/yachts', label: 'Jachty', icon: Ship },
-		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/members', label: 'Członkowie', icon: Users },
-		{ href: '/orgs/' + (orgStore.currentSlug ?? '') + '/settings', label: 'Ustawienia', icon: Settings }
+		{ href: '/import', label: 'Import', icon: Download },
+		{
+			href: '/orgs/' + (orgStore.currentSlug ?? '') + '/members',
+			label: 'Członkowie',
+			icon: Users,
+			orgOnly: true,
+			adminOnly: true
+		},
+		{
+			href: '/orgs/' + (orgStore.currentSlug ?? '') + '/settings',
+			label: 'Ustawienia',
+			icon: Settings,
+			orgOnly: true,
+			adminOnly: true
+		}
 	]);
 
 	let switcherOpen = $state(false);
@@ -48,7 +60,7 @@
 		goto('/login');
 	}
 
-	function selectOrg(slug: string | null) {
+	function selectOrg(slug: string) {
 		orgStore.select(slug);
 		switcherOpen = false;
 		goto('/');
@@ -108,76 +120,70 @@
 				<span class="text-lg font-bold">Sailor Buddy</span>
 			</div>
 
-			<div class="relative border-b border-white/10 p-2">
-				<button
-					onclick={() => (switcherOpen = !switcherOpen)}
-					class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10"
-				>
-					<span class="truncate">
-						{#if orgStore.current}
-							{orgStore.current.name}
-						{:else}
-							Osobisty
-						{/if}
-					</span>
-					{#if switcherOpen}
-						<ChevronUp class="ml-2 h-4 w-4 text-white/50" />
-					{:else}
-						<ChevronDown class="ml-2 h-4 w-4 text-white/50" />
-					{/if}
-				</button>
-				{#if switcherOpen}
-					<div
-						class="absolute left-2 right-2 z-10 mt-1 rounded-lg border border-white/10 bg-[var(--navy)] shadow-lg"
+			{#if orgStore.canSwitch}
+				<div class="relative border-b border-white/10 p-2">
+					<button
+						onclick={() => (switcherOpen = !switcherOpen)}
+						class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10"
 					>
-						<button
-							onclick={() => selectOrg(null)}
-							class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 {!orgStore.currentSlug
+						<span class="truncate">{orgStore.current?.name ?? 'Wybierz klub'}</span>
+						{#if switcherOpen}
+							<ChevronUp class="ml-2 h-4 w-4 text-white/50" />
+						{:else}
+							<ChevronDown class="ml-2 h-4 w-4 text-white/50" />
+						{/if}
+					</button>
+					{#if switcherOpen}
+						<div
+							class="absolute left-2 right-2 z-10 mt-1 rounded-lg border border-white/10 bg-[var(--navy)] shadow-lg"
+						>
+							{#each orgStore.orgs as org}
+								<button
+									onclick={() => selectOrg(org.slug)}
+									class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 {orgStore.currentSlug ===
+									org.slug
+										? 'bg-white/15'
+										: ''}"
+								>
+									<Building2 class="h-4 w-4" />
+									<span class="truncate">{org.name}</span>
+								</button>
+							{/each}
+							<a
+								href="/orgs"
+								onclick={() => (switcherOpen = false)}
+								class="flex w-full items-center gap-2 border-t border-white/10 px-3 py-2 text-left text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+							>
+								<Plus class="h-4 w-4" />
+								<span>Zarządzaj klubami</span>
+							</a>
+						</div>
+					{/if}
+				</div>
+			{:else if orgStore.current}
+				<div class="flex items-center gap-2 border-b border-white/10 px-5 py-3 text-sm">
+					<Building2 class="h-4 w-4 text-white/50" />
+					<span class="truncate">{orgStore.current.name}</span>
+				</div>
+			{/if}
+
+			<div class="mt-4 flex flex-1 flex-col gap-1 px-2">
+				{#each navItems as item}
+					{#if (!item.orgOnly || orgStore.isOrgMode) && (!item.adminOnly || orgStore.isOrgAdmin)}
+						{@const active =
+							$page.url.pathname === item.href ||
+							(item.href !== '/' && $page.url.pathname.startsWith(item.href))}
+						{@const Icon = item.icon}
+						<a
+							href={item.href}
+							class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
 								? 'bg-white/15'
 								: ''}"
 						>
-							<UserIcon class="h-4 w-4" />
-							<span>Osobisty</span>
-						</button>
-						{#each orgStore.orgs as org}
-							<button
-								onclick={() => selectOrg(org.slug)}
-								class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 {orgStore.currentSlug ===
-								org.slug
-									? 'bg-white/15'
-									: ''}"
-							>
-								<Building2 class="h-4 w-4" />
-								<span class="truncate">{org.name}</span>
-							</button>
-						{/each}
-						<a
-							href="/orgs"
-							onclick={() => (switcherOpen = false)}
-							class="flex w-full items-center gap-2 border-t border-white/10 px-3 py-2 text-left text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white"
-						>
-							<Plus class="h-4 w-4" />
-							<span>Zarządzaj klubami</span>
+							<Icon class="h-5 w-5" />
+							<span>{item.label}</span>
 						</a>
-					</div>
-				{/if}
-			</div>
-
-			<div class="mt-4 flex flex-1 flex-col gap-1 px-2">
-				{#each orgStore.isOrgMode ? orgNavItems : navItems as item}
-					{@const active =
-						$page.url.pathname === item.href ||
-						(item.href !== '/' && $page.url.pathname.startsWith(item.href))}
-					{@const Icon = item.icon}
-					<a
-						href={item.href}
-						class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
-							? 'bg-white/15'
-							: ''}"
-					>
-						<Icon class="h-5 w-5" />
-						<span>{item.label}</span>
-					</a>
+					{/if}
 				{/each}
 			</div>
 			<div class="border-t border-white/10 p-4">

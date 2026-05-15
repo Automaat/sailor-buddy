@@ -16,6 +16,7 @@
 	let togglingEnroll = $state(false);
 
 	const id = $derived(page.params.id);
+	const isAdmin = $derived(orgStore.isOrgAdmin);
 
 	async function reloadEnrollments() {
 		enrollments = await api.get<CruiseEnrollment[]>(
@@ -131,12 +132,14 @@
 					{#if cruise.max_crew} · max {cruise.max_crew} os.{/if}
 				</p>
 			</div>
-			<div class="flex gap-2">
-				<a href="/cruises/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
-				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-					Usuń
-				</button>
-			</div>
+			{#if isAdmin}
+				<div class="flex gap-2">
+					<a href="/cruises/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+						Usuń
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		{#if cruise.description}
@@ -149,19 +152,21 @@
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-3 font-semibold text-[var(--navy)]">Zapisy</h2>
 			<div class="mb-4 flex flex-wrap items-center gap-3">
-				<button
-					onclick={toggleEnrollment}
-					disabled={togglingEnroll}
-					class="rounded-lg px-4 py-2 text-sm font-medium {enrollToken
-						? 'border border-red-200 text-red-600 hover:bg-red-50'
-						: 'bg-[var(--ocean)] text-white hover:bg-[var(--ocean-dark)]'} disabled:opacity-50"
-				>
-					{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
-				</button>
-				{#if enrollToken}
-					<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-						Kopiuj link
+				{#if isAdmin}
+					<button
+						onclick={toggleEnrollment}
+						disabled={togglingEnroll}
+						class="rounded-lg px-4 py-2 text-sm font-medium {enrollToken
+							? 'border border-red-200 text-red-600 hover:bg-red-50'
+							: 'bg-[var(--ocean)] text-white hover:bg-[var(--ocean-dark)]'} disabled:opacity-50"
+					>
+						{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
 					</button>
+					{#if enrollToken}
+						<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+							Kopiuj link
+						</button>
+					{/if}
 				{/if}
 				<span class="text-sm text-[var(--text-muted)]">
 					{enrollments.filter((e) => e.status === 'accepted').length} / {enrollments.length} zaakceptowanych
@@ -187,28 +192,30 @@
 										</span>
 									{/if}
 								</div>
-								<div class="flex flex-wrap gap-1">
-									{#if enrollment.status !== 'accepted'}
-										<button onclick={() => setEnrollmentStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-100">
-											Akceptuj
+								{#if isAdmin}
+									<div class="flex flex-wrap gap-1">
+										{#if enrollment.status !== 'accepted'}
+											<button onclick={() => setEnrollmentStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-100">
+												Akceptuj
+											</button>
+										{/if}
+										{#if enrollment.status !== 'waitlisted'}
+											<button onclick={() => setEnrollmentStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-100">
+												Rezerwa
+											</button>
+										{/if}
+										{#if enrollment.status !== 'rejected'}
+											<button onclick={() => setEnrollmentStatus(enrollment.id, 'rejected')} class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-100">
+												Odrzuć
+											</button>
+										{/if}
+										<button onclick={() => deleteEnrollment(enrollment.id)} class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-100">
+											Usuń
 										</button>
-									{/if}
-									{#if enrollment.status !== 'waitlisted'}
-										<button onclick={() => setEnrollmentStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-100">
-											Rezerwa
-										</button>
-									{/if}
-									{#if enrollment.status !== 'rejected'}
-										<button onclick={() => setEnrollmentStatus(enrollment.id, 'rejected')} class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-100">
-											Odrzuć
-										</button>
-									{/if}
-									<button onclick={() => deleteEnrollment(enrollment.id)} class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-100">
-										Usuń
-									</button>
-								</div>
+									</div>
+								{/if}
 							</div>
-							{#if enrollment.status === 'accepted'}
+							{#if isAdmin && enrollment.status === 'accepted'}
 								<div class="mt-2 flex items-center gap-2 text-sm">
 									<span class="text-[var(--text-muted)]">Przypisz do rejsu:</span>
 									<select
@@ -238,12 +245,14 @@
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">
 				<h2 class="font-semibold text-[var(--navy)]">Planowane rejsy ({trips.length})</h2>
-				<a
-					href="/trips/new?cruise_id={id}"
-					class="rounded-lg bg-[var(--ocean)] px-3 py-1.5 text-sm text-white hover:bg-[var(--ocean-dark)]"
-				>
-					+ Dodaj jacht
-				</a>
+				{#if isAdmin}
+					<a
+						href="/trips/new?cruise_id={id}"
+						class="rounded-lg bg-[var(--ocean)] px-3 py-1.5 text-sm text-white hover:bg-[var(--ocean-dark)]"
+					>
+						+ Dodaj jacht
+					</a>
+				{/if}
 			</div>
 			{#if trips.length === 0}
 				<p class="text-sm text-[var(--text-muted)]">Brak rejsów. Dodaj jachty, którymi popłyną uczestnicy.</p>

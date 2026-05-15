@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api/client';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import type { OrgMember, OrgInvite } from '$lib/api/types';
 	import { orgStore } from '$lib/stores/org.svelte';
 
@@ -10,7 +11,14 @@
 	let loading = $state(true);
 	let error = $state('');
 
-	let isAdmin = $derived(orgStore.current?.role === 'admin');
+	// admin status for the org in the route, not the globally-selected one
+	let isAdmin = $derived(orgStore.orgs.find((o) => o.slug === slug)?.role === 'admin');
+
+	$effect(() => {
+		if (orgStore.loaded && !isAdmin) {
+			goto('/');
+		}
+	});
 
 	let showInviteForm = $state(false);
 	let inviteRole = $state('crew');

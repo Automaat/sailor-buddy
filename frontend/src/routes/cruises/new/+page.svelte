@@ -7,6 +7,12 @@
 	let error = $state('');
 	let loading = $state(false);
 
+	$effect(() => {
+		if (orgStore.loaded && !orgStore.isOrgAdmin) {
+			goto('/cruises');
+		}
+	});
+
 	let form = $state({
 		name: '',
 		embark_date: '',
@@ -23,6 +29,10 @@
 		e.preventDefault();
 		if (!orgStore.isOrgMode) {
 			error = 'Wydarzenia istnieją tylko w klubie';
+			return;
+		}
+		if (!orgStore.isOrgAdmin) {
+			error = 'Tylko administratorzy mogą tworzyć wydarzenia';
 			return;
 		}
 		loading = true;

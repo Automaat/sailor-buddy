@@ -1,9 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
 	registerViaUI,
 	loginViaUI,
 	clearFirebaseUsers,
-	uniqueEmail,
 	signInTestUser,
 	apiRequest
 } from './helpers';
@@ -28,6 +27,11 @@ test.describe.serial('Organization Flow', () => {
 		await clearFirebaseUsers();
 	});
 
+	// A single-org user has their org auto-selected on login — it shows in the nav.
+	async function expectOrgActive(page: Page) {
+		await expect(page.locator('nav').getByText(orgName)).toBeVisible();
+	}
+
 	test('admin registers and sees dashboard', async ({ page }) => {
 		await registerViaUI(page, adminName, adminEmail, adminPassword);
 		await expect(page.getByRole('heading', { name: 'Pulpit' })).toBeVisible();
@@ -47,31 +51,21 @@ test.describe.serial('Organization Flow', () => {
 
 		await page.getByRole('button', { name: 'Utwórz' }).click();
 
-		// should redirect to dashboard in org context
+		// redirect to dashboard with the new org auto-selected
 		await page.waitForURL('/', { timeout: 10_000 });
-
-		// org switcher should show org name
-		await expect(page.getByText(orgName)).toBeVisible();
+		await expectOrgActive(page);
 	});
 
 	test('admin sees org dashboard', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org via switcher
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await expect(page.getByRole('heading', { name: 'Pulpit' })).toBeVisible();
 	});
 
 	test('admin sees members page', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Członkowie' }).click();
 		await page.waitForURL(`**/orgs/${orgSlug}/members`);
@@ -81,11 +75,7 @@ test.describe.serial('Organization Flow', () => {
 
 	test('admin creates invite link', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Członkowie' }).click();
 		await page.waitForURL(`**/orgs/${orgSlug}/members`);
@@ -123,20 +113,14 @@ test.describe.serial('Organization Flow', () => {
 		await page.waitForURL('/', { timeout: 10_000 });
 	});
 
-	test('member sees org in switcher', async ({ page }) => {
+	test('member sees org name in nav', async ({ page }) => {
 		await loginViaUI(page, memberEmail, memberPassword);
-
-		await page.locator('nav button').first().click();
-		await expect(page.getByText(orgName)).toBeVisible();
+		await expect(page.locator('nav').getByText(orgName)).toBeVisible();
 	});
 
 	test('admin creates org yacht', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Jachty' }).click();
 		await page.waitForURL('/yachts');
@@ -151,11 +135,7 @@ test.describe.serial('Organization Flow', () => {
 
 	test('admin creates org crew member', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.goto('/crew');
 		await page.waitForURL('/crew');
@@ -169,11 +149,7 @@ test.describe.serial('Organization Flow', () => {
 
 	test('member sees org resources', async ({ page }) => {
 		await loginViaUI(page, memberEmail, memberPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expect(page.locator('nav').getByText(orgName)).toBeVisible();
 
 		await page.getByRole('link', { name: 'Jachty' }).click();
 		await page.waitForURL('/yachts');
@@ -184,26 +160,9 @@ test.describe.serial('Organization Flow', () => {
 		await expect(page.getByText('Jan Kowalski')).toBeVisible();
 	});
 
-	test('personal mode shows separate data', async ({ page }) => {
-		await loginViaUI(page, adminEmail, adminPassword);
-
-		// ensure personal mode
-		await page.locator('nav button').first().click();
-		await page.getByRole('button', { name: 'Osobisty' }).last().click();
-		await page.waitForURL('/');
-
-		await page.getByRole('link', { name: 'Jachty' }).click();
-		await page.waitForURL('/yachts');
-		await expect(page.getByText('Brak jachtów')).toBeVisible();
-	});
-
 	test('admin updates org settings', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Ustawienia' }).click();
 		await page.waitForURL(`**/orgs/${orgSlug}/settings`);
@@ -216,11 +175,7 @@ test.describe.serial('Organization Flow', () => {
 
 	test('admin changes member role', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Członkowie' }).click();
 		await page.waitForURL(`**/orgs/${orgSlug}/members`);
@@ -238,11 +193,7 @@ test.describe.serial('Organization Flow', () => {
 
 	test('admin deletes invite', async ({ page }) => {
 		await loginViaUI(page, adminEmail, adminPassword);
-
-		// select org
-		await page.locator('nav button').first().click();
-		await page.getByText(orgName).click();
-		await page.waitForURL('/');
+		await expectOrgActive(page);
 
 		await page.getByRole('link', { name: 'Członkowie' }).click();
 		await page.waitForURL(`**/orgs/${orgSlug}/members`);
