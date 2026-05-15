@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -29,6 +30,7 @@ func (h *YachtHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	yachts, err := h.q.ListYachts(r.Context(), user.UserID)
 	if err != nil {
+		slog.Error("list yachts", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list yachts")
 		return
 	}
@@ -51,6 +53,7 @@ func (h *YachtHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "yacht not found")
 			return
 		}
+		slog.Error("get yacht", "yacht_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get yacht")
 		return
 	}
@@ -75,6 +78,7 @@ func (h *YachtHandler) Create(w http.ResponseWriter, r *http.Request) {
 		YachtType:      nullString(req.YachtType),
 	})
 	if err != nil {
+		slog.Error("create yacht", "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create yacht")
 		return
 	}
@@ -104,6 +108,7 @@ func (h *YachtHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:             id,
 		OwnerID:        user.UserID,
 	}); err != nil {
+		slog.Error("update yacht", "yacht_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update yacht")
 		return
 	}
@@ -121,6 +126,7 @@ func (h *YachtHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:      id,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("delete yacht", "yacht_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete yacht")
 		return
 	}

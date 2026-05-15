@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -23,6 +24,7 @@ func (h *OrgVoyageHandler) List(w http.ResponseWriter, r *http.Request) {
 	octx := middleware.GetOrg(r.Context())
 	voyages, err := h.q.ListOrgVoyages(r.Context(), sql.NullInt64{Int64: octx.OrgID, Valid: true})
 	if err != nil {
+		slog.Error("list org voyages", "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list voyages")
 		return
 	}
@@ -42,6 +44,7 @@ func (h *OrgVoyageHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("get org voyage", "voyage_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get voyage")
 		return
 	}
@@ -88,6 +91,7 @@ func (h *OrgVoyageHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Description:   nullString(req.Description),
 	})
 	if err != nil {
+		slog.Error("create org voyage", "org_id", octx.OrgID, "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create voyage")
 		return
 	}
@@ -137,6 +141,7 @@ func (h *OrgVoyageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:            id,
 		OrgID:         sql.NullInt64{Int64: octx.OrgID, Valid: true},
 	}); err != nil {
+		slog.Error("update org voyage", "voyage_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update voyage")
 		return
 	}
@@ -151,6 +156,7 @@ func (h *OrgVoyageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.q.DeleteOrgVoyage(r.Context(), sqlcdb.DeleteOrgVoyageParams{ID: id, OrgID: sql.NullInt64{Int64: octx.OrgID, Valid: true}}); err != nil {
+		slog.Error("delete org voyage", "voyage_id", id, "org_id", octx.OrgID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete voyage")
 		return
 	}

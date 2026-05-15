@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -56,6 +57,7 @@ func (h *TripHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	trips, err := h.q.ListTrips(r.Context(), user.UserID)
 	if err != nil {
+		slog.Error("list trips", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list trips")
 		return
 	}
@@ -75,6 +77,7 @@ func (h *TripHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found")
 			return
 		}
+		slog.Error("get trip", "trip_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get trip")
 		return
 	}
@@ -112,6 +115,7 @@ func (h *TripHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Status:        sqlcdb.TripStatusPlanned,
 	})
 	if err != nil {
+		slog.Error("create trip", "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create trip")
 		return
 	}
@@ -153,6 +157,7 @@ func (h *TripHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:            id,
 		OwnerID:       user.UserID,
 	}); err != nil {
+		slog.Error("update trip", "trip_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update trip")
 		return
 	}
@@ -167,6 +172,7 @@ func (h *TripHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.q.DeleteTrip(r.Context(), sqlcdb.DeleteTripParams{ID: id, OwnerID: user.UserID}); err != nil {
+		slog.Error("delete trip", "trip_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete trip")
 		return
 	}
@@ -186,6 +192,7 @@ func (h *TripHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found or invalid transition")
 			return
 		}
+		slog.Error("cancel trip", "trip_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to cancel trip")
 		return
 	}
@@ -211,6 +218,7 @@ func (h *TripHandler) Complete(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found or not in planned state")
 			return
 		}
+		slog.Error("complete trip", "trip_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to complete trip")
 		return
 	}
@@ -223,7 +231,7 @@ func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID, us
 	ctx := r.Context()
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return sqlcdb.Voyage{}, err
+		return sqlcdb.Voyage{}, &QueryError{Op: "BeginTx", Err: err}
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -244,32 +252,32 @@ func completeTripTx(r *http.Request, db *sql.DB, orgID sql.NullInt64, tripID, us
 
 	voyage, err := createVoyageFromTrip(ctx, qtx, orgID, trip, req)
 	if err != nil {
-		return sqlcdb.Voyage{}, err
+		return sqlcdb.Voyage{}, &QueryError{Op: "CreateVoyageFromTrip", Err: err}
 	}
 
 	if err := qtx.RepointCrewAssignmentsToVoyage(ctx, sqlcdb.RepointCrewAssignmentsToVoyageParams{
 		VoyageID: sql.NullInt64{Int64: voyage.ID, Valid: true},
 		TripID:   sql.NullInt64{Int64: trip.ID, Valid: true},
 	}); err != nil {
-		return sqlcdb.Voyage{}, err
+		return sqlcdb.Voyage{}, &QueryError{Op: "RepointCrewAssignmentsToVoyage", Err: err}
 	}
 
 	if err := qtx.DeleteTripEnrollmentsForTrip(ctx, trip.ID); err != nil {
-		return sqlcdb.Voyage{}, err
+		return sqlcdb.Voyage{}, &QueryError{Op: "DeleteTripEnrollmentsForTrip", Err: err}
 	}
 
 	if orgID.Valid {
 		if err := qtx.DeleteOrgTrip(ctx, sqlcdb.DeleteOrgTripParams{ID: trip.ID, OrgID: orgID}); err != nil {
-			return sqlcdb.Voyage{}, err
+			return sqlcdb.Voyage{}, &QueryError{Op: "DeleteOrgTrip", Err: err}
 		}
 	} else {
 		if err := qtx.DeleteTrip(ctx, sqlcdb.DeleteTripParams{ID: trip.ID, OwnerID: userID}); err != nil {
-			return sqlcdb.Voyage{}, err
+			return sqlcdb.Voyage{}, &QueryError{Op: "DeleteTrip", Err: err}
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return sqlcdb.Voyage{}, err
+		return sqlcdb.Voyage{}, &QueryError{Op: "Commit", Err: err}
 	}
 	return voyage, nil
 }

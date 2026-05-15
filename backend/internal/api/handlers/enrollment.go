@@ -54,6 +54,7 @@ func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !errors.Is(terr, sql.ErrNoRows) {
+		slog.Error("get trip by enroll token", "err", terr)
 		respondError(w, http.StatusInternalServerError, "failed to get trip")
 		return
 	}
@@ -65,6 +66,7 @@ func (h *EnrollmentHandler) GetByToken(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "invalid enrollment link")
 			return
 		}
+		slog.Error("get cruise by enroll token", "err", cerr)
 		respondError(w, http.StatusInternalServerError, "failed to get cruise")
 		return
 	}
@@ -127,6 +129,7 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 				respondError(w, http.StatusConflict, "already enrolled")
 				return
 			}
+			slog.Error("create trip enrollment", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
 			respondError(w, http.StatusInternalServerError, "failed to enroll")
 			return
 		}
@@ -134,6 +137,7 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !errors.Is(terr, sql.ErrNoRows) {
+		slog.Error("get trip by enroll token for enroll", "err", terr)
 		respondError(w, http.StatusInternalServerError, "failed to get trip")
 		return
 	}
@@ -144,6 +148,7 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "invalid enrollment link")
 			return
 		}
+		slog.Error("get cruise by enroll token for enroll", "err", cerr)
 		respondError(w, http.StatusInternalServerError, "failed to get cruise")
 		return
 	}
@@ -158,6 +163,7 @@ func (h *EnrollmentHandler) Enroll(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusConflict, "already enrolled")
 			return
 		}
+		slog.Error("create cruise enrollment", "cruise_id", cruise.ID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to enroll")
 		return
 	}
@@ -179,6 +185,7 @@ func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request
 			respondError(w, http.StatusNotFound, "trip not found")
 			return
 		}
+		slog.Error("get trip for token generation", "trip_id", tripID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get trip")
 		return
 	}
@@ -195,6 +202,7 @@ func (h *EnrollmentHandler) GenerateToken(w http.ResponseWriter, r *http.Request
 		ID:          tripID,
 		OwnerID:     user.UserID,
 	}); err != nil {
+		slog.Error("set trip enroll token", "trip_id", tripID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to set token")
 		return
 	}
@@ -212,6 +220,7 @@ func (h *EnrollmentHandler) ClearToken(w http.ResponseWriter, r *http.Request) {
 		ID:      tripID,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("clear trip enroll token", "trip_id", tripID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to clear token")
 		return
 	}
@@ -230,6 +239,7 @@ func (h *EnrollmentHandler) ListEnrollments(w http.ResponseWriter, r *http.Reque
 		OwnerID: user.UserID,
 	})
 	if err != nil {
+		slog.Error("list trip enrollments", "trip_id", tripID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list enrollments")
 		return
 	}
@@ -263,6 +273,7 @@ func (h *EnrollmentHandler) UpdateStatus(w http.ResponseWriter, r *http.Request)
 		ID:      id,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("update trip enrollment status", "enrollment_id", id, "user_id", user.UserID, "status", req.Status, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update status")
 		return
 	}
@@ -280,6 +291,7 @@ func (h *EnrollmentHandler) DeleteEnrollment(w http.ResponseWriter, r *http.Requ
 		ID:      id,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("delete trip enrollment", "enrollment_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete enrollment")
 		return
 	}

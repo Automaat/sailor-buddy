@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -35,6 +36,7 @@ func (h *CrewHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	members, err := h.q.ListCrewMembers(r.Context(), user.UserID)
 	if err != nil {
+		slog.Error("list crew members", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list crew members")
 		return
 	}
@@ -57,6 +59,7 @@ func (h *CrewHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "crew member not found")
 			return
 		}
+		slog.Error("get crew member", "crew_member_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get crew member")
 		return
 	}
@@ -81,6 +84,7 @@ func (h *CrewHandler) Create(w http.ResponseWriter, r *http.Request) {
 		PatentNumber: nullString(req.PatentNumber),
 	})
 	if err != nil {
+		slog.Error("create crew member", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create crew member")
 		return
 	}
@@ -110,6 +114,7 @@ func (h *CrewHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:           id,
 		OwnerID:      user.UserID,
 	}); err != nil {
+		slog.Error("update crew member", "crew_member_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update crew member")
 		return
 	}
@@ -127,6 +132,7 @@ func (h *CrewHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		ID:      id,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("delete crew member", "crew_member_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete crew member")
 		return
 	}
@@ -145,6 +151,7 @@ func (h *CrewHandler) AssignTripCrew(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "trip not found")
 			return
 		}
+		slog.Error("verify trip for crew assignment", "trip_id", tripID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to verify trip")
 		return
 	}
@@ -164,6 +171,7 @@ func (h *CrewHandler) AssignTripCrew(w http.ResponseWriter, r *http.Request) {
 		PatentNumber: nullString(req.PatentNumber),
 	})
 	if err != nil {
+		slog.Error("assign trip crew", "trip_id", tripID, "crew_member_id", req.CrewMemberID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to assign crew member")
 		return
 	}
@@ -182,6 +190,7 @@ func (h *CrewHandler) ListTripCrew(w http.ResponseWriter, r *http.Request) {
 		OwnerID: user.UserID,
 	})
 	if err != nil {
+		slog.Error("list trip crew", "trip_id", tripID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list trip crew")
 		return
 	}
@@ -199,6 +208,7 @@ func (h *CrewHandler) RemoveTripCrew(w http.ResponseWriter, r *http.Request) {
 		ID:      assignmentID,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("remove trip crew assignment", "assignment_id", assignmentID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to remove crew assignment")
 		return
 	}
@@ -217,6 +227,7 @@ func (h *CrewHandler) AssignVoyageCrew(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("verify voyage for crew assignment", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to verify voyage")
 		return
 	}
@@ -236,6 +247,7 @@ func (h *CrewHandler) AssignVoyageCrew(w http.ResponseWriter, r *http.Request) {
 		PatentNumber: nullString(req.PatentNumber),
 	})
 	if err != nil {
+		slog.Error("assign voyage crew", "voyage_id", voyageID, "crew_member_id", req.CrewMemberID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to assign crew member")
 		return
 	}
@@ -254,6 +266,7 @@ func (h *CrewHandler) ListVoyageCrew(w http.ResponseWriter, r *http.Request) {
 		OwnerID:  user.UserID,
 	})
 	if err != nil {
+		slog.Error("list voyage crew", "voyage_id", voyageID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list voyage crew")
 		return
 	}
@@ -271,6 +284,7 @@ func (h *CrewHandler) RemoveVoyageCrew(w http.ResponseWriter, r *http.Request) {
 		ID:      assignmentID,
 		OwnerID: user.UserID,
 	}); err != nil {
+		slog.Error("remove voyage crew assignment", "assignment_id", assignmentID, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to remove crew assignment")
 		return
 	}

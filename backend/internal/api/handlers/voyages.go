@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -49,6 +50,7 @@ func (h *VoyageHandler) List(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUser(r.Context())
 	voyages, err := h.q.ListVoyages(r.Context(), user.UserID)
 	if err != nil {
+		slog.Error("list voyages", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to list voyages")
 		return
 	}
@@ -68,6 +70,7 @@ func (h *VoyageHandler) Get(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, "voyage not found")
 			return
 		}
+		slog.Error("get voyage", "voyage_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to get voyage")
 		return
 	}
@@ -111,6 +114,7 @@ func (h *VoyageHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Description:   nullString(req.Description),
 	})
 	if err != nil {
+		slog.Error("create voyage", "user_id", user.UserID, "name", req.Name, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to create voyage")
 		return
 	}
@@ -159,6 +163,7 @@ func (h *VoyageHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:            id,
 		OwnerID:       user.UserID,
 	}); err != nil {
+		slog.Error("update voyage", "voyage_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to update voyage")
 		return
 	}
@@ -173,6 +178,7 @@ func (h *VoyageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.q.DeleteVoyage(r.Context(), sqlcdb.DeleteVoyageParams{ID: id, OwnerID: user.UserID}); err != nil {
+		slog.Error("delete voyage", "voyage_id", id, "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, "failed to delete voyage")
 		return
 	}

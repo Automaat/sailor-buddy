@@ -128,18 +128,21 @@ func (h *ImportHandler) Confirm(w http.ResponseWriter, r *http.Request) {
 
 	yachtIDs, yachtsCreated, crewCreated, err := h.resolveImportEntities(r.Context(), user.UserID, req.Voyages)
 	if err != nil {
+		slog.Error("import resolve entities", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	voyagesCreated, err := h.createImportVoyages(r.Context(), user.UserID, req.Voyages, yachtIDs)
 	if err != nil {
+		slog.Error("import create voyages", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	trainingsCreated, err := h.createImportTrainings(r.Context(), user.UserID, req.Trainings)
 	if err != nil {
+		slog.Error("import create trainings", "user_id", user.UserID, "err", err)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
