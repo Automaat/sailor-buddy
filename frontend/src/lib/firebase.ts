@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
 import { env } from '$env/dynamic/public';
 
 const firebaseConfig = {
@@ -11,13 +11,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const firebaseAuth = getAuth(app);
 
-if (import.meta.env.DEV) {
-	const emulatorUrl =
-		import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL || 'http://localhost:9099';
-	const authAny = firebaseAuth as any;
-
-	// Guard against double-connecting the emulator (e.g. during HMR).
-	if (authAny._canInitEmulator !== false) {
-		connectAuthEmulator(firebaseAuth, emulatorUrl);
+// connectEmulator points an Auth instance at the local emulator. A second
+// call — e.g. when a Vite HMR reload re-runs this module — throws because the
+// instance is already configured; that is expected, so it is swallowed.
+// This relies on documented throwing behaviour rather than the undocumented
+// internal `_canInitEmulator` flag, so it survives Firebase SDK upgrades.
+export function connectEmulator(auth: Auth, url: string): void {
+	try {
+		connectAuthEmulator(auth, url);
+	} catch (e) {
+		console.debug('auth emulator already connected', e);
 	}
+}
+
+if (import.meta.env.DEV) {
+	connectEmulator(
+		firebaseAuth,
+		import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL || 'http://localhost:9099'
+	);
 }
