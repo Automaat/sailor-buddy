@@ -1,23 +1,28 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
-	import { orgStore } from '$lib/stores/org.svelte';
+	import {
+		getTrip,
+		listTripEnrollments,
+		updateTripEnrollmentStatus,
+		deleteTripEnrollment
+	} from '$lib/api/routes';
 	import type { TripEnrollment, Trip } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
+	type EnrollStatus = 'accepted' | 'rejected' | 'waitlisted' | 'pending';
+
 	let trip = $state<Trip | null>(null);
 	let enrollments = $state<TripEnrollment[]>([]);
 	let loading = $state(true);
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 
 	onMount(async () => {
 		try {
-			[trip, enrollments] = await Promise.all([
-				api.get<Trip>(`${orgStore.apiPrefix()}/trips/${id}`),
-				api.get<TripEnrollment[]>(`${orgStore.apiPrefix()}/trips/${id}/enrollments`)
-			]);
+			const [t, e] = await Promise.all([getTrip(id), listTripEnrollments(id)]);
+			trip = t;
+			enrollments = e ?? [];
 		} catch (err) {
 			console.error('Failed to load enrollments:', err);
 		} finally {
@@ -25,9 +30,9 @@
 		}
 	});
 
-	async function updateStatus(enrollmentId: number, status: string) {
+	async function updateStatus(enrollmentId: number, status: EnrollStatus) {
 		try {
-			await api.put(`${orgStore.apiPrefix()}/trips/${id}/enrollments/${enrollmentId}/status`, { status });
+			await updateTripEnrollmentStatus(id, enrollmentId, status);
 			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
 			console.error('Failed to update status:', err);
@@ -37,7 +42,7 @@
 	async function deleteEnrollment(enrollmentId: number) {
 		if (!confirm('Usunąć ten zapis?')) return;
 		try {
-			await api.del(`${orgStore.apiPrefix()}/trips/${id}/enrollments/${enrollmentId}`);
+			await deleteTripEnrollment(id, enrollmentId);
 			enrollments = enrollments.filter((e) => e.id !== enrollmentId);
 		} catch (err) {
 			console.error('Failed to delete enrollment:', err);

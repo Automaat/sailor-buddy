@@ -1320,6 +1320,7 @@ export interface components {
             status: string;
             /** Format: int64 */
             trip_id?: number;
+            trip_name?: string;
             /** Format: date-time */
             updated_at: string;
             user_email: string;

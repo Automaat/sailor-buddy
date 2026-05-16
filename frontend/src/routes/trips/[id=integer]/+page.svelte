@@ -1,7 +1,19 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
-	import type { Trip, CrewAssignment, CrewMember, Voyage, CompleteTripPayload, Cruise } from '$lib/api/types';
+	import {
+		getTrip,
+		deleteTrip,
+		listTripCrew,
+		assignTripCrew,
+		removeTripCrew,
+		cancelTrip,
+		completeTrip,
+		listCrew,
+		getCruise,
+		generateTripEnrollToken,
+		clearTripEnrollToken
+	} from '$lib/api/routes';
+	import type { Trip, CrewAssignment, CrewMember, Cruise, CompleteTripPayload } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -23,19 +35,18 @@
 	let completing = $state(false);
 	let showCompleteModal = $state(false);
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 
 	onMount(async () => {
 		try {
-			const prefix = orgStore.apiPrefix();
-			trip = await api.get<Trip>(`${prefix}/trips/${id}`);
+			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers] = await Promise.all([
-				api.get<CrewAssignment[]>(`${prefix}/trips/${id}/crew`).catch(() => []),
-				api.list<CrewMember>(`${prefix}/crew`).catch(() => [])
+				listTripCrew(id).then((c) => c ?? []).catch(() => []),
+				listCrew().catch(() => [])
 			]);
 			if (trip?.cruise_id) {
-				cruise = await api.get<Cruise>(`${prefix}/cruises/${trip.cruise_id}`).catch(() => null);
+				cruise = await getCruise(trip.cruise_id).catch(() => null);
 			}
 		} catch (err) {
 			console.error('Failed to load trip:', err);
@@ -46,7 +57,7 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
-		await api.del(`${orgStore.apiPrefix()}/trips/${id}`);
+		await deleteTrip(id);
 		goto('/trips');
 	}
 
@@ -54,10 +65,10 @@
 		togglingEnroll = true;
 		try {
 			if (enrollToken) {
-				await api.del(`${orgStore.apiPrefix()}/trips/${id}/enroll-token`);
+				await clearTripEnrollToken(id);
 				enrollToken = null;
 			} else {
-				const res = await api.post<{ token: string }>(`${orgStore.apiPrefix()}/trips/${id}/enroll-token`);
+				const res = await generateTripEnrollToken(id);
 				enrollToken = res.token;
 			}
 		} catch (err) {
@@ -77,11 +88,11 @@
 		if (!assignCrewId || !assignRole) return;
 		assigning = true;
 		try {
-			await api.post(`${orgStore.apiPrefix()}/trips/${id}/crew`, {
+			await assignTripCrew(id, {
 				crew_member_id: Number(assignCrewId),
 				role: assignRole
 			});
-			crew = await api.get<CrewAssignment[]>(`${orgStore.apiPrefix()}/trips/${id}/crew`);
+			crew = (await listTripCrew(id)) ?? [];
 			assignCrewId = '';
 			assignRole = '';
 		} catch (err) {
@@ -93,15 +104,15 @@
 
 	async function removeCrew(assignmentId: number) {
 		if (!confirm('Usunąć przypisanie załoganta?')) return;
-		await api.del(`${orgStore.apiPrefix()}/trips/${id}/crew/${assignmentId}`);
+		await removeTripCrew(id, assignmentId);
 		crew = crew.filter((c) => c.id !== assignmentId);
 	}
 
-	async function cancelTrip() {
+	async function handleCancel() {
 		if (!confirm('Anulować ten rejs?')) return;
 		completing = true;
 		try {
-			trip = await api.post<Trip>(`${orgStore.apiPrefix()}/trips/${id}/cancel`);
+			trip = await cancelTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 		} catch (err) {
 			console.error('Failed to cancel trip:', err);
@@ -110,8 +121,8 @@
 		}
 	}
 
-	async function completeTrip(payload: CompleteTripPayload) {
-		const voyage = await api.post<Voyage>(`${orgStore.apiPrefix()}/trips/${id}/complete`, payload);
+	async function handleComplete(payload: CompleteTripPayload) {
+		const voyage = await completeTrip(id, payload);
 		showCompleteModal = false;
 		goto(`/voyages/${voyage.id}`);
 	}
@@ -160,7 +171,7 @@
 						Zrealizuj
 					</button>
 					<button
-						onclick={cancelTrip}
+						onclick={handleCancel}
 						disabled={completing}
 						class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
 					>
@@ -205,28 +216,30 @@
 			</div>
 		{/if}
 
-		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<h2 class="mb-3 font-semibold text-[var(--navy)]">Zapisy</h2>
-			<div class="flex flex-wrap items-center gap-3">
-				<button
-					onclick={toggleEnrollment}
-					disabled={togglingEnroll || trip.status !== 'planned'}
-					class="rounded-lg px-4 py-2 text-sm font-medium {enrollToken
-						? 'border border-red-200 text-red-600 hover:bg-red-50'
-						: 'bg-[var(--ocean)] text-white hover:bg-[var(--ocean-dark)]'} disabled:opacity-50"
-				>
-					{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
-				</button>
-				{#if enrollToken}
-					<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-						Kopiuj link
+		{#if !orgStore.isOrgMode}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Zapisy</h2>
+				<div class="flex flex-wrap items-center gap-3">
+					<button
+						onclick={toggleEnrollment}
+						disabled={togglingEnroll || trip.status !== 'planned'}
+						class="rounded-lg px-4 py-2 text-sm font-medium {enrollToken
+							? 'border border-red-200 text-red-600 hover:bg-red-50'
+							: 'bg-[var(--ocean)] text-white hover:bg-[var(--ocean-dark)]'} disabled:opacity-50"
+					>
+						{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
 					</button>
-					<a href="/trips/{id}/enrollments" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-						Zarządzaj zapisami
-					</a>
-				{/if}
+					{#if enrollToken}
+						<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+							Kopiuj link
+						</button>
+						<a href="/trips/{id}/enrollments" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+							Zarządzaj zapisami
+						</a>
+					{/if}
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">
@@ -288,7 +301,7 @@
 			embarkDate={trip.embark_date}
 			disembarkDate={trip.disembark_date}
 			onClose={() => (showCompleteModal = false)}
-			onSubmit={completeTrip}
+			onSubmit={handleComplete}
 		/>
 	{/if}
 {/if}

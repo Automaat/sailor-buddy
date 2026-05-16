@@ -61,7 +61,7 @@ describe('cruises page — org mode', () => {
 	it('requests cruises from the org-scoped endpoint', async () => {
 		render(CruisesPage);
 		await screen.findByText('Brak wydarzeń');
-		expect(apiList).toHaveBeenCalledWith('/orgs/alfa/cruises');
+		expect(apiList).toHaveBeenCalledWith('/orgs/{slug}/cruises', { path: { slug: 'alfa' } });
 	});
 
 	it('shows the empty state when there are no cruises', async () => {

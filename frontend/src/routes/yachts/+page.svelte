@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { listYachts, createYacht, deleteYacht } from '$lib/api/routes';
 	import type { Yacht } from '$lib/api/types';
 	import Ship from '@lucide/svelte/icons/ship';
 
@@ -13,7 +13,7 @@
 	async function load() {
 		loading = true;
 		try {
-			yachts = await api.list<Yacht>(`${orgStore.apiPrefix()}/yachts`);
+			yachts = await listYachts();
 		} catch (err) {
 			console.error('Failed to load yachts:', err);
 		} finally {
@@ -30,7 +30,7 @@
 		e.preventDefault();
 		saving = true;
 		try {
-			const yacht = await api.post<Yacht>(`${orgStore.apiPrefix()}/yachts`, form);
+			const yacht = await createYacht(form);
 			yachts = [...yachts, yacht];
 			form = { name: '', registration_no: '', yacht_type: '' };
 			showForm = false;
@@ -43,7 +43,7 @@
 
 	async function handleDelete(id: number) {
 		if (!confirm('Usunąć ten jacht?')) return;
-		await api.del(`${orgStore.apiPrefix()}/yachts/${id}`);
+		await deleteYacht(id);
 		yachts = yachts.filter((y) => y.id !== id);
 	}
 </script>

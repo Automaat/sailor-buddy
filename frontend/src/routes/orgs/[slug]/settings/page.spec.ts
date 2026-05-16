@@ -40,7 +40,7 @@ describe('org settings page', () => {
 		render(SettingsPage);
 		const name = (await screen.findByLabelText('Nazwa *')) as HTMLInputElement;
 		expect(name.value).toBe('Klub Alfa');
-		expect(apiGet).toHaveBeenCalledWith('/orgs/alfa');
+		expect(apiGet).toHaveBeenCalledWith('/orgs/{slug}', { path: { slug: 'alfa' } });
 	});
 
 	it('saves edited fields and confirms success', async () => {
@@ -50,7 +50,13 @@ describe('org settings page', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz' }));
 
 		await waitFor(() =>
-			expect(apiPut).toHaveBeenCalledWith('/orgs/alfa', expect.objectContaining({ name: 'Klub Beta' }))
+			expect(apiPut).toHaveBeenCalledWith(
+				'/orgs/{slug}',
+				expect.objectContaining({
+					path: { slug: 'alfa' },
+					body: expect.objectContaining({ name: 'Klub Beta' })
+				})
+			)
 		);
 		expect(await screen.findByText('Zapisano')).toBeInTheDocument();
 		expect(orgStore.refresh).toHaveBeenCalled();
@@ -76,7 +82,9 @@ describe('org settings page', () => {
 		await screen.findByLabelText('Nazwa *');
 		await fireEvent.click(screen.getByRole('button', { name: 'Usuń klub' }));
 
-		await waitFor(() => expect(apiDel).toHaveBeenCalledWith('/orgs/alfa'));
+		await waitFor(() =>
+			expect(apiDel).toHaveBeenCalledWith('/orgs/{slug}', { path: { slug: 'alfa' } })
+		);
 		expect(orgStore.select).toHaveBeenCalledWith(null);
 		expect(goto).toHaveBeenCalledWith('/orgs');
 	});

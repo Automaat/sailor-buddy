@@ -45,20 +45,13 @@ describe('import page', () => {
 	});
 
 	it('surfaces a server validation error from the upload response', async () => {
-		fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'Nieprawidłowy format pliku' }, { status: 400 }));
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse({ detail: 'Nieprawidłowy format pliku' }, { status: 400 })
+		);
 		const { container } = render(ImportPage);
 		await pickFile(container);
 
 		expect(await screen.findByText('Nieprawidłowy format pliku')).toBeInTheDocument();
-	});
-
-	it('rejects the upload when no auth token is available', async () => {
-		getIdToken.mockResolvedValue(null);
-		const { container } = render(ImportPage);
-		await pickFile(container);
-
-		expect(await screen.findByText('Not authenticated')).toBeInTheDocument();
-		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it('confirms the import and shows the done state', async () => {
@@ -77,7 +70,7 @@ describe('import page', () => {
 	it('shows an error when the confirm step fails', async () => {
 		fetchMock
 			.mockResolvedValueOnce(jsonResponse({ voyages: [{}], trainings: [] }))
-			.mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
+			.mockResolvedValueOnce(jsonResponse({ detail: 'Import nie powiódł się' }, { status: 500 }));
 		const { container } = render(ImportPage);
 		await pickFile(container);
 
@@ -86,12 +79,32 @@ describe('import page', () => {
 		expect(await screen.findByText('Import nie powiódł się')).toBeInTheDocument();
 	});
 
-	it('falls back to a generic message when the error body is empty', async () => {
+	it('falls back to a generic status message when the error body is empty', async () => {
 		fetchMock.mockResolvedValueOnce(jsonResponse({}, { status: 400 }));
 		const { container } = render(ImportPage);
 		await pickFile(container);
 
+		expect(await screen.findByText('Request failed: 400')).toBeInTheDocument();
+	});
+
+	it('falls back to a generic message when the upload rejects with a non-Error', async () => {
+		fetchMock.mockRejectedValueOnce('boom');
+		const { container } = render(ImportPage);
+		await pickFile(container);
+
 		expect(await screen.findByText('Przesyłanie nie powiodło się')).toBeInTheDocument();
+	});
+
+	it('falls back to a generic message when the confirm rejects with a non-Error', async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ voyages: [{}], trainings: [] }))
+			.mockRejectedValueOnce('boom');
+		const { container } = render(ImportPage);
+		await pickFile(container);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Potwierdź import' }));
+
+		expect(await screen.findByText('Import nie powiódł się')).toBeInTheDocument();
 	});
 
 	it('counts zero rows when the preview has no voyages or trainings', async () => {

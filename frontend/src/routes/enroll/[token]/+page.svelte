@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
+	import { resolveEnroll, enroll } from '$lib/api/routes';
 	import type { EnrollPageData } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
@@ -16,7 +16,7 @@
 
 	onMount(async () => {
 		try {
-			data = await api.get<EnrollPageData>(`/enroll/${token}`);
+			data = await resolveEnroll(token);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nieprawidłowy link zapisu';
 		} finally {
@@ -29,9 +29,9 @@
 		submitting = true;
 		error = '';
 		try {
-			await api.post(`/enroll/${token}`, { note: note || undefined });
+			await enroll(token, note || undefined);
 			success = true;
-			data = await api.get<EnrollPageData>(`/enroll/${token}`);
+			data = await resolveEnroll(token);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {

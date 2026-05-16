@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { listCrew, createCrew } from '$lib/api/routes';
 	import type { CrewMember } from '$lib/api/types';
 	import Users from '@lucide/svelte/icons/users';
 
@@ -13,7 +13,7 @@
 	async function load() {
 		loading = true;
 		try {
-			members = await api.list<CrewMember>(`${orgStore.apiPrefix()}/crew`);
+			members = await listCrew();
 		} catch (err) {
 			console.error('Failed to load crew:', err);
 		} finally {
@@ -30,7 +30,7 @@
 		e.preventDefault();
 		saving = true;
 		try {
-			const member = await api.post<CrewMember>(`${orgStore.apiPrefix()}/crew`, form);
+			const member = await createCrew(form);
 			members = [...members, member];
 			form = { full_name: '', email: '', patent_number: '' };
 			showForm = false;

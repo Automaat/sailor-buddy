@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { getDashboard } from '$lib/api/routes';
 	import type { DashboardStats, OrgDashboardStats } from '$lib/api/types';
 
 	let stats = $state<DashboardStats | OrgDashboardStats | null>(null);
@@ -9,7 +9,7 @@
 	async function load() {
 		loading = true;
 		try {
-			stats = await api.get<DashboardStats>(`${orgStore.apiPrefix()}/dashboard`);
+			stats = await getDashboard();
 		} catch (err) {
 			console.error('Failed to load dashboard:', err);
 		} finally {

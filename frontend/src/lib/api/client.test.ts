@@ -25,22 +25,24 @@ function page<T>(items: T[], hasMore: boolean): Page<T> {
 }
 
 describe('api.get', () => {
-	it('sends a GET with the bearer token and JSON content type', async () => {
+	it('substitutes path params and sends the bearer token', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ id: 1 }));
-		await api.get('/trips/1');
+		await api.get('/trips/{tripID}', { path: { tripID: 1 } });
 
 		expect(fetchMock).toHaveBeenCalledWith('/api/trips/1', {
+			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
 				Authorization: 'Bearer test-token'
-			}
+			},
+			body: undefined
 		});
 	});
 
 	it('omits the Authorization header when no token is available', async () => {
 		getIdToken.mockResolvedValue(null);
 		fetchMock.mockResolvedValue(jsonResponse({}));
-		await api.get('/trips');
+		await api.get('/dashboard');
 
 		const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
 		expect(headers.Authorization).toBeUndefined();
@@ -48,42 +50,44 @@ describe('api.get', () => {
 
 	it('returns the parsed JSON body', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ name: 'Rejs' }));
-		await expect(api.get('/trips/1')).resolves.toEqual({ name: 'Rejs' });
+		await expect(api.get('/trips/{tripID}', { path: { tripID: 1 } })).resolves.toEqual({
+			name: 'Rejs'
+		});
 	});
 });
 
 describe('request error handling', () => {
 	it('logs out and throws on a 401 response', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}, { status: 401 }));
-		await expect(api.get('/trips')).rejects.toThrow('Session expired');
+		await expect(api.get('/dashboard')).rejects.toThrow('Session expired');
 		expect(logout).toHaveBeenCalled();
 	});
 
 	it('throws the detail field from an error body', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ detail: 'Brak dostępu' }, { status: 403 }));
-		await expect(api.get('/trips')).rejects.toThrow('Brak dostępu');
+		await expect(api.get('/dashboard')).rejects.toThrow('Brak dostępu');
 	});
 
 	it('falls back to the title field when detail is absent', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ title: 'Not Found' }, { status: 404 }));
-		await expect(api.get('/trips/9')).rejects.toThrow('Not Found');
+		await expect(api.get('/trips/{tripID}', { path: { tripID: 9 } })).rejects.toThrow('Not Found');
 	});
 
 	it('falls back to a generic message when the error body is empty', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}, { status: 500 }));
-		await expect(api.get('/trips')).rejects.toThrow('Request failed: 500');
+		await expect(api.get('/dashboard')).rejects.toThrow('Request failed: 500');
 	});
 
 	it('returns undefined for a 204 No Content response', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(null, { status: 204 }));
-		await expect(api.del('/trips/1')).resolves.toBeUndefined();
+		await expect(api.del('/trips/{tripID}', { path: { tripID: 1 } })).resolves.toBeUndefined();
 	});
 });
 
 describe('api write verbs', () => {
 	it('serializes the body and uses POST', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ id: 2 }));
-		await api.post('/trips', { name: 'Nowy' });
+		await api.post('/trips', { body: { name: 'Nowy' } });
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/api/trips',
@@ -93,14 +97,15 @@ describe('api write verbs', () => {
 
 	it('sends an undefined body when POST has no payload', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}));
-		await api.post('/trips/1/duplicate');
+		await api.post('/trips/{tripID}/cancel', { path: { tripID: 1 } });
 
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/trips/1/cancel');
 		expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
 	});
 
 	it('serializes the body and uses PUT', async () => {
-		fetchMock.mockResolvedValue(jsonResponse({}));
-		await api.put('/trips/1', { name: 'Edytowany' });
+		fetchMock.mockResolvedValue(jsonResponse({}, { status: 204 }));
+		await api.put('/trips/{tripID}', { path: { tripID: 1 }, body: { name: 'Edytowany' } });
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/api/trips/1',
@@ -110,7 +115,7 @@ describe('api write verbs', () => {
 
 	it('uses DELETE for del', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(null, { status: 204 }));
-		await api.del('/trips/1');
+		await api.del('/trips/{tripID}', { path: { tripID: 1 } });
 
 		expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
 	});
@@ -143,10 +148,10 @@ describe('api.list pagination', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('appends pagination params with & when the path already has a query', async () => {
+	it('substitutes path params before the pagination query', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(page([], false)));
-		await api.list('/trips?status=planned');
-		expect(fetchMock.mock.calls[0][0]).toBe('/api/trips?status=planned&limit=100&offset=0');
+		await api.list('/orgs/{slug}/trips', { path: { slug: 'alfa' } });
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/orgs/alfa/trips?limit=100&offset=0');
 	});
 });
 
@@ -156,10 +161,10 @@ describe('api.upload', () => {
 		const fd = new FormData();
 		fd.append('file', new File(['x'], 'x.png'));
 
-		await api.upload('/uploads', fd);
+		await api.upload('/upload/image', fd);
 
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('/api/uploads');
+		expect(url).toBe('/api/upload/image');
 		expect(init.method).toBe('POST');
 		expect(init.body).toBe(fd);
 		expect((init.headers as Record<string, string>)['Content-Type']).toBeUndefined();
@@ -168,13 +173,13 @@ describe('api.upload', () => {
 
 	it('logs out and throws on a 401 during upload', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}, { status: 401 }));
-		await expect(api.upload('/uploads', new FormData())).rejects.toThrow('Session expired');
+		await expect(api.upload('/upload/image', new FormData())).rejects.toThrow('Session expired');
 		expect(logout).toHaveBeenCalled();
 	});
 
 	it('throws the detail field when an upload fails', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ detail: 'Plik za duży' }, { status: 400 }));
-		await expect(api.upload('/uploads', new FormData())).rejects.toThrow('Plik za duży');
+		await expect(api.upload('/upload/image', new FormData())).rejects.toThrow('Plik za duży');
 	});
 });
 
@@ -209,7 +214,9 @@ describe('api.download', () => {
 
 	it('downloads with the filename from the Content-Disposition header', async () => {
 		fetchMock.mockResolvedValue(fileResponse('attachment; filename="crew.pdf"'));
-		await api.download('/voyages/1/opinions/export');
+		await api.download('/voyages/{voyageID}/opinions/{opinionID}/download', {
+			path: { voyageID: 1, opinionID: 2 }
+		});
 
 		expect(lastAnchor?.download).toBe('crew.pdf');
 		expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
@@ -218,20 +225,28 @@ describe('api.download', () => {
 
 	it('falls back to the path tail when no Content-Disposition is set', async () => {
 		fetchMock.mockResolvedValue(fileResponse());
-		await api.download('/exports/report.xlsx');
-		expect(lastAnchor?.download).toBe('report.xlsx');
+		await api.download('/voyages/{voyageID}/opinions/{opinionID}/download', {
+			path: { voyageID: 1, opinionID: 2 }
+		});
+		expect(lastAnchor?.download).toBe('download');
 	});
 
 	it('logs out and throws on a 401 during download', async () => {
 		fetchMock.mockResolvedValue(fileResponse(undefined, 401));
-		await expect(api.download('/exports/report.xlsx')).rejects.toThrow('Session expired');
+		await expect(
+			api.download('/voyages/{voyageID}/opinions/{opinionID}/download', {
+				path: { voyageID: 1, opinionID: 2 }
+			})
+		).rejects.toThrow('Session expired');
 		expect(logout).toHaveBeenCalled();
 	});
 
 	it('throws the detail field when a download fails', async () => {
-		fetchMock.mockResolvedValue(
-			jsonResponse({ detail: 'Nie znaleziono' }, { status: 404 })
-		);
-		await expect(api.download('/exports/report.xlsx')).rejects.toThrow('Nie znaleziono');
+		fetchMock.mockResolvedValue(jsonResponse({ detail: 'Nie znaleziono' }, { status: 404 }));
+		await expect(
+			api.download('/voyages/{voyageID}/opinions/{opinionID}/download', {
+				path: { voyageID: 1, opinionID: 2 }
+			})
+		).rejects.toThrow('Nie znaleziono');
 	});
 });

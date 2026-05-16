@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
+	import { getInviteInfo, acceptInvite } from '$lib/api/routes';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import { page } from '$app/state';
@@ -26,7 +26,7 @@
 		loading = true;
 		error = '';
 		try {
-			info = await api.get<OrgInviteInfo>(`/join/${token}`);
+			info = await getInviteInfo(token);
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -38,7 +38,7 @@
 		joining = true;
 		error = '';
 		try {
-			const result = await api.post<{ org_slug: string }>(`/join/${token}`);
+			const result = await acceptInvite(token);
 			joined = true;
 			await orgStore.refresh();
 			orgStore.select(result.org_slug);

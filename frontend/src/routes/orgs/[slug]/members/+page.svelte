@@ -1,9 +1,18 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { OrgMember, OrgInvite } from '$lib/api/types';
+	import {
+		listOrgMembers,
+		listOrgInvites,
+		updateOrgMemberRole,
+		removeOrgMember,
+		createOrgInvite,
+		deleteOrgInvite
+	} from '$lib/api/routes';
 	import { orgStore } from '$lib/stores/org.svelte';
+
+	type OrgRole = 'admin' | 'captain' | 'crew';
 
 	let slug = $derived((page.params as Record<string, string>).slug);
 	let members = $state<OrgMember[]>([]);
@@ -21,7 +30,7 @@
 	});
 
 	let showInviteForm = $state(false);
-	let inviteRole = $state('crew');
+	let inviteRole = $state<OrgRole>('crew');
 	let inviteMaxUses = $state('');
 	let inviteExpiresHours = $state('');
 	let creatingInvite = $state(false);
@@ -36,9 +45,9 @@
 		loading = true;
 		error = '';
 		try {
-			members = await api.get<OrgMember[]>(`/orgs/${slug}/members`);
+			members = (await listOrgMembers(slug)) ?? [];
 			if (isAdmin) {
-				invites = await api.get<OrgInvite[]>(`/orgs/${slug}/invites`);
+				invites = (await listOrgInvites(slug)) ?? [];
 			} else {
 				invites = [];
 			}
@@ -49,9 +58,9 @@
 		}
 	}
 
-	async function updateRole(memberId: number, role: string) {
+	async function updateRole(memberId: number, role: OrgRole) {
 		try {
-			await api.put(`/orgs/${slug}/members/${memberId}/role`, { role });
+			await updateOrgMemberRole(slug, memberId, role);
 			await load();
 		} catch (e: any) {
 			error = e.message;
@@ -61,7 +70,7 @@
 	async function removeMember(memberId: number) {
 		if (!confirm('Usunąć tego członka z klubu?')) return;
 		try {
-			await api.del(`/orgs/${slug}/members/${memberId}`);
+			await removeOrgMember(slug, memberId);
 			await load();
 		} catch (e: any) {
 			error = e.message;
@@ -85,7 +94,7 @@
 			return;
 		}
 		try {
-			await api.post(`/orgs/${slug}/invites`, {
+			await createOrgInvite(slug, {
 				role: inviteRole,
 				max_uses: maxUses,
 				expires_in_hours: expiresInHours
@@ -104,7 +113,7 @@
 
 	async function deleteInvite(inviteId: number) {
 		try {
-			await api.del(`/orgs/${slug}/invites/${inviteId}`);
+			await deleteOrgInvite(slug, inviteId);
 			await load();
 		} catch (e: any) {
 			error = e.message;
@@ -260,7 +269,7 @@
 									<select
 										value={member.role}
 										onchange={(e) =>
-											updateRole(member.id, (e.target as HTMLSelectElement).value)}
+											updateRole(member.id, (e.target as HTMLSelectElement).value as OrgRole)}
 										class="rounded border border-gray-300 px-2 py-1 text-sm"
 									>
 										<option value="crew">Załogant</option>

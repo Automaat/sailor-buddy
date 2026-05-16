@@ -4,8 +4,7 @@
 	import { orgStore } from '$lib/stores/org.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { api } from '$lib/api/client';
-	import type { User } from '$lib/api/types';
+	import { getMe } from '$lib/api/routes';
 	import Anchor from '@lucide/svelte/icons/anchor';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
@@ -79,7 +78,7 @@
 
 			(async () => {
 				try {
-					const u = await api.get<User>('/auth/me');
+					const u = await getMe();
 
 					if (
 						!cancelled &&

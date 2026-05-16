@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { goto } from '$app/navigation';
-	import { orgStore } from '$lib/stores/org.svelte';
-	import type { Yacht, Voyage } from '$lib/api/types';
+	import { listYachts, createVoyage } from '$lib/api/routes';
+	import type { Yacht } from '$lib/api/types';
 	import { onMount } from 'svelte';
 
 	let yachts = $state<Yacht[]>([]);
@@ -32,7 +31,7 @@
 	});
 
 	onMount(async () => {
-		yachts = await api.list<Yacht>(`${orgStore.apiPrefix()}/yachts`);
+		yachts = await listYachts();
 	});
 
 	async function handleSubmit(e: Event) {
@@ -45,7 +44,7 @@
 				tidal_waters: form.tidal_waters ? 1 : 0,
 				yacht_id: form.yacht_id || undefined
 			};
-			const voyage = await api.post<Voyage>(`${orgStore.apiPrefix()}/voyages`, payload);
+			const voyage = await createVoyage(payload);
 			goto(`/voyages/${voyage.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się dodać rejsu';

@@ -27,7 +27,7 @@ describe('trips page', () => {
 	it('requests trips from the org-scoped endpoint', async () => {
 		render(TripsPage);
 		await screen.findByText('Brak planowanych rejsów');
-		expect(apiList).toHaveBeenCalledWith('/orgs/alfa/trips');
+		expect(apiList).toHaveBeenCalledWith('/orgs/{slug}/trips', { path: { slug: 'alfa' } });
 	});
 
 	it('shows the empty state when there are no trips', async () => {
