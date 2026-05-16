@@ -30,6 +30,20 @@ func (q *Queries) ClearCruiseEnrollToken(ctx context.Context, arg ClearCruiseEnr
 	return err
 }
 
+const countCruises = `-- name: CountCruises :one
+SELECT COUNT(*)::BIGINT FROM cruises WHERE org_id = $1
+`
+
+// CountCruises
+//
+//	SELECT COUNT(*)::BIGINT FROM cruises WHERE org_id = $1
+func (q *Queries) CountCruises(ctx context.Context, orgID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCruises, orgID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createCruise = `-- name: CreateCruise :one
 INSERT INTO cruises (
     org_id, name, embark_date, disembark_date, countries, start_port, end_port,
@@ -314,14 +328,20 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt6
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC
+SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $2 OFFSET $3
 `
+
+type ListCruisesParams struct {
+	OrgID  int64 `json:"org_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
 
 // ListCruises
 //
-//	SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC
-func (q *Queries) ListCruises(ctx context.Context, orgID int64) ([]Cruise, error) {
-	rows, err := q.db.QueryContext(ctx, listCruises, orgID)
+//	SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $2 OFFSET $3
+func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error) {
+	rows, err := q.db.QueryContext(ctx, listCruises, arg.OrgID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

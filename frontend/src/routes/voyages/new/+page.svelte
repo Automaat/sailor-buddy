@@ -32,7 +32,7 @@
 	});
 
 	onMount(async () => {
-		yachts = await api.get<Yacht[]>(`${orgStore.apiPrefix()}/yachts`);
+		yachts = await api.list<Yacht>(`${orgStore.apiPrefix()}/yachts`);
 	});
 
 	async function handleSubmit(e: Event) {

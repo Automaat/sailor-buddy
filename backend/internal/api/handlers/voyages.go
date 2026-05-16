@@ -11,7 +11,7 @@ import (
 )
 
 type VoyageHandler struct {
-	*crudHandlers[struct{}, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
+	*crudHandlers[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
 }
 
 func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
@@ -32,6 +32,11 @@ type updateVoyageInput struct {
 }
 
 type voyageListOutput struct {
+	Body dto.Page[dto.Voyage]
+}
+
+// cruiseVoyagesOutput is the unpaginated array body for a cruise's child voyages.
+type cruiseVoyagesOutput struct {
 	Body []dto.Voyage
 }
 
@@ -62,12 +67,12 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
+func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
 	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
 		return ownerCRUDScope(ctx), nil
 	}
-	return crudConfig[struct{}, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
-		listScope: func(ctx context.Context, in *struct{}) (crudScope, error) {
+	return crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
+		listScope: func(ctx context.Context, in *pageParams) (crudScope, error) {
 			return ownerScope(ctx, in)
 		},
 		getScope: func(ctx context.Context, in *voyageIDParam) (crudScope, error) {
@@ -82,8 +87,15 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, voyageIDParam, crea
 		deleteScope: func(ctx context.Context, in *voyageIDParam) (crudScope, error) {
 			return ownerScope(ctx, in)
 		},
-		list: func(ctx context.Context, scope crudScope, _ *struct{}) ([]sqlcdb.Voyage, error) {
-			return q.ListVoyages(ctx, scope.userID)
+		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Voyage, error) {
+			return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{
+				OwnerID: scope.userID,
+				Limit:   in.sqlLimit(),
+				Offset:  in.sqlOffset(),
+			})
+		},
+		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {
+			return q.CountVoyages(ctx, scope.userID)
 		},
 		get: func(ctx context.Context, scope crudScope, in *voyageIDParam) (sqlcdb.Voyage, error) {
 			return q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, OwnerID: scope.userID})
@@ -99,13 +111,13 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, voyageIDParam, crea
 		delete: func(ctx context.Context, scope crudScope, in *voyageIDParam) error {
 			return q.DeleteVoyage(ctx, sqlcdb.DeleteVoyageParams{ID: in.ID, OwnerID: scope.userID})
 		},
-		listOutput: func(rows []sqlcdb.Voyage) *voyageListOutput {
-			return &voyageListOutput{Body: dto.VoyagesFromDB(rows)}
+		listOutput: func(in *pageParams, rows []sqlcdb.Voyage, total int64) *voyageListOutput {
+			return &voyageListOutput{Body: dto.NewPage(dto.VoyagesFromDB(rows), total, in.Limit, in.Offset)}
 		},
 		itemOutput: func(row sqlcdb.Voyage) *voyageOutput {
 			return &voyageOutput{Body: dto.VoyageFromDB(row)}
 		},
-		listLogAttrs: func(scope crudScope, _ *struct{}) []any {
+		listLogAttrs: func(scope crudScope, _ *pageParams) []any {
 			return scopeAttrs(scope)
 		},
 		getLogAttrs: func(scope crudScope, in *voyageIDParam) []any {

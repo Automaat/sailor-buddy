@@ -27,17 +27,21 @@ func TestListTrips_Huma(t *testing.T) {
 		listTripsFn: func(_ context.Context, ownerID int64) ([]sqlcdb.Trip, error) {
 			return []sqlcdb.Trip{{ID: 7, OwnerID: ownerID, Name: "Adriatic", Status: sqlcdb.TripStatusPlanned}}, nil
 		},
+		countTripsFn: func(context.Context, int64) (int64, error) { return 1, nil },
 	}
 	resp := tripTestAPI(t, m).GetCtx(userCtx(context.Background()), "/trips")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
 	}
-	var trips []dto.Trip
-	if err := json.Unmarshal(resp.Body.Bytes(), &trips); err != nil {
+	var page dto.Page[dto.Trip]
+	if err := json.Unmarshal(resp.Body.Bytes(), &page); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(trips) != 1 || trips[0].Name != "Adriatic" {
-		t.Fatalf("unexpected trips: %+v", trips)
+	if len(page.Items) != 1 || page.Items[0].Name != "Adriatic" {
+		t.Fatalf("unexpected trips: %+v", page.Items)
+	}
+	if page.Total != 1 {
+		t.Fatalf("total = %d, want 1", page.Total)
 	}
 }
 

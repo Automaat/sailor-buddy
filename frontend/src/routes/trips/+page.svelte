@@ -10,7 +10,7 @@
 	async function load() {
 		loading = true;
 		try {
-			trips = await api.get<Trip[]>(`${orgStore.apiPrefix()}/trips`);
+			trips = await api.list<Trip>(`${orgStore.apiPrefix()}/trips`);
 		} catch (err) {
 			console.error('Failed to load trips:', err);
 		} finally {

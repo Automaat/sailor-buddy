@@ -12,7 +12,7 @@
 
 	onMount(async () => {
 		try {
-			trainings = await api.get<Training[]>('/trainings');
+			trainings = await api.list<Training>('/trainings');
 		} catch (err) {
 			console.error('Failed to load trainings:', err);
 		} finally {

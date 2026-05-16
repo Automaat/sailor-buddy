@@ -11,6 +11,20 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const countTrainings = `-- name: CountTrainings :one
+SELECT COUNT(*)::BIGINT FROM trainings WHERE user_id = $1
+`
+
+// CountTrainings
+//
+//	SELECT COUNT(*)::BIGINT FROM trainings WHERE user_id = $1
+func (q *Queries) CountTrainings(ctx context.Context, userID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTrainings, userID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createTraining = `-- name: CreateTraining :one
 INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, date, name, organizer, cost, url, created_at, updated_at
 `
@@ -98,14 +112,20 @@ func (q *Queries) GetTraining(ctx context.Context, arg GetTrainingParams) (Train
 }
 
 const listTrainings = `-- name: ListTrainings :many
-SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
+SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
 `
+
+type ListTrainingsParams struct {
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
 
 // ListTrainings
 //
-//	SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
-func (q *Queries) ListTrainings(ctx context.Context, userID int64) ([]Training, error) {
-	rows, err := q.db.QueryContext(ctx, listTrainings, userID)
+//	SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
+func (q *Queries) ListTrainings(ctx context.Context, arg ListTrainingsParams) ([]Training, error) {
+	rows, err := q.db.QueryContext(ctx, listTrainings, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

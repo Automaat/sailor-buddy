@@ -5,7 +5,10 @@ INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VA
 SELECT * FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL;
 
 -- name: ListCrewMembers :many
-SELECT * FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name;
+SELECT * FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name, id LIMIT $2 OFFSET $3;
+
+-- name: CountCrewMembers :one
+SELECT COUNT(*)::BIGINT FROM crew_members WHERE owner_id = $1 AND org_id IS NULL;
 
 -- name: UpdateCrewMember :exec
 UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL;
@@ -24,7 +27,10 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 SELECT * FROM crew_members WHERE id = $1 AND org_id = $2;
 
 -- name: ListOrgCrewMembers :many
-SELECT * FROM crew_members WHERE org_id = $1 ORDER BY full_name;
+SELECT * FROM crew_members WHERE org_id = $1 ORDER BY full_name, id LIMIT $2 OFFSET $3;
+
+-- name: CountOrgCrewMembers :one
+SELECT COUNT(*)::BIGINT FROM crew_members WHERE org_id = $1;
 
 -- name: UpdateOrgCrewMember :exec
 UPDATE crew_members SET

@@ -5,7 +5,10 @@ INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2
 SELECT * FROM trainings WHERE id = $1 AND user_id = $2;
 
 -- name: ListTrainings :many
-SELECT * FROM trainings WHERE user_id = $1 ORDER BY date DESC;
+SELECT * FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3;
+
+-- name: CountTrainings :one
+SELECT COUNT(*)::BIGINT FROM trainings WHERE user_id = $1;
 
 -- name: UpdateTraining :exec
 UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 AND user_id = $7;

@@ -9,7 +9,10 @@ INSERT INTO cruises (
 SELECT * FROM cruises WHERE id = $1 AND org_id = $2;
 
 -- name: ListCruises :many
-SELECT * FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC;
+SELECT * FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $2 OFFSET $3;
+
+-- name: CountCruises :one
+SELECT COUNT(*)::BIGINT FROM cruises WHERE org_id = $1;
 
 -- name: UpdateCruise :exec
 UPDATE cruises SET

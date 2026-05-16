@@ -45,7 +45,7 @@ type cruiseOutput struct {
 }
 
 type cruiseListOutput struct {
-	Body []dto.Cruise
+	Body dto.Page[dto.Cruise]
 }
 
 // RegisterOrgCruiseRoutes wires the org-scoped cruise operations onto the API.
@@ -91,17 +91,26 @@ func RegisterOrgCruiseRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.listChildVoyages)
 }
 
-func (h *OrgCruiseHandler) list(ctx context.Context, in *orgSlugParam) (*cruiseListOutput, error) {
+func (h *OrgCruiseHandler) list(ctx context.Context, in *orgListParams) (*cruiseListOutput, error) {
 	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
 		return nil, err
 	}
-	cruises, err := h.q.ListCruises(ctx, octx.OrgID)
+	cruises, err := h.q.ListCruises(ctx, sqlcdb.ListCruisesParams{
+		OrgID:  octx.OrgID,
+		Limit:  in.sqlLimit(),
+		Offset: in.sqlOffset(),
+	})
 	if err != nil {
 		slog.Error("list org cruises", "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list cruises")
 	}
-	return &cruiseListOutput{Body: dto.CruisesFromDB(cruises)}, nil
+	total, err := h.q.CountCruises(ctx, octx.OrgID)
+	if err != nil {
+		slog.Error("count org cruises", "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list cruises")
+	}
+	return &cruiseListOutput{Body: dto.NewPage(dto.CruisesFromDB(cruises), total, in.Limit, in.Offset)}, nil
 }
 
 func (h *OrgCruiseHandler) get(ctx context.Context, in *orgCruiseParam) (*cruiseOutput, error) {
@@ -228,7 +237,7 @@ func (h *OrgCruiseHandler) clearEnrollToken(ctx context.Context, in *orgCruisePa
 	return &noContentOutput{}, nil
 }
 
-func (h *OrgCruiseHandler) listChildTrips(ctx context.Context, in *orgCruiseParam) (*tripListOutput, error) {
+func (h *OrgCruiseHandler) listChildTrips(ctx context.Context, in *orgCruiseParam) (*cruiseTripsOutput, error) {
 	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
 		return nil, err
@@ -241,10 +250,10 @@ func (h *OrgCruiseHandler) listChildTrips(ctx context.Context, in *orgCruisePara
 		slog.Error("list cruise child trips", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
 	}
-	return &tripListOutput{Body: dto.TripsFromDB(trips)}, nil
+	return &cruiseTripsOutput{Body: dto.TripsFromDB(trips)}, nil
 }
 
-func (h *OrgCruiseHandler) listChildVoyages(ctx context.Context, in *orgCruiseParam) (*voyageListOutput, error) {
+func (h *OrgCruiseHandler) listChildVoyages(ctx context.Context, in *orgCruiseParam) (*cruiseVoyagesOutput, error) {
 	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
 		return nil, err
@@ -257,7 +266,7 @@ func (h *OrgCruiseHandler) listChildVoyages(ctx context.Context, in *orgCruisePa
 		slog.Error("list cruise child voyages", "cruise_id", in.ID, "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list voyages")
 	}
-	return &voyageListOutput{Body: dto.VoyagesFromDB(voyages)}, nil
+	return &cruiseVoyagesOutput{Body: dto.VoyagesFromDB(voyages)}, nil
 }
 
 // verifyCruise confirms the cruise exists within the org.

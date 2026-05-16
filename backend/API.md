@@ -94,7 +94,34 @@ Notes:
 
 ## Pagination
 
-Not implemented. List endpoints return the full result set as a JSON array.
+Top-level collection list endpoints (`GET /api/trips`, `/voyages`, `/yachts`,
+`/crew`, `/trainings`, their `/orgs/{slug}/...` equivalents, and
+`/orgs/{slug}/cruises`) are offset-paginated. They accept two query
+parameters:
+
+| Param | Default | Bounds | Meaning |
+|-------|---------|--------|---------|
+| `limit` | `50` | `1`–`100` | Maximum items in the response window |
+| `offset` | `0` | `>= 0` | Items skipped before the window |
+
+Out-of-range values return `422`. The response is a page envelope, not a
+bare array:
+
+```json
+{
+  "items": [ ... ],
+  "total": 327,
+  "limit": 50,
+  "offset": 100,
+  "has_more": true
+}
+```
+
+`total` is the full match count; `has_more` is `true` when more rows exist
+beyond the window. `items` always serialises as `[]`, never `null`.
+
+Nested sub-resource lists (a trip's crew, a cruise's child trips/voyages,
+org members and invites) are not paginated — they stay bare JSON arrays.
 
 ## Data model & scoping
 

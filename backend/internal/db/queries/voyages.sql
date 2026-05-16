@@ -11,7 +11,10 @@ INSERT INTO voyages (
 SELECT * FROM voyages WHERE id = $1 AND owner_id = $2 AND org_id IS NULL;
 
 -- name: ListVoyages :many
-SELECT * FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC;
+SELECT * FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3;
+
+-- name: CountVoyages :one
+SELECT COUNT(*)::BIGINT FROM voyages WHERE owner_id = $1 AND org_id IS NULL;
 
 -- name: UpdateVoyage :exec
 UPDATE voyages SET
@@ -59,7 +62,10 @@ INSERT INTO voyages (
 SELECT * FROM voyages WHERE id = $1 AND org_id = $2;
 
 -- name: ListOrgVoyages :many
-SELECT * FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC;
+SELECT * FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3;
+
+-- name: CountOrgVoyages :one
+SELECT COUNT(*)::BIGINT FROM voyages WHERE org_id = $1;
 
 -- name: UpdateOrgVoyage :exec
 UPDATE voyages SET

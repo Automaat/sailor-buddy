@@ -5,6 +5,15 @@ export interface User {
 	avatar_url?: string;
 }
 
+/** Page is the paginated list envelope returned by collection endpoints. */
+export interface Page<T> {
+	items: T[];
+	total: number;
+	limit: number;
+	offset: number;
+	has_more: boolean;
+}
+
 export type TripStatus = 'planned' | 'cancelled';
 
 export interface Trip {

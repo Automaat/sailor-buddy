@@ -80,17 +80,27 @@ func RegisterOrgTripRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	}, h.complete)
 }
 
-func (h *OrgTripHandler) list(ctx context.Context, in *orgSlugParam) (*tripListOutput, error) {
+func (h *OrgTripHandler) list(ctx context.Context, in *orgListParams) (*tripListOutput, error) {
 	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
 		return nil, err
 	}
-	trips, err := h.q.ListOrgTrips(ctx, orgID(octx))
+	id := orgID(octx)
+	trips, err := h.q.ListOrgTrips(ctx, sqlcdb.ListOrgTripsParams{
+		OrgID:  id,
+		Limit:  in.sqlLimit(),
+		Offset: in.sqlOffset(),
+	})
 	if err != nil {
 		slog.Error("list org trips", "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
 	}
-	return &tripListOutput{Body: dto.TripsFromDB(trips)}, nil
+	total, err := h.q.CountOrgTrips(ctx, id)
+	if err != nil {
+		slog.Error("count org trips", "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list trips")
+	}
+	return &tripListOutput{Body: dto.NewPage(dto.TripsFromDB(trips), total, in.Limit, in.Offset)}, nil
 }
 
 func (h *OrgTripHandler) get(ctx context.Context, in *orgTripParam) (*tripOutput, error) {

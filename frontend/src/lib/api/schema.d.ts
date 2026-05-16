@@ -1776,6 +1776,162 @@ export interface components {
             updated_at: string;
             website?: string;
         };
+        PageCrewMember: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageCrewMember.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["CrewMember"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
+        PageCruise: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageCruise.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["Cruise"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
+        PageTraining: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageTraining.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["Training"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
+        PageTrip: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageTrip.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["Trip"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
+        PageVoyage: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageVoyage.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["Voyage"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
+        PageYacht: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageYacht.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["Yacht"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
         TokenOutputBody: {
             /**
              * Format: uri
@@ -2137,7 +2293,12 @@ export interface operations {
     };
     "list-crew": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2150,7 +2311,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CrewMember"][] | null;
+                    "application/json": components["schemas"]["PageCrewMember"];
                 };
             };
             /** @description Error */
@@ -2702,7 +2863,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CrewMember"][] | null;
+                    "application/json": components["schemas"]["PageCrewMember"];
                 };
             };
             /** @description Error */
@@ -2872,7 +3033,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Cruise"][] | null;
+                    "application/json": components["schemas"]["PageCruise"];
                 };
             };
             /** @description Error */
@@ -3552,7 +3713,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Trip"][] | null;
+                    "application/json": components["schemas"]["PageTrip"];
                 };
             };
             /** @description Error */
@@ -3900,7 +4061,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Voyage"][] | null;
+                    "application/json": components["schemas"]["PageVoyage"];
                 };
             };
             /** @description Error */
@@ -4320,7 +4481,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Yacht"][] | null;
+                    "application/json": components["schemas"]["PageYacht"];
                 };
             };
             /** @description Error */
@@ -4474,7 +4635,12 @@ export interface operations {
     };
     "list-trainings": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4487,7 +4653,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Training"][] | null;
+                    "application/json": components["schemas"]["PageTraining"];
                 };
             };
             /** @description Error */
@@ -4632,7 +4798,12 @@ export interface operations {
     };
     "list-trips": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4645,7 +4816,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Trip"][] | null;
+                    "application/json": components["schemas"]["PageTrip"];
                 };
             };
             /** @description Error */
@@ -5159,7 +5330,12 @@ export interface operations {
     };
     "list-voyages": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5172,7 +5348,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Voyage"][] | null;
+                    "application/json": components["schemas"]["PageVoyage"];
                 };
             };
             /** @description Error */
@@ -5553,7 +5729,12 @@ export interface operations {
     };
     "list-yachts": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5566,7 +5747,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Yacht"][] | null;
+                    "application/json": components["schemas"]["PageYacht"];
                 };
             };
             /** @description Error */

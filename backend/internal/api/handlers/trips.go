@@ -54,6 +54,11 @@ type tripOutput struct {
 }
 
 type tripListOutput struct {
+	Body dto.Page[dto.Trip]
+}
+
+// cruiseTripsOutput is the unpaginated array body for a cruise's child trips.
+type cruiseTripsOutput struct {
 	Body []dto.Trip
 }
 
@@ -98,14 +103,23 @@ func RegisterTripRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	}, h.cancel)
 }
 
-func (h *TripHandler) list(ctx context.Context, _ *struct{}) (*tripListOutput, error) {
+func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput, error) {
 	user := middleware.GetUser(ctx)
-	trips, err := h.q.ListTrips(ctx, user.UserID)
+	trips, err := h.q.ListTrips(ctx, sqlcdb.ListTripsParams{
+		OwnerID: user.UserID,
+		Limit:   in.sqlLimit(),
+		Offset:  in.sqlOffset(),
+	})
 	if err != nil {
 		slog.Error("list trips", "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
 	}
-	return &tripListOutput{Body: dto.TripsFromDB(trips)}, nil
+	total, err := h.q.CountTrips(ctx, user.UserID)
+	if err != nil {
+		slog.Error("count trips", "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list trips")
+	}
+	return &tripListOutput{Body: dto.NewPage(dto.TripsFromDB(trips), total, in.Limit, in.Offset)}, nil
 }
 
 func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripOutput, error) {

@@ -50,12 +50,13 @@ type crudConfig[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut, ItemO
 	deleteScope func(context.Context, *DeleteIn) (crudScope, error)
 
 	list   func(context.Context, crudScope, *ListIn) ([]Row, error)
+	count  func(context.Context, crudScope, *ListIn) (int64, error)
 	get    func(context.Context, crudScope, *GetIn) (Row, error)
 	create func(context.Context, crudScope, *CreateIn) (Row, error)
 	update func(context.Context, crudScope, *UpdateIn) error
 	delete func(context.Context, crudScope, *DeleteIn) error
 
-	listOutput func([]Row) *ListOut
+	listOutput func(*ListIn, []Row, int64) *ListOut
 	itemOutput func(Row) *ItemOut
 
 	listLogAttrs   func(crudScope, *ListIn) []any
@@ -101,7 +102,12 @@ func (h *crudHandlers[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut,
 		logCRUD(h.cfg.listLogMsg, h.cfg.listLogAttrs(scope, in), err)
 		return nil, huma.Error500InternalServerError(h.cfg.listClientMsg)
 	}
-	return h.cfg.listOutput(rows), nil
+	total, err := h.cfg.count(ctx, scope, in)
+	if err != nil {
+		logCRUD(h.cfg.listLogMsg, h.cfg.listLogAttrs(scope, in), err)
+		return nil, huma.Error500InternalServerError(h.cfg.listClientMsg)
+	}
+	return h.cfg.listOutput(in, rows, total), nil
 }
 
 func (h *crudHandlers[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut, ItemOut]) get(

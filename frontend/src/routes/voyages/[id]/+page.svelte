@@ -30,7 +30,7 @@
 			[crew, opinions, allCrewMembers] = await Promise.all([
 				api.get<CrewAssignment[]>(`${prefix}/voyages/${id}/crew`).catch(() => []),
 				api.get<VoyageOpinion[]>(`${prefix}/voyages/${id}/opinions`).catch(() => []),
-				api.get<CrewMember[]>(`${prefix}/crew`).catch(() => [])
+				api.list<CrewMember>(`${prefix}/crew`).catch(() => [])
 			]);
 			if (voyage?.cruise_id) {
 				cruise = await api.get<Cruise>(`${prefix}/cruises/${voyage.cruise_id}`).catch(() => null);

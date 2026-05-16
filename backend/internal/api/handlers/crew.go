@@ -41,7 +41,7 @@ type crewOutput struct {
 }
 
 type crewListOutput struct {
-	Body []dto.CrewMember
+	Body dto.Page[dto.CrewMember]
 }
 
 type assignTripCrewInput struct {
@@ -134,14 +134,23 @@ func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.removeVoyageCrew)
 }
 
-func (h *CrewHandler) list(ctx context.Context, _ *struct{}) (*crewListOutput, error) {
+func (h *CrewHandler) list(ctx context.Context, in *pageParams) (*crewListOutput, error) {
 	user := middleware.GetUser(ctx)
-	members, err := h.q.ListCrewMembers(ctx, user.UserID)
+	members, err := h.q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
+		OwnerID: user.UserID,
+		Limit:   in.sqlLimit(),
+		Offset:  in.sqlOffset(),
+	})
 	if err != nil {
 		slog.Error("list crew members", "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
 	}
-	return &crewListOutput{Body: dto.CrewMembersFromDB(members)}, nil
+	total, err := h.q.CountCrewMembers(ctx, user.UserID)
+	if err != nil {
+		slog.Error("count crew members", "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list crew members")
+	}
+	return &crewListOutput{Body: dto.NewPage(dto.CrewMembersFromDB(members), total, in.Limit, in.Offset)}, nil
 }
 
 func (h *CrewHandler) get(ctx context.Context, in *crewIDParam) (*crewOutput, error) {
