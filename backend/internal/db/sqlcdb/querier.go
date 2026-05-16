@@ -196,10 +196,22 @@ type Querier interface {
 	//
 	//  DELETE FROM trips WHERE id = $1 AND org_id = $2
 	DeleteOrgTrip(ctx context.Context, arg DeleteOrgTripParams) error
+	//DeleteOrgTripCrewAssignment
+	//
+	//  DELETE FROM crew_assignments
+	//  WHERE crew_assignments.id = $1
+	//    AND crew_assignments.trip_id IN (SELECT trips.id FROM trips WHERE trips.org_id = $2)
+	DeleteOrgTripCrewAssignment(ctx context.Context, arg DeleteOrgTripCrewAssignmentParams) error
 	//DeleteOrgVoyage
 	//
 	//  DELETE FROM voyages WHERE id = $1 AND org_id = $2
 	DeleteOrgVoyage(ctx context.Context, arg DeleteOrgVoyageParams) error
+	//DeleteOrgVoyageCrewAssignment
+	//
+	//  DELETE FROM crew_assignments
+	//  WHERE crew_assignments.id = $1
+	//    AND crew_assignments.voyage_id IN (SELECT voyages.id FROM voyages WHERE voyages.org_id = $2)
+	DeleteOrgVoyageCrewAssignment(ctx context.Context, arg DeleteOrgVoyageCrewAssignmentParams) error
 	//DeleteOrgYacht
 	//
 	//  DELETE FROM yachts WHERE id = $1 AND org_id = $2
@@ -508,10 +520,30 @@ type Querier interface {
 	//  WHERE om.org_id = $1
 	//  ORDER BY om.role, u.name
 	ListOrgMembers(ctx context.Context, orgID int64) ([]ListOrgMembersRow, error)
+	//ListOrgTripCrewAssignments
+	//
+	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+	//         cm.full_name, cm.email
+	//  FROM crew_assignments ca
+	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
+	//  JOIN trips t ON t.id = ca.trip_id
+	//  WHERE ca.trip_id = $1 AND t.org_id = $2
+	//  ORDER BY cm.full_name
+	ListOrgTripCrewAssignments(ctx context.Context, arg ListOrgTripCrewAssignmentsParams) ([]ListOrgTripCrewAssignmentsRow, error)
 	//ListOrgTrips
 	//
 	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE org_id = $1 ORDER BY embark_date ASC
 	ListOrgTrips(ctx context.Context, orgID types.NullInt64) ([]Trip, error)
+	//ListOrgVoyageCrewAssignments
+	//
+	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+	//         cm.full_name, cm.email
+	//  FROM crew_assignments ca
+	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
+	//  JOIN voyages v ON v.id = ca.voyage_id
+	//  WHERE ca.voyage_id = $1 AND v.org_id = $2
+	//  ORDER BY cm.full_name
+	ListOrgVoyageCrewAssignments(ctx context.Context, arg ListOrgVoyageCrewAssignmentsParams) ([]ListOrgVoyageCrewAssignmentsRow, error)
 	//ListOrgVoyages
 	//
 	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
