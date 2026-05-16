@@ -218,6 +218,19 @@ func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (
 	return &crewAssignmentListOutput{Body: dto.TripCrewFromDB(assignments)}, nil
 }
 
+// verifyCrewMember confirms the crew member belongs to the caller, so an
+// assignment cannot attach (and later expose) crew from another owner.
+func (h *CrewHandler) verifyCrewMember(ctx context.Context, crewMemberID, ownerID int64) error {
+	if _, err := h.q.GetCrewMember(ctx, sqlcdb.GetCrewMemberParams{ID: crewMemberID, OwnerID: ownerID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return huma.Error404NotFound("crew member not found")
+		}
+		slog.Error("verify crew member for assignment", "crew_member_id", crewMemberID, "user_id", ownerID, "err", err)
+		return huma.Error500InternalServerError("failed to verify crew member")
+	}
+	return nil
+}
+
 func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInput) (*crewAssignmentOutput, error) {
 	user := middleware.GetUser(ctx)
 	if _, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.TripID, OwnerID: user.UserID}); err != nil {
@@ -226,6 +239,9 @@ func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInpu
 		}
 		slog.Error("verify trip for crew assignment", "trip_id", in.TripID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to verify trip")
+	}
+	if err := h.verifyCrewMember(ctx, in.Body.CrewMemberID, user.UserID); err != nil {
+		return nil, err
 	}
 	assignment, err := h.q.CreateTripCrewAssignment(ctx, sqlcdb.CreateTripCrewAssignmentParams{
 		TripID:       types.NullInt64{Int64: in.TripID, Valid: true},
@@ -273,6 +289,9 @@ func (h *CrewHandler) assignVoyageCrew(ctx context.Context, in *assignVoyageCrew
 		}
 		slog.Error("verify voyage for crew assignment", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to verify voyage")
+	}
+	if err := h.verifyCrewMember(ctx, in.Body.CrewMemberID, user.UserID); err != nil {
+		return nil, err
 	}
 	assignment, err := h.q.CreateVoyageCrewAssignment(ctx, sqlcdb.CreateVoyageCrewAssignmentParams{
 		VoyageID:     types.NullInt64{Int64: in.VoyageID, Valid: true},
