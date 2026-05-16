@@ -20,12 +20,40 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
-type OrgHandler struct {
-	q sqlcdb.Querier
+// txRunner runs fn inside a database transaction, passing it a Querier bound
+// to that transaction. It lets the membership write paths stay testable with
+// a fake querier while running atomically in production.
+type txRunner func(ctx context.Context, fn func(sqlcdb.Querier) error) error
+
+// sqlTxRunner returns a txRunner backed by a real database connection.
+func sqlTxRunner(db *sql.DB) txRunner {
+	return func(ctx context.Context, fn func(sqlcdb.Querier) error) error {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return &QueryError{Op: "BeginTx", Err: err}
+		}
+		defer func() { _ = tx.Rollback() }()
+		if err := fn(sqlcdb.New(tx)); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return &QueryError{Op: "Commit", Err: err}
+		}
+		return nil
+	}
 }
 
-func NewOrgHandler(q sqlcdb.Querier) *OrgHandler {
-	return &OrgHandler{q: q}
+// errInviteExhausted signals that an invite's max-use count was reached while
+// claiming it, so the membership transaction must roll back.
+var errInviteExhausted = errors.New("invite exhausted")
+
+type OrgHandler struct {
+	q     sqlcdb.Querier
+	runTx txRunner
+}
+
+func NewOrgHandler(q sqlcdb.Querier, db *sql.DB) *OrgHandler {
+	return &OrgHandler{q: q, runTx: sqlTxRunner(db)}
 }
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -95,8 +123,11 @@ type inviteAcceptOutput struct {
 }
 
 // RegisterOrgRoutes wires the organization, membership and invite operations.
-func RegisterOrgRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewOrgHandler(q)
+func RegisterOrgRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	NewOrgHandler(q, db).registerRoutes(api)
+}
+
+func (h *OrgHandler) registerRoutes(api huma.API) {
 	tag := []string{"Organizations"}
 
 	huma.Register(api, huma.Operation{
@@ -176,14 +207,27 @@ func (h *OrgHandler) create(ctx context.Context, in *createOrgInput) (*orgOutput
 		return nil, huma.Error422UnprocessableEntity("slug must contain only lowercase letters, numbers, and hyphens")
 	}
 
-	org, err := h.q.CreateOrganization(ctx, sqlcdb.CreateOrganizationParams{
-		Name:          in.Body.Name,
-		Slug:          slug,
-		Description:   nullString(in.Body.Description),
-		LogoUrl:       nullString(in.Body.LogoUrl),
-		PzzClubNumber: nullString(in.Body.PzzClubNumber),
-		City:          nullString(in.Body.City),
-		Website:       nullString(in.Body.Website),
+	var org sqlcdb.Organization
+	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		var txErr error
+		org, txErr = q.CreateOrganization(ctx, sqlcdb.CreateOrganizationParams{
+			Name:          in.Body.Name,
+			Slug:          slug,
+			Description:   nullString(in.Body.Description),
+			LogoUrl:       nullString(in.Body.LogoUrl),
+			PzzClubNumber: nullString(in.Body.PzzClubNumber),
+			City:          nullString(in.Body.City),
+			Website:       nullString(in.Body.Website),
+		})
+		if txErr != nil {
+			return txErr
+		}
+		_, txErr = q.AddOrgMember(ctx, sqlcdb.AddOrgMemberParams{
+			OrgID:  org.ID,
+			UserID: user.UserID,
+			Role:   "admin",
+		})
+		return txErr
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -191,15 +235,6 @@ func (h *OrgHandler) create(ctx context.Context, in *createOrgInput) (*orgOutput
 		}
 		slog.Error("create organization", "user_id", user.UserID, "slug", slug, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create organization")
-	}
-
-	if _, err := h.q.AddOrgMember(ctx, sqlcdb.AddOrgMemberParams{
-		OrgID:  org.ID,
-		UserID: user.UserID,
-		Role:   "admin",
-	}); err != nil {
-		slog.Error("add org creator as admin", "org_id", org.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to add creator as admin")
 	}
 	return &orgOutput{Body: dto.OrganizationFromDB(org)}, nil
 }
@@ -437,26 +472,46 @@ func (h *OrgHandler) acceptInvite(ctx context.Context, in *joinTokenParam) (*inv
 	if invite.ExpiresAt.Valid && invite.ExpiresAt.Time.Before(time.Now()) {
 		return nil, huma.Error410Gone("invite has expired")
 	}
-	if invite.MaxUses.Valid {
-		rows, err := h.q.IncrementInviteUseCount(ctx, invite.ID)
-		if err != nil {
-			slog.Error("increment invite use count", "invite_id", invite.ID, "err", err)
-			return nil, huma.Error500InternalServerError("failed to claim invite")
-		}
-		if rows == 0 {
-			return nil, huma.Error410Gone("invite has reached maximum uses")
-		}
-	}
 
-	if _, err := h.q.AddOrgMember(ctx, sqlcdb.AddOrgMemberParams{
+	// Reject an existing member before claiming a use, so a repeated accept
+	// does not burn the invite's use count.
+	if _, err := h.q.GetOrgMembership(ctx, sqlcdb.GetOrgMembershipParams{
 		OrgID:  invite.OrgID,
 		UserID: user.UserID,
-		Role:   invite.Role,
-	}); err != nil {
+	}); err == nil {
+		return nil, huma.Error409Conflict("already a member")
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		slog.Error("check existing membership", "org_id", invite.OrgID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to join organization")
+	}
+
+	// Claim the invite use and add the member in one transaction: a failed
+	// member write rolls back the consumed use count.
+	err = h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if invite.MaxUses.Valid {
+			rows, txErr := q.IncrementInviteUseCount(ctx, invite.ID)
+			if txErr != nil {
+				return txErr
+			}
+			if rows == 0 {
+				return errInviteExhausted
+			}
+		}
+		_, txErr := q.AddOrgMember(ctx, sqlcdb.AddOrgMemberParams{
+			OrgID:  invite.OrgID,
+			UserID: user.UserID,
+			Role:   invite.Role,
+		})
+		return txErr
+	})
+	if err != nil {
+		if errors.Is(err, errInviteExhausted) {
+			return nil, huma.Error410Gone("invite has reached maximum uses")
+		}
 		if isUniqueViolation(err) {
 			return nil, huma.Error409Conflict("already a member")
 		}
-		slog.Error("add org member via invite", "org_id", invite.OrgID, "user_id", user.UserID, "err", err)
+		slog.Error("accept org invite", "org_id", invite.OrgID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to join organization")
 	}
 	return &inviteAcceptOutput{Body: dto.InviteAcceptResult{
