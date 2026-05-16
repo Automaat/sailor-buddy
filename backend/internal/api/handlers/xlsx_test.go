@@ -3,12 +3,15 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/xuri/excelize/v2"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 func createTestXLSX(t *testing.T, opinieRows, szkoleniaRows [][]string) *bytes.Buffer {
@@ -216,7 +219,8 @@ func TestParseExcelDate(t *testing.T) {
 func importTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterImportRoutes(api, m)
+	h := &ImportHandler{runTx: directTxRunner(m)}
+	h.registerRoutes(api)
 	return api
 }
 
@@ -266,6 +270,51 @@ func TestUpload(t *testing.T) {
 		resp := importTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/import/xlsx", "Content-Type: "+ct, body)
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf("got %d, want 400", resp.Code)
+		}
+	})
+}
+
+func TestConfirm(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			createVoyageFn: func(_ context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: 1, Name: arg.Name}, nil
+			},
+			createTrainingFn: func(_ context.Context, arg sqlcdb.CreateTrainingParams) (sqlcdb.Training, error) {
+				return sqlcdb.Training{ID: 1, Name: arg.Name}, nil
+			},
+		}
+		resp := importTestAPI(t, m).PostCtx(userCtx(context.Background()), "/import/confirm",
+			map[string]any{
+				"voyages":   []map[string]any{{"name": "Baltic"}},
+				"trainings": []map[string]any{{"name": "RYA Day Skipper"}},
+			})
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+		}
+	})
+
+	t.Run("training failure rolls back the import", func(t *testing.T) {
+		voyageCreated := false
+		m := &mockQuerier{
+			createVoyageFn: func(_ context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
+				voyageCreated = true
+				return sqlcdb.Voyage{ID: 1, Name: arg.Name}, nil
+			},
+			createTrainingFn: func(context.Context, sqlcdb.CreateTrainingParams) (sqlcdb.Training, error) {
+				return sqlcdb.Training{}, errors.New("training write failed")
+			},
+		}
+		resp := importTestAPI(t, m).PostCtx(userCtx(context.Background()), "/import/confirm",
+			map[string]any{
+				"voyages":   []map[string]any{{"name": "Baltic"}},
+				"trainings": []map[string]any{{"name": "RYA Day Skipper"}},
+			})
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500; body=%s", resp.Code, resp.Body)
+		}
+		if !voyageCreated {
+			t.Error("expected voyage create to run inside the same transaction")
 		}
 	})
 }
