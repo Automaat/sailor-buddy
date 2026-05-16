@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"math"
@@ -20,11 +21,11 @@ import (
 )
 
 type ImportHandler struct {
-	q sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewImportHandler(q sqlcdb.Querier) *ImportHandler {
-	return &ImportHandler{q: q}
+func NewImportHandler(db *sql.DB) *ImportHandler {
+	return &ImportHandler{runTx: sqlTxRunner(db)}
 }
 
 // importCruiseRow and importTrainingRow alias the DTO rows so the spreadsheet
@@ -53,8 +54,11 @@ type importResultOutput struct {
 }
 
 // RegisterImportRoutes wires the XLSX import operations onto the API.
-func RegisterImportRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewImportHandler(q)
+func RegisterImportRoutes(api huma.API, db *sql.DB) {
+	NewImportHandler(db).registerRoutes(api)
+}
+
+func (h *ImportHandler) registerRoutes(api huma.API) {
 	tag := []string{"Import"}
 
 	huma.Register(api, huma.Operation{
@@ -98,40 +102,49 @@ func (h *ImportHandler) upload(_ context.Context, in *importUploadInput) (*impor
 func (h *ImportHandler) confirm(ctx context.Context, in *importConfirmInput) (*importResultOutput, error) {
 	user := middleware.GetUser(ctx)
 
-	yachtIDs, yachtsCreated, crewCreated, err := h.resolveImportEntities(ctx, user.UserID, in.Body.Voyages)
+	var result dto.ImportResult
+	// Resolve entities and create voyages and trainings in one transaction:
+	// a failure on any step rolls back the whole spreadsheet rather than
+	// leaving a partial import.
+	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		yachtIDs, yachtsCreated, crewCreated, rerr := resolveImportEntities(ctx, q, user.UserID, in.Body.Voyages)
+		if rerr != nil {
+			return rerr
+		}
+		voyagesCreated, rerr := createImportVoyages(ctx, q, user.UserID, in.Body.Voyages, yachtIDs)
+		if rerr != nil {
+			return rerr
+		}
+		trainingsCreated, rerr := createImportTrainings(ctx, q, user.UserID, in.Body.Trainings)
+		if rerr != nil {
+			return rerr
+		}
+		result = dto.ImportResult{
+			VoyagesCreated:   voyagesCreated,
+			TrainingsCreated: trainingsCreated,
+			YachtsCreated:    yachtsCreated,
+			CrewCreated:      crewCreated,
+		}
+		return nil
+	})
 	if err != nil {
-		slog.Error("import resolve entities", "user_id", user.UserID, "err", err)
+		slog.Error("import confirm", "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError(err.Error())
 	}
-	voyagesCreated, err := h.createImportVoyages(ctx, user.UserID, in.Body.Voyages, yachtIDs)
-	if err != nil {
-		slog.Error("import create voyages", "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError(err.Error())
-	}
-	trainingsCreated, err := h.createImportTrainings(ctx, user.UserID, in.Body.Trainings)
-	if err != nil {
-		slog.Error("import create trainings", "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError(err.Error())
-	}
-	return &importResultOutput{Body: dto.ImportResult{
-		VoyagesCreated:   voyagesCreated,
-		TrainingsCreated: trainingsCreated,
-		YachtsCreated:    yachtsCreated,
-		CrewCreated:      crewCreated,
-	}}, nil
+	return &importResultOutput{Body: result}, nil
 }
 
 // resolveImportEntities ensures every yacht and captain referenced by the
 // imported voyages exists, creating any that are missing. It returns the
 // name->ID map for yachts plus counts of newly created yachts and crew.
-func (h *ImportHandler) resolveImportEntities(ctx context.Context, ownerID int64, voyages []importCruiseRow) (yachtIDs map[string]int64, yachtsCreated, crewCreated int, err error) {
+func resolveImportEntities(ctx context.Context, q sqlcdb.Querier, ownerID int64, voyages []importCruiseRow) (yachtIDs map[string]int64, yachtsCreated, crewCreated int, err error) {
 	yachtIDs = map[string]int64{}
 	captainIDs := map[string]int64{}
 
 	for i := range voyages {
 		c := &voyages[i]
 		if c.YachtName != nil && *c.YachtName != "" {
-			created, rerr := h.resolveYacht(ctx, ownerID, yachtIDs, *c.YachtName, c.YachtType)
+			created, rerr := resolveYacht(ctx, q, ownerID, yachtIDs, *c.YachtName, c.YachtType)
 			if rerr != nil {
 				return nil, 0, 0, rerr
 			}
@@ -140,7 +153,7 @@ func (h *ImportHandler) resolveImportEntities(ctx context.Context, ownerID int64
 			}
 		}
 		if c.CaptainName != nil && *c.CaptainName != "" {
-			created, rerr := h.resolveCaptain(ctx, ownerID, captainIDs, *c.CaptainName)
+			created, rerr := resolveCaptain(ctx, q, ownerID, captainIDs, *c.CaptainName)
 			if rerr != nil {
 				return nil, 0, 0, rerr
 			}
@@ -152,11 +165,11 @@ func (h *ImportHandler) resolveImportEntities(ctx context.Context, ownerID int64
 	return yachtIDs, yachtsCreated, crewCreated, nil
 }
 
-func (h *ImportHandler) resolveYacht(ctx context.Context, ownerID int64, yachtIDs map[string]int64, name string, yachtTypePtr *string) (created bool, err error) {
+func resolveYacht(ctx context.Context, q sqlcdb.Querier, ownerID int64, yachtIDs map[string]int64, name string, yachtTypePtr *string) (created bool, err error) {
 	if _, ok := yachtIDs[name]; ok {
 		return false, nil
 	}
-	existing, lookupErr := h.q.GetYachtByName(ctx, sqlcdb.GetYachtByNameParams{OwnerID: ownerID, Name: name})
+	existing, lookupErr := q.GetYachtByName(ctx, sqlcdb.GetYachtByNameParams{OwnerID: ownerID, Name: name})
 	if lookupErr == nil {
 		yachtIDs[name] = existing.ID
 		return false, nil
@@ -165,7 +178,7 @@ func (h *ImportHandler) resolveYacht(ctx context.Context, ownerID int64, yachtID
 	if yachtTypePtr != nil {
 		yachtType = types.NullString{String: *yachtTypePtr, Valid: true}
 	}
-	row, createErr := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
+	row, createErr := q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
 		OwnerID:   ownerID,
 		Name:      name,
 		YachtType: yachtType,
@@ -177,16 +190,16 @@ func (h *ImportHandler) resolveYacht(ctx context.Context, ownerID int64, yachtID
 	return true, nil
 }
 
-func (h *ImportHandler) resolveCaptain(ctx context.Context, ownerID int64, captainIDs map[string]int64, name string) (created bool, err error) {
+func resolveCaptain(ctx context.Context, q sqlcdb.Querier, ownerID int64, captainIDs map[string]int64, name string) (created bool, err error) {
 	if _, ok := captainIDs[name]; ok {
 		return false, nil
 	}
-	existing, lookupErr := h.q.GetCrewMemberByName(ctx, sqlcdb.GetCrewMemberByNameParams{OwnerID: ownerID, FullName: name})
+	existing, lookupErr := q.GetCrewMemberByName(ctx, sqlcdb.GetCrewMemberByNameParams{OwnerID: ownerID, FullName: name})
 	if lookupErr == nil {
 		captainIDs[name] = existing.ID
 		return false, nil
 	}
-	row, createErr := h.q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{OwnerID: ownerID, FullName: name})
+	row, createErr := q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{OwnerID: ownerID, FullName: name})
 	if createErr != nil {
 		return false, fmt.Errorf("failed to create crew member %q: %w", name, createErr)
 	}
@@ -194,7 +207,7 @@ func (h *ImportHandler) resolveCaptain(ctx context.Context, ownerID int64, capta
 	return true, nil
 }
 
-func (h *ImportHandler) createImportVoyages(ctx context.Context, ownerID int64, voyages []importCruiseRow, yachtIDs map[string]int64) (int, error) {
+func createImportVoyages(ctx context.Context, q sqlcdb.Querier, ownerID int64, voyages []importCruiseRow, yachtIDs map[string]int64) (int, error) {
 	created := 0
 	for i := range voyages {
 		c := &voyages[i]
@@ -205,7 +218,7 @@ func (h *ImportHandler) createImportVoyages(ctx context.Context, ownerID int64, 
 		if c.YachtName != nil && *c.YachtName != "" {
 			yachtID = types.NullInt64{Int64: yachtIDs[*c.YachtName], Valid: true}
 		}
-		_, err := h.q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
+		_, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
 			OwnerID:       ownerID,
 			Name:          c.Name,
 			Year:          nullInt64(c.Year),
@@ -235,14 +248,14 @@ func (h *ImportHandler) createImportVoyages(ctx context.Context, ownerID int64, 
 	return created, nil
 }
 
-func (h *ImportHandler) createImportTrainings(ctx context.Context, userID int64, trainings []importTrainingRow) (int, error) {
+func createImportTrainings(ctx context.Context, q sqlcdb.Querier, userID int64, trainings []importTrainingRow) (int, error) {
 	created := 0
 	for i := range trainings {
 		t := &trainings[i]
 		if t.Name == "" {
 			continue
 		}
-		_, err := h.q.CreateTraining(ctx, sqlcdb.CreateTrainingParams{
+		_, err := q.CreateTraining(ctx, sqlcdb.CreateTrainingParams{
 			UserID:    userID,
 			Date:      nullString(t.Date),
 			Name:      t.Name,
