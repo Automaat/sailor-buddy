@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -14,10 +15,20 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// directTxRunner runs the transaction body straight against the fake querier,
+// so handler logic — ordering and error handling — is exercised without a
+// real database.
+func directTxRunner(q sqlcdb.Querier) txRunner {
+	return func(_ context.Context, fn func(sqlcdb.Querier) error) error {
+		return fn(q)
+	}
+}
+
 func orgTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterOrgRoutes(api, m)
+	h := &OrgHandler{q: m, runTx: directTxRunner(m)}
+	h.registerRoutes(api)
 	return api
 }
 
@@ -191,6 +202,9 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
 				return sqlcdb.GetOrgInviteByTokenRow{ID: 1, OrgID: 2, Role: "crew", OrgName: "Warsaw", OrgSlug: "warsaw"}, nil
 			},
+			getOrgMembershipFn: func(context.Context, sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error) {
+				return sqlcdb.GetOrgMembershipRow{}, sql.ErrNoRows
+			},
 			addOrgMemberFn: func(context.Context, sqlcdb.AddOrgMemberParams) (sqlcdb.OrgMember, error) {
 				return sqlcdb.OrgMember{}, nil
 			},
@@ -200,4 +214,83 @@ func TestOrgHandler_AcceptInvite(t *testing.T) {
 			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
 		}
 	})
+
+	t.Run("already a member does not claim a use", func(t *testing.T) {
+		incremented := false
+		m := &mockQuerier{
+			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
+				return sqlcdb.GetOrgInviteByTokenRow{
+					ID: 1, OrgID: 2, Role: "crew",
+					MaxUses: types.NullInt64{Int64: 5, Valid: true},
+				}, nil
+			},
+			getOrgMembershipFn: func(context.Context, sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error) {
+				return sqlcdb.GetOrgMembershipRow{Role: "crew"}, nil
+			},
+			incrementInviteUseCountFn: func(context.Context, int64) (int64, error) {
+				incremented = true
+				return 1, nil
+			},
+		}
+		resp := orgTestAPI(t, m).PostCtx(userCtx(context.Background()), "/join/tok")
+		if resp.Code != http.StatusConflict {
+			t.Fatalf("got %d, want 409; body=%s", resp.Code, resp.Body)
+		}
+		if incremented {
+			t.Error("use count was claimed for an existing member")
+		}
+	})
+
+	t.Run("max uses reached", func(t *testing.T) {
+		m := &mockQuerier{
+			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
+				return sqlcdb.GetOrgInviteByTokenRow{
+					ID: 1, OrgID: 2, Role: "crew",
+					MaxUses: types.NullInt64{Int64: 1, Valid: true},
+				}, nil
+			},
+			getOrgMembershipFn: func(context.Context, sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error) {
+				return sqlcdb.GetOrgMembershipRow{}, sql.ErrNoRows
+			},
+			incrementInviteUseCountFn: func(context.Context, int64) (int64, error) { return 0, nil },
+		}
+		resp := orgTestAPI(t, m).PostCtx(userCtx(context.Background()), "/join/tok")
+		if resp.Code != http.StatusGone {
+			t.Fatalf("got %d, want 410; body=%s", resp.Code, resp.Body)
+		}
+	})
+
+	t.Run("add member failure rolls back", func(t *testing.T) {
+		m := &mockQuerier{
+			getOrgInviteByTokenFn: func(context.Context, string) (sqlcdb.GetOrgInviteByTokenRow, error) {
+				return sqlcdb.GetOrgInviteByTokenRow{ID: 1, OrgID: 2, Role: "crew"}, nil
+			},
+			getOrgMembershipFn: func(context.Context, sqlcdb.GetOrgMembershipParams) (sqlcdb.GetOrgMembershipRow, error) {
+				return sqlcdb.GetOrgMembershipRow{}, sql.ErrNoRows
+			},
+			addOrgMemberFn: func(context.Context, sqlcdb.AddOrgMemberParams) (sqlcdb.OrgMember, error) {
+				return sqlcdb.OrgMember{}, errors.New("write failed")
+			},
+		}
+		resp := orgTestAPI(t, m).PostCtx(userCtx(context.Background()), "/join/tok")
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500; body=%s", resp.Code, resp.Body)
+		}
+	})
+}
+
+func TestOrgHandler_Create_AddMemberFailure(t *testing.T) {
+	m := &mockQuerier{
+		createOrganizationFn: func(_ context.Context, arg sqlcdb.CreateOrganizationParams) (sqlcdb.Organization, error) {
+			return sqlcdb.Organization{ID: 1, Name: arg.Name, Slug: arg.Slug}, nil
+		},
+		addOrgMemberFn: func(context.Context, sqlcdb.AddOrgMemberParams) (sqlcdb.OrgMember, error) {
+			return sqlcdb.OrgMember{}, errors.New("write failed")
+		},
+	}
+	resp := orgTestAPI(t, m).PostCtx(userCtx(context.Background()), "/orgs",
+		map[string]any{"name": "Warsaw SC", "slug": "warsaw-sc"})
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("got %d, want 500; body=%s", resp.Code, resp.Body)
+	}
 }
