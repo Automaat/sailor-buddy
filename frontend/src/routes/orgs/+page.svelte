@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { errorMessage } from '$lib/api/errors';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import { listOrgs, createOrg } from '$lib/api/routes';
 	import type { Organization } from '$lib/api/types';
@@ -17,8 +18,8 @@
 		error = '';
 		try {
 			orgs = (await listOrgs()) ?? [];
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			loading = false;
 		}
@@ -56,8 +57,8 @@
 			await orgStore.refresh();
 			orgStore.select(form.slug);
 			goto('/');
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			creating = false;
 		}

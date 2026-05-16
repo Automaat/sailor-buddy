@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { errorMessage } from '$lib/api/errors';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { OrgMember, OrgInvite } from '$lib/api/types';
@@ -51,8 +52,8 @@
 			} else {
 				invites = [];
 			}
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			loading = false;
 		}
@@ -62,8 +63,8 @@
 		try {
 			await updateOrgMemberRole(slug, memberId, role);
 			await load();
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		}
 	}
 
@@ -72,8 +73,8 @@
 		try {
 			await removeOrgMember(slug, memberId);
 			await load();
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		}
 	}
 
@@ -104,8 +105,8 @@
 			inviteMaxUses = '';
 			inviteExpiresHours = '';
 			await load();
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			creatingInvite = false;
 		}
@@ -115,8 +116,8 @@
 		try {
 			await deleteOrgInvite(slug, inviteId);
 			await load();
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		}
 	}
 
