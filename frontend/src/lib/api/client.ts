@@ -117,14 +117,26 @@ async function fail(res: Response): Promise<never> {
 	throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
 }
 
+// sendRequest issues one authenticated request against the API, attaching
+// the auth header and routing every non-2xx response through `fail`. It is
+// the single place request/upload/download share auth-error handling.
+async function sendRequest(
+	url: string,
+	init: RequestInit,
+	extraHeaders: Record<string, string> = {}
+): Promise<Response> {
+	const headers = await authHeaders(extraHeaders);
+	const res = await fetch(`${BASE}${url}`, { ...init, headers });
+	if (!res.ok) await fail(res);
+	return res;
+}
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-	const headers = await authHeaders({ 'Content-Type': 'application/json' });
-	const res = await fetch(`${BASE}${url}`, {
-		method,
-		headers,
-		body: body === undefined ? undefined : JSON.stringify(body)
-	});
-	if (!res.ok) return fail(res);
+	const res = await sendRequest(
+		url,
+		{ method, body: body === undefined ? undefined : JSON.stringify(body) },
+		{ 'Content-Type': 'application/json' }
+	);
 	if (res.status === 204) return undefined as T;
 	return res.json();
 }
@@ -150,9 +162,7 @@ async function listAll<T>(template: string, opts?: CallOpts): Promise<T[]> {
 }
 
 async function upload<T>(template: string, formData: FormData): Promise<T> {
-	const headers = await authHeaders();
-	const res = await fetch(`${BASE}${template}`, { method: 'POST', headers, body: formData });
-	if (!res.ok) return fail(res);
+	const res = await sendRequest(template, { method: 'POST', body: formData });
 	return res.json();
 }
 
@@ -167,12 +177,7 @@ type MultipartPath = {
 }[PostPath];
 
 async function download(template: string, opts?: CallOpts): Promise<void> {
-	const headers = await authHeaders();
-	const res = await fetch(`${BASE}${resolvePath(template, opts)}`, { headers });
-	if (!res.ok) {
-		await fail(res);
-		return;
-	}
+	const res = await sendRequest(resolvePath(template, opts), {});
 	const disposition = res.headers.get('Content-Disposition') ?? '';
 	const match = disposition.match(/filename="?([^"]+)"?/);
 	const filename = match ? match[1] : template.split('/').pop() || 'download';
