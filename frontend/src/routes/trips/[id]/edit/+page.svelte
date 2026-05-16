@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
-	import { orgStore } from '$lib/stores/org.svelte';
-	import type { Trip, Yacht } from '$lib/api/types';
+	import { getTrip, updateTrip, listYachts } from '$lib/api/routes';
+	import type { Yacht } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -26,15 +25,11 @@
 		description: ''
 	});
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 
 	onMount(async () => {
 		try {
-			const prefix = orgStore.apiPrefix();
-			const [trip, y] = await Promise.all([
-				api.get<Trip>(`${prefix}/trips/${id}`),
-				api.list<Yacht>(`${prefix}/yachts`)
-			]);
+			const [trip, y] = await Promise.all([getTrip(id), listYachts()]);
 			yachts = y;
 			form = {
 				name: trip.name,
@@ -63,7 +58,7 @@
 		error = '';
 		try {
 			const payload = { ...form, yacht_id: form.yacht_id || undefined };
-			await api.put(`${orgStore.apiPrefix()}/trips/${id}`, payload);
+			await updateTrip(id, payload);
 			goto(`/trips/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';

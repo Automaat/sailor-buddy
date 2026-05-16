@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import { page } from '$app/state';
-	import type { Yacht, Trip, Cruise } from '$lib/api/types';
+	import { listYachts, listCruises, createTrip } from '$lib/api/routes';
+	import type { Yacht, Cruise } from '$lib/api/types';
 	import { onMount } from 'svelte';
 
 	let yachts = $state<Yacht[]>([]);
@@ -34,10 +34,9 @@
 	});
 
 	onMount(async () => {
-		const prefix = orgStore.apiPrefix();
-		yachts = await api.list<Yacht>(`${prefix}/yachts`);
+		yachts = await listYachts();
 		if (orgStore.isOrgMode) {
-			cruises = await api.list<Cruise>(`${prefix}/cruises`).catch(() => []);
+			cruises = await listCruises().catch(() => []);
 		}
 		if (initialCruiseID) {
 			form.cruise_id = initialCruiseID;
@@ -62,7 +61,7 @@
 				yacht_id: form.yacht_id || undefined,
 				cruise_id: form.cruise_id || undefined
 			};
-			const trip = await api.post<Trip>(`${orgStore.apiPrefix()}/trips`, payload);
+			const trip = await createTrip(payload);
 			goto(`/trips/${trip.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zaplanować rejsu';

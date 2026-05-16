@@ -1,6 +1,17 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
-	import { orgStore } from '$lib/stores/org.svelte';
+	import {
+		getVoyage,
+		deleteVoyage,
+		listVoyageCrew,
+		assignVoyageCrew,
+		removeVoyageCrew,
+		listVoyageOpinions,
+		generateVoyageOpinion,
+		deleteVoyageOpinion,
+		downloadVoyageOpinion,
+		listCrew,
+		getCruise
+	} from '$lib/api/routes';
 	import type { Voyage, CrewAssignment, CrewMember, VoyageOpinion, Cruise } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -14,26 +25,25 @@
 	let loading = $state(true);
 
 	let genCrewId = $state('');
-	let genFormat = $state('pdf');
+	let genFormat = $state<'pdf' | 'docx'>('pdf');
 	let generating = $state(false);
 
 	let assignCrewId = $state('');
 	let assignRole = $state('');
 	let assigning = $state(false);
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 
 	onMount(async () => {
 		try {
-			const prefix = orgStore.apiPrefix();
-			voyage = await api.get<Voyage>(`${prefix}/voyages/${id}`);
+			voyage = await getVoyage(id);
 			[crew, opinions, allCrewMembers] = await Promise.all([
-				api.get<CrewAssignment[]>(`${prefix}/voyages/${id}/crew`).catch(() => []),
-				api.get<VoyageOpinion[]>(`${prefix}/voyages/${id}/opinions`).catch(() => []),
-				api.list<CrewMember>(`${prefix}/crew`).catch(() => [])
+				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),
+				listVoyageOpinions(id).then((o) => o ?? []).catch(() => []),
+				listCrew().catch(() => [])
 			]);
 			if (voyage?.cruise_id) {
-				cruise = await api.get<Cruise>(`${prefix}/cruises/${voyage.cruise_id}`).catch(() => null);
+				cruise = await getCruise(voyage.cruise_id).catch(() => null);
 			}
 		} catch (err) {
 			console.error('Failed to load voyage:', err);
@@ -44,7 +54,7 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
-		await api.del(`${orgStore.apiPrefix()}/voyages/${id}`);
+		await deleteVoyage(id);
 		goto('/voyages');
 	}
 
@@ -52,12 +62,11 @@
 		if (!genCrewId) return;
 		generating = true;
 		try {
-			const prefix = orgStore.apiPrefix();
-			await api.post(`${prefix}/voyages/${id}/opinions`, {
+			await generateVoyageOpinion(id, {
 				crew_member_id: Number(genCrewId),
 				format: genFormat
 			});
-			opinions = await api.get<VoyageOpinion[]>(`${prefix}/voyages/${id}/opinions`);
+			opinions = (await listVoyageOpinions(id)) ?? [];
 			genCrewId = '';
 		} catch (err) {
 			console.error('Failed to generate opinion:', err);
@@ -68,7 +77,7 @@
 
 	async function downloadOpinion(opId: number) {
 		try {
-			await api.download(`${orgStore.apiPrefix()}/voyages/${id}/opinions/${opId}/download`);
+			await downloadVoyageOpinion(id, opId);
 		} catch (err) {
 			console.error('Failed to download opinion:', err);
 		}
@@ -76,7 +85,7 @@
 
 	async function deleteOpinion(opId: number) {
 		if (!confirm('Usunąć tę opinię?')) return;
-		await api.del(`${orgStore.apiPrefix()}/voyages/${id}/opinions/${opId}`);
+		await deleteVoyageOpinion(id, opId);
 		opinions = opinions.filter((o) => o.id !== opId);
 	}
 
@@ -85,12 +94,11 @@
 		if (!assignCrewId || !assignRole) return;
 		assigning = true;
 		try {
-			const prefix = orgStore.apiPrefix();
-			await api.post(`${prefix}/voyages/${id}/crew`, {
+			await assignVoyageCrew(id, {
 				crew_member_id: Number(assignCrewId),
 				role: assignRole
 			});
-			crew = await api.get<CrewAssignment[]>(`${prefix}/voyages/${id}/crew`);
+			crew = (await listVoyageCrew(id)) ?? [];
 			assignCrewId = '';
 			assignRole = '';
 		} catch (err) {
@@ -102,7 +110,7 @@
 
 	async function removeCrew(assignmentId: number) {
 		if (!confirm('Usunąć przypisanie załoganta?')) return;
-		await api.del(`${orgStore.apiPrefix()}/voyages/${id}/crew/${assignmentId}`);
+		await removeVoyageCrew(id, assignmentId);
 		crew = crew.filter((c) => c.id !== assignmentId);
 	}
 </script>

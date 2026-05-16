@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
+	import { listTrainings, createTraining, deleteTraining } from '$lib/api/routes';
 	import type { Training } from '$lib/api/types';
 	import { onMount } from 'svelte';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
@@ -12,7 +12,7 @@
 
 	onMount(async () => {
 		try {
-			trainings = await api.list<Training>('/trainings');
+			trainings = await listTrainings();
 		} catch (err) {
 			console.error('Failed to load trainings:', err);
 		} finally {
@@ -24,7 +24,7 @@
 		e.preventDefault();
 		saving = true;
 		try {
-			const training = await api.post<Training>('/trainings', form);
+			const training = await createTraining(form);
 			trainings = [training, ...trainings];
 			form = { name: '', date: '', organizer: '', cost: 0, url: '' };
 			showForm = false;
@@ -37,7 +37,7 @@
 
 	async function handleDelete(id: number) {
 		if (!confirm('Usunąć to szkolenie?')) return;
-		await api.del(`/trainings/${id}`);
+		await deleteTraining(id);
 		trainings = trainings.filter((t) => t.id !== id);
 	}
 </script>

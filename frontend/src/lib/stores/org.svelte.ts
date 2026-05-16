@@ -56,7 +56,7 @@ function createOrgStore() {
 		async refresh() {
 			loading = true;
 			try {
-				orgs = await api.get<Organization[]>('/orgs');
+				orgs = (await api.get('/orgs')) ?? [];
 				loaded = true;
 				if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
 					currentSlug = null;

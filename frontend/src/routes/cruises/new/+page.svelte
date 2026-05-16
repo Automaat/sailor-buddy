@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { goto } from '$app/navigation';
 	import { orgStore } from '$lib/stores/org.svelte';
-	import type { Cruise } from '$lib/api/types';
+	import { createCruise } from '$lib/api/routes';
 
 	let error = $state('');
 	let loading = $state(false);
@@ -38,7 +37,7 @@
 		loading = true;
 		error = '';
 		try {
-			const cruise = await api.post<Cruise>(`${orgStore.apiPrefix()}/cruises`, form);
+			const cruise = await createCruise(form);
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć wydarzenia';

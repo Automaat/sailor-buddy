@@ -303,6 +303,8 @@ components:
         trip_id:
           format: int64
           type: integer
+        trip_name:
+          type: string
         updated_at:
           format: date-time
           type: string

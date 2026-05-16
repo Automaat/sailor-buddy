@@ -1,12 +1,15 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
+	import { importXlsx, importConfirm } from '$lib/api/routes';
+	import type { components } from '$lib/api/schema';
 	import Download from '@lucide/svelte/icons/download';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
+
+	type ImportData = components['schemas']['ImportData'];
 
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let status = $state<'idle' | 'uploading' | 'preview' | 'confirming' | 'done' | 'error'>('idle');
 	let error = $state('');
-	let preview = $state<any>(null);
+	let preview = $state<ImportData | null>(null);
 
 	function handleFileChange(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -19,25 +22,9 @@
 		error = '';
 
 		try {
-			const token = await auth.getIdToken();
-			if (!token) throw new Error('Not authenticated');
 			const formData = new FormData();
 			formData.append('file', file);
-
-			const res = await fetch('/api/import/xlsx', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`
-				},
-				body: formData
-			});
-
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error(body.error || 'Przesyłanie nie powiodło się');
-			}
-
-			preview = await res.json();
+			preview = await importXlsx(formData);
 			status = 'preview';
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Przesyłanie nie powiodło się';
@@ -46,20 +33,10 @@
 	}
 
 	async function handleConfirm() {
+		if (!preview) return;
 		status = 'confirming';
 		try {
-			const token = await auth.getIdToken();
-			if (!token) throw new Error('Not authenticated');
-			const res = await fetch('/api/import/confirm', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify(preview)
-			});
-
-			if (!res.ok) throw new Error('Import nie powiódł się');
+			await importConfirm(preview);
 			status = 'done';
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Import nie powiódł się';

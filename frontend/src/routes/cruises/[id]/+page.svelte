@@ -1,11 +1,24 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import {
+		getCruise,
+		deleteCruise,
+		listCruiseTrips,
+		listCruiseVoyages,
+		listCruiseEnrollments,
+		generateCruiseEnrollToken,
+		clearCruiseEnrollToken,
+		updateCruiseEnrollmentStatus,
+		assignCruiseEnrollmentTrip,
+		deleteCruiseEnrollment
+	} from '$lib/api/routes';
 	import type { Cruise, Trip, Voyage, CruiseEnrollment } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+
+	type EnrollStatus = 'accepted' | 'rejected' | 'waitlisted' | 'pending';
 
 	let cruise = $state<Cruise | null>(null);
 	let trips = $state<Trip[]>([]);
@@ -15,25 +28,25 @@
 	let enrollToken = $state<string | null>(null);
 	let togglingEnroll = $state(false);
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 	const isAdmin = $derived(orgStore.isOrgAdmin);
 
 	async function reloadEnrollments() {
-		enrollments = await api.get<CruiseEnrollment[]>(
-			`${orgStore.apiPrefix()}/cruises/${id}/enrollments`
-		);
+		enrollments = (await listCruiseEnrollments(id)) ?? [];
 	}
 
 	onMount(async () => {
 		try {
-			const prefix = orgStore.apiPrefix();
-			cruise = await api.get<Cruise>(`${prefix}/cruises/${id}`);
+			cruise = await getCruise(id);
 			enrollToken = cruise?.enroll_token ?? null;
-			[trips, voyages, enrollments] = await Promise.all([
-				api.get<Trip[]>(`${prefix}/cruises/${id}/trips`).catch(() => []),
-				api.get<Voyage[]>(`${prefix}/cruises/${id}/voyages`).catch(() => []),
-				api.get<CruiseEnrollment[]>(`${prefix}/cruises/${id}/enrollments`).catch(() => [])
+			const [t, v, e] = await Promise.all([
+				listCruiseTrips(id).then((r) => r ?? []).catch(() => []),
+				listCruiseVoyages(id).then((r) => r ?? []).catch(() => []),
+				listCruiseEnrollments(id).then((r) => r ?? []).catch(() => [])
 			]);
+			trips = t;
+			voyages = v;
+			enrollments = e;
 		} catch (err) {
 			console.error('Failed to load cruise:', err);
 		} finally {
@@ -43,7 +56,7 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć wydarzenie? Trips/voyages stracą powiązanie ale zostaną.')) return;
-		await api.del(`${orgStore.apiPrefix()}/cruises/${id}`);
+		await deleteCruise(id);
 		goto('/cruises');
 	}
 
@@ -51,10 +64,10 @@
 		togglingEnroll = true;
 		try {
 			if (enrollToken) {
-				await api.del(`${orgStore.apiPrefix()}/cruises/${id}/enroll-token`);
+				await clearCruiseEnrollToken(id);
 				enrollToken = null;
 			} else {
-				const res = await api.post<{ token: string }>(`${orgStore.apiPrefix()}/cruises/${id}/enroll-token`);
+				const res = await generateCruiseEnrollToken(id);
 				enrollToken = res.token;
 			}
 		} catch (err) {
@@ -69,12 +82,9 @@
 		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
 	}
 
-	async function setEnrollmentStatus(enrollmentId: number, status: string) {
+	async function setEnrollmentStatus(enrollmentId: number, status: EnrollStatus) {
 		try {
-			await api.put(
-				`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}/status`,
-				{ status }
-			);
+			await updateCruiseEnrollmentStatus(id, enrollmentId, status);
 			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
 			console.error('Failed to set status:', err);
@@ -83,10 +93,7 @@
 
 	async function assignEnrollmentToTrip(enrollmentId: number, tripId: number | null) {
 		try {
-			await api.put(
-				`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}/trip`,
-				{ trip_id: tripId }
-			);
+			await assignCruiseEnrollmentTrip(id, enrollmentId, tripId ?? undefined);
 			await reloadEnrollments();
 		} catch (err) {
 			console.error('Failed to assign to trip:', err);
@@ -96,7 +103,7 @@
 	async function deleteEnrollment(enrollmentId: number) {
 		if (!confirm('Usunąć ten zapis?')) return;
 		try {
-			await api.del(`${orgStore.apiPrefix()}/cruises/${id}/enrollments/${enrollmentId}`);
+			await deleteCruiseEnrollment(id, enrollmentId);
 			enrollments = enrollments.filter((e) => e.id !== enrollmentId);
 		} catch (err) {
 			console.error('Failed to delete enrollment:', err);

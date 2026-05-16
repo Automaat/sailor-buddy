@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { listOrgs, createOrg } from '$lib/api/routes';
 	import type { Organization } from '$lib/api/types';
 	import { goto } from '$app/navigation';
 
@@ -16,7 +16,7 @@
 		loading = true;
 		error = '';
 		try {
-			orgs = await api.get<Organization[]>('/orgs');
+			orgs = (await listOrgs()) ?? [];
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -45,7 +45,7 @@
 		error = '';
 		creating = true;
 		try {
-			await api.post('/orgs', {
+			await createOrg({
 				name: form.name,
 				slug: form.slug,
 				description: form.description || undefined,

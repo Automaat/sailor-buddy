@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
+	import { getCrew, deleteCrew } from '$lib/api/routes';
 	import type { CrewMember } from '$lib/api/types';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -8,11 +8,11 @@
 	let member = $state<CrewMember | null>(null);
 	let loading = $state(true);
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 
 	onMount(async () => {
 		try {
-			member = await api.get<CrewMember>(`/crew/${id}`);
+			member = await getCrew(id);
 		} catch (err) {
 			console.error('Failed to load crew member:', err);
 		} finally {
@@ -22,7 +22,7 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć tego załoganta?')) return;
-		await api.del(`/crew/${id}`);
+		await deleteCrew(id);
 		goto('/crew');
 	}
 </script>

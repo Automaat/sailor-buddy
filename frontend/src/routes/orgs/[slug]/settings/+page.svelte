@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { getOrg, updateOrg, deleteOrg } from '$lib/api/routes';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import type { Organization } from '$lib/api/types';
+	import type { OrgDetail } from '$lib/api/types';
 
 	let slug = $derived((page.params as Record<string, string>).slug);
-	let org = $state<Organization | null>(null);
+	let org = $state<OrgDetail | null>(null);
 	let loading = $state(true);
 	let saving = $state(false);
 	let error = $state('');
@@ -27,7 +27,7 @@
 		loading = true;
 		error = '';
 		try {
-			org = await api.get<Organization>(`/orgs/${slug}`);
+			org = await getOrg(slug);
 			form = {
 				name: org.name,
 				description: org.description ?? '',
@@ -49,7 +49,7 @@
 		success = '';
 		saving = true;
 		try {
-			await api.put(`/orgs/${slug}`, {
+			await updateOrg(slug, {
 				name: form.name,
 				description: form.description || undefined,
 				city: form.city || undefined,
@@ -69,7 +69,7 @@
 	async function handleDelete() {
 		if (!confirm('Czy na pewno chcesz usunąć ten klub? Tej operacji nie można cofnąć.')) return;
 		try {
-			await api.del(`/orgs/${slug}`);
+			await deleteOrg(slug);
 			orgStore.select(null);
 			await orgStore.refresh();
 			goto('/orgs');

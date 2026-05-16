@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { listCruises } from '$lib/api/routes';
 	import type { Cruise } from '$lib/api/types';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import { goto } from '$app/navigation';
@@ -16,7 +16,7 @@
 		}
 		loading = true;
 		try {
-			cruises = await api.list<Cruise>(`${orgStore.apiPrefix()}/cruises`);
+			cruises = await listCruises();
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {

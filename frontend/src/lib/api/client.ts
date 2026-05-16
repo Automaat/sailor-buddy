@@ -1,114 +1,222 @@
 import { auth } from '$lib/stores/auth.svelte';
-import type { Page } from './types';
+import type { paths } from './schema';
 
 const BASE = '/api';
 
-async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-	const token = await auth.getIdToken();
-	const headers: Record<string, string> = {
-		'Content-Type': 'application/json',
-		...((opts.headers as Record<string, string>) || {})
-	};
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
+type HttpMethod = 'get' | 'put' | 'post' | 'delete';
+
+// PathsFor selects the path templates that declare a given HTTP method.
+// openapi-typescript types absent methods as optional `never`, so a real
+// operation is one whose non-nullable form is not `never`.
+type PathsFor<M extends HttpMethod> = {
+	[P in keyof paths]: [NonNullable<paths[P][M]>] extends [never] ? never : P;
+}[keyof paths];
+
+type GetPath = PathsFor<'get'>;
+type PostPath = PathsFor<'post'>;
+type PutPath = PathsFor<'put'>;
+type DeletePath = PathsFor<'delete'>;
+
+// Op resolves the OpenAPI operation backing a path + method pair.
+type Op<P extends keyof paths, M extends HttpMethod> = NonNullable<paths[P][M]>;
+
+type PathParams<O> = O extends { parameters: { path?: infer PP } }
+	? [PP] extends [never | undefined]
+		? undefined
+		: PP
+	: undefined;
+
+type Query<O> = O extends { parameters: { query?: infer Q } }
+	? [Q] extends [never | undefined]
+		? undefined
+		: Q
+	: undefined;
+
+// JsonBody extracts the JSON request body, or `never` when the operation
+// takes none. Absent bodies are typed as optional `never` by openapi-typescript.
+type JsonBody<O> = O extends { requestBody?: infer RB }
+	? [NonNullable<RB>] extends [never]
+		? never
+		: NonNullable<RB> extends { content: { 'application/json': infer B } }
+			? B
+			: never
+	: never;
+
+// Response collapses the JSON success bodies (200/201) and a 204 to `void`.
+type OpResponse<O> = O extends { responses: infer R }
+	?
+			| (R extends { 200: { content: { 'application/json': infer T } } } ? T : never)
+			| (R extends { 201: { content: { 'application/json': infer T } } } ? T : never)
+			| (R extends { 204: unknown } ? void : never)
+	: never;
+
+// RequestOpts is the per-call argument: a key is required when the operation
+// requires it (path params, JSON body) and optional otherwise (query).
+type RequestOpts<O> = (PathParams<O> extends undefined
+	? { path?: undefined }
+	: { path: PathParams<O> }) &
+	(Query<O> extends undefined ? { query?: undefined } : { query?: Query<O> }) &
+	([JsonBody<O>] extends [never] ? { body?: undefined } : { body: JsonBody<O> });
+
+// OptsArg makes the opts argument optional only when nothing in it is required.
+type OptsArg<O> = Record<string, never> extends RequestOpts<O>
+	? [opts?: RequestOpts<O>]
+	: [opts: RequestOpts<O>];
+
+// Page-shaped GET responses, the only ones `list` accepts.
+type ListPath = {
+	[P in GetPath]: OpResponse<Op<P, 'get'>> extends { items: unknown; has_more: boolean }
+		? P
+		: never;
+}[GetPath];
+
+type PageItem<O> = OpResponse<O> extends { items: infer I }
+	? NonNullable<I> extends readonly (infer E)[]
+		? E
+		: never
+	: never;
+
+interface CallOpts {
+	path?: Record<string, string | number>;
+	query?: Record<string, string | number | undefined>;
+	body?: unknown;
+}
+
+// resolvePath substitutes `{name}` placeholders and appends a query string.
+function resolvePath(template: string, opts?: CallOpts): string {
+	let path = template;
+	if (opts?.path) {
+		for (const [key, value] of Object.entries(opts.path)) {
+			path = path.replace(`{${key}}`, encodeURIComponent(String(value)));
+		}
 	}
+	if (opts?.query) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(opts.query)) {
+			if (value !== undefined) params.set(key, String(value));
+		}
+		const qs = params.toString();
+		if (qs) path += `?${qs}`;
+	}
+	return path;
+}
 
-	const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+async function authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+	const token = await auth.getIdToken();
+	const headers: Record<string, string> = { ...extra };
+	if (token) headers['Authorization'] = `Bearer ${token}`;
+	return headers;
+}
 
+async function fail(res: Response): Promise<never> {
 	if (res.status === 401) {
 		await auth.logout();
 		throw new Error('Session expired');
 	}
+	const body = await res.json().catch(() => ({}));
+	throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
+}
 
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({}));
-		throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
-	}
-
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+	const headers = await authHeaders({ 'Content-Type': 'application/json' });
+	const res = await fetch(`${BASE}${url}`, {
+		method,
+		headers,
+		body: body === undefined ? undefined : JSON.stringify(body)
+	});
+	if (!res.ok) return fail(res);
 	if (res.status === 204) return undefined as T;
 	return res.json();
 }
 
-// listAll walks every page of a paginated collection endpoint and returns the
-// flattened items, so callers without pagination UI keep getting a full array.
-async function listAll<T>(path: string): Promise<T[]> {
+// listAll walks every page of a paginated endpoint and returns the flattened
+// items, so callers without pagination UI keep getting a full array.
+async function listAll<T>(template: string, opts?: CallOpts): Promise<T[]> {
 	const out: T[] = [];
 	const limit = 100;
 	let offset = 0;
 	for (;;) {
-		const sep = path.includes('?') ? '&' : '?';
-		const page = await request<Page<T>>(`${path}${sep}limit=${limit}&offset=${offset}`);
-		out.push(...page.items);
-		if (!page.has_more || page.items.length === 0) break;
-		offset += page.items.length;
+		const url = resolvePath(template, {
+			...opts,
+			query: { ...opts?.query, limit, offset }
+		});
+		const page = await request<{ items: T[] | null; has_more: boolean }>('GET', url);
+		const items = page.items ?? [];
+		out.push(...items);
+		if (!page.has_more || items.length === 0) break;
+		offset += items.length;
 	}
 	return out;
 }
 
-async function upload<T>(path: string, formData: FormData): Promise<T> {
-	const token = await auth.getIdToken();
-	const headers: Record<string, string> = {};
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-
-	const res = await fetch(`${BASE}${path}`, { method: 'POST', headers, body: formData });
-
-	if (res.status === 401) {
-		await auth.logout();
-		throw new Error('Session expired');
-	}
-
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({}));
-		throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
-	}
-
+async function upload<T>(template: string, formData: FormData): Promise<T> {
+	const headers = await authHeaders();
+	const res = await fetch(`${BASE}${template}`, { method: 'POST', headers, body: formData });
+	if (!res.ok) return fail(res);
 	return res.json();
 }
 
-async function download(path: string): Promise<void> {
-	const token = await auth.getIdToken();
-	const headers: Record<string, string> = {};
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
+// MultipartPath selects POST operations whose request body is multipart form
+// data — the upload endpoints, the only callers of `api.upload`.
+type MultipartPath = {
+	[P in PostPath]: Op<P, 'post'> extends {
+		requestBody?: { content: { 'multipart/form-data': unknown } };
 	}
+		? P
+		: never;
+}[PostPath];
 
-	const res = await fetch(`${BASE}${path}`, { headers });
-
-	if (res.status === 401) {
-		await auth.logout();
-		throw new Error('Session expired');
-	}
-
+async function download(template: string, opts?: CallOpts): Promise<void> {
+	const headers = await authHeaders();
+	const res = await fetch(`${BASE}${resolvePath(template, opts)}`, { headers });
 	if (!res.ok) {
-		const body = await res.json().catch(() => ({}));
-		throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
+		await fail(res);
+		return;
 	}
-
 	const disposition = res.headers.get('Content-Disposition') ?? '';
 	const match = disposition.match(/filename="?([^"]+)"?/);
-	const filename = match ? match[1] : path.split('/').pop() || 'download';
-
+	const filename = match ? match[1] : template.split('/').pop() || 'download';
 	const blob = await res.blob();
-	const url = URL.createObjectURL(blob);
+	const objectUrl = URL.createObjectURL(blob);
 	const a = document.createElement('a');
-	a.href = url;
+	a.href = objectUrl;
 	a.download = filename;
 	document.body.appendChild(a);
 	a.click();
 	a.remove();
-	URL.revokeObjectURL(url);
+	URL.revokeObjectURL(objectUrl);
 }
 
+// api is the typed low-level client: every path is checked against the
+// generated OpenAPI `paths`, and params / body / response are derived from it.
 export const api = {
-	get: <T>(path: string) => request<T>(path),
-	list: <T>(path: string) => listAll<T>(path),
-	post: <T>(path: string, body?: unknown) =>
-		request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
-	put: <T>(path: string, body?: unknown) =>
-		request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
-	del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
-	upload: <T>(path: string, formData: FormData) => upload<T>(path, formData),
-	download: (path: string) => download(path)
+	get<P extends GetPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<OpResponse<Op<P, 'get'>>> {
+		return request('GET', resolvePath(path, args[0] as CallOpts));
+	},
+	list<P extends ListPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<PageItem<Op<P, 'get'>>[]> {
+		return listAll(path, args[0] as CallOpts);
+	},
+	post<P extends PostPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'post'>>
+	): Promise<OpResponse<Op<P, 'post'>>> {
+		const opts = args[0] as CallOpts | undefined;
+		return request('POST', resolvePath(path, opts), opts?.body);
+	},
+	put<P extends PutPath>(path: P, ...args: OptsArg<Op<P, 'put'>>): Promise<OpResponse<Op<P, 'put'>>> {
+		const opts = args[0] as CallOpts | undefined;
+		return request('PUT', resolvePath(path, opts), opts?.body);
+	},
+	del<P extends DeletePath>(
+		path: P,
+		...args: OptsArg<Op<P, 'delete'>>
+	): Promise<OpResponse<Op<P, 'delete'>>> {
+		return request('DELETE', resolvePath(path, args[0] as CallOpts));
+	},
+	upload<P extends MultipartPath>(path: P, formData: FormData): Promise<OpResponse<Op<P, 'post'>>> {
+		return upload(path, formData);
+	},
+	download<P extends GetPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<void> {
+		return download(path, args[0] as CallOpts);
+	}
 };

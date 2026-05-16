@@ -26,11 +26,13 @@ type TripEnrollmentDetail struct {
 	UserEmail string `json:"user_email"`
 }
 
-// CruiseEnrollmentDetail is a cruise enrollment joined with the enrolled user.
+// CruiseEnrollmentDetail is a cruise enrollment joined with the enrolled user
+// and, when assigned, the trip it was placed on.
 type CruiseEnrollmentDetail struct {
 	Enrollment
-	UserName  string `json:"user_name"`
-	UserEmail string `json:"user_email"`
+	UserName  string  `json:"user_name"`
+	UserEmail string  `json:"user_email"`
+	TripName  *string `json:"trip_name,omitempty"`
 }
 
 // CruiseEnrollmentsFromDB maps the joined cruise-enrollment rows.
@@ -52,6 +54,7 @@ func CruiseEnrollmentsFromDB(rows []sqlcdb.ListCruiseEnrollmentsRow) []CruiseEnr
 			},
 			UserName:  r.UserName,
 			UserEmail: r.UserEmail,
+			TripName:  strPtr(r.TripName),
 		}
 	}
 	return out

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { listTrips } from '$lib/api/routes';
 	import type { Trip } from '$lib/api/types';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 
@@ -10,7 +10,7 @@
 	async function load() {
 		loading = true;
 		try {
-			trips = await api.list<Trip>(`${orgStore.apiPrefix()}/trips`);
+			trips = await listTrips();
 		} catch (err) {
 			console.error('Failed to load trips:', err);
 		} finally {

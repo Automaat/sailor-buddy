@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
-	import type { Cruise } from '$lib/api/types';
+	import { getCruise, updateCruise } from '$lib/api/routes';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -22,7 +21,7 @@
 		description: ''
 	});
 
-	const id = $derived(page.params.id);
+	const id = $derived(Number(page.params.id));
 
 	$effect(() => {
 		if (orgStore.loaded && !orgStore.isOrgAdmin) {
@@ -32,7 +31,11 @@
 
 	onMount(async () => {
 		try {
-			const cruise = await api.get<Cruise>(`${orgStore.apiPrefix()}/cruises/${id}`);
+			const cruise = await getCruise(id);
+			if (!cruise) {
+				error = 'Nie znaleziono wydarzenia';
+				return;
+			}
 			form = {
 				name: cruise.name,
 				embark_date: cruise.embark_date ?? '',
@@ -56,7 +59,7 @@
 		saving = true;
 		error = '';
 		try {
-			await api.put(`${orgStore.apiPrefix()}/cruises/${id}`, form);
+			await updateCruise(id, form);
 			goto(`/cruises/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
