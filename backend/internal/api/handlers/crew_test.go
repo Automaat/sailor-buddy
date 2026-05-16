@@ -73,6 +73,9 @@ func TestCrewHandler_AssignTripCrew(t *testing.T) {
 			getTripFn: func(_ context.Context, arg sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
 				return sqlcdb.Trip{ID: arg.ID}, nil
 			},
+			getCrewMemberFn: func(_ context.Context, arg sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
+				return sqlcdb.CrewMember{ID: arg.ID}, nil
+			},
 			createTripCrewFn: func(_ context.Context, arg sqlcdb.CreateTripCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
 				return sqlcdb.CrewAssignment{ID: 1, CrewMemberID: arg.CrewMemberID, Role: arg.Role, TripID: types.NullInt64{Int64: 9, Valid: true}}, nil
 			},
@@ -84,11 +87,64 @@ func TestCrewHandler_AssignTripCrew(t *testing.T) {
 		}
 	})
 
+	t.Run("crew member of another owner rejected", func(t *testing.T) {
+		m := &mockQuerier{
+			getTripFn: func(_ context.Context, arg sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{ID: arg.ID}, nil
+			},
+			getCrewMemberFn: func(context.Context, sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
+				return sqlcdb.CrewMember{}, sql.ErrNoRows
+			},
+		}
+		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
+			map[string]any{"crew_member_id": 1, "role": "first_mate"})
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want 404; body=%s", resp.Code, resp.Body)
+		}
+	})
+
 	t.Run("missing role", func(t *testing.T) {
 		resp := crewTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/trips/9/crew",
 			map[string]any{"crew_member_id": 1})
 		if resp.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("got %d, want 422", resp.Code)
+		}
+	})
+}
+
+func TestCrewHandler_AssignVoyageCrew(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		m := &mockQuerier{
+			getVoyageFn: func(_ context.Context, arg sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: arg.ID}, nil
+			},
+			getCrewMemberFn: func(_ context.Context, arg sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
+				return sqlcdb.CrewMember{ID: arg.ID}, nil
+			},
+			createVoyageCrewFn: func(_ context.Context, arg sqlcdb.CreateVoyageCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
+				return sqlcdb.CrewAssignment{ID: 1, CrewMemberID: arg.CrewMemberID, Role: arg.Role, VoyageID: types.NullInt64{Int64: 9, Valid: true}}, nil
+			},
+		}
+		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/9/crew",
+			map[string]any{"crew_member_id": 1, "role": "first_mate"})
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+		}
+	})
+
+	t.Run("crew member of another owner rejected", func(t *testing.T) {
+		m := &mockQuerier{
+			getVoyageFn: func(_ context.Context, arg sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: arg.ID}, nil
+			},
+			getCrewMemberFn: func(context.Context, sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
+				return sqlcdb.CrewMember{}, sql.ErrNoRows
+			},
+		}
+		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/9/crew",
+			map[string]any{"crew_member_id": 1, "role": "first_mate"})
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want 404; body=%s", resp.Code, resp.Body)
 		}
 	})
 }
