@@ -2,24 +2,20 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 type TrainingHandler struct {
-	q sqlcdb.Querier
+	*crudHandlers[struct{}, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]
 }
 
 func NewTrainingHandler(q sqlcdb.Querier) *TrainingHandler {
-	return &TrainingHandler{q: q}
+	return &TrainingHandler{crudHandlers: newCRUDHandlers(trainingCRUDConfig(q))}
 }
 
 type trainingIDParam struct {
@@ -70,68 +66,87 @@ func RegisterTrainingRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func (h *TrainingHandler) list(ctx context.Context, _ *struct{}) (*trainingListOutput, error) {
-	user := middleware.GetUser(ctx)
-	trainings, err := h.q.ListTrainings(ctx, user.UserID)
-	if err != nil {
-		slog.Error("list trainings", "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list trainings")
+func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput] {
+	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
+		return ownerCRUDScope(ctx), nil
 	}
-	return &trainingListOutput{Body: dto.TrainingsFromDB(trainings)}, nil
-}
-
-func (h *TrainingHandler) get(ctx context.Context, in *trainingIDParam) (*trainingOutput, error) {
-	user := middleware.GetUser(ctx)
-	training, err := h.q.GetTraining(ctx, sqlcdb.GetTrainingParams{ID: in.ID, UserID: user.UserID})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("training not found")
-		}
-		slog.Error("get training", "training_id", in.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to get training")
+	return crudConfig[struct{}, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]{
+		listScope: func(ctx context.Context, in *struct{}) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		getScope: func(ctx context.Context, in *trainingIDParam) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		createScope: func(ctx context.Context, in *createTrainingInput) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		updateScope: func(ctx context.Context, in *updateTrainingInput) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		deleteScope: func(ctx context.Context, in *trainingIDParam) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		list: func(ctx context.Context, scope crudScope, _ *struct{}) ([]sqlcdb.Training, error) {
+			return q.ListTrainings(ctx, scope.userID)
+		},
+		get: func(ctx context.Context, scope crudScope, in *trainingIDParam) (sqlcdb.Training, error) {
+			return q.GetTraining(ctx, sqlcdb.GetTrainingParams{ID: in.ID, UserID: scope.userID})
+		},
+		create: func(ctx context.Context, scope crudScope, in *createTrainingInput) (sqlcdb.Training, error) {
+			return q.CreateTraining(ctx, sqlcdb.CreateTrainingParams{
+				UserID:    scope.userID,
+				Date:      nullString(in.Body.Date),
+				Name:      in.Body.Name,
+				Organizer: nullString(in.Body.Organizer),
+				Cost:      nullFloat64(in.Body.Cost),
+				Url:       nullString(in.Body.Url),
+			})
+		},
+		update: func(ctx context.Context, scope crudScope, in *updateTrainingInput) error {
+			return q.UpdateTraining(ctx, sqlcdb.UpdateTrainingParams{
+				Date:      nullString(in.Body.Date),
+				Name:      in.Body.Name,
+				Organizer: nullString(in.Body.Organizer),
+				Cost:      nullFloat64(in.Body.Cost),
+				Url:       nullString(in.Body.Url),
+				ID:        in.ID,
+				UserID:    scope.userID,
+			})
+		},
+		delete: func(ctx context.Context, scope crudScope, in *trainingIDParam) error {
+			return q.DeleteTraining(ctx, sqlcdb.DeleteTrainingParams{ID: in.ID, UserID: scope.userID})
+		},
+		listOutput: func(rows []sqlcdb.Training) *trainingListOutput {
+			return &trainingListOutput{Body: dto.TrainingsFromDB(rows)}
+		},
+		itemOutput: func(row sqlcdb.Training) *trainingOutput {
+			return &trainingOutput{Body: dto.TrainingFromDB(row)}
+		},
+		listLogAttrs: func(scope crudScope, _ *struct{}) []any {
+			return scopeAttrs(scope)
+		},
+		getLogAttrs: func(scope crudScope, in *trainingIDParam) []any {
+			return scopeAttrs(scope, "training_id", in.ID)
+		},
+		createLogAttrs: func(scope crudScope, in *createTrainingInput) []any {
+			return scopeAttrs(scope, "name", in.Body.Name)
+		},
+		updateLogAttrs: func(scope crudScope, in *updateTrainingInput) []any {
+			return scopeAttrs(scope, "training_id", in.ID)
+		},
+		deleteLogAttrs: func(scope crudScope, in *trainingIDParam) []any {
+			return scopeAttrs(scope, "training_id", in.ID)
+		},
+		listLogMsg:      "list trainings",
+		getLogMsg:       "get training",
+		createLogMsg:    "create training",
+		updateLogMsg:    "update training",
+		deleteLogMsg:    "delete training",
+		listClientMsg:   "failed to list trainings",
+		getClientMsg:    "failed to get training",
+		createClientMsg: "failed to create training",
+		updateClientMsg: "failed to update training",
+		deleteClientMsg: "failed to delete training",
+		notFoundMsg:     "training not found",
 	}
-	return &trainingOutput{Body: dto.TrainingFromDB(training)}, nil
-}
-
-func (h *TrainingHandler) create(ctx context.Context, in *createTrainingInput) (*trainingOutput, error) {
-	user := middleware.GetUser(ctx)
-	training, err := h.q.CreateTraining(ctx, sqlcdb.CreateTrainingParams{
-		UserID:    user.UserID,
-		Date:      nullString(in.Body.Date),
-		Name:      in.Body.Name,
-		Organizer: nullString(in.Body.Organizer),
-		Cost:      nullFloat64(in.Body.Cost),
-		Url:       nullString(in.Body.Url),
-	})
-	if err != nil {
-		slog.Error("create training", "user_id", user.UserID, "name", in.Body.Name, "err", err)
-		return nil, huma.Error500InternalServerError("failed to create training")
-	}
-	return &trainingOutput{Body: dto.TrainingFromDB(training)}, nil
-}
-
-func (h *TrainingHandler) update(ctx context.Context, in *updateTrainingInput) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.q.UpdateTraining(ctx, sqlcdb.UpdateTrainingParams{
-		Date:      nullString(in.Body.Date),
-		Name:      in.Body.Name,
-		Organizer: nullString(in.Body.Organizer),
-		Cost:      nullFloat64(in.Body.Cost),
-		Url:       nullString(in.Body.Url),
-		ID:        in.ID,
-		UserID:    user.UserID,
-	}); err != nil {
-		slog.Error("update training", "training_id", in.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to update training")
-	}
-	return &noContentOutput{}, nil
-}
-
-func (h *TrainingHandler) delete(ctx context.Context, in *trainingIDParam) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.q.DeleteTraining(ctx, sqlcdb.DeleteTrainingParams{ID: in.ID, UserID: user.UserID}); err != nil {
-		slog.Error("delete training", "training_id", in.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to delete training")
-	}
-	return &noContentOutput{}, nil
 }

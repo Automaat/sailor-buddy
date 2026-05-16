@@ -2,24 +2,20 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 type VoyageHandler struct {
-	q sqlcdb.Querier
+	*crudHandlers[struct{}, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
 }
 
 func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
-	return &VoyageHandler{q: q}
+	return &VoyageHandler{crudHandlers: newCRUDHandlers(voyageCRUDConfig(q))}
 }
 
 type voyageIDParam struct {
@@ -66,102 +62,130 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func (h *VoyageHandler) list(ctx context.Context, _ *struct{}) (*voyageListOutput, error) {
-	user := middleware.GetUser(ctx)
-	voyages, err := h.q.ListVoyages(ctx, user.UserID)
-	if err != nil {
-		slog.Error("list voyages", "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list voyages")
+func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
+	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
+		return ownerCRUDScope(ctx), nil
 	}
-	return &voyageListOutput{Body: dto.VoyagesFromDB(voyages)}, nil
+	return crudConfig[struct{}, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
+		listScope: func(ctx context.Context, in *struct{}) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		getScope: func(ctx context.Context, in *voyageIDParam) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		createScope: func(ctx context.Context, in *createVoyageInput) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		updateScope: func(ctx context.Context, in *updateVoyageInput) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		deleteScope: func(ctx context.Context, in *voyageIDParam) (crudScope, error) {
+			return ownerScope(ctx, in)
+		},
+		list: func(ctx context.Context, scope crudScope, _ *struct{}) ([]sqlcdb.Voyage, error) {
+			return q.ListVoyages(ctx, scope.userID)
+		},
+		get: func(ctx context.Context, scope crudScope, in *voyageIDParam) (sqlcdb.Voyage, error) {
+			return q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, OwnerID: scope.userID})
+		},
+		create: func(ctx context.Context, scope crudScope, in *createVoyageInput) (sqlcdb.Voyage, error) {
+			return q.CreateVoyage(ctx, createVoyageParams(scope, in.Body))
+		},
+		update: func(ctx context.Context, scope crudScope, in *updateVoyageInput) error {
+			params := updateVoyageParams(scope, in.Body)
+			params.ID = in.ID
+			return q.UpdateVoyage(ctx, params)
+		},
+		delete: func(ctx context.Context, scope crudScope, in *voyageIDParam) error {
+			return q.DeleteVoyage(ctx, sqlcdb.DeleteVoyageParams{ID: in.ID, OwnerID: scope.userID})
+		},
+		listOutput: func(rows []sqlcdb.Voyage) *voyageListOutput {
+			return &voyageListOutput{Body: dto.VoyagesFromDB(rows)}
+		},
+		itemOutput: func(row sqlcdb.Voyage) *voyageOutput {
+			return &voyageOutput{Body: dto.VoyageFromDB(row)}
+		},
+		listLogAttrs: func(scope crudScope, _ *struct{}) []any {
+			return scopeAttrs(scope)
+		},
+		getLogAttrs: func(scope crudScope, in *voyageIDParam) []any {
+			return scopeAttrs(scope, "voyage_id", in.ID)
+		},
+		createLogAttrs: func(scope crudScope, in *createVoyageInput) []any {
+			return scopeAttrs(scope, "name", in.Body.Name)
+		},
+		updateLogAttrs: func(scope crudScope, in *updateVoyageInput) []any {
+			return scopeAttrs(scope, "voyage_id", in.ID)
+		},
+		deleteLogAttrs: func(scope crudScope, in *voyageIDParam) []any {
+			return scopeAttrs(scope, "voyage_id", in.ID)
+		},
+		listLogMsg:      "list voyages",
+		getLogMsg:       "get voyage",
+		createLogMsg:    "create voyage",
+		updateLogMsg:    "update voyage",
+		deleteLogMsg:    "delete voyage",
+		listClientMsg:   "failed to list voyages",
+		getClientMsg:    "failed to get voyage",
+		createClientMsg: "failed to create voyage",
+		updateClientMsg: "failed to update voyage",
+		deleteClientMsg: "failed to delete voyage",
+		notFoundMsg:     "voyage not found",
+	}
 }
 
-func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageOutput, error) {
-	user := middleware.GetUser(ctx)
-	voyage, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, OwnerID: user.UserID})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("voyage not found")
-		}
-		slog.Error("get voyage", "voyage_id", in.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to get voyage")
+func createVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateVoyageParams {
+	return sqlcdb.CreateVoyageParams{
+		OwnerID:       scope.userID,
+		Name:          body.Name,
+		Year:          nullInt64(body.Year),
+		EmbarkDate:    nullString(body.EmbarkDate),
+		DisembarkDate: nullString(body.DisembarkDate),
+		Countries:     nullString(body.Countries),
+		StartPort:     nullString(body.StartPort),
+		EndPort:       nullString(body.EndPort),
+		CaptainName:   nullString(body.CaptainName),
+		YachtID:       nullInt64(body.YachtID),
+		HoursTotal:    valOrZeroFloat(body.HoursTotal),
+		HoursSail:     valOrZeroFloat(body.HoursSail),
+		HoursEngine:   valOrZeroFloat(body.HoursEngine),
+		HoursOver6bf:  valOrZeroFloat(body.HoursOver6bf),
+		Miles:         valOrZeroFloat(body.Miles),
+		Days:          valOrZeroInt(body.Days),
+		TidalWaters:   valOrZeroInt(body.TidalWaters),
+		CostTotal:     nullFloat64(body.CostTotal),
+		CostPerPerson: nullFloat64(body.CostPerPerson),
+		ImageLogoUrl:  nullString(body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(body.ImageRouteUrl),
+		Description:   nullString(body.Description),
 	}
-	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
 }
 
-func (h *VoyageHandler) create(ctx context.Context, in *createVoyageInput) (*voyageOutput, error) {
-	user := middleware.GetUser(ctx)
-	voyage, err := h.q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-		OwnerID:       user.UserID,
-		Name:          in.Body.Name,
-		Year:          nullInt64(in.Body.Year),
-		EmbarkDate:    nullString(in.Body.EmbarkDate),
-		DisembarkDate: nullString(in.Body.DisembarkDate),
-		Countries:     nullString(in.Body.Countries),
-		StartPort:     nullString(in.Body.StartPort),
-		EndPort:       nullString(in.Body.EndPort),
-		CaptainName:   nullString(in.Body.CaptainName),
-		YachtID:       nullInt64(in.Body.YachtID),
-		HoursTotal:    valOrZeroFloat(in.Body.HoursTotal),
-		HoursSail:     valOrZeroFloat(in.Body.HoursSail),
-		HoursEngine:   valOrZeroFloat(in.Body.HoursEngine),
-		HoursOver6bf:  valOrZeroFloat(in.Body.HoursOver6bf),
-		Miles:         valOrZeroFloat(in.Body.Miles),
-		Days:          valOrZeroInt(in.Body.Days),
-		TidalWaters:   valOrZeroInt(in.Body.TidalWaters),
-		CostTotal:     nullFloat64(in.Body.CostTotal),
-		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
-		Description:   nullString(in.Body.Description),
-	})
-	if err != nil {
-		slog.Error("create voyage", "user_id", user.UserID, "name", in.Body.Name, "err", err)
-		return nil, huma.Error500InternalServerError("failed to create voyage")
+func updateVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.UpdateVoyageParams {
+	return sqlcdb.UpdateVoyageParams{
+		Name:          body.Name,
+		Year:          nullInt64(body.Year),
+		EmbarkDate:    nullString(body.EmbarkDate),
+		DisembarkDate: nullString(body.DisembarkDate),
+		Countries:     nullString(body.Countries),
+		StartPort:     nullString(body.StartPort),
+		EndPort:       nullString(body.EndPort),
+		CaptainName:   nullString(body.CaptainName),
+		YachtID:       nullInt64(body.YachtID),
+		HoursTotal:    valOrZeroFloat(body.HoursTotal),
+		HoursSail:     valOrZeroFloat(body.HoursSail),
+		HoursEngine:   valOrZeroFloat(body.HoursEngine),
+		HoursOver6bf:  valOrZeroFloat(body.HoursOver6bf),
+		Miles:         valOrZeroFloat(body.Miles),
+		Days:          valOrZeroInt(body.Days),
+		TidalWaters:   valOrZeroInt(body.TidalWaters),
+		CostTotal:     nullFloat64(body.CostTotal),
+		CostPerPerson: nullFloat64(body.CostPerPerson),
+		ImageLogoUrl:  nullString(body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(body.ImageRouteUrl),
+		Description:   nullString(body.Description),
+		OwnerID:       scope.userID,
 	}
-	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
-}
-
-func (h *VoyageHandler) update(ctx context.Context, in *updateVoyageInput) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.q.UpdateVoyage(ctx, sqlcdb.UpdateVoyageParams{
-		Name:          in.Body.Name,
-		Year:          nullInt64(in.Body.Year),
-		EmbarkDate:    nullString(in.Body.EmbarkDate),
-		DisembarkDate: nullString(in.Body.DisembarkDate),
-		Countries:     nullString(in.Body.Countries),
-		StartPort:     nullString(in.Body.StartPort),
-		EndPort:       nullString(in.Body.EndPort),
-		CaptainName:   nullString(in.Body.CaptainName),
-		YachtID:       nullInt64(in.Body.YachtID),
-		HoursTotal:    valOrZeroFloat(in.Body.HoursTotal),
-		HoursSail:     valOrZeroFloat(in.Body.HoursSail),
-		HoursEngine:   valOrZeroFloat(in.Body.HoursEngine),
-		HoursOver6bf:  valOrZeroFloat(in.Body.HoursOver6bf),
-		Miles:         valOrZeroFloat(in.Body.Miles),
-		Days:          valOrZeroInt(in.Body.Days),
-		TidalWaters:   valOrZeroInt(in.Body.TidalWaters),
-		CostTotal:     nullFloat64(in.Body.CostTotal),
-		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
-		Description:   nullString(in.Body.Description),
-		ID:            in.ID,
-		OwnerID:       user.UserID,
-	}); err != nil {
-		slog.Error("update voyage", "voyage_id", in.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to update voyage")
-	}
-	return &noContentOutput{}, nil
-}
-
-func (h *VoyageHandler) delete(ctx context.Context, in *voyageIDParam) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.q.DeleteVoyage(ctx, sqlcdb.DeleteVoyageParams{ID: in.ID, OwnerID: user.UserID}); err != nil {
-		slog.Error("delete voyage", "voyage_id", in.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to delete voyage")
-	}
-	return &noContentOutput{}, nil
 }
