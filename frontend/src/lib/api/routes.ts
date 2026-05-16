@@ -438,11 +438,17 @@ export function getMe() {
 	return api.get('/auth/me');
 }
 
-// resolveEnroll narrows the flat EnrollInfo response to the discriminated
-// union the page consumes; `kind` guarantees which of trip/cruise is set.
+// resolveEnroll rebuilds the flat EnrollInfo response into the discriminated
+// union the page consumes. The backend populates trip/cruise per `kind`; this
+// throws rather than emitting a malformed union when that contract is broken.
 export async function resolveEnroll(token: string): Promise<EnrollPageData> {
 	const info = await api.get('/enroll/{token}', { path: { token } });
-	return info as unknown as EnrollPageData;
+	if (info.kind === 'cruise') {
+		if (!info.cruise) throw new Error('Brak danych wydarzenia');
+		return { ...info, kind: 'cruise', cruise: info.cruise, trips: info.trips ?? null };
+	}
+	if (!info.trip) throw new Error('Brak danych rejsu');
+	return { ...info, kind: 'trip', trip: info.trip };
 }
 
 export function enroll(token: string, note: string | undefined) {
