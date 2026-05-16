@@ -34,6 +34,36 @@ DELETE FROM crew_assignments
 WHERE crew_assignments.id = $1
   AND crew_assignments.voyage_id IN (SELECT voyages.id FROM voyages WHERE voyages.owner_id = $2);
 
+-- name: ListOrgTripCrewAssignments :many
+SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+       cm.full_name, cm.email
+FROM crew_assignments ca
+JOIN crew_members cm ON cm.id = ca.crew_member_id
+JOIN trips t ON t.id = ca.trip_id
+WHERE ca.trip_id = $1 AND t.org_id = $2
+ORDER BY cm.full_name;
+
+-- name: ListOrgVoyageCrewAssignments :many
+SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+       cm.full_name, cm.email
+FROM crew_assignments ca
+JOIN crew_members cm ON cm.id = ca.crew_member_id
+JOIN voyages v ON v.id = ca.voyage_id
+WHERE ca.voyage_id = $1 AND v.org_id = $2
+ORDER BY cm.full_name;
+
+-- name: DeleteOrgTripCrewAssignment :exec
+DELETE FROM crew_assignments
+WHERE crew_assignments.id = $1
+  AND crew_assignments.trip_id = $2
+  AND crew_assignments.trip_id IN (SELECT trips.id FROM trips WHERE trips.org_id = $3);
+
+-- name: DeleteOrgVoyageCrewAssignment :exec
+DELETE FROM crew_assignments
+WHERE crew_assignments.id = $1
+  AND crew_assignments.voyage_id = $2
+  AND crew_assignments.voyage_id IN (SELECT voyages.id FROM voyages WHERE voyages.org_id = $3);
+
 -- name: GetVoyageCrewAssignmentByMember :one
 SELECT ca.*, cm.full_name, cm.patent_number AS member_patent
 FROM crew_assignments ca

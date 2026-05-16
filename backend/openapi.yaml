@@ -3273,6 +3273,124 @@ paths:
       summary: Complete an org trip into a voyage (admin)
       tags:
         - Org trips
+  /orgs/{slug}/trips/{tripID}/crew:
+    get:
+      operationId: list-org-trip-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CrewAssignment"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List an org trip's crew
+      tags:
+        - Org crew assignments
+    post:
+      operationId: assign-org-trip-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewAssignmentBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewAssignment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Assign a crew member to an org trip (admin)
+      tags:
+        - Org crew assignments
+  /orgs/{slug}/trips/{tripID}/crew/{assignmentID}:
+    delete:
+      operationId: remove-org-trip-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Assignment ID
+          in: path
+          name: assignmentID
+          required: true
+          schema:
+            description: Assignment ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove a crew assignment from an org trip (admin)
+      tags:
+        - Org crew assignments
   /orgs/{slug}/voyages:
     get:
       operationId: list-org-voyages
@@ -3437,6 +3555,293 @@ paths:
       summary: Update an org voyage (admin)
       tags:
         - Org voyages
+  /orgs/{slug}/voyages/{voyageID}/crew:
+    get:
+      operationId: list-org-voyage-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CrewAssignment"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List an org voyage's crew
+      tags:
+        - Org crew assignments
+    post:
+      operationId: assign-org-voyage-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewAssignmentBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewAssignment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Assign a crew member to an org voyage (admin)
+      tags:
+        - Org crew assignments
+  /orgs/{slug}/voyages/{voyageID}/crew/{assignmentID}:
+    delete:
+      operationId: remove-org-voyage-crew
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Assignment ID
+          in: path
+          name: assignmentID
+          required: true
+          schema:
+            description: Assignment ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove a crew assignment from an org voyage (admin)
+      tags:
+        - Org crew assignments
+  /orgs/{slug}/voyages/{voyageID}/opinions:
+    get:
+      operationId: list-org-voyage-opinions
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/VoyageOpinion"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List an org voyage's generated opinions
+      tags:
+        - Org voyage opinions
+    post:
+      operationId: generate-org-voyage-opinion
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateOpinionBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoyageOpinion"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Generate a crew opinion document for an org voyage (admin)
+      tags:
+        - Org voyage opinions
+  /orgs/{slug}/voyages/{voyageID}/opinions/{opinionID}:
+    delete:
+      operationId: delete-org-voyage-opinion
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Opinion ID
+          in: path
+          name: opinionID
+          required: true
+          schema:
+            description: Opinion ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete an org voyage opinion (admin)
+      tags:
+        - Org voyage opinions
+  /orgs/{slug}/voyages/{voyageID}/opinions/{opinionID}/download:
+    get:
+      operationId: download-org-voyage-opinion
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Opinion ID
+          in: path
+          name: opinionID
+          required: true
+          schema:
+            description: Opinion ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                contentEncoding: base64
+                type: string
+          description: OK
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            Content-Type:
+              schema:
+                type: string
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Download an org voyage opinion document
+      tags:
+        - Org voyage opinions
   /orgs/{slug}/yachts:
     get:
       operationId: list-org-yachts

@@ -361,9 +361,16 @@ All read routes require membership; create/update/delete require **admin**.
 | Yachts | `GET \|POST /yachts`, `GET\|PUT\|DELETE /yachts/{id}` |
 | Crew | `GET \|POST /crew`, `GET\|PUT\|DELETE /crew/{id}` |
 | Trips | `GET \|POST /trips`, `GET\|PUT\|DELETE /trips/{id}`, `POST /trips/{id}/complete`, `POST /trips/{id}/cancel` |
+| Trip crew | `GET\|POST /trips/{id}/crew`, `DELETE /trips/{id}/crew/{assignmentID}` |
 | Voyages | `GET \|POST /voyages`, `GET\|PUT\|DELETE /voyages/{id}` |
+| Voyage crew | `GET\|POST /voyages/{id}/crew`, `DELETE /voyages/{id}/crew/{assignmentID}` |
+| Voyage opinions | `GET\|POST /voyages/{id}/opinions`, `GET /voyages/{id}/opinions/{opinionID}/download`, `DELETE /voyages/{id}/opinions/{opinionID}` |
 | Cruises | `GET \|POST /cruises`, `GET\|PUT\|DELETE /cruises/{id}` |
 | Dashboard | `GET /dashboard` |
+
+Org trip/voyage crew assignment and voyage opinion routes mirror their
+owner-scoped counterparts: reads require membership, mutations require
+**admin**, and rows are scoped by `org_id`.
 
 A **cruise** is an org-level event that groups child trips and voyages:
 

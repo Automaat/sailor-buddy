@@ -54,6 +54,10 @@ type mockQuerier struct {
 	createVoyageCrewFn       func(ctx context.Context, arg sqlcdb.CreateVoyageCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
 	listVoyageCrewFn         func(ctx context.Context, arg sqlcdb.ListVoyageCrewAssignmentsParams) ([]sqlcdb.ListVoyageCrewAssignmentsRow, error)
 	deleteVoyageCrewFn       func(ctx context.Context, arg sqlcdb.DeleteVoyageCrewAssignmentParams) error
+	listOrgTripCrewFn        func(ctx context.Context, arg sqlcdb.ListOrgTripCrewAssignmentsParams) ([]sqlcdb.ListOrgTripCrewAssignmentsRow, error)
+	deleteOrgTripCrewFn      func(ctx context.Context, arg sqlcdb.DeleteOrgTripCrewAssignmentParams) error
+	listOrgVoyageCrewFn      func(ctx context.Context, arg sqlcdb.ListOrgVoyageCrewAssignmentsParams) ([]sqlcdb.ListOrgVoyageCrewAssignmentsRow, error)
+	deleteOrgVoyageCrewFn    func(ctx context.Context, arg sqlcdb.DeleteOrgVoyageCrewAssignmentParams) error
 	getVoyageCrewByMemberFn  func(ctx context.Context, arg sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error)
 	getCrewMemberStatsFn     func(ctx context.Context, crewMemberID int64) (sqlcdb.GetCrewMemberStatsRow, error)
 	getCrewMemberTripsFn     func(ctx context.Context, crewMemberID int64) ([]sqlcdb.GetCrewMemberTripsRow, error)
@@ -376,6 +380,34 @@ func (m *mockQuerier) DeleteVoyageCrewAssignment(ctx context.Context, arg sqlcdb
 		panic("unexpected call to DeleteVoyageCrewAssignment")
 	}
 	return m.deleteVoyageCrewFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListOrgTripCrewAssignments(ctx context.Context, arg sqlcdb.ListOrgTripCrewAssignmentsParams) ([]sqlcdb.ListOrgTripCrewAssignmentsRow, error) {
+	if m.listOrgTripCrewFn == nil {
+		panic("unexpected call to ListOrgTripCrewAssignments")
+	}
+	return m.listOrgTripCrewFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteOrgTripCrewAssignment(ctx context.Context, arg sqlcdb.DeleteOrgTripCrewAssignmentParams) error {
+	if m.deleteOrgTripCrewFn == nil {
+		panic("unexpected call to DeleteOrgTripCrewAssignment")
+	}
+	return m.deleteOrgTripCrewFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListOrgVoyageCrewAssignments(ctx context.Context, arg sqlcdb.ListOrgVoyageCrewAssignmentsParams) ([]sqlcdb.ListOrgVoyageCrewAssignmentsRow, error) {
+	if m.listOrgVoyageCrewFn == nil {
+		panic("unexpected call to ListOrgVoyageCrewAssignments")
+	}
+	return m.listOrgVoyageCrewFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteOrgVoyageCrewAssignment(ctx context.Context, arg sqlcdb.DeleteOrgVoyageCrewAssignmentParams) error {
+	if m.deleteOrgVoyageCrewFn == nil {
+		panic("unexpected call to DeleteOrgVoyageCrewAssignment")
+	}
+	return m.deleteOrgVoyageCrewFn(ctx, arg)
 }
 
 func (m *mockQuerier) GetVoyageCrewAssignmentByMember(ctx context.Context, arg sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
