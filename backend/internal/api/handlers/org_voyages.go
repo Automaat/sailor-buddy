@@ -2,24 +2,20 @@ package handlers
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 type OrgVoyageHandler struct {
-	q sqlcdb.Querier
+	*crudHandlers[orgSlugParam, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
 }
 
 func NewOrgVoyageHandler(q sqlcdb.Querier) *OrgVoyageHandler {
-	return &OrgVoyageHandler{q: q}
+	return &OrgVoyageHandler{crudHandlers: newCRUDHandlers(orgVoyageCRUDConfig(q))}
 }
 
 type orgVoyageParam struct {
@@ -65,121 +61,136 @@ func RegisterOrgVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func (h *OrgVoyageHandler) list(ctx context.Context, in *orgSlugParam) (*voyageListOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
-	if err != nil {
-		return nil, err
+func orgVoyageCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
+	readScope := func(ctx context.Context, slug string) (crudScope, error) {
+		return orgCRUDScope(ctx, q, slug, false)
 	}
-	voyages, err := h.q.ListOrgVoyages(ctx, orgID(octx))
-	if err != nil {
-		slog.Error("list org voyages", "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list voyages")
+	writeScope := func(ctx context.Context, slug string) (crudScope, error) {
+		return orgCRUDScope(ctx, q, slug, true)
 	}
-	return &voyageListOutput{Body: dto.VoyagesFromDB(voyages)}, nil
+	return crudConfig[orgSlugParam, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
+		listScope: func(ctx context.Context, in *orgSlugParam) (crudScope, error) {
+			return readScope(ctx, in.Slug)
+		},
+		getScope: func(ctx context.Context, in *orgVoyageParam) (crudScope, error) {
+			return readScope(ctx, in.Slug)
+		},
+		createScope: func(ctx context.Context, in *createOrgVoyageInput) (crudScope, error) {
+			return writeScope(ctx, in.Slug)
+		},
+		updateScope: func(ctx context.Context, in *updateOrgVoyageInput) (crudScope, error) {
+			return writeScope(ctx, in.Slug)
+		},
+		deleteScope: func(ctx context.Context, in *orgVoyageParam) (crudScope, error) {
+			return writeScope(ctx, in.Slug)
+		},
+		list: func(ctx context.Context, scope crudScope, _ *orgSlugParam) ([]sqlcdb.Voyage, error) {
+			return q.ListOrgVoyages(ctx, scope.orgID)
+		},
+		get: func(ctx context.Context, scope crudScope, in *orgVoyageParam) (sqlcdb.Voyage, error) {
+			return q.GetOrgVoyage(ctx, sqlcdb.GetOrgVoyageParams{ID: in.ID, OrgID: scope.orgID})
+		},
+		create: func(ctx context.Context, scope crudScope, in *createOrgVoyageInput) (sqlcdb.Voyage, error) {
+			return q.CreateOrgVoyage(ctx, createOrgVoyageParams(scope, in.Body))
+		},
+		update: func(ctx context.Context, scope crudScope, in *updateOrgVoyageInput) error {
+			params := updateOrgVoyageParams(scope, in.Body)
+			params.ID = in.ID
+			return q.UpdateOrgVoyage(ctx, params)
+		},
+		delete: func(ctx context.Context, scope crudScope, in *orgVoyageParam) error {
+			return q.DeleteOrgVoyage(ctx, sqlcdb.DeleteOrgVoyageParams{ID: in.ID, OrgID: scope.orgID})
+		},
+		listOutput: func(rows []sqlcdb.Voyage) *voyageListOutput {
+			return &voyageListOutput{Body: dto.VoyagesFromDB(rows)}
+		},
+		itemOutput: func(row sqlcdb.Voyage) *voyageOutput {
+			return &voyageOutput{Body: dto.VoyageFromDB(row)}
+		},
+		listLogAttrs: func(scope crudScope, _ *orgSlugParam) []any {
+			return scopeAttrs(scope)
+		},
+		getLogAttrs: func(scope crudScope, in *orgVoyageParam) []any {
+			return scopeAttrs(scope, "voyage_id", in.ID)
+		},
+		createLogAttrs: func(scope crudScope, in *createOrgVoyageInput) []any {
+			return scopeAttrs(scope, "user_id", scope.userID, "name", in.Body.Name)
+		},
+		updateLogAttrs: func(scope crudScope, in *updateOrgVoyageInput) []any {
+			return scopeAttrs(scope, "voyage_id", in.ID)
+		},
+		deleteLogAttrs: func(scope crudScope, in *orgVoyageParam) []any {
+			return scopeAttrs(scope, "voyage_id", in.ID)
+		},
+		listLogMsg:      "list org voyages",
+		getLogMsg:       "get org voyage",
+		createLogMsg:    "create org voyage",
+		updateLogMsg:    "update org voyage",
+		deleteLogMsg:    "delete org voyage",
+		listClientMsg:   "failed to list voyages",
+		getClientMsg:    "failed to get voyage",
+		createClientMsg: "failed to create voyage",
+		updateClientMsg: "failed to update voyage",
+		deleteClientMsg: "failed to delete voyage",
+		notFoundMsg:     "voyage not found",
+	}
 }
 
-func (h *OrgVoyageHandler) get(ctx context.Context, in *orgVoyageParam) (*voyageOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
-	if err != nil {
-		return nil, err
+func createOrgVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateOrgVoyageParams {
+	return sqlcdb.CreateOrgVoyageParams{
+		OwnerID:       scope.userID,
+		OrgID:         scope.orgID,
+		CruiseID:      nullInt64(body.CruiseID),
+		Name:          body.Name,
+		Year:          nullInt64(body.Year),
+		EmbarkDate:    nullString(body.EmbarkDate),
+		DisembarkDate: nullString(body.DisembarkDate),
+		Countries:     nullString(body.Countries),
+		StartPort:     nullString(body.StartPort),
+		EndPort:       nullString(body.EndPort),
+		CaptainName:   nullString(body.CaptainName),
+		YachtID:       nullInt64(body.YachtID),
+		HoursTotal:    valOrZeroFloat(body.HoursTotal),
+		HoursSail:     valOrZeroFloat(body.HoursSail),
+		HoursEngine:   valOrZeroFloat(body.HoursEngine),
+		HoursOver6bf:  valOrZeroFloat(body.HoursOver6bf),
+		Miles:         valOrZeroFloat(body.Miles),
+		Days:          valOrZeroInt(body.Days),
+		TidalWaters:   valOrZeroInt(body.TidalWaters),
+		CostTotal:     nullFloat64(body.CostTotal),
+		CostPerPerson: nullFloat64(body.CostPerPerson),
+		ImageLogoUrl:  nullString(body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(body.ImageRouteUrl),
+		Description:   nullString(body.Description),
 	}
-	voyage, err := h.q.GetOrgVoyage(ctx, sqlcdb.GetOrgVoyageParams{ID: in.ID, OrgID: orgID(octx)})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("voyage not found")
-		}
-		slog.Error("get org voyage", "voyage_id", in.ID, "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to get voyage")
-	}
-	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
 }
 
-func (h *OrgVoyageHandler) create(ctx context.Context, in *createOrgVoyageInput) (*voyageOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
-	if err != nil {
-		return nil, err
+func updateOrgVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.UpdateOrgVoyageParams {
+	return sqlcdb.UpdateOrgVoyageParams{
+		Name:          body.Name,
+		Year:          nullInt64(body.Year),
+		EmbarkDate:    nullString(body.EmbarkDate),
+		DisembarkDate: nullString(body.DisembarkDate),
+		Countries:     nullString(body.Countries),
+		StartPort:     nullString(body.StartPort),
+		EndPort:       nullString(body.EndPort),
+		CaptainName:   nullString(body.CaptainName),
+		YachtID:       nullInt64(body.YachtID),
+		HoursTotal:    valOrZeroFloat(body.HoursTotal),
+		HoursSail:     valOrZeroFloat(body.HoursSail),
+		HoursEngine:   valOrZeroFloat(body.HoursEngine),
+		HoursOver6bf:  valOrZeroFloat(body.HoursOver6bf),
+		Miles:         valOrZeroFloat(body.Miles),
+		Days:          valOrZeroInt(body.Days),
+		TidalWaters:   valOrZeroInt(body.TidalWaters),
+		CostTotal:     nullFloat64(body.CostTotal),
+		CostPerPerson: nullFloat64(body.CostPerPerson),
+		ImageLogoUrl:  nullString(body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(body.ImageRouteUrl),
+		Description:   nullString(body.Description),
+		CruiseID:      nullInt64(body.CruiseID),
+		OrgID:         scope.orgID,
 	}
-	user := middleware.GetUser(ctx)
-	voyage, err := h.q.CreateOrgVoyage(ctx, sqlcdb.CreateOrgVoyageParams{
-		OwnerID:       user.UserID,
-		OrgID:         orgID(octx),
-		CruiseID:      nullInt64(in.Body.CruiseID),
-		Name:          in.Body.Name,
-		Year:          nullInt64(in.Body.Year),
-		EmbarkDate:    nullString(in.Body.EmbarkDate),
-		DisembarkDate: nullString(in.Body.DisembarkDate),
-		Countries:     nullString(in.Body.Countries),
-		StartPort:     nullString(in.Body.StartPort),
-		EndPort:       nullString(in.Body.EndPort),
-		CaptainName:   nullString(in.Body.CaptainName),
-		YachtID:       nullInt64(in.Body.YachtID),
-		HoursTotal:    valOrZeroFloat(in.Body.HoursTotal),
-		HoursSail:     valOrZeroFloat(in.Body.HoursSail),
-		HoursEngine:   valOrZeroFloat(in.Body.HoursEngine),
-		HoursOver6bf:  valOrZeroFloat(in.Body.HoursOver6bf),
-		Miles:         valOrZeroFloat(in.Body.Miles),
-		Days:          valOrZeroInt(in.Body.Days),
-		TidalWaters:   valOrZeroInt(in.Body.TidalWaters),
-		CostTotal:     nullFloat64(in.Body.CostTotal),
-		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
-		Description:   nullString(in.Body.Description),
-	})
-	if err != nil {
-		slog.Error("create org voyage", "org_id", octx.OrgID, "user_id", user.UserID, "name", in.Body.Name, "err", err)
-		return nil, huma.Error500InternalServerError("failed to create voyage")
-	}
-	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
-}
-
-func (h *OrgVoyageHandler) update(ctx context.Context, in *updateOrgVoyageInput) (*noContentOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
-	if err != nil {
-		return nil, err
-	}
-	if err := h.q.UpdateOrgVoyage(ctx, sqlcdb.UpdateOrgVoyageParams{
-		Name:          in.Body.Name,
-		Year:          nullInt64(in.Body.Year),
-		EmbarkDate:    nullString(in.Body.EmbarkDate),
-		DisembarkDate: nullString(in.Body.DisembarkDate),
-		Countries:     nullString(in.Body.Countries),
-		StartPort:     nullString(in.Body.StartPort),
-		EndPort:       nullString(in.Body.EndPort),
-		CaptainName:   nullString(in.Body.CaptainName),
-		YachtID:       nullInt64(in.Body.YachtID),
-		HoursTotal:    valOrZeroFloat(in.Body.HoursTotal),
-		HoursSail:     valOrZeroFloat(in.Body.HoursSail),
-		HoursEngine:   valOrZeroFloat(in.Body.HoursEngine),
-		HoursOver6bf:  valOrZeroFloat(in.Body.HoursOver6bf),
-		Miles:         valOrZeroFloat(in.Body.Miles),
-		Days:          valOrZeroInt(in.Body.Days),
-		TidalWaters:   valOrZeroInt(in.Body.TidalWaters),
-		CostTotal:     nullFloat64(in.Body.CostTotal),
-		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
-		Description:   nullString(in.Body.Description),
-		CruiseID:      nullInt64(in.Body.CruiseID),
-		ID:            in.ID,
-		OrgID:         orgID(octx),
-	}); err != nil {
-		slog.Error("update org voyage", "voyage_id", in.ID, "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to update voyage")
-	}
-	return &noContentOutput{}, nil
-}
-
-func (h *OrgVoyageHandler) delete(ctx context.Context, in *orgVoyageParam) (*noContentOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
-	if err != nil {
-		return nil, err
-	}
-	if err := h.q.DeleteOrgVoyage(ctx, sqlcdb.DeleteOrgVoyageParams{ID: in.ID, OrgID: orgID(octx)}); err != nil {
-		slog.Error("delete org voyage", "voyage_id", in.ID, "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to delete voyage")
-	}
-	return &noContentOutput{}, nil
 }

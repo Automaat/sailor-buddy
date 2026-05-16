@@ -15,19 +15,14 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
-// orgID wraps an org context's ID as the nullable column the org queries take.
-func orgID(octx *middleware.OrgContext) types.NullInt64 {
-	return types.NullInt64{Int64: octx.OrgID, Valid: true}
-}
-
 // --- org yachts ---
 
 type OrgYachtHandler struct {
-	q sqlcdb.Querier
+	*crudHandlers[orgSlugParam, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]
 }
 
 func NewOrgYachtHandler(q sqlcdb.Querier) *OrgYachtHandler {
-	return &OrgYachtHandler{q: q}
+	return &OrgYachtHandler{crudHandlers: newCRUDHandlers(orgYachtCRUDConfig(q))}
 }
 
 type orgYachtParam struct {
@@ -141,83 +136,89 @@ func RegisterOrgResourceRoutes(api huma.API, q sqlcdb.Querier) {
 	}, dh.get)
 }
 
-func (h *OrgYachtHandler) list(ctx context.Context, in *orgSlugParam) (*yachtListOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
-	if err != nil {
-		return nil, err
+func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput] {
+	readScope := func(ctx context.Context, slug string) (crudScope, error) {
+		return orgCRUDScope(ctx, q, slug, false)
 	}
-	yachts, err := h.q.ListOrgYachts(ctx, orgID(octx))
-	if err != nil {
-		slog.Error("list org yachts", "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list yachts")
+	writeScope := func(ctx context.Context, slug string) (crudScope, error) {
+		return orgCRUDScope(ctx, q, slug, true)
 	}
-	return &yachtListOutput{Body: dto.YachtsFromDB(yachts)}, nil
-}
-
-func (h *OrgYachtHandler) get(ctx context.Context, in *orgYachtParam) (*yachtOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
-	if err != nil {
-		return nil, err
+	return crudConfig[orgSlugParam, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]{
+		listScope: func(ctx context.Context, in *orgSlugParam) (crudScope, error) {
+			return readScope(ctx, in.Slug)
+		},
+		getScope: func(ctx context.Context, in *orgYachtParam) (crudScope, error) {
+			return readScope(ctx, in.Slug)
+		},
+		createScope: func(ctx context.Context, in *createOrgYachtInput) (crudScope, error) {
+			return writeScope(ctx, in.Slug)
+		},
+		updateScope: func(ctx context.Context, in *updateOrgYachtInput) (crudScope, error) {
+			return writeScope(ctx, in.Slug)
+		},
+		deleteScope: func(ctx context.Context, in *orgYachtParam) (crudScope, error) {
+			return writeScope(ctx, in.Slug)
+		},
+		list: func(ctx context.Context, scope crudScope, _ *orgSlugParam) ([]sqlcdb.Yacht, error) {
+			return q.ListOrgYachts(ctx, scope.orgID)
+		},
+		get: func(ctx context.Context, scope crudScope, in *orgYachtParam) (sqlcdb.Yacht, error) {
+			return q.GetOrgYacht(ctx, sqlcdb.GetOrgYachtParams{ID: in.ID, OrgID: scope.orgID})
+		},
+		create: func(ctx context.Context, scope crudScope, in *createOrgYachtInput) (sqlcdb.Yacht, error) {
+			return q.CreateOrgYacht(ctx, sqlcdb.CreateOrgYachtParams{
+				OwnerID:        scope.userID,
+				OrgID:          scope.orgID,
+				Name:           in.Body.Name,
+				RegistrationNo: nullString(in.Body.RegistrationNo),
+				YachtType:      nullString(in.Body.YachtType),
+			})
+		},
+		update: func(ctx context.Context, scope crudScope, in *updateOrgYachtInput) error {
+			return q.UpdateOrgYacht(ctx, sqlcdb.UpdateOrgYachtParams{
+				Name:           in.Body.Name,
+				RegistrationNo: nullString(in.Body.RegistrationNo),
+				YachtType:      nullString(in.Body.YachtType),
+				ID:             in.ID,
+				OrgID:          scope.orgID,
+			})
+		},
+		delete: func(ctx context.Context, scope crudScope, in *orgYachtParam) error {
+			return q.DeleteOrgYacht(ctx, sqlcdb.DeleteOrgYachtParams{ID: in.ID, OrgID: scope.orgID})
+		},
+		listOutput: func(rows []sqlcdb.Yacht) *yachtListOutput {
+			return &yachtListOutput{Body: dto.YachtsFromDB(rows)}
+		},
+		itemOutput: func(row sqlcdb.Yacht) *yachtOutput {
+			return &yachtOutput{Body: dto.YachtFromDB(row)}
+		},
+		listLogAttrs: func(scope crudScope, _ *orgSlugParam) []any {
+			return scopeAttrs(scope)
+		},
+		getLogAttrs: func(scope crudScope, in *orgYachtParam) []any {
+			return scopeAttrs(scope, "yacht_id", in.ID)
+		},
+		createLogAttrs: func(scope crudScope, _ *createOrgYachtInput) []any {
+			return scopeAttrs(scope, "user_id", scope.userID)
+		},
+		updateLogAttrs: func(scope crudScope, in *updateOrgYachtInput) []any {
+			return scopeAttrs(scope, "yacht_id", in.ID)
+		},
+		deleteLogAttrs: func(scope crudScope, in *orgYachtParam) []any {
+			return scopeAttrs(scope, "yacht_id", in.ID)
+		},
+		listLogMsg:      "list org yachts",
+		getLogMsg:       "get org yacht",
+		createLogMsg:    "create org yacht",
+		updateLogMsg:    "update org yacht",
+		deleteLogMsg:    "delete org yacht",
+		listClientMsg:   "failed to list yachts",
+		getClientMsg:    "failed to get yacht",
+		createClientMsg: "failed to create yacht",
+		updateClientMsg: "failed to update yacht",
+		deleteClientMsg: "failed to delete yacht",
+		notFoundMsg:     "yacht not found",
 	}
-	yacht, err := h.q.GetOrgYacht(ctx, sqlcdb.GetOrgYachtParams{ID: in.ID, OrgID: orgID(octx)})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("yacht not found")
-		}
-		slog.Error("get org yacht", "yacht_id", in.ID, "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to get yacht")
-	}
-	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
-}
-
-func (h *OrgYachtHandler) create(ctx context.Context, in *createOrgYachtInput) (*yachtOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
-	if err != nil {
-		return nil, err
-	}
-	user := middleware.GetUser(ctx)
-	yacht, err := h.q.CreateOrgYacht(ctx, sqlcdb.CreateOrgYachtParams{
-		OwnerID:        user.UserID,
-		OrgID:          orgID(octx),
-		Name:           in.Body.Name,
-		RegistrationNo: nullString(in.Body.RegistrationNo),
-		YachtType:      nullString(in.Body.YachtType),
-	})
-	if err != nil {
-		slog.Error("create org yacht", "org_id", octx.OrgID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to create yacht")
-	}
-	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
-}
-
-func (h *OrgYachtHandler) update(ctx context.Context, in *updateOrgYachtInput) (*noContentOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
-	if err != nil {
-		return nil, err
-	}
-	if err := h.q.UpdateOrgYacht(ctx, sqlcdb.UpdateOrgYachtParams{
-		Name:           in.Body.Name,
-		RegistrationNo: nullString(in.Body.RegistrationNo),
-		YachtType:      nullString(in.Body.YachtType),
-		ID:             in.ID,
-		OrgID:          orgID(octx),
-	}); err != nil {
-		slog.Error("update org yacht", "yacht_id", in.ID, "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to update yacht")
-	}
-	return &noContentOutput{}, nil
-}
-
-func (h *OrgYachtHandler) delete(ctx context.Context, in *orgYachtParam) (*noContentOutput, error) {
-	octx, err := resolveOrg(ctx, h.q, in.Slug, true)
-	if err != nil {
-		return nil, err
-	}
-	if err := h.q.DeleteOrgYacht(ctx, sqlcdb.DeleteOrgYachtParams{ID: in.ID, OrgID: orgID(octx)}); err != nil {
-		slog.Error("delete org yacht", "yacht_id", in.ID, "org_id", octx.OrgID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to delete yacht")
-	}
-	return &noContentOutput{}, nil
 }
 
 func (h *OrgCrewHandler) list(ctx context.Context, in *orgSlugParam) (*crewListOutput, error) {
