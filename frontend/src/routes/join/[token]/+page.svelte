@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { errorMessage } from '$lib/api/errors';
 	import { getInviteInfo, acceptInvite } from '$lib/api/routes';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { orgStore } from '$lib/stores/org.svelte';
@@ -27,8 +28,8 @@
 		error = '';
 		try {
 			info = await getInviteInfo(token);
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			loading = false;
 		}
@@ -43,8 +44,8 @@
 			await orgStore.refresh();
 			orgStore.select(result.org_slug);
 			setTimeout(() => goto('/'), 1500);
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			joining = false;
 		}

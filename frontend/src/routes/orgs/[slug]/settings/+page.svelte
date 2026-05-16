@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { errorMessage } from '$lib/api/errors';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import { getOrg, updateOrg, deleteOrg } from '$lib/api/routes';
 	import { page } from '$app/state';
@@ -36,8 +37,8 @@
 				pzz_club_number: org.pzz_club_number ?? '',
 				logo_url: org.logo_url ?? ''
 			};
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			loading = false;
 		}
@@ -59,8 +60,8 @@
 			});
 			await orgStore.refresh();
 			success = 'Zapisano';
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		} finally {
 			saving = false;
 		}
@@ -73,8 +74,8 @@
 			orgStore.select(null);
 			await orgStore.refresh();
 			goto('/orgs');
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = errorMessage(e);
 		}
 	}
 
