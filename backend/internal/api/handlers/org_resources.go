@@ -162,8 +162,8 @@ func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgListParams, orgYachtPara
 		list: func(ctx context.Context, scope crudScope, in *orgListParams) ([]sqlcdb.Yacht, error) {
 			return q.ListOrgYachts(ctx, sqlcdb.ListOrgYachtsParams{
 				OrgID:  scope.orgID,
-				Limit:  in.sqlLimit(),
-				Offset: in.sqlOffset(),
+				Limit:  in.Limit,
+				Offset: in.Offset,
 			})
 		},
 		count: func(ctx context.Context, scope crudScope, _ *orgListParams) (int64, error) {
@@ -236,8 +236,8 @@ func (h *OrgCrewHandler) list(ctx context.Context, in *orgListParams) (*crewList
 	id := orgID(octx)
 	crew, err := h.q.ListOrgCrewMembers(ctx, sqlcdb.ListOrgCrewMembersParams{
 		OrgID:  id,
-		Limit:  in.sqlLimit(),
-		Offset: in.sqlOffset(),
+		Limit:  in.Limit,
+		Offset: in.Offset,
 	})
 	if err != nil {
 		slog.Error("list org crew members", "org_id", octx.OrgID, "err", err)

@@ -2847,7 +2847,12 @@ export interface operations {
     };
     "list-org-crew": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 /** @description Organization slug */
@@ -3017,7 +3022,12 @@ export interface operations {
     };
     "list-org-cruises": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 /** @description Organization slug */
@@ -3697,7 +3707,12 @@ export interface operations {
     };
     "list-org-trips": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 /** @description Organization slug */
@@ -4045,7 +4060,12 @@ export interface operations {
     };
     "list-org-voyages": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 /** @description Organization slug */
@@ -4465,7 +4485,12 @@ export interface operations {
     };
     "list-org-yachts": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 /** @description Organization slug */

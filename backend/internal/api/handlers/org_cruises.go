@@ -98,8 +98,8 @@ func (h *OrgCruiseHandler) list(ctx context.Context, in *orgListParams) (*cruise
 	}
 	cruises, err := h.q.ListCruises(ctx, sqlcdb.ListCruisesParams{
 		OrgID:  octx.OrgID,
-		Limit:  in.sqlLimit(),
-		Offset: in.sqlOffset(),
+		Limit:  in.Limit,
+		Offset: in.Offset,
 	})
 	if err != nil {
 		slog.Error("list org cruises", "org_id", octx.OrgID, "err", err)

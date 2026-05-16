@@ -89,8 +89,8 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Yacht, error) {
 			return q.ListYachts(ctx, sqlcdb.ListYachtsParams{
 				OwnerID: scope.userID,
-				Limit:   in.sqlLimit(),
-				Offset:  in.sqlOffset(),
+				Limit:   in.Limit,
+				Offset:  in.Offset,
 			})
 		},
 		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {

@@ -88,8 +88,8 @@ func (h *OrgTripHandler) list(ctx context.Context, in *orgListParams) (*tripList
 	id := orgID(octx)
 	trips, err := h.q.ListOrgTrips(ctx, sqlcdb.ListOrgTripsParams{
 		OrgID:  id,
-		Limit:  in.sqlLimit(),
-		Offset: in.sqlOffset(),
+		Limit:  in.Limit,
+		Offset: in.Offset,
 	})
 	if err != nil {
 		slog.Error("list org trips", "org_id", octx.OrgID, "err", err)

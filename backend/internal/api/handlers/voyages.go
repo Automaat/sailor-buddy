@@ -90,8 +90,8 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Voyage, error) {
 			return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{
 				OwnerID: scope.userID,
-				Limit:   in.sqlLimit(),
-				Offset:  in.sqlOffset(),
+				Limit:   in.Limit,
+				Offset:  in.Offset,
 			})
 		},
 		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {

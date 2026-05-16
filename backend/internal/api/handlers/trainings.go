@@ -89,8 +89,8 @@ func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, trainingIDParam
 		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Training, error) {
 			return q.ListTrainings(ctx, sqlcdb.ListTrainingsParams{
 				UserID: scope.userID,
-				Limit:  in.sqlLimit(),
-				Offset: in.sqlOffset(),
+				Limit:  in.Limit,
+				Offset: in.Offset,
 			})
 		},
 		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {

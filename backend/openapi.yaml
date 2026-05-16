@@ -2431,6 +2431,27 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
@@ -2591,6 +2612,27 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
@@ -3282,6 +3324,27 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
@@ -3636,6 +3699,27 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
@@ -4083,6 +4167,27 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:

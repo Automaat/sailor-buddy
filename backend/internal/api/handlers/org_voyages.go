@@ -87,8 +87,8 @@ func orgVoyageCRUDConfig(q sqlcdb.Querier) crudConfig[orgListParams, orgVoyagePa
 		list: func(ctx context.Context, scope crudScope, in *orgListParams) ([]sqlcdb.Voyage, error) {
 			return q.ListOrgVoyages(ctx, sqlcdb.ListOrgVoyagesParams{
 				OrgID:  scope.orgID,
-				Limit:  in.sqlLimit(),
-				Offset: in.sqlOffset(),
+				Limit:  in.Limit,
+				Offset: in.Offset,
 			})
 		},
 		count: func(ctx context.Context, scope crudScope, _ *orgListParams) (int64, error) {

@@ -138,8 +138,8 @@ func (h *CrewHandler) list(ctx context.Context, in *pageParams) (*crewListOutput
 	user := middleware.GetUser(ctx)
 	members, err := h.q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
 		OwnerID: user.UserID,
-		Limit:   in.sqlLimit(),
-		Offset:  in.sqlOffset(),
+		Limit:   in.Limit,
+		Offset:  in.Offset,
 	})
 	if err != nil {
 		slog.Error("list crew members", "user_id", user.UserID, "err", err)

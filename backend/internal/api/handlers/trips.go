@@ -107,8 +107,8 @@ func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput
 	user := middleware.GetUser(ctx)
 	trips, err := h.q.ListTrips(ctx, sqlcdb.ListTripsParams{
 		OwnerID: user.UserID,
-		Limit:   in.sqlLimit(),
-		Offset:  in.sqlOffset(),
+		Limit:   in.Limit,
+		Offset:  in.Offset,
 	})
 	if err != nil {
 		slog.Error("list trips", "user_id", user.UserID, "err", err)
