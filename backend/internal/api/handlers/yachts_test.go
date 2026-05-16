@@ -46,6 +46,17 @@ func TestYachtHandler_List(t *testing.T) {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
+
+	t.Run("count error", func(t *testing.T) {
+		m := &mockQuerier{
+			listYachtsFn:  func(context.Context, int64) ([]sqlcdb.Yacht, error) { return nil, nil },
+			countYachtsFn: func(context.Context, int64) (int64, error) { return 0, errors.New("fail") },
+		}
+		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts")
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
+		}
+	})
 }
 
 func TestYachtHandler_List_Pagination(t *testing.T) {

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -62,6 +63,44 @@ func TestOrgYachtHandler_List_Pagination(t *testing.T) {
 		}
 		if page.Limit != 50 {
 			t.Fatalf("default limit = %d, want 50", page.Limit)
+		}
+	})
+}
+
+func TestOrgCrewHandler_List_Pagination(t *testing.T) {
+	t.Run("envelope echoes limit/offset and total", func(t *testing.T) {
+		m := withOrgRole(&mockQuerier{
+			listOrgCrewMembersFn: func(context.Context, types.NullInt64) ([]sqlcdb.CrewMember, error) {
+				return []sqlcdb.CrewMember{{ID: 1, FullName: "Jan Nowak"}}, nil
+			},
+			countOrgCrewMembersFn: func(context.Context, types.NullInt64) (int64, error) { return 7, nil },
+		}, "crew")
+		resp := orgResourceTestAPI(t, m).GetCtx(userCtx(context.Background()), "/orgs/club/crew?limit=5&offset=5")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		var page dto.Page[dto.CrewMember]
+		if err := json.Unmarshal(resp.Body.Bytes(), &page); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if page.Total != 7 || page.Limit != 5 || page.Offset != 5 || !page.HasMore {
+			t.Fatalf("unexpected page meta: %+v", page)
+		}
+		if len(page.Items) != 1 || page.Items[0].FullName != "Jan Nowak" {
+			t.Fatalf("unexpected items: %+v", page.Items)
+		}
+	})
+
+	t.Run("count error returns 500", func(t *testing.T) {
+		m := withOrgRole(&mockQuerier{
+			listOrgCrewMembersFn: func(context.Context, types.NullInt64) ([]sqlcdb.CrewMember, error) { return nil, nil },
+			countOrgCrewMembersFn: func(context.Context, types.NullInt64) (int64, error) {
+				return 0, errors.New("fail")
+			},
+		}, "crew")
+		resp := orgResourceTestAPI(t, m).GetCtx(userCtx(context.Background()), "/orgs/club/crew")
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
 }
