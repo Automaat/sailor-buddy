@@ -13,7 +13,7 @@
 		"test": "vitest run --passWithNoTests",
 		"test:coverage": "vitest run --passWithNoTests --coverage",
 		"test:e2e": "playwright test",
-		"gen:api": "npx -y openapi-typescript@7 ../backend/openapi.yaml -o src/lib/api/schema.d.ts"
+		"gen:api": "openapi-typescript ../backend/openapi.yaml -o src/lib/api/schema.d.ts"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.58.2",
@@ -26,6 +26,7 @@
 		"@types/node": "^25.3.5",
 		"@vitest/coverage-v8": "^4.1.0",
 		"jsdom": "^29.0.0",
+		"openapi-typescript": "^7.13.0",
 		"svelte": "^5.51.0",
 		"svelte-check": "^4.4.2",
 		"tailwindcss": "^4.2.1",

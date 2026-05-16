@@ -87,6 +87,26 @@ describe('import page', () => {
 		expect(await screen.findByText('Request failed: 400')).toBeInTheDocument();
 	});
 
+	it('falls back to a generic message when the upload rejects with a non-Error', async () => {
+		fetchMock.mockRejectedValueOnce('boom');
+		const { container } = render(ImportPage);
+		await pickFile(container);
+
+		expect(await screen.findByText('Przesyłanie nie powiodło się')).toBeInTheDocument();
+	});
+
+	it('falls back to a generic message when the confirm rejects with a non-Error', async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ voyages: [{}], trainings: [] }))
+			.mockRejectedValueOnce('boom');
+		const { container } = render(ImportPage);
+		await pickFile(container);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Potwierdź import' }));
+
+		expect(await screen.findByText('Import nie powiódł się')).toBeInTheDocument();
+	});
+
 	it('counts zero rows when the preview has no voyages or trainings', async () => {
 		fetchMock.mockResolvedValueOnce(jsonResponse({}));
 		const { container } = render(ImportPage);
