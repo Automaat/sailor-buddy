@@ -92,10 +92,7 @@ func (h *VoyageOpinionHandler) list(ctx context.Context, in *voyageIDParam) (*op
 
 func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinionInput) (*opinionOutput, error) {
 	user := middleware.GetUser(ctx)
-	format := in.Body.Format
-	if format == "" {
-		format = "pdf"
-	}
+	format := opinionFormat(in.Body.Format)
 
 	voyage, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, OwnerID: user.UserID})
 	if err != nil {
@@ -106,36 +103,23 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 		return nil, huma.Error500InternalServerError("failed to get voyage")
 	}
 
-	assignment, err := h.q.GetVoyageCrewAssignmentByMember(ctx, sqlcdb.GetVoyageCrewAssignmentByMemberParams{
-		VoyageID:     types.NullInt64{Int64: in.VoyageID, Valid: true},
-		CrewMemberID: in.Body.CrewMemberID,
-	})
+	assignment, err := getOpinionCrewAssignment(ctx, h.q, in.VoyageID, in.Body.CrewMemberID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("crew member not assigned to this voyage")
-		}
-		slog.Error("get voyage crew assignment for opinion", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to get crew assignment")
+		return nil, err
 	}
 
-	data := h.buildOpinionData(ctx, user.UserID, voyage, assignment)
-	fileBytes, err := renderOpinionFile(format, data)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to generate " + format)
-	}
-
-	dir := filepath.Join(h.uploadDir, strconv.FormatInt(user.UserID, 10), "opinions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, huma.Error500InternalServerError("failed to create directory")
-	}
-	for _, oldFmt := range []string{"pdf", "docx"} {
-		if oldFmt != format {
-			_ = os.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", in.VoyageID, in.Body.CrewMemberID, oldFmt)))
+	yachtName, yachtType := "", ""
+	if voyage.YachtID.Valid {
+		if yacht, err := h.q.GetYacht(ctx, sqlcdb.GetYachtParams{ID: voyage.YachtID.Int64, OwnerID: user.UserID}); err == nil {
+			yachtName, yachtType = yacht.Name, yacht.YachtType.String
 		}
 	}
-	filePath := filepath.Join(dir, fmt.Sprintf("%d_%d.%s", in.VoyageID, in.Body.CrewMemberID, format))
-	if err := os.WriteFile(filePath, fileBytes, 0o644); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save file")
+
+	data := opinionDocData(voyage, assignment, yachtName, yachtType)
+	filePath, err := storeOpinionFile(h.uploadDir, opinionScopeKey("user", user.UserID), in.VoyageID, in.Body.CrewMemberID, format, data)
+	if err != nil {
+		slog.Error("store opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
+		return nil, huma.Error500InternalServerError("failed to generate opinion document")
 	}
 
 	opinion, err := h.q.UpsertVoyageOpinion(ctx, sqlcdb.UpsertVoyageOpinionParams{
@@ -156,7 +140,7 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 	if err := h.verifyVoyage(ctx, in.VoyageID, user.UserID); err != nil {
 		return nil, err
 	}
-	opinion, err := h.opinionForVoyage(ctx, in.OpinionID, in.VoyageID)
+	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +161,7 @@ func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*n
 	if err := h.verifyVoyage(ctx, in.VoyageID, user.UserID); err != nil {
 		return nil, err
 	}
-	opinion, err := h.opinionForVoyage(ctx, in.OpinionID, in.VoyageID)
+	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)
 	if err != nil {
 		return nil, err
 	}
@@ -201,9 +185,9 @@ func (h *VoyageOpinionHandler) verifyVoyage(ctx context.Context, voyageID, userI
 	return nil
 }
 
-// opinionForVoyage loads an opinion and confirms it belongs to the voyage.
-func (h *VoyageOpinionHandler) opinionForVoyage(ctx context.Context, opinionID, voyageID int64) (sqlcdb.VoyageOpinion, error) {
-	opinion, err := h.q.GetVoyageOpinion(ctx, opinionID)
+// loadVoyageOpinion loads an opinion and confirms it belongs to the voyage.
+func loadVoyageOpinion(ctx context.Context, q sqlcdb.Querier, opinionID, voyageID int64) (sqlcdb.VoyageOpinion, error) {
+	opinion, err := q.GetVoyageOpinion(ctx, opinionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlcdb.VoyageOpinion{}, huma.Error404NotFound("opinion not found")
@@ -225,17 +209,64 @@ func opinionContentType(format string) string {
 	return "application/pdf"
 }
 
-// buildOpinionData assembles the document payload from the voyage and crew
-// assignment, resolving the yacht name/type and the effective patent number.
-func (h *VoyageOpinionHandler) buildOpinionData(ctx context.Context, userID int64, voyage sqlcdb.Voyage, assignment sqlcdb.GetVoyageCrewAssignmentByMemberRow) docgen.OpinionData {
-	var yachtName, yachtType string
-	if voyage.YachtID.Valid {
-		if yacht, err := h.q.GetYacht(ctx, sqlcdb.GetYachtParams{ID: voyage.YachtID.Int64, OwnerID: userID}); err == nil {
-			yachtName = yacht.Name
-			yachtType = yacht.YachtType.String
+// opinionFormat normalizes the requested document format, defaulting to pdf.
+func opinionFormat(format string) string {
+	if format == "" {
+		return "pdf"
+	}
+	return format
+}
+
+// opinionScopeKey builds the upload-directory segment that segregates
+// owner-scoped and org-scoped opinion files so their paths never collide.
+func opinionScopeKey(kind string, id int64) string {
+	return kind + "_" + strconv.FormatInt(id, 10)
+}
+
+// getOpinionCrewAssignment loads the voyage crew assignment for a member,
+// mapping a missing row to a 404 so callers return it directly.
+func getOpinionCrewAssignment(ctx context.Context, q sqlcdb.Querier, voyageID, crewMemberID int64) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
+	assignment, err := q.GetVoyageCrewAssignmentByMember(ctx, sqlcdb.GetVoyageCrewAssignmentByMemberParams{
+		VoyageID:     types.NullInt64{Int64: voyageID, Valid: true},
+		CrewMemberID: crewMemberID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return assignment, huma.Error404NotFound("crew member not assigned to this voyage")
+		}
+		slog.Error("get voyage crew assignment for opinion", "voyage_id", voyageID, "crew_member_id", crewMemberID, "err", err)
+		return assignment, huma.Error500InternalServerError("failed to get crew assignment")
+	}
+	return assignment, nil
+}
+
+// storeOpinionFile renders the opinion document and writes it under the upload
+// directory, removing any prior file in a different format.
+func storeOpinionFile(uploadDir, scopeKey string, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
+	fileBytes, err := renderOpinionFile(format, data)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(uploadDir, scopeKey, "opinions")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	for _, oldFmt := range []string{"pdf", "docx"} {
+		if oldFmt != format {
+			_ = os.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, oldFmt)))
 		}
 	}
+	filePath := filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, format))
+	if err := os.WriteFile(filePath, fileBytes, 0o644); err != nil {
+		return "", err
+	}
+	return filePath, nil
+}
 
+// opinionDocData assembles the document payload from the voyage and crew
+// assignment, taking the already-resolved yacht details and the effective
+// patent number (the assignment's, falling back to the member's).
+func opinionDocData(voyage sqlcdb.Voyage, assignment sqlcdb.GetVoyageCrewAssignmentByMemberRow, yachtName, yachtType string) docgen.OpinionData {
 	patent := assignment.PatentNumber.String
 	if patent == "" {
 		patent = assignment.MemberPatent.String

@@ -52,11 +52,12 @@
 		if (!genCrewId) return;
 		generating = true;
 		try {
-			await api.post(`/voyages/${id}/opinions`, {
+			const prefix = orgStore.apiPrefix();
+			await api.post(`${prefix}/voyages/${id}/opinions`, {
 				crew_member_id: Number(genCrewId),
 				format: genFormat
 			});
-			opinions = await api.get<VoyageOpinion[]>(`/voyages/${id}/opinions`);
+			opinions = await api.get<VoyageOpinion[]>(`${prefix}/voyages/${id}/opinions`);
 			genCrewId = '';
 		} catch (err) {
 			console.error('Failed to generate opinion:', err);
@@ -67,7 +68,7 @@
 
 	async function downloadOpinion(opId: number) {
 		try {
-			await api.download(`/voyages/${id}/opinions/${opId}/download`);
+			await api.download(`${orgStore.apiPrefix()}/voyages/${id}/opinions/${opId}/download`);
 		} catch (err) {
 			console.error('Failed to download opinion:', err);
 		}
@@ -75,7 +76,7 @@
 
 	async function deleteOpinion(opId: number) {
 		if (!confirm('Usunąć tę opinię?')) return;
-		await api.del(`/voyages/${id}/opinions/${opId}`);
+		await api.del(`${orgStore.apiPrefix()}/voyages/${id}/opinions/${opId}`);
 		opinions = opinions.filter((o) => o.id !== opId);
 	}
 
@@ -84,11 +85,12 @@
 		if (!assignCrewId || !assignRole) return;
 		assigning = true;
 		try {
-			await api.post(`/voyages/${id}/crew`, {
+			const prefix = orgStore.apiPrefix();
+			await api.post(`${prefix}/voyages/${id}/crew`, {
 				crew_member_id: Number(assignCrewId),
 				role: assignRole
 			});
-			crew = await api.get<CrewAssignment[]>(`/voyages/${id}/crew`);
+			crew = await api.get<CrewAssignment[]>(`${prefix}/voyages/${id}/crew`);
 			assignCrewId = '';
 			assignRole = '';
 		} catch (err) {
@@ -100,7 +102,7 @@
 
 	async function removeCrew(assignmentId: number) {
 		if (!confirm('Usunąć przypisanie załoganta?')) return;
-		await api.del(`/voyages/${id}/crew/${assignmentId}`);
+		await api.del(`${orgStore.apiPrefix()}/voyages/${id}/crew/${assignmentId}`);
 		crew = crew.filter((c) => c.id !== assignmentId);
 	}
 </script>

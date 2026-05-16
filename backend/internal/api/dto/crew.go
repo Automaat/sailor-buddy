@@ -145,3 +145,43 @@ func VoyageCrewFromDB(rows []sqlcdb.ListVoyageCrewAssignmentsRow) []CrewAssignme
 	}
 	return out
 }
+
+// OrgTripCrewFromDB maps the joined org trip-crew rows, returning a non-nil slice.
+func OrgTripCrewFromDB(rows []sqlcdb.ListOrgTripCrewAssignmentsRow) []CrewAssignment {
+	out := make([]CrewAssignment, len(rows))
+	for i := range rows {
+		r := rows[i]
+		out[i] = CrewAssignment{
+			ID:           r.ID,
+			TripID:       intPtr(r.TripID),
+			VoyageID:     intPtr(r.VoyageID),
+			CrewMemberID: r.CrewMemberID,
+			Role:         r.Role,
+			PatentNumber: strPtr(r.PatentNumber),
+			FullName:     r.FullName,
+			Email:        strPtr(r.Email),
+			CreatedAt:    timeVal(r.CreatedAt),
+		}
+	}
+	return out
+}
+
+// OrgVoyageCrewFromDB maps the joined org voyage-crew rows, returning a non-nil slice.
+func OrgVoyageCrewFromDB(rows []sqlcdb.ListOrgVoyageCrewAssignmentsRow) []CrewAssignment {
+	out := make([]CrewAssignment, len(rows))
+	for i := range rows {
+		r := rows[i]
+		out[i] = CrewAssignment{
+			ID:           r.ID,
+			TripID:       intPtr(r.TripID),
+			VoyageID:     intPtr(r.VoyageID),
+			CrewMemberID: r.CrewMemberID,
+			Role:         r.Role,
+			PatentNumber: strPtr(r.PatentNumber),
+			FullName:     r.FullName,
+			Email:        strPtr(r.Email),
+			CreatedAt:    timeVal(r.CreatedAt),
+		}
+	}
+	return out
+}
