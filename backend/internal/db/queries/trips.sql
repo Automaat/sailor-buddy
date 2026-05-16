@@ -9,7 +9,10 @@ INSERT INTO trips (
 SELECT * FROM trips WHERE id = $1 AND owner_id = $2 AND org_id IS NULL;
 
 -- name: ListTrips :many
-SELECT * FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC;
+SELECT * FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC, id ASC LIMIT $2 OFFSET $3;
+
+-- name: CountTrips :one
+SELECT COUNT(*)::BIGINT FROM trips WHERE owner_id = $1 AND org_id IS NULL;
 
 -- name: UpdateTrip :exec
 UPDATE trips SET
@@ -54,7 +57,10 @@ INSERT INTO trips (
 SELECT * FROM trips WHERE id = $1 AND org_id = $2;
 
 -- name: ListOrgTrips :many
-SELECT * FROM trips WHERE org_id = $1 ORDER BY embark_date ASC;
+SELECT * FROM trips WHERE org_id = $1 ORDER BY embark_date ASC, id ASC LIMIT $2 OFFSET $3;
+
+-- name: CountOrgTrips :one
+SELECT COUNT(*)::BIGINT FROM trips WHERE org_id = $1;
 
 -- name: UpdateOrgTrip :exec
 UPDATE trips SET

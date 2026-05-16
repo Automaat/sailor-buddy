@@ -32,7 +32,7 @@
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers] = await Promise.all([
 				api.get<CrewAssignment[]>(`${prefix}/trips/${id}/crew`).catch(() => []),
-				api.get<CrewMember[]>(`${prefix}/crew`).catch(() => [])
+				api.list<CrewMember>(`${prefix}/crew`).catch(() => [])
 			]);
 			if (trip?.cruise_id) {
 				cruise = await api.get<Cruise>(`${prefix}/cruises/${trip.cruise_id}`).catch(() => null);

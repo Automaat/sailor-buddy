@@ -25,6 +25,7 @@ func TestVoyageHandler_List(t *testing.T) {
 			listVoyagesFn: func(context.Context, int64) ([]sqlcdb.Voyage, error) {
 				return []sqlcdb.Voyage{{ID: 1, Name: "Adriatic 2025"}}, nil
 			},
+			countVoyagesFn: func(context.Context, int64) (int64, error) { return 1, nil },
 		}
 		resp := voyageTestAPI(t, m).GetCtx(userCtx(context.Background()), "/voyages")
 		if resp.Code != http.StatusOK {

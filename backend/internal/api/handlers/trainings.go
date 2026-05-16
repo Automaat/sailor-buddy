@@ -11,7 +11,7 @@ import (
 )
 
 type TrainingHandler struct {
-	*crudHandlers[struct{}, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]
+	*crudHandlers[pageParams, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]
 }
 
 func NewTrainingHandler(q sqlcdb.Querier) *TrainingHandler {
@@ -36,7 +36,7 @@ type trainingOutput struct {
 }
 
 type trainingListOutput struct {
-	Body []dto.Training
+	Body dto.Page[dto.Training]
 }
 
 // RegisterTrainingRoutes wires the owner-scoped training operations onto the API.
@@ -66,12 +66,12 @@ func RegisterTrainingRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput] {
+func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput] {
 	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
 		return ownerCRUDScope(ctx), nil
 	}
-	return crudConfig[struct{}, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]{
-		listScope: func(ctx context.Context, in *struct{}) (crudScope, error) {
+	return crudConfig[pageParams, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]{
+		listScope: func(ctx context.Context, in *pageParams) (crudScope, error) {
 			return ownerScope(ctx, in)
 		},
 		getScope: func(ctx context.Context, in *trainingIDParam) (crudScope, error) {
@@ -86,8 +86,15 @@ func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, trainingIDParam, 
 		deleteScope: func(ctx context.Context, in *trainingIDParam) (crudScope, error) {
 			return ownerScope(ctx, in)
 		},
-		list: func(ctx context.Context, scope crudScope, _ *struct{}) ([]sqlcdb.Training, error) {
-			return q.ListTrainings(ctx, scope.userID)
+		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Training, error) {
+			return q.ListTrainings(ctx, sqlcdb.ListTrainingsParams{
+				UserID: scope.userID,
+				Limit:  in.Limit,
+				Offset: in.Offset,
+			})
+		},
+		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {
+			return q.CountTrainings(ctx, scope.userID)
 		},
 		get: func(ctx context.Context, scope crudScope, in *trainingIDParam) (sqlcdb.Training, error) {
 			return q.GetTraining(ctx, sqlcdb.GetTrainingParams{ID: in.ID, UserID: scope.userID})
@@ -116,13 +123,13 @@ func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, trainingIDParam, 
 		delete: func(ctx context.Context, scope crudScope, in *trainingIDParam) error {
 			return q.DeleteTraining(ctx, sqlcdb.DeleteTrainingParams{ID: in.ID, UserID: scope.userID})
 		},
-		listOutput: func(rows []sqlcdb.Training) *trainingListOutput {
-			return &trainingListOutput{Body: dto.TrainingsFromDB(rows)}
+		listOutput: func(in *pageParams, rows []sqlcdb.Training, total int64) *trainingListOutput {
+			return &trainingListOutput{Body: dto.NewPage(dto.TrainingsFromDB(rows), total, in.Limit, in.Offset)}
 		},
 		itemOutput: func(row sqlcdb.Training) *trainingOutput {
 			return &trainingOutput{Body: dto.TrainingFromDB(row)}
 		},
-		listLogAttrs: func(scope crudScope, _ *struct{}) []any {
+		listLogAttrs: func(scope crudScope, _ *pageParams) []any {
 			return scopeAttrs(scope)
 		},
 		getLogAttrs: func(scope crudScope, in *trainingIDParam) []any {

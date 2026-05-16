@@ -10,7 +10,7 @@
 	async function load() {
 		loading = true;
 		try {
-			voyages = await api.get<Voyage[]>(`${orgStore.apiPrefix()}/voyages`);
+			voyages = await api.list<Voyage>(`${orgStore.apiPrefix()}/voyages`);
 		} catch (err) {
 			console.error('Failed to load voyages:', err);
 		} finally {

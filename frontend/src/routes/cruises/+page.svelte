@@ -16,7 +16,7 @@
 		}
 		loading = true;
 		try {
-			cruises = await api.get<Cruise[]>(`${orgStore.apiPrefix()}/cruises`);
+			cruises = await api.list<Cruise>(`${orgStore.apiPrefix()}/cruises`);
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {

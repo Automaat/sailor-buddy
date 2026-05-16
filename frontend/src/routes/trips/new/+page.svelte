@@ -35,9 +35,9 @@
 
 	onMount(async () => {
 		const prefix = orgStore.apiPrefix();
-		yachts = await api.get<Yacht[]>(`${prefix}/yachts`);
+		yachts = await api.list<Yacht>(`${prefix}/yachts`);
 		if (orgStore.isOrgMode) {
-			cruises = await api.get<Cruise[]>(`${prefix}/cruises`).catch(() => []);
+			cruises = await api.list<Cruise>(`${prefix}/cruises`).catch(() => []);
 		}
 		if (initialCruiseID) {
 			form.cruise_id = initialCruiseID;

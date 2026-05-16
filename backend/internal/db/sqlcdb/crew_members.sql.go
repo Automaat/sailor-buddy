@@ -11,6 +11,34 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const countCrewMembers = `-- name: CountCrewMembers :one
+SELECT COUNT(*)::BIGINT FROM crew_members WHERE owner_id = $1 AND org_id IS NULL
+`
+
+// CountCrewMembers
+//
+//	SELECT COUNT(*)::BIGINT FROM crew_members WHERE owner_id = $1 AND org_id IS NULL
+func (q *Queries) CountCrewMembers(ctx context.Context, ownerID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCrewMembers, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countOrgCrewMembers = `-- name: CountOrgCrewMembers :one
+SELECT COUNT(*)::BIGINT FROM crew_members WHERE org_id = $1
+`
+
+// CountOrgCrewMembers
+//
+//	SELECT COUNT(*)::BIGINT FROM crew_members WHERE org_id = $1
+func (q *Queries) CountOrgCrewMembers(ctx context.Context, orgID types.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrgCrewMembers, orgID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createCrewMember = `-- name: CreateCrewMember :one
 INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
 `
@@ -248,14 +276,20 @@ func (q *Queries) GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberPara
 }
 
 const listCrewMembers = `-- name: ListCrewMembers :many
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name, id LIMIT $2 OFFSET $3
 `
+
+type ListCrewMembersParams struct {
+	OwnerID int64 `json:"owner_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
+}
 
 // ListCrewMembers
 //
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name
-func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error) {
-	rows, err := q.db.QueryContext(ctx, listCrewMembers, ownerID)
+//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name, id LIMIT $2 OFFSET $3
+func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error) {
+	rows, err := q.db.QueryContext(ctx, listCrewMembers, arg.OwnerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -293,14 +327,20 @@ func (q *Queries) ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMem
 }
 
 const listOrgCrewMembers = `-- name: ListOrgCrewMembers :many
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name
+SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name, id LIMIT $2 OFFSET $3
 `
+
+type ListOrgCrewMembersParams struct {
+	OrgID  types.NullInt64 `json:"org_id"`
+	Limit  int32           `json:"limit"`
+	Offset int32           `json:"offset"`
+}
 
 // ListOrgCrewMembers
 //
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name
-func (q *Queries) ListOrgCrewMembers(ctx context.Context, orgID types.NullInt64) ([]CrewMember, error) {
-	rows, err := q.db.QueryContext(ctx, listOrgCrewMembers, orgID)
+//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name, id LIMIT $2 OFFSET $3
+func (q *Queries) ListOrgCrewMembers(ctx context.Context, arg ListOrgCrewMembersParams) ([]CrewMember, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgCrewMembers, arg.OrgID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

@@ -1122,6 +1122,234 @@ components:
         - created_at
         - updated_at
       type: object
+    PageCrewMember:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageCrewMember.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/CrewMember"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
+    PageCruise:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageCruise.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/Cruise"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
+    PageTraining:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageTraining.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/Training"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
+    PageTrip:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageTrip.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/Trip"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
+    PageVoyage:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageVoyage.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/Voyage"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
+    PageYacht:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageYacht.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/Yacht"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
     TokenOutputBody:
       additionalProperties: false
       properties:
@@ -1734,16 +1962,34 @@ paths:
   /crew:
     get:
       operationId: list-crew
+      parameters:
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/CrewMember"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageCrewMember"
           description: OK
         default:
           content:
@@ -2185,16 +2431,33 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/CrewMember"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageCrewMember"
           description: OK
         default:
           content:
@@ -2349,16 +2612,33 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Cruise"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageCruise"
           description: OK
         default:
           content:
@@ -3044,16 +3324,33 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Trip"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageTrip"
           description: OK
         default:
           content:
@@ -3402,16 +3699,33 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Voyage"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageVoyage"
           description: OK
         default:
           content:
@@ -3853,16 +4167,33 @@ paths:
           schema:
             description: Organization slug
             type: string
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Yacht"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageYacht"
           description: OK
         default:
           content:
@@ -4009,16 +4340,34 @@ paths:
   /trainings:
     get:
       operationId: list-trainings
+      parameters:
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Training"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageTraining"
           description: OK
         default:
           content:
@@ -4136,16 +4485,34 @@ paths:
   /trips:
     get:
       operationId: list-trips
+      parameters:
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Trip"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageTrip"
           description: OK
         default:
           content:
@@ -4611,16 +4978,34 @@ paths:
   /voyages:
     get:
       operationId: list-voyages
+      parameters:
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Voyage"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageVoyage"
           description: OK
         default:
           content:
@@ -4976,16 +5361,34 @@ paths:
   /yachts:
     get:
       operationId: list-yachts
+      parameters:
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: "#/components/schemas/Yacht"
-                type:
-                  - array
-                  - "null"
+                $ref: "#/components/schemas/PageYacht"
           description: OK
         default:
           content:

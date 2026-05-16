@@ -40,7 +40,7 @@
 			const prefix = orgStore.apiPrefix();
 			const [voyage, y] = await Promise.all([
 				api.get<Voyage>(`${prefix}/voyages/${id}`),
-				api.get<Yacht[]>(`${prefix}/yachts`)
+				api.list<Yacht>(`${prefix}/yachts`)
 			]);
 			yachts = y;
 			form = {

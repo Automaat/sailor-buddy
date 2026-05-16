@@ -13,7 +13,7 @@
 	async function load() {
 		loading = true;
 		try {
-			members = await api.get<CrewMember[]>(`${orgStore.apiPrefix()}/crew`);
+			members = await api.list<CrewMember>(`${orgStore.apiPrefix()}/crew`);
 		} catch (err) {
 			console.error('Failed to load crew:', err);
 		} finally {

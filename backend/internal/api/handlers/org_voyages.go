@@ -11,7 +11,7 @@ import (
 )
 
 type OrgVoyageHandler struct {
-	*crudHandlers[orgSlugParam, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
+	*crudHandlers[orgListParams, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
 }
 
 func NewOrgVoyageHandler(q sqlcdb.Querier) *OrgVoyageHandler {
@@ -61,15 +61,15 @@ func RegisterOrgVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func orgVoyageCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
+func orgVoyageCRUDConfig(q sqlcdb.Querier) crudConfig[orgListParams, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
 	readScope := func(ctx context.Context, slug string) (crudScope, error) {
 		return orgCRUDScope(ctx, q, slug, false)
 	}
 	writeScope := func(ctx context.Context, slug string) (crudScope, error) {
 		return orgCRUDScope(ctx, q, slug, true)
 	}
-	return crudConfig[orgSlugParam, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
-		listScope: func(ctx context.Context, in *orgSlugParam) (crudScope, error) {
+	return crudConfig[orgListParams, orgVoyageParam, createOrgVoyageInput, updateOrgVoyageInput, orgVoyageParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
+		listScope: func(ctx context.Context, in *orgListParams) (crudScope, error) {
 			return readScope(ctx, in.Slug)
 		},
 		getScope: func(ctx context.Context, in *orgVoyageParam) (crudScope, error) {
@@ -84,8 +84,15 @@ func orgVoyageCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgVoyagePar
 		deleteScope: func(ctx context.Context, in *orgVoyageParam) (crudScope, error) {
 			return writeScope(ctx, in.Slug)
 		},
-		list: func(ctx context.Context, scope crudScope, _ *orgSlugParam) ([]sqlcdb.Voyage, error) {
-			return q.ListOrgVoyages(ctx, scope.orgID)
+		list: func(ctx context.Context, scope crudScope, in *orgListParams) ([]sqlcdb.Voyage, error) {
+			return q.ListOrgVoyages(ctx, sqlcdb.ListOrgVoyagesParams{
+				OrgID:  scope.orgID,
+				Limit:  in.Limit,
+				Offset: in.Offset,
+			})
+		},
+		count: func(ctx context.Context, scope crudScope, _ *orgListParams) (int64, error) {
+			return q.CountOrgVoyages(ctx, scope.orgID)
 		},
 		get: func(ctx context.Context, scope crudScope, in *orgVoyageParam) (sqlcdb.Voyage, error) {
 			return q.GetOrgVoyage(ctx, sqlcdb.GetOrgVoyageParams{ID: in.ID, OrgID: scope.orgID})
@@ -101,13 +108,13 @@ func orgVoyageCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgVoyagePar
 		delete: func(ctx context.Context, scope crudScope, in *orgVoyageParam) error {
 			return q.DeleteOrgVoyage(ctx, sqlcdb.DeleteOrgVoyageParams{ID: in.ID, OrgID: scope.orgID})
 		},
-		listOutput: func(rows []sqlcdb.Voyage) *voyageListOutput {
-			return &voyageListOutput{Body: dto.VoyagesFromDB(rows)}
+		listOutput: func(in *orgListParams, rows []sqlcdb.Voyage, total int64) *voyageListOutput {
+			return &voyageListOutput{Body: dto.NewPage(dto.VoyagesFromDB(rows), total, in.Limit, in.Offset)}
 		},
 		itemOutput: func(row sqlcdb.Voyage) *voyageOutput {
 			return &voyageOutput{Body: dto.VoyageFromDB(row)}
 		},
-		listLogAttrs: func(scope crudScope, _ *orgSlugParam) []any {
+		listLogAttrs: func(scope crudScope, _ *orgListParams) []any {
 			return scopeAttrs(scope)
 		},
 		getLogAttrs: func(scope crudScope, in *orgVoyageParam) []any {

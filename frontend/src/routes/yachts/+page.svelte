@@ -13,7 +13,7 @@
 	async function load() {
 		loading = true;
 		try {
-			yachts = await api.get<Yacht[]>(`${orgStore.apiPrefix()}/yachts`);
+			yachts = await api.list<Yacht>(`${orgStore.apiPrefix()}/yachts`);
 		} catch (err) {
 			console.error('Failed to load yachts:', err);
 		} finally {

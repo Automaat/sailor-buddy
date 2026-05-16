@@ -47,6 +47,10 @@ type Querier interface {
 	//  UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $1 AND owner_id = $2
 	ClearTripEnrollToken(ctx context.Context, arg ClearTripEnrollTokenParams) error
+	//CountCrewMembers
+	//
+	//  SELECT COUNT(*)::BIGINT FROM crew_members WHERE owner_id = $1 AND org_id IS NULL
+	CountCrewMembers(ctx context.Context, ownerID int64) (int64, error)
 	//CountCruiseEnrollments
 	//
 	//  SELECT
@@ -55,10 +59,34 @@ type Querier interface {
 	//  FROM cruise_enrollments
 	//  WHERE cruise_id = $1
 	CountCruiseEnrollments(ctx context.Context, cruiseID int64) (CountCruiseEnrollmentsRow, error)
+	//CountCruises
+	//
+	//  SELECT COUNT(*)::BIGINT FROM cruises WHERE org_id = $1
+	CountCruises(ctx context.Context, orgID int64) (int64, error)
 	//CountOrgAdmins
 	//
 	//  SELECT COUNT(*)::BIGINT FROM org_members WHERE org_id = $1 AND role = 'admin'
 	CountOrgAdmins(ctx context.Context, orgID int64) (int64, error)
+	//CountOrgCrewMembers
+	//
+	//  SELECT COUNT(*)::BIGINT FROM crew_members WHERE org_id = $1
+	CountOrgCrewMembers(ctx context.Context, orgID types.NullInt64) (int64, error)
+	//CountOrgTrips
+	//
+	//  SELECT COUNT(*)::BIGINT FROM trips WHERE org_id = $1
+	CountOrgTrips(ctx context.Context, orgID types.NullInt64) (int64, error)
+	//CountOrgVoyages
+	//
+	//  SELECT COUNT(*)::BIGINT FROM voyages WHERE org_id = $1
+	CountOrgVoyages(ctx context.Context, orgID types.NullInt64) (int64, error)
+	//CountOrgYachts
+	//
+	//  SELECT COUNT(*)::BIGINT FROM yachts WHERE org_id = $1
+	CountOrgYachts(ctx context.Context, orgID types.NullInt64) (int64, error)
+	//CountTrainings
+	//
+	//  SELECT COUNT(*)::BIGINT FROM trainings WHERE user_id = $1
+	CountTrainings(ctx context.Context, userID int64) (int64, error)
 	//CountTripEnrollments
 	//
 	//  SELECT
@@ -67,6 +95,18 @@ type Querier interface {
 	//  FROM trip_enrollments
 	//  WHERE trip_id = $1
 	CountTripEnrollments(ctx context.Context, tripID int64) (CountTripEnrollmentsRow, error)
+	//CountTrips
+	//
+	//  SELECT COUNT(*)::BIGINT FROM trips WHERE owner_id = $1 AND org_id IS NULL
+	CountTrips(ctx context.Context, ownerID int64) (int64, error)
+	//CountVoyages
+	//
+	//  SELECT COUNT(*)::BIGINT FROM voyages WHERE owner_id = $1 AND org_id IS NULL
+	CountVoyages(ctx context.Context, ownerID int64) (int64, error)
+	//CountYachts
+	//
+	//  SELECT COUNT(*)::BIGINT FROM yachts WHERE owner_id = $1 AND org_id IS NULL
+	CountYachts(ctx context.Context, ownerID int64) (int64, error)
 	//CreateCrewMember
 	//
 	//  INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
@@ -475,8 +515,8 @@ type Querier interface {
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	//ListCrewMembers
 	//
-	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name
-	ListCrewMembers(ctx context.Context, ownerID int64) ([]CrewMember, error)
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name, id LIMIT $2 OFFSET $3
+	ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error)
 	//ListCruiseEnrollments
 	//
 	//  SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
@@ -499,12 +539,12 @@ type Querier interface {
 	ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error)
 	//ListCruises
 	//
-	//  SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC
-	ListCruises(ctx context.Context, orgID int64) ([]Cruise, error)
+	//  SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $2 OFFSET $3
+	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
 	//ListOrgCrewMembers
 	//
-	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name
-	ListOrgCrewMembers(ctx context.Context, orgID types.NullInt64) ([]CrewMember, error)
+	//  SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name, id LIMIT $2 OFFSET $3
+	ListOrgCrewMembers(ctx context.Context, arg ListOrgCrewMembersParams) ([]CrewMember, error)
 	//ListOrgInvites
 	//
 	//  SELECT oi.id, oi.org_id, oi.token, oi.role, oi.created_by, oi.expires_at, oi.max_uses, oi.use_count, oi.created_at, u.name AS creator_name
@@ -534,8 +574,8 @@ type Querier interface {
 	ListOrgTripCrewAssignments(ctx context.Context, arg ListOrgTripCrewAssignmentsParams) ([]ListOrgTripCrewAssignmentsRow, error)
 	//ListOrgTrips
 	//
-	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE org_id = $1 ORDER BY embark_date ASC
-	ListOrgTrips(ctx context.Context, orgID types.NullInt64) ([]Trip, error)
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE org_id = $1 ORDER BY embark_date ASC, id ASC LIMIT $2 OFFSET $3
+	ListOrgTrips(ctx context.Context, arg ListOrgTripsParams) ([]Trip, error)
 	//ListOrgVoyageCrewAssignments
 	//
 	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
@@ -548,16 +588,16 @@ type Querier interface {
 	ListOrgVoyageCrewAssignments(ctx context.Context, arg ListOrgVoyageCrewAssignmentsParams) ([]ListOrgVoyageCrewAssignmentsRow, error)
 	//ListOrgVoyages
 	//
-	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
-	ListOrgVoyages(ctx context.Context, orgID types.NullInt64) ([]Voyage, error)
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
+	ListOrgVoyages(ctx context.Context, arg ListOrgVoyagesParams) ([]Voyage, error)
 	//ListOrgYachts
 	//
-	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
-	ListOrgYachts(ctx context.Context, orgID types.NullInt64) ([]Yacht, error)
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name, id LIMIT $2 OFFSET $3
+	ListOrgYachts(ctx context.Context, arg ListOrgYachtsParams) ([]Yacht, error)
 	//ListTrainings
 	//
-	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC
-	ListTrainings(ctx context.Context, userID int64) ([]Training, error)
+	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
+	ListTrainings(ctx context.Context, arg ListTrainingsParams) ([]Training, error)
 	//ListTripCrewAssignments
 	//
 	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
@@ -580,8 +620,8 @@ type Querier interface {
 	ListTripEnrollments(ctx context.Context, arg ListTripEnrollmentsParams) ([]ListTripEnrollmentsRow, error)
 	//ListTrips
 	//
-	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC
-	ListTrips(ctx context.Context, ownerID int64) ([]Trip, error)
+	//  SELECT id, owner_id, org_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, cruise_id FROM trips WHERE owner_id = $1 AND org_id IS NULL ORDER BY embark_date ASC, id ASC LIMIT $2 OFFSET $3
+	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
 	//ListUserOrganizations
 	//
 	//  SELECT o.id, o.name, o.slug, o.description, o.logo_url, o.pzz_club_number, o.city, o.website, o.created_at, o.updated_at, om.role
@@ -610,12 +650,12 @@ type Querier interface {
 	ListVoyageVoyageOpinions(ctx context.Context, voyageID int64) ([]ListVoyageVoyageOpinionsRow, error)
 	//ListVoyages
 	//
-	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
-	ListVoyages(ctx context.Context, ownerID int64) ([]Voyage, error)
+	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
+	ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error)
 	//ListYachts
 	//
-	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
-	ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error)
+	//  SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name, id LIMIT $2 OFFSET $3
+	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
 	//RemoveOrgMember
 	//
 	//  DELETE FROM org_members WHERE id = $1 AND org_id = $2

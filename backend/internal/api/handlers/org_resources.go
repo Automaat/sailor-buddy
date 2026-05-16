@@ -18,7 +18,7 @@ import (
 // --- org yachts ---
 
 type OrgYachtHandler struct {
-	*crudHandlers[orgSlugParam, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]
+	*crudHandlers[orgListParams, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]
 }
 
 func NewOrgYachtHandler(q sqlcdb.Querier) *OrgYachtHandler {
@@ -136,15 +136,15 @@ func RegisterOrgResourceRoutes(api huma.API, q sqlcdb.Querier) {
 	}, dh.get)
 }
 
-func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput] {
+func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgListParams, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput] {
 	readScope := func(ctx context.Context, slug string) (crudScope, error) {
 		return orgCRUDScope(ctx, q, slug, false)
 	}
 	writeScope := func(ctx context.Context, slug string) (crudScope, error) {
 		return orgCRUDScope(ctx, q, slug, true)
 	}
-	return crudConfig[orgSlugParam, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]{
-		listScope: func(ctx context.Context, in *orgSlugParam) (crudScope, error) {
+	return crudConfig[orgListParams, orgYachtParam, createOrgYachtInput, updateOrgYachtInput, orgYachtParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]{
+		listScope: func(ctx context.Context, in *orgListParams) (crudScope, error) {
 			return readScope(ctx, in.Slug)
 		},
 		getScope: func(ctx context.Context, in *orgYachtParam) (crudScope, error) {
@@ -159,8 +159,15 @@ func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgYachtParam
 		deleteScope: func(ctx context.Context, in *orgYachtParam) (crudScope, error) {
 			return writeScope(ctx, in.Slug)
 		},
-		list: func(ctx context.Context, scope crudScope, _ *orgSlugParam) ([]sqlcdb.Yacht, error) {
-			return q.ListOrgYachts(ctx, scope.orgID)
+		list: func(ctx context.Context, scope crudScope, in *orgListParams) ([]sqlcdb.Yacht, error) {
+			return q.ListOrgYachts(ctx, sqlcdb.ListOrgYachtsParams{
+				OrgID:  scope.orgID,
+				Limit:  in.Limit,
+				Offset: in.Offset,
+			})
+		},
+		count: func(ctx context.Context, scope crudScope, _ *orgListParams) (int64, error) {
+			return q.CountOrgYachts(ctx, scope.orgID)
 		},
 		get: func(ctx context.Context, scope crudScope, in *orgYachtParam) (sqlcdb.Yacht, error) {
 			return q.GetOrgYacht(ctx, sqlcdb.GetOrgYachtParams{ID: in.ID, OrgID: scope.orgID})
@@ -186,13 +193,13 @@ func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgYachtParam
 		delete: func(ctx context.Context, scope crudScope, in *orgYachtParam) error {
 			return q.DeleteOrgYacht(ctx, sqlcdb.DeleteOrgYachtParams{ID: in.ID, OrgID: scope.orgID})
 		},
-		listOutput: func(rows []sqlcdb.Yacht) *yachtListOutput {
-			return &yachtListOutput{Body: dto.YachtsFromDB(rows)}
+		listOutput: func(in *orgListParams, rows []sqlcdb.Yacht, total int64) *yachtListOutput {
+			return &yachtListOutput{Body: dto.NewPage(dto.YachtsFromDB(rows), total, in.Limit, in.Offset)}
 		},
 		itemOutput: func(row sqlcdb.Yacht) *yachtOutput {
 			return &yachtOutput{Body: dto.YachtFromDB(row)}
 		},
-		listLogAttrs: func(scope crudScope, _ *orgSlugParam) []any {
+		listLogAttrs: func(scope crudScope, _ *orgListParams) []any {
 			return scopeAttrs(scope)
 		},
 		getLogAttrs: func(scope crudScope, in *orgYachtParam) []any {
@@ -221,17 +228,27 @@ func orgYachtCRUDConfig(q sqlcdb.Querier) crudConfig[orgSlugParam, orgYachtParam
 	}
 }
 
-func (h *OrgCrewHandler) list(ctx context.Context, in *orgSlugParam) (*crewListOutput, error) {
+func (h *OrgCrewHandler) list(ctx context.Context, in *orgListParams) (*crewListOutput, error) {
 	octx, err := resolveOrg(ctx, h.q, in.Slug, false)
 	if err != nil {
 		return nil, err
 	}
-	crew, err := h.q.ListOrgCrewMembers(ctx, orgID(octx))
+	id := orgID(octx)
+	crew, err := h.q.ListOrgCrewMembers(ctx, sqlcdb.ListOrgCrewMembersParams{
+		OrgID:  id,
+		Limit:  in.Limit,
+		Offset: in.Offset,
+	})
 	if err != nil {
 		slog.Error("list org crew members", "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
 	}
-	return &crewListOutput{Body: dto.CrewMembersFromDB(crew)}, nil
+	total, err := h.q.CountOrgCrewMembers(ctx, id)
+	if err != nil {
+		slog.Error("count org crew members", "org_id", octx.OrgID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list crew members")
+	}
+	return &crewListOutput{Body: dto.NewPage(dto.CrewMembersFromDB(crew), total, in.Limit, in.Offset)}, nil
 }
 
 func (h *OrgCrewHandler) get(ctx context.Context, in *orgCrewParam) (*crewOutput, error) {
@@ -333,9 +350,9 @@ func (h *OrgDashboardHandler) get(ctx context.Context, in *orgSlugParam) (*orgDa
 		slog.Error("org dashboard list members", "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to count members")
 	}
-	yachts, err := h.q.ListOrgYachts(ctx, id)
+	yachtCount, err := h.q.CountOrgYachts(ctx, id)
 	if err != nil {
-		slog.Error("org dashboard list yachts", "org_id", octx.OrgID, "err", err)
+		slog.Error("org dashboard count yachts", "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to count yachts")
 	}
 
@@ -347,7 +364,7 @@ func (h *OrgDashboardHandler) get(ctx context.Context, in *orgSlugParam) (*orgDa
 		TotalHoursSail:   stats.TotalHoursSail,
 		TotalHoursEngine: stats.TotalHoursEngine,
 		MemberCount:      len(members),
-		YachtCount:       len(yachts),
+		YachtCount:       int(yachtCount),
 		ByYear:           dto.OrgVoyagesByYearFromDB(byYear),
 	}}, nil
 }

@@ -11,6 +11,34 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const countOrgYachts = `-- name: CountOrgYachts :one
+SELECT COUNT(*)::BIGINT FROM yachts WHERE org_id = $1
+`
+
+// CountOrgYachts
+//
+//	SELECT COUNT(*)::BIGINT FROM yachts WHERE org_id = $1
+func (q *Queries) CountOrgYachts(ctx context.Context, orgID types.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrgYachts, orgID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countYachts = `-- name: CountYachts :one
+SELECT COUNT(*)::BIGINT FROM yachts WHERE owner_id = $1 AND org_id IS NULL
+`
+
+// CountYachts
+//
+//	SELECT COUNT(*)::BIGINT FROM yachts WHERE owner_id = $1 AND org_id IS NULL
+func (q *Queries) CountYachts(ctx context.Context, ownerID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countYachts, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createOrgYacht = `-- name: CreateOrgYacht :one
 INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
 `
@@ -202,14 +230,20 @@ func (q *Queries) GetYachtByName(ctx context.Context, arg GetYachtByNameParams) 
 }
 
 const listOrgYachts = `-- name: ListOrgYachts :many
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name, id LIMIT $2 OFFSET $3
 `
+
+type ListOrgYachtsParams struct {
+	OrgID  types.NullInt64 `json:"org_id"`
+	Limit  int32           `json:"limit"`
+	Offset int32           `json:"offset"`
+}
 
 // ListOrgYachts
 //
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name
-func (q *Queries) ListOrgYachts(ctx context.Context, orgID types.NullInt64) ([]Yacht, error) {
-	rows, err := q.db.QueryContext(ctx, listOrgYachts, orgID)
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name, id LIMIT $2 OFFSET $3
+func (q *Queries) ListOrgYachts(ctx context.Context, arg ListOrgYachtsParams) ([]Yacht, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgYachts, arg.OrgID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -241,14 +275,20 @@ func (q *Queries) ListOrgYachts(ctx context.Context, orgID types.NullInt64) ([]Y
 }
 
 const listYachts = `-- name: ListYachts :many
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
+SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name, id LIMIT $2 OFFSET $3
 `
+
+type ListYachtsParams struct {
+	OwnerID int64 `json:"owner_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
+}
 
 // ListYachts
 //
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name
-func (q *Queries) ListYachts(ctx context.Context, ownerID int64) ([]Yacht, error) {
-	rows, err := q.db.QueryContext(ctx, listYachts, ownerID)
+//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name, id LIMIT $2 OFFSET $3
+func (q *Queries) ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error) {
+	rows, err := q.db.QueryContext(ctx, listYachts, arg.OwnerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,7 @@ func TestTrainingHandler_List(t *testing.T) {
 			listTrainingsFn: func(context.Context, int64) ([]sqlcdb.Training, error) {
 				return []sqlcdb.Training{{ID: 1, Name: "RYA Day Skipper"}}, nil
 			},
+			countTrainingsFn: func(context.Context, int64) (int64, error) { return 1, nil },
 		}
 		resp := trainingTestAPI(t, m).GetCtx(userCtx(context.Background()), "/trainings")
 		if resp.Code != http.StatusOK {

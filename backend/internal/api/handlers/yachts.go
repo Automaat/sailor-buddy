@@ -11,7 +11,7 @@ import (
 )
 
 type YachtHandler struct {
-	*crudHandlers[struct{}, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]
+	*crudHandlers[pageParams, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]
 }
 
 func NewYachtHandler(q sqlcdb.Querier) *YachtHandler {
@@ -36,7 +36,7 @@ type yachtOutput struct {
 }
 
 type yachtListOutput struct {
-	Body []dto.Yacht
+	Body dto.Page[dto.Yacht]
 }
 
 // RegisterYachtRoutes wires the owner-scoped yacht operations onto the API.
@@ -66,12 +66,12 @@ func RegisterYachtRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
-func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput] {
+func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput] {
 	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
 		return ownerCRUDScope(ctx), nil
 	}
-	return crudConfig[struct{}, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]{
-		listScope: func(ctx context.Context, in *struct{}) (crudScope, error) {
+	return crudConfig[pageParams, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]{
+		listScope: func(ctx context.Context, in *pageParams) (crudScope, error) {
 			return ownerScope(ctx, in)
 		},
 		getScope: func(ctx context.Context, in *yachtIDParam) (crudScope, error) {
@@ -86,8 +86,15 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, yachtIDParam, create
 		deleteScope: func(ctx context.Context, in *yachtIDParam) (crudScope, error) {
 			return ownerScope(ctx, in)
 		},
-		list: func(ctx context.Context, scope crudScope, _ *struct{}) ([]sqlcdb.Yacht, error) {
-			return q.ListYachts(ctx, scope.userID)
+		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Yacht, error) {
+			return q.ListYachts(ctx, sqlcdb.ListYachtsParams{
+				OwnerID: scope.userID,
+				Limit:   in.Limit,
+				Offset:  in.Offset,
+			})
+		},
+		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {
+			return q.CountYachts(ctx, scope.userID)
 		},
 		get: func(ctx context.Context, scope crudScope, in *yachtIDParam) (sqlcdb.Yacht, error) {
 			return q.GetYacht(ctx, sqlcdb.GetYachtParams{ID: in.ID, OwnerID: scope.userID})
@@ -112,13 +119,13 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[struct{}, yachtIDParam, create
 		delete: func(ctx context.Context, scope crudScope, in *yachtIDParam) error {
 			return q.DeleteYacht(ctx, sqlcdb.DeleteYachtParams{ID: in.ID, OwnerID: scope.userID})
 		},
-		listOutput: func(rows []sqlcdb.Yacht) *yachtListOutput {
-			return &yachtListOutput{Body: dto.YachtsFromDB(rows)}
+		listOutput: func(in *pageParams, rows []sqlcdb.Yacht, total int64) *yachtListOutput {
+			return &yachtListOutput{Body: dto.NewPage(dto.YachtsFromDB(rows), total, in.Limit, in.Offset)}
 		},
 		itemOutput: func(row sqlcdb.Yacht) *yachtOutput {
 			return &yachtOutput{Body: dto.YachtFromDB(row)}
 		},
-		listLogAttrs: func(scope crudScope, _ *struct{}) []any {
+		listLogAttrs: func(scope crudScope, _ *pageParams) []any {
 			return scopeAttrs(scope)
 		},
 		getLogAttrs: func(scope crudScope, in *yachtIDParam) []any {

@@ -1,4 +1,5 @@
 import { auth } from '$lib/stores/auth.svelte';
+import type { Page } from './types';
 
 const BASE = '/api';
 
@@ -26,6 +27,22 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 	if (res.status === 204) return undefined as T;
 	return res.json();
+}
+
+// listAll walks every page of a paginated collection endpoint and returns the
+// flattened items, so callers without pagination UI keep getting a full array.
+async function listAll<T>(path: string): Promise<T[]> {
+	const out: T[] = [];
+	const limit = 100;
+	let offset = 0;
+	for (;;) {
+		const sep = path.includes('?') ? '&' : '?';
+		const page = await request<Page<T>>(`${path}${sep}limit=${limit}&offset=${offset}`);
+		out.push(...page.items);
+		if (!page.has_more || page.items.length === 0) break;
+		offset += page.items.length;
+	}
+	return out;
 }
 
 async function upload<T>(path: string, formData: FormData): Promise<T> {
@@ -86,6 +103,7 @@ async function download(path: string): Promise<void> {
 
 export const api = {
 	get: <T>(path: string) => request<T>(path),
+	list: <T>(path: string) => listAll<T>(path),
 	post: <T>(path: string, body?: unknown) =>
 		request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
 	put: <T>(path: string, body?: unknown) =>

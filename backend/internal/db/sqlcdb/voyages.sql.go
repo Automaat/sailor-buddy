@@ -11,6 +11,34 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const countOrgVoyages = `-- name: CountOrgVoyages :one
+SELECT COUNT(*)::BIGINT FROM voyages WHERE org_id = $1
+`
+
+// CountOrgVoyages
+//
+//	SELECT COUNT(*)::BIGINT FROM voyages WHERE org_id = $1
+func (q *Queries) CountOrgVoyages(ctx context.Context, orgID types.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrgVoyages, orgID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countVoyages = `-- name: CountVoyages :one
+SELECT COUNT(*)::BIGINT FROM voyages WHERE owner_id = $1 AND org_id IS NULL
+`
+
+// CountVoyages
+//
+//	SELECT COUNT(*)::BIGINT FROM voyages WHERE owner_id = $1 AND org_id IS NULL
+func (q *Queries) CountVoyages(ctx context.Context, ownerID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countVoyages, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createOrgVoyage = `-- name: CreateOrgVoyage :one
 INSERT INTO voyages (
     owner_id, org_id, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port,
@@ -556,14 +584,20 @@ func (q *Queries) GetVoyagesByYear(ctx context.Context, ownerID int64) ([]GetVoy
 }
 
 const listOrgVoyages = `-- name: ListOrgVoyages :many
-SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
+SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
 `
+
+type ListOrgVoyagesParams struct {
+	OrgID  types.NullInt64 `json:"org_id"`
+	Limit  int32           `json:"limit"`
+	Offset int32           `json:"offset"`
+}
 
 // ListOrgVoyages
 //
-//	SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC
-func (q *Queries) ListOrgVoyages(ctx context.Context, orgID types.NullInt64) ([]Voyage, error) {
-	rows, err := q.db.QueryContext(ctx, listOrgVoyages, orgID)
+//	SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
+func (q *Queries) ListOrgVoyages(ctx context.Context, arg ListOrgVoyagesParams) ([]Voyage, error) {
+	rows, err := q.db.QueryContext(ctx, listOrgVoyages, arg.OrgID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -615,14 +649,20 @@ func (q *Queries) ListOrgVoyages(ctx context.Context, orgID types.NullInt64) ([]
 }
 
 const listVoyages = `-- name: ListVoyages :many
-SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
+SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
 `
+
+type ListVoyagesParams struct {
+	OwnerID int64 `json:"owner_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
+}
 
 // ListVoyages
 //
-//	SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC
-func (q *Queries) ListVoyages(ctx context.Context, ownerID int64) ([]Voyage, error) {
-	rows, err := q.db.QueryContext(ctx, listVoyages, ownerID)
+//	SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE owner_id = $1 AND org_id IS NULL ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
+func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error) {
+	rows, err := q.db.QueryContext(ctx, listVoyages, arg.OwnerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
