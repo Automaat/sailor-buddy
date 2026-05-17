@@ -82,9 +82,12 @@
 			// Force a fresh ID token so the next request carries the updated
 			// `name` claim; the auth middleware upsert then syncs the DB.
 			await fbUser.getIdToken(true);
+			const patentType = profileForm.patentType || undefined;
 			auth.user = await updateMe({
-				patent_type: profileForm.patentType || undefined,
-				patent_number: profileForm.patentNumber || undefined
+				patent_type: patentType,
+				// Drop the number when no type is set so clearing the patent
+				// does not leave a stale number behind.
+				patent_number: patentType ? profileForm.patentNumber || undefined : undefined
 			});
 			profileSuccess = 'Zapisano';
 		} catch (err: unknown) {

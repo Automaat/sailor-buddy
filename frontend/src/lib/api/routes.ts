@@ -41,7 +41,9 @@ export function getTrip(id: number) {
 
 export function createTrip(body: Schemas['TripBody']) {
 	const slug = orgStore.currentSlug;
-	return slug
+	// The org trip POST is admin-only; members (and personal mode) get a
+	// personal trip so a non-admin can still plan a standalone rejs.
+	return slug && orgStore.isOrgAdmin
 		? api.post('/orgs/{slug}/trips', { path: { slug }, body })
 		: api.post('/trips', { body });
 }

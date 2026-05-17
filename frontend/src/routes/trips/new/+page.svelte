@@ -55,8 +55,9 @@
 		try {
 			const payload = {
 				...form,
-				// The planning user is the captain by default.
-				captain_name: auth.user?.name ?? undefined,
+				// The planning user is the captain by default; fall back to the
+				// Firebase display name if the DB user has not loaded yet.
+				captain_name: auth.user?.name ?? auth.firebaseUser?.displayName ?? undefined,
 				cruise_id: form.cruise_id || undefined
 			};
 			const trip = await createTrip(payload);
