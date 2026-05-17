@@ -29,8 +29,13 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: dev
     ports:
       - "8081:8080"
+    volumes:
+      - ./backend:/app
+      - go-build-cache:/root/.cache/go-build
+      - go-mod-cache:/go/pkg/mod
     environment:
       - SAILOR_DATABASE_URL=postgres://sailor:sailor@postgres:5432/sailor?sslmode=disable
       - SAILOR_FIREBASE_PROJECT_ID=sailor-buddy-dev
@@ -64,11 +69,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
     ports:
-      - "5173:3000"
+      - "5173:5173"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/static:/app/static
+      - ./frontend:/app
+      - /app/node_modules
     environment:
       - PUBLIC_API_URL=http://localhost:8081/api
       - PUBLIC_FIREBASE_AUTH_EMULATOR_URL=http://localhost:9099
@@ -77,3 +83,5 @@ services:
 volumes:
   postgres-data:
   firebase-data:
+  go-build-cache:
+  go-mod-cache:

@@ -8,7 +8,7 @@ golangci-lint = "2.12.2"
 "npm:firebase-tools" = "15.18.0"
 
 [tasks.dev]
-description = "Start full stack via docker-compose"
+description = "Start full stack via docker-compose (backend + frontend hot reload)"
 run = "docker compose up --build"
 
 [tasks.dev-backend]
