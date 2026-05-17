@@ -14,6 +14,7 @@
 	} from '$lib/api/routes';
 	import type { Voyage, CrewAssignment, CrewMember, VoyageOpinion, Cruise } from '$lib/api/types';
 	import { ApiError } from '$lib/api/client';
+	import { orgStore } from '$lib/stores/org.svelte';
 	import NotFound from '$lib/components/NotFound.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -39,6 +40,9 @@
 
 	onMount(async () => {
 		try {
+			// getVoyage scopes on isOrgAdmin, which is only known once the org
+			// list has loaded — wait so a direct visit hits the right endpoint.
+			await orgStore.ensureLoaded();
 			voyage = await getVoyage(id);
 			[crew, opinions, allCrewMembers] = await Promise.all([
 				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),

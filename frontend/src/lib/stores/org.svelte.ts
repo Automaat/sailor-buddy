@@ -9,9 +9,34 @@ function createOrgStore() {
 	let loading = $state(false);
 	// true once the org list has been fetched at least once — guards wait for this
 	let loaded = $state(false);
+	// in-flight refresh, so ensureLoaded reuses it instead of firing another
+	let refreshPromise: Promise<void> | null = null;
 
 	if (typeof window !== 'undefined') {
 		currentSlug = localStorage.getItem(LS_KEY);
+	}
+
+	async function load(): Promise<void> {
+		loading = true;
+		try {
+			orgs = (await api.get('/orgs')) ?? [];
+			loaded = true;
+			if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
+				currentSlug = null;
+			}
+			if (!currentSlug && orgs.length > 0) {
+				currentSlug = orgs[0].slug;
+			}
+			if (typeof window !== 'undefined') {
+				if (currentSlug) {
+					localStorage.setItem(LS_KEY, currentSlug);
+				} else {
+					localStorage.removeItem(LS_KEY);
+				}
+			}
+		} finally {
+			loading = false;
+		}
 	}
 
 	return {
@@ -53,32 +78,23 @@ function createOrgStore() {
 				}
 			}
 		},
-		async refresh() {
-			loading = true;
-			try {
-				orgs = (await api.get('/orgs')) ?? [];
-				loaded = true;
-				if (currentSlug && !orgs.find((o) => o.slug === currentSlug)) {
-					currentSlug = null;
-				}
-				if (!currentSlug && orgs.length > 0) {
-					currentSlug = orgs[0].slug;
-				}
-				if (typeof window !== 'undefined') {
-					if (currentSlug) {
-						localStorage.setItem(LS_KEY, currentSlug);
-					} else {
-						localStorage.removeItem(LS_KEY);
-					}
-				}
-			} finally {
-				loading = false;
-			}
+		refresh(): Promise<void> {
+			refreshPromise = load();
+			return refreshPromise;
+		},
+		// ensureLoaded resolves once the org list has been fetched at least
+		// once. Callers that scope on isOrgAdmin await this so they don't race
+		// the initial load and fall back to the wrong (personal) endpoint.
+		async ensureLoaded(): Promise<void> {
+			if (loaded) return;
+			refreshPromise ??= load();
+			await refreshPromise;
 		},
 		clear() {
 			orgs = [];
 			currentSlug = null;
 			loaded = false;
+			refreshPromise = null;
 			if (typeof window !== 'undefined') {
 				localStorage.removeItem(LS_KEY);
 			}
