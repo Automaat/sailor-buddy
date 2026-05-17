@@ -660,6 +660,8 @@ components:
     GeocodeResult:
       additionalProperties: false
       properties:
+        label:
+          type: string
         latitude:
           format: double
           type: number
@@ -670,6 +672,7 @@ components:
           type: string
       required:
         - name
+        - label
         - latitude
         - longitude
       type: object
@@ -1976,6 +1979,28 @@ components:
         - name
         - latitude
         - longitude
+      type: object
+    VoyagePortOrderBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/VoyagePortOrderBody.json
+          format: uri
+          readOnly: true
+          type: string
+        port_ids:
+          description: Port IDs in the desired visit order
+          items:
+            format: int64
+            type: integer
+          minItems: 1
+          type:
+            - array
+            - "null"
+      required:
+        - port_ids
       type: object
     VoyagesByYear:
       additionalProperties: false
@@ -4416,6 +4441,51 @@ paths:
       summary: Add a visited port to an org voyage (admin)
       tags:
         - Org voyage ports
+  /orgs/{slug}/voyages/{voyageID}/ports/order:
+    put:
+      operationId: reorder-org-voyage-ports
+      parameters:
+        - description: Organization slug
+          in: path
+          name: slug
+          required: true
+          schema:
+            description: Organization slug
+            type: string
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyagePortOrderBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/VoyagePort"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Reorder an org voyage's visited ports (admin)
+      tags:
+        - Org voyage ports
   /orgs/{slug}/voyages/{voyageID}/ports/{portID}:
     delete:
       operationId: remove-org-voyage-port
@@ -5720,6 +5790,44 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Add a visited port to a voyage
+      tags:
+        - Voyage ports
+  /voyages/{voyageID}/ports/order:
+    put:
+      operationId: reorder-voyage-ports
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyagePortOrderBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/VoyagePort"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Reorder a voyage's visited ports
       tags:
         - Voyage ports
   /voyages/{voyageID}/ports/{portID}:

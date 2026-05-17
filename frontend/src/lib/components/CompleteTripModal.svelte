@@ -49,6 +49,13 @@
 		ports = ports.filter((_, i) => i !== index).map((p, i) => ({ ...p, position: i }));
 	}
 
+	function reorderPort(from: number, to: number) {
+		const next = [...ports];
+		const [moved] = next.splice(from, 1);
+		next.splice(to, 0, moved);
+		ports = next.map((p, i) => ({ ...p, position: i }));
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		submitting = true;
@@ -108,7 +115,7 @@
 				</div>
 			</div>
 
-			<PortPicker {ports} onAdd={addPort} onRemove={removePort} />
+			<PortPicker {ports} onAdd={addPort} onRemove={removePort} onReorder={reorderPort} />
 
 			<div class="flex justify-end gap-2 pt-2">
 				<button type="button" onclick={onClose} class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50">

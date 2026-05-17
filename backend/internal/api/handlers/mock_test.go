@@ -35,11 +35,13 @@ type mockQuerier struct {
 	getVoyagesByYearFn func(ctx context.Context, ownerID int64) ([]sqlcdb.GetVoyagesByYearRow, error)
 
 	// voyage ports
-	createVoyagePortFn    func(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error)
-	listVoyagePortsFn     func(ctx context.Context, arg sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error)
-	deleteVoyagePortFn    func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
-	listOrgVoyagePortsFn  func(ctx context.Context, arg sqlcdb.ListOrgVoyagePortsParams) ([]sqlcdb.VoyagePort, error)
-	deleteOrgVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteOrgVoyagePortParams) error
+	createVoyagePortFn         func(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error)
+	listVoyagePortsFn          func(ctx context.Context, arg sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error)
+	deleteVoyagePortFn         func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
+	setVoyagePortPositionFn    func(ctx context.Context, arg sqlcdb.SetVoyagePortPositionParams) error
+	listOrgVoyagePortsFn       func(ctx context.Context, arg sqlcdb.ListOrgVoyagePortsParams) ([]sqlcdb.VoyagePort, error)
+	deleteOrgVoyagePortFn      func(ctx context.Context, arg sqlcdb.DeleteOrgVoyagePortParams) error
+	setOrgVoyagePortPositionFn func(ctx context.Context, arg sqlcdb.SetOrgVoyagePortPositionParams) error
 
 	// org trips/voyages
 	listOrgTripsFn    func(ctx context.Context, orgID types.NullInt64) ([]sqlcdb.Trip, error)
@@ -1109,6 +1111,20 @@ func (m *mockQuerier) DeleteOrgVoyagePort(ctx context.Context, arg sqlcdb.Delete
 		panic("unexpected call to DeleteOrgVoyagePort")
 	}
 	return m.deleteOrgVoyagePortFn(ctx, arg)
+}
+
+func (m *mockQuerier) SetVoyagePortPosition(ctx context.Context, arg sqlcdb.SetVoyagePortPositionParams) error {
+	if m.setVoyagePortPositionFn == nil {
+		panic("unexpected call to SetVoyagePortPosition")
+	}
+	return m.setVoyagePortPositionFn(ctx, arg)
+}
+
+func (m *mockQuerier) SetOrgVoyagePortPosition(ctx context.Context, arg sqlcdb.SetOrgVoyagePortPositionParams) error {
+	if m.setOrgVoyagePortPositionFn == nil {
+		panic("unexpected call to SetOrgVoyagePortPosition")
+	}
+	return m.setOrgVoyagePortPositionFn(ctx, arg)
 }
 
 func userCtx(ctx context.Context) context.Context {

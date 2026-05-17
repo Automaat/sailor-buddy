@@ -18,11 +18,21 @@
 		readonly?: boolean;
 		onAdd?: (port: VoyagePortBody) => Promise<void> | void;
 		onRemove?: (index: number) => Promise<void> | void;
+		// onReorder moves the port at `from` to `to`; drag-and-drop is only
+		// offered when a parent supplies it.
+		onReorder?: (from: number, to: number) => Promise<void> | void;
 		// debounceMs is overridable so tests can search without waiting.
 		debounceMs?: number;
 	};
 
-	let { ports, readonly = false, onAdd, onRemove, debounceMs = 400 }: Props = $props();
+	let {
+		ports,
+		readonly = false,
+		onAdd,
+		onRemove,
+		onReorder,
+		debounceMs = 400
+	}: Props = $props();
 
 	let query = $state('');
 	let results = $state<GeocodeResult[]>([]);
@@ -150,6 +160,61 @@
 			busy = false;
 		}
 	}
+
+	// Drag-and-drop reordering of the visited list.
+	const reorderable = $derived(!readonly && !!onReorder);
+	let dragIndex = $state<number | null>(null);
+	let overIndex = $state<number | null>(null);
+
+	function onDragStart(i: number, e: DragEvent) {
+		dragIndex = i;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', String(i));
+		}
+	}
+
+	function onDragOver(i: number, e: DragEvent) {
+		if (dragIndex === null) return;
+		// preventDefault marks the row as a valid drop target.
+		e.preventDefault();
+		overIndex = i;
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+	}
+
+	function onDragEnd() {
+		dragIndex = null;
+		overIndex = null;
+	}
+
+	async function onDrop(i: number) {
+		const from = dragIndex;
+		dragIndex = null;
+		overIndex = null;
+		if (from === null || from === i) return;
+		busy = true;
+		try {
+			await onReorder?.(from, i);
+		} catch {
+			searchError = 'Nie udało się zmienić kolejności portów';
+		} finally {
+			busy = false;
+		}
+	}
+
+	// moveBy reorders via keyboard so the list is operable without a mouse.
+	async function moveBy(i: number, delta: number) {
+		const target = i + delta;
+		if (target < 0 || target >= ports.length) return;
+		busy = true;
+		try {
+			await onReorder?.(i, target);
+		} catch {
+			searchError = 'Nie udało się zmienić kolejności portów';
+		} finally {
+			busy = false;
+		}
+	}
 </script>
 
 <div class="space-y-3">
@@ -168,7 +233,7 @@
 			/>
 			{#if searching || results.length > 0 || searchError}
 				<div
-					class="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg"
+					class="absolute z-[1100] mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg"
 				>
 					{#if searching}
 						<div class="px-3 py-2 text-sm text-[var(--text-muted)]">Szukanie...</div>
@@ -180,9 +245,12 @@
 								type="button"
 								onclick={() => pick(r)}
 								disabled={busy}
-								class="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50"
+								class="block w-full px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
 							>
-								{r.name}
+								<span class="block text-sm font-medium">{r.name}</span>
+								{#if r.label && r.label !== r.name}
+									<span class="block text-xs text-[var(--text-muted)]">{r.label}</span>
+								{/if}
 							</button>
 						{/each}
 					{/if}
@@ -197,19 +265,58 @@
 		<p class="text-sm text-[var(--text-muted)]">Brak dodanych portów.</p>
 	{:else}
 		<ol class="space-y-1">
-			{#each ports as port, i}
-				<li class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-sm">
-					<span><span class="text-[var(--text-muted)]">{i + 1}.</span> {port.name}</span>
-					{#if !readonly}
-						<button
-							type="button"
-							onclick={() => remove(i)}
-							disabled={busy}
-							class="text-red-500 hover:underline disabled:opacity-50"
-						>
-							Usuń
-						</button>
-					{/if}
+			{#each ports as port, i (port.name + i)}
+				<li
+					draggable={reorderable && !busy}
+					ondragstart={(e) => onDragStart(i, e)}
+					ondragover={(e) => onDragOver(i, e)}
+					ondrop={() => onDrop(i)}
+					ondragend={onDragEnd}
+					class="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-sm
+						{reorderable ? 'cursor-move' : ''}
+						{dragIndex === i ? 'opacity-40' : ''}
+						{overIndex === i && dragIndex !== i ? 'ring-2 ring-[var(--ocean)]' : ''}"
+				>
+					<span class="flex items-center gap-2">
+						{#if reorderable}
+							<span class="select-none leading-none text-[var(--text-muted)]" aria-hidden="true"
+								>⠿</span
+							>
+						{/if}
+						<span><span class="text-[var(--text-muted)]">{i + 1}.</span> {port.name}</span>
+					</span>
+					<span class="flex items-center gap-2">
+						{#if reorderable}
+							<button
+								type="button"
+								onclick={() => moveBy(i, -1)}
+								disabled={busy || i === 0}
+								aria-label="Przesuń port {port.name} w górę"
+								class="text-[var(--text-muted)] hover:text-[var(--navy)] disabled:opacity-30"
+							>
+								↑
+							</button>
+							<button
+								type="button"
+								onclick={() => moveBy(i, 1)}
+								disabled={busy || i === ports.length - 1}
+								aria-label="Przesuń port {port.name} w dół"
+								class="text-[var(--text-muted)] hover:text-[var(--navy)] disabled:opacity-30"
+							>
+								↓
+							</button>
+						{/if}
+						{#if !readonly}
+							<button
+								type="button"
+								onclick={() => remove(i)}
+								disabled={busy}
+								class="text-red-500 hover:underline disabled:opacity-50"
+							>
+								Usuń
+							</button>
+						{/if}
+					</span>
 				</li>
 			{/each}
 		</ol>

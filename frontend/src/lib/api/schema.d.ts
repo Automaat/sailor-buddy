@@ -745,6 +745,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orgs/{slug}/voyages/{voyageID}/ports/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder an org voyage's visited ports (admin) */
+        put: operations["reorder-org-voyage-ports"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orgs/{slug}/voyages/{voyageID}/ports/{portID}": {
         parameters: {
             query?: never;
@@ -1164,6 +1181,23 @@ export interface paths {
         put?: never;
         /** Add a visited port to a voyage */
         post: operations["add-voyage-port"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voyages/{voyageID}/ports/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder a voyage's visited ports */
+        put: operations["reorder-voyage-ports"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1610,6 +1644,7 @@ export interface components {
             format: "pdf" | "docx";
         };
         GeocodeResult: {
+            label: string;
             /** Format: double */
             latitude: number;
             /** Format: double */
@@ -2368,6 +2403,16 @@ export interface components {
              * @description Order in the visited sequence
              */
             position?: number;
+        };
+        VoyagePortOrderBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/VoyagePortOrderBody.json
+             */
+            readonly $schema?: string;
+            /** @description Port IDs in the desired visit order */
+            port_ids: number[] | null;
         };
         VoyagesByYear: {
             /** Format: int64 */
@@ -4781,6 +4826,44 @@ export interface operations {
             };
         };
     };
+    "reorder-org-voyage-ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                slug: string;
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoyagePortOrderBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoyagePort"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "remove-org-voyage-port": {
         parameters: {
             query?: never;
@@ -6139,6 +6222,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VoyagePort"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "reorder-voyage-ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoyagePortOrderBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoyagePort"][] | null;
                 };
             };
             /** @description Error */

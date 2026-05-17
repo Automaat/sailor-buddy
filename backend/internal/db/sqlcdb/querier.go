@@ -707,11 +707,31 @@ type Querier interface {
 	//  UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $2 AND org_id = $3
 	SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error
+	//SetOrgVoyagePortPosition
+	//
+	//  UPDATE voyage_ports
+	//  SET position = $4
+	//  WHERE voyage_ports.id = $1
+	//    AND voyage_ports.voyage_id = $2
+	//    AND voyage_ports.voyage_id IN (
+	//        SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
+	//    )
+	SetOrgVoyagePortPosition(ctx context.Context, arg SetOrgVoyagePortPositionParams) error
 	//SetTripEnrollToken
 	//
 	//  UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $2 AND owner_id = $3
 	SetTripEnrollToken(ctx context.Context, arg SetTripEnrollTokenParams) error
+	//SetVoyagePortPosition
+	//
+	//  UPDATE voyage_ports
+	//  SET position = $4
+	//  WHERE voyage_ports.id = $1
+	//    AND voyage_ports.voyage_id = $2
+	//    AND voyage_ports.voyage_id IN (
+	//        SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
+	//    )
+	SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) error
 	//UpdateCrewMember
 	//
 	//  UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL

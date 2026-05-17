@@ -22,8 +22,26 @@ JOIN voyages v ON v.id = vp.voyage_id
 WHERE vp.voyage_id = $1 AND v.org_id = $2
 ORDER BY vp.position, vp.id;
 
+-- name: SetVoyagePortPosition :exec
+UPDATE voyage_ports
+SET position = $4
+WHERE voyage_ports.id = $1
+  AND voyage_ports.voyage_id = $2
+  AND voyage_ports.voyage_id IN (
+      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
+  );
+
 -- name: DeleteOrgVoyagePort :exec
 DELETE FROM voyage_ports
+WHERE voyage_ports.id = $1
+  AND voyage_ports.voyage_id = $2
+  AND voyage_ports.voyage_id IN (
+      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
+  );
+
+-- name: SetOrgVoyagePortPosition :exec
+UPDATE voyage_ports
+SET position = $4
 WHERE voyage_ports.id = $1
   AND voyage_ports.voyage_id = $2
   AND voyage_ports.voyage_id IN (

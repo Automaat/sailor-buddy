@@ -26,6 +26,12 @@ type VoyagePortBody struct {
 	Position  *int64  `json:"position,omitempty" minimum:"0" doc:"Order in the visited sequence"`
 }
 
+// VoyagePortOrderBody carries port IDs in the desired visit order. The
+// reorder endpoint rewrites each port's position to its index in this list.
+type VoyagePortOrderBody struct {
+	PortIDs []int64 `json:"port_ids" minItems:"1" doc:"Port IDs in the desired visit order"`
+}
+
 // VoyagePortFromDB maps a database row to the API model.
 func VoyagePortFromDB(p sqlcdb.VoyagePort) VoyagePort {
 	return VoyagePort{
@@ -50,8 +56,12 @@ func VoyagePortsFromDB(ps []sqlcdb.VoyagePort) []VoyagePort {
 }
 
 // GeocodeResult is a single town/place match returned by the geocoding proxy.
+// Name is the short port name stored on the voyage; Label is the full
+// administrative path (town, region, country) shown in the picker so that
+// otherwise identically named matches can be told apart.
 type GeocodeResult struct {
 	Name      string  `json:"name"`
+	Label     string  `json:"label"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
 }

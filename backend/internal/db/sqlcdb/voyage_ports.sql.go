@@ -202,3 +202,75 @@ func (q *Queries) ListVoyagePorts(ctx context.Context, arg ListVoyagePortsParams
 	}
 	return items, nil
 }
+
+const setOrgVoyagePortPosition = `-- name: SetOrgVoyagePortPosition :exec
+UPDATE voyage_ports
+SET position = $4
+WHERE voyage_ports.id = $1
+  AND voyage_ports.voyage_id = $2
+  AND voyage_ports.voyage_id IN (
+      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
+  )
+`
+
+type SetOrgVoyagePortPositionParams struct {
+	ID       int64           `json:"id"`
+	VoyageID int64           `json:"voyage_id"`
+	OrgID    types.NullInt64 `json:"org_id"`
+	Position int64           `json:"position"`
+}
+
+// SetOrgVoyagePortPosition
+//
+//	UPDATE voyage_ports
+//	SET position = $4
+//	WHERE voyage_ports.id = $1
+//	  AND voyage_ports.voyage_id = $2
+//	  AND voyage_ports.voyage_id IN (
+//	      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
+//	  )
+func (q *Queries) SetOrgVoyagePortPosition(ctx context.Context, arg SetOrgVoyagePortPositionParams) error {
+	_, err := q.db.ExecContext(ctx, setOrgVoyagePortPosition,
+		arg.ID,
+		arg.VoyageID,
+		arg.OrgID,
+		arg.Position,
+	)
+	return err
+}
+
+const setVoyagePortPosition = `-- name: SetVoyagePortPosition :exec
+UPDATE voyage_ports
+SET position = $4
+WHERE voyage_ports.id = $1
+  AND voyage_ports.voyage_id = $2
+  AND voyage_ports.voyage_id IN (
+      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
+  )
+`
+
+type SetVoyagePortPositionParams struct {
+	ID       int64 `json:"id"`
+	VoyageID int64 `json:"voyage_id"`
+	OwnerID  int64 `json:"owner_id"`
+	Position int64 `json:"position"`
+}
+
+// SetVoyagePortPosition
+//
+//	UPDATE voyage_ports
+//	SET position = $4
+//	WHERE voyage_ports.id = $1
+//	  AND voyage_ports.voyage_id = $2
+//	  AND voyage_ports.voyage_id IN (
+//	      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
+//	  )
+func (q *Queries) SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) error {
+	_, err := q.db.ExecContext(ctx, setVoyagePortPosition,
+		arg.ID,
+		arg.VoyageID,
+		arg.OwnerID,
+		arg.Position,
+	)
+	return err
+}
