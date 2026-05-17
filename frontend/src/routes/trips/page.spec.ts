@@ -4,7 +4,7 @@ import { makeTrip } from '$lib/test-utils';
 
 vi.mock('$lib/api/client', () => ({ api: { list: vi.fn() } }));
 vi.mock('$lib/stores/org.svelte', () => ({
-	orgStore: { currentSlug: 'alfa', apiPrefix: () => '/orgs/alfa' }
+	orgStore: { currentSlug: 'alfa', isOrgAdmin: true, apiPrefix: () => '/orgs/alfa' }
 }));
 
 import { api } from '$lib/api/client';

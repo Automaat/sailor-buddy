@@ -2,10 +2,36 @@ package middleware
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 )
+
+func TestOptionalAuthPath(t *testing.T) {
+	cases := []struct {
+		method string
+		path   string
+		want   bool
+	}{
+		{http.MethodGet, "/api/enroll/abc123", true},
+		{http.MethodPost, "/api/enroll/abc123", false},
+		{http.MethodDelete, "/api/enroll/abc123", false},
+		{http.MethodGet, "/api/enroll/", false},
+		{http.MethodGet, "/api/enroll", false},
+		{http.MethodGet, "/api/enroll/abc/extra", false},
+		{http.MethodGet, "/api/enroll/abc123/", false},
+		{http.MethodGet, "/api/enrollments", false},
+		{http.MethodGet, "/api/trips/1/enrollments", false},
+	}
+	for _, c := range cases {
+		r := httptest.NewRequest(c.method, c.path, http.NoBody)
+		if got := optionalAuthPath(r); got != c.want {
+			t.Errorf("optionalAuthPath(%s %s) = %v, want %v", c.method, c.path, got, c.want)
+		}
+	}
+}
 
 func TestGetUser_ValidClaims(t *testing.T) {
 	want := &auth.Claims{

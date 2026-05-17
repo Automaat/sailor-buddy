@@ -8,7 +8,7 @@
 		removeTripCrew,
 		cancelTrip,
 		completeTrip,
-		listCrew,
+		listAssignableCrew,
 		getCruise,
 		generateTripEnrollToken,
 		clearTripEnrollToken
@@ -42,11 +42,14 @@
 
 	onMount(async () => {
 		try {
+			// getTrip scopes on isOrgAdmin, which is only known once the org
+			// list has loaded — wait so a direct visit hits the right endpoint.
+			await orgStore.ensureLoaded();
 			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers] = await Promise.all([
 				listTripCrew(id).then((c) => c ?? []).catch(() => []),
-				listCrew().catch(() => [])
+				listAssignableCrew().catch(() => [])
 			]);
 			if (trip?.cruise_id) {
 				cruise = await getCruise(trip.cruise_id).catch(() => null);
