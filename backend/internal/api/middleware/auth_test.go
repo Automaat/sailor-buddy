@@ -26,7 +26,7 @@ func TestOptionalAuthPath(t *testing.T) {
 		{http.MethodGet, "/api/trips/1/enrollments", false},
 	}
 	for _, c := range cases {
-		r := httptest.NewRequest(c.method, c.path, nil)
+		r := httptest.NewRequest(c.method, c.path, http.NoBody)
 		if got := optionalAuthPath(r); got != c.want {
 			t.Errorf("optionalAuthPath(%s %s) = %v, want %v", c.method, c.path, got, c.want)
 		}
