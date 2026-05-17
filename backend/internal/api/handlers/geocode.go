@@ -63,12 +63,14 @@ func (h *GeocodeHandler) search(ctx context.Context, in *geocodeInput) (*geocode
 	q.Set("limit", "5")
 	q.Set("addressdetails", "0")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.baseURL+"?"+q.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.baseURL+"?"+q.Encode(), http.NoBody)
 	if err != nil {
 		slog.Error("geocode build request", "query", in.Query, "err", err)
 		return nil, huma.Error500InternalServerError("failed to search places")
 	}
-	req.Header.Set("User-Agent", "sailor-buddy/1.0")
+	// Nominatim's usage policy requires a descriptive User-Agent that
+	// identifies the application and a way to reach its operator.
+	req.Header.Set("User-Agent", "sailor-buddy/1.0 (+https://github.com/Automaat/sailor-buddy)")
 
 	resp, err := h.httpClient.Do(req)
 	if err != nil {

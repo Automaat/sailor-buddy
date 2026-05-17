@@ -140,7 +140,9 @@
 	}
 
 	async function addPort(body: VoyagePortBody) {
-		const port = await addVoyagePort(id, { ...body, position: ports.length });
+		// Derive the next position from the max so it stays unique after deletions.
+		const nextPosition = ports.length > 0 ? Math.max(...ports.map((p) => p.position)) + 1 : 0;
+		const port = await addVoyagePort(id, { ...body, position: nextPosition });
 		ports = [...ports, port];
 	}
 

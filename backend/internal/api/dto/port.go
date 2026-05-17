@@ -23,7 +23,7 @@ type VoyagePortBody struct {
 	Name      string  `json:"name" minLength:"1" doc:"Port / town name"`
 	Latitude  float64 `json:"latitude" minimum:"-90" maximum:"90" doc:"Latitude"`
 	Longitude float64 `json:"longitude" minimum:"-180" maximum:"180" doc:"Longitude"`
-	Position  *int64  `json:"position,omitempty" doc:"Order in the visited sequence"`
+	Position  *int64  `json:"position,omitempty" minimum:"0" doc:"Order in the visited sequence"`
 }
 
 // VoyagePortFromDB maps a database row to the API model.

@@ -1970,6 +1970,7 @@ components:
         position:
           description: Order in the visited sequence
           format: int64
+          minimum: 0
           type: integer
       required:
         - name

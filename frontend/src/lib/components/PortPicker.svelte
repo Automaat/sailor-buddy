@@ -18,9 +18,11 @@
 		readonly?: boolean;
 		onAdd?: (port: VoyagePortBody) => Promise<void> | void;
 		onRemove?: (index: number) => Promise<void> | void;
+		// debounceMs is overridable so tests can search without waiting.
+		debounceMs?: number;
 	};
 
-	let { ports, readonly = false, onAdd, onRemove }: Props = $props();
+	let { ports, readonly = false, onAdd, onRemove, debounceMs = 400 }: Props = $props();
 
 	let query = $state('');
 	let results = $state<GeocodeResult[]>([]);
@@ -28,6 +30,8 @@
 	let searchError = $state('');
 	let busy = $state(false);
 	let debounce: ReturnType<typeof setTimeout> | undefined;
+	// Monotonic id of the latest search; stale responses are discarded.
+	let searchSeq = 0;
 
 	let mapEl: HTMLDivElement;
 	// Leaflet touches `window`, so it is imported only in the browser (onMount).
@@ -83,8 +87,9 @@
 	}
 
 	$effect(() => {
-		// Touch ports so the effect tracks it, then redraw.
-		ports.length;
+		// Track the full ports content so edits/reorders (not just length
+		// changes) trigger a redraw.
+		ports.map((p) => `${p.name}:${p.latitude}:${p.longitude}`).join('|');
 		renderMarkers();
 	});
 
@@ -97,22 +102,27 @@
 			return;
 		}
 		// Debounced so typing does not hammer the Nominatim proxy (1 req/s policy).
-		debounce = setTimeout(runSearch, 400);
+		debounce = setTimeout(runSearch, debounceMs);
 	}
 
 	async function runSearch() {
 		const q = query.trim();
 		if (q.length < 2) return;
+		const seq = ++searchSeq;
 		searching = true;
 		searchError = '';
 		try {
-			results = await geocode(q);
-			if (results.length === 0) searchError = 'Brak wyników';
+			const found = await geocode(q);
+			// Discard a response that a newer search has superseded.
+			if (seq !== searchSeq || destroyed) return;
+			results = found;
+			if (found.length === 0) searchError = 'Brak wyników';
 		} catch {
+			if (seq !== searchSeq || destroyed) return;
 			searchError = 'Nie udało się wyszukać miejsca';
 			results = [];
 		} finally {
-			searching = false;
+			if (seq === searchSeq) searching = false;
 		}
 	}
 

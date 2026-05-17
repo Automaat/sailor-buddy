@@ -24,7 +24,8 @@ describe('PortPicker', () => {
 	it('searches by town name and adds the picked result', async () => {
 		geocodeMock.mockResolvedValue([{ name: 'Split', latitude: 43.5, longitude: 16.4 }]);
 		const onAdd = vi.fn();
-		render(PortPicker, { props: { ports: [], onAdd } });
+		// debounceMs 0 keeps the search deterministic without the 400ms wait.
+		render(PortPicker, { props: { ports: [], onAdd, debounceMs: 0 } });
 
 		await fireEvent.input(screen.getByLabelText('Odwiedzone porty'), {
 			target: { value: 'Split' }
