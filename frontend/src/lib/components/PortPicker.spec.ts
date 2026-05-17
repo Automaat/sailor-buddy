@@ -62,13 +62,13 @@ describe('PortPicker', () => {
 
 	it('shows no reorder controls without onReorder', () => {
 		render(PortPicker, { props: { ports: threePorts } });
-		expect(screen.queryByRole('button', { name: 'Przesuń port w dół' })).toBeNull();
+		expect(screen.queryByRole('button', { name: /w dół$/ })).toBeNull();
 	});
 
 	it('moves a port down via the keyboard button', async () => {
 		const onReorder = vi.fn();
 		render(PortPicker, { props: { ports: threePorts, onReorder } });
-		const down = screen.getAllByRole('button', { name: 'Przesuń port w dół' });
+		const down = screen.getAllByRole('button', { name: /w dół$/ });
 		await fireEvent.click(down[0]);
 		expect(onReorder).toHaveBeenCalledWith(0, 1);
 	});
@@ -76,15 +76,15 @@ describe('PortPicker', () => {
 	it('moves a port up via the keyboard button', async () => {
 		const onReorder = vi.fn();
 		render(PortPicker, { props: { ports: threePorts, onReorder } });
-		const up = screen.getAllByRole('button', { name: 'Przesuń port w górę' });
+		const up = screen.getAllByRole('button', { name: /w górę$/ });
 		await fireEvent.click(up[2]);
 		expect(onReorder).toHaveBeenCalledWith(2, 1);
 	});
 
 	it('disables up on the first port and down on the last', () => {
 		render(PortPicker, { props: { ports: threePorts, onReorder: vi.fn() } });
-		const up = screen.getAllByRole('button', { name: 'Przesuń port w górę' });
-		const down = screen.getAllByRole('button', { name: 'Przesuń port w dół' });
+		const up = screen.getAllByRole('button', { name: /w górę$/ });
+		const down = screen.getAllByRole('button', { name: /w dół$/ });
 		expect(up[0]).toBeDisabled();
 		expect(down[down.length - 1]).toBeDisabled();
 	});

@@ -166,6 +166,12 @@ func TestVoyagePorts_Reorder_RollsBackOnError(t *testing.T) {
 		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{ID: 5}, nil
 		},
+		listVoyagePortsFn: func(context.Context, sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+			return []sqlcdb.VoyagePort{
+				{ID: 3, VoyageID: 5, Name: "Hvar"},
+				{ID: 1, VoyageID: 5, Name: "Split"},
+			}, nil
+		},
 	}
 	// A failed position write must roll the whole transaction back.
 	mock.ExpectBegin()
@@ -179,6 +185,26 @@ func TestVoyagePorts_Reorder_RollsBackOnError(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+func TestVoyagePorts_Reorder_RejectsMismatch(t *testing.T) {
+	m := &mockQuerier{
+		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+			return sqlcdb.Voyage{ID: 5}, nil
+		},
+		listVoyagePortsFn: func(context.Context, sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+			return []sqlcdb.VoyagePort{
+				{ID: 3, VoyageID: 5, Name: "Hvar"},
+				{ID: 1, VoyageID: 5, Name: "Split"},
+			}, nil
+		},
+	}
+	// Body omits port 3 and invents port 9 — must be rejected, not committed.
+	resp := voyagePortTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/5/ports/order",
+		map[string]any{"port_ids": []int64{1, 9}})
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422; body=%s", resp.Code, resp.Body)
 	}
 }
 

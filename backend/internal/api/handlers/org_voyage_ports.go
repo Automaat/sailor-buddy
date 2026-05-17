@@ -142,6 +142,17 @@ func (h *OrgVoyagePortHandler) reorder(ctx context.Context, in *reorderOrgVoyage
 		slog.Error("verify org voyage for reorder", "voyage_id", in.VoyageID, "org_id", octx.OrgID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to verify voyage")
 	}
+	current, err := h.q.ListOrgVoyagePorts(ctx, sqlcdb.ListOrgVoyagePortsParams{
+		VoyageID: in.VoyageID,
+		OrgID:    orgID(octx),
+	})
+	if err != nil {
+		slog.Error("list org voyage ports for reorder", "voyage_id", in.VoyageID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
+	}
+	if !portIDsMatch(current, in.Body.PortIDs) {
+		return nil, huma.Error422UnprocessableEntity("port_ids must list each port of the voyage exactly once")
+	}
 	// One transaction for every position write keeps the list from being
 	// left half-renumbered if a write fails partway through.
 	tx, err := h.db.BeginTx(ctx, nil)
@@ -166,13 +177,5 @@ func (h *OrgVoyagePortHandler) reorder(ctx context.Context, in *reorderOrgVoyage
 		slog.Error("reorder org voyage ports commit", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
 	}
-	ports, err := h.q.ListOrgVoyagePorts(ctx, sqlcdb.ListOrgVoyagePortsParams{
-		VoyageID: in.VoyageID,
-		OrgID:    orgID(octx),
-	})
-	if err != nil {
-		slog.Error("list org voyage ports after reorder", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list voyage ports")
-	}
-	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(ports)}, nil
+	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(reorderPorts(current, in.Body.PortIDs))}, nil
 }

@@ -291,7 +291,7 @@
 								type="button"
 								onclick={() => moveBy(i, -1)}
 								disabled={busy || i === 0}
-								aria-label="Przesuń port w górę"
+								aria-label="Przesuń port {port.name} w górę"
 								class="text-[var(--text-muted)] hover:text-[var(--navy)] disabled:opacity-30"
 							>
 								↑
@@ -300,7 +300,7 @@
 								type="button"
 								onclick={() => moveBy(i, 1)}
 								disabled={busy || i === ports.length - 1}
-								aria-label="Przesuń port w dół"
+								aria-label="Przesuń port {port.name} w dół"
 								class="text-[var(--text-muted)] hover:text-[var(--navy)] disabled:opacity-30"
 							>
 								↓

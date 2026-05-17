@@ -137,6 +137,17 @@ func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsI
 		slog.Error("verify voyage for reorder", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to verify voyage")
 	}
+	current, err := h.q.ListVoyagePorts(ctx, sqlcdb.ListVoyagePortsParams{
+		VoyageID: in.VoyageID,
+		OwnerID:  user.UserID,
+	})
+	if err != nil {
+		slog.Error("list voyage ports for reorder", "voyage_id", in.VoyageID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
+	}
+	if !portIDsMatch(current, in.Body.PortIDs) {
+		return nil, huma.Error422UnprocessableEntity("port_ids must list each port of the voyage exactly once")
+	}
 	// All position writes share one transaction so a mid-list failure cannot
 	// leave the ports in a half-renumbered state.
 	tx, err := h.db.BeginTx(ctx, nil)
@@ -161,13 +172,42 @@ func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsI
 		slog.Error("reorder voyage ports commit", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
 	}
-	ports, err := h.q.ListVoyagePorts(ctx, sqlcdb.ListVoyagePortsParams{
-		VoyageID: in.VoyageID,
-		OwnerID:  user.UserID,
-	})
-	if err != nil {
-		slog.Error("list voyage ports after reorder", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list voyage ports")
+	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(reorderPorts(current, in.Body.PortIDs))}, nil
+}
+
+// portIDsMatch reports whether ids contains exactly the IDs of ports, each
+// once. It is the precondition for a reorder: a body that drops, duplicates
+// or invents a port would otherwise renumber the list inconsistently.
+func portIDsMatch(ports []sqlcdb.VoyagePort, ids []int64) bool {
+	if len(ports) != len(ids) {
+		return false
 	}
-	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(ports)}, nil
+	remaining := make(map[int64]bool, len(ports))
+	for _, p := range ports {
+		remaining[p.ID] = true
+	}
+	for _, id := range ids {
+		if !remaining[id] {
+			return false
+		}
+		delete(remaining, id)
+	}
+	return len(remaining) == 0
+}
+
+// reorderPorts returns ports sequenced by ids with positions renumbered to
+// match — the committed state, built without a second database round-trip.
+// Callers must have validated ids with portIDsMatch first.
+func reorderPorts(ports []sqlcdb.VoyagePort, ids []int64) []sqlcdb.VoyagePort {
+	byID := make(map[int64]sqlcdb.VoyagePort, len(ports))
+	for _, p := range ports {
+		byID[p.ID] = p
+	}
+	out := make([]sqlcdb.VoyagePort, len(ids))
+	for i, id := range ids {
+		p := byID[id]
+		p.Position = int64(i)
+		out[i] = p
+	}
+	return out
 }
