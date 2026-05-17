@@ -53,4 +53,57 @@ describe('PortPicker', () => {
 		expect(screen.queryByLabelText('Odwiedzone porty')).toBeNull();
 		expect(screen.queryByRole('button', { name: 'Usuń' })).toBeNull();
 	});
+
+	const threePorts = [
+		{ name: 'Split', latitude: 43.5, longitude: 16.4 },
+		{ name: 'Hvar', latitude: 43.1, longitude: 16.4 },
+		{ name: 'Vis', latitude: 43.0, longitude: 16.2 }
+	];
+
+	it('shows no reorder controls without onReorder', () => {
+		render(PortPicker, { props: { ports: threePorts } });
+		expect(screen.queryByRole('button', { name: 'Przesuń port w dół' })).toBeNull();
+	});
+
+	it('moves a port down via the keyboard button', async () => {
+		const onReorder = vi.fn();
+		render(PortPicker, { props: { ports: threePorts, onReorder } });
+		const down = screen.getAllByRole('button', { name: 'Przesuń port w dół' });
+		await fireEvent.click(down[0]);
+		expect(onReorder).toHaveBeenCalledWith(0, 1);
+	});
+
+	it('moves a port up via the keyboard button', async () => {
+		const onReorder = vi.fn();
+		render(PortPicker, { props: { ports: threePorts, onReorder } });
+		const up = screen.getAllByRole('button', { name: 'Przesuń port w górę' });
+		await fireEvent.click(up[2]);
+		expect(onReorder).toHaveBeenCalledWith(2, 1);
+	});
+
+	it('disables up on the first port and down on the last', () => {
+		render(PortPicker, { props: { ports: threePorts, onReorder: vi.fn() } });
+		const up = screen.getAllByRole('button', { name: 'Przesuń port w górę' });
+		const down = screen.getAllByRole('button', { name: 'Przesuń port w dół' });
+		expect(up[0]).toBeDisabled();
+		expect(down[down.length - 1]).toBeDisabled();
+	});
+
+	it('reorders via drag and drop', async () => {
+		const onReorder = vi.fn();
+		render(PortPicker, { props: { ports: threePorts, onReorder } });
+		const rows = screen.getAllByRole('listitem');
+		await fireEvent.dragStart(rows[0]);
+		await fireEvent.drop(rows[2]);
+		expect(onReorder).toHaveBeenCalledWith(0, 2);
+	});
+
+	it('ignores a drop onto the same port', async () => {
+		const onReorder = vi.fn();
+		render(PortPicker, { props: { ports: threePorts, onReorder } });
+		const rows = screen.getAllByRole('listitem');
+		await fireEvent.dragStart(rows[1]);
+		await fireEvent.drop(rows[1]);
+		expect(onReorder).not.toHaveBeenCalled();
+	});
 });

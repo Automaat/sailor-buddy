@@ -13,6 +13,7 @@
 		listVoyagePorts,
 		addVoyagePort,
 		deleteVoyagePort,
+		reorderVoyagePorts,
 		getCruise
 	} from '$lib/api/routes';
 	import type {
@@ -152,6 +153,14 @@
 		await deleteVoyagePort(id, port.id);
 		ports = ports.filter((_, i) => i !== index);
 	}
+
+	async function reorderPorts(from: number, to: number) {
+		const next = [...ports];
+		const [moved] = next.splice(from, 1);
+		next.splice(to, 0, moved);
+		// The endpoint returns the ports with their persisted positions.
+		ports = (await reorderVoyagePorts(id, next.map((p) => p.id))) ?? next;
+	}
 </script>
 
 {#if loading}
@@ -237,7 +246,7 @@
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-3 font-semibold text-[var(--navy)]">Odwiedzone porty ({ports.length})</h2>
-			<PortPicker {ports} onAdd={addPort} onRemove={removePort} />
+			<PortPicker {ports} onAdd={addPort} onRemove={removePort} onReorder={reorderPorts} />
 		</div>
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">

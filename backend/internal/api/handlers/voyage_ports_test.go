@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/danielgtaylor/huma/v2/humatest"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
@@ -16,7 +18,16 @@ import (
 func voyagePortTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterVoyagePortRoutes(api, m)
+	RegisterVoyagePortRoutes(api, m, nil)
+	return api
+}
+
+// voyagePortTestAPIWithDB wires the routes with a real *sql.DB (a sqlmock)
+// so the transactional reorder path can be exercised.
+func voyagePortTestAPIWithDB(t *testing.T, m *mockQuerier, db *sql.DB) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	RegisterVoyagePortRoutes(api, m, db)
 	return api
 }
 
@@ -80,6 +91,94 @@ func TestVoyagePorts_Add_VoyageNotFound(t *testing.T) {
 		map[string]any{"name": "Hvar", "latitude": 43.17, "longitude": 16.44})
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", resp.Code, resp.Body)
+	}
+}
+
+func TestVoyagePorts_Reorder_VoyageNotFound(t *testing.T) {
+	m := &mockQuerier{
+		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+			return sqlcdb.Voyage{}, sql.ErrNoRows
+		},
+	}
+	resp := voyagePortTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/5/ports/order",
+		map[string]any{"port_ids": []int64{3, 1, 2}})
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", resp.Code, resp.Body)
+	}
+}
+
+func TestVoyagePorts_Reorder(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	m := &mockQuerier{
+		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+			return sqlcdb.Voyage{ID: 5}, nil
+		},
+		listVoyagePortsFn: func(context.Context, sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+			return []sqlcdb.VoyagePort{
+				{ID: 3, VoyageID: 5, Name: "Hvar", Position: 0},
+				{ID: 1, VoyageID: 5, Name: "Split", Position: 1},
+				{ID: 2, VoyageID: 5, Name: "Vis", Position: 2},
+			}, nil
+		},
+	}
+
+	// Each port is renumbered to its index in the request body, all inside
+	// one transaction.
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(3), int64(5), int64(1), int64(0)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(1), int64(5), int64(1), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(2), int64(5), int64(1), int64(2)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	resp := voyagePortTestAPIWithDB(t, m, db).PutCtx(userCtx(context.Background()),
+		"/voyages/5/ports/order", map[string]any{"port_ids": []int64{3, 1, 2}})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
+	}
+	var ports []dto.VoyagePort
+	if err := json.Unmarshal(resp.Body.Bytes(), &ports); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(ports) != 3 || ports[0].Name != "Hvar" || ports[2].Name != "Vis" {
+		t.Fatalf("unexpected ports: %+v", ports)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
+	}
+}
+
+func TestVoyagePorts_Reorder_RollsBackOnError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	m := &mockQuerier{
+		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+			return sqlcdb.Voyage{ID: 5}, nil
+		},
+	}
+	// A failed position write must roll the whole transaction back.
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE voyage_ports").WillReturnError(errors.New("boom"))
+	mock.ExpectRollback()
+
+	resp := voyagePortTestAPIWithDB(t, m, db).PutCtx(userCtx(context.Background()),
+		"/voyages/5/ports/order", map[string]any{"port_ids": []int64{3, 1}})
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", resp.Code, resp.Body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet sqlmock expectations: %v", err)
 	}
 }
 

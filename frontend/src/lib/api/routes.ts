@@ -220,6 +220,21 @@ export function deleteVoyagePort(id: number, portID: number) {
 		: api.del('/voyages/{voyageID}/ports/{portID}', { path: { voyageID: id, portID } });
 }
 
+// reorderVoyagePorts persists a new visit order; portIDs is the full list in
+// the desired sequence. Returns the ports with their updated positions.
+export function reorderVoyagePorts(id: number, portIDs: number[]) {
+	const slug = tripSlug();
+	return slug
+		? api.put('/orgs/{slug}/voyages/{voyageID}/ports/order', {
+				path: { slug, voyageID: id },
+				body: { port_ids: portIDs }
+			})
+		: api.put('/voyages/{voyageID}/ports/order', {
+				path: { voyageID: id },
+				body: { port_ids: portIDs }
+			});
+}
+
 // geocode searches towns/places by name via the backend Nominatim proxy.
 export function geocode(q: string): Promise<Schemas['GeocodeResult'][]> {
 	return api.get('/geocode', { query: { q } }).then((r) => r ?? []);

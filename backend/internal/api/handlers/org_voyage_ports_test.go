@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/danielgtaylor/huma/v2/humatest"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
@@ -16,7 +17,16 @@ import (
 func orgVoyagePortTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterOrgVoyagePortRoutes(api, m)
+	RegisterOrgVoyagePortRoutes(api, m, nil)
+	return api
+}
+
+// orgVoyagePortTestAPIWithDB wires the routes with a real *sql.DB (a sqlmock)
+// so the transactional reorder path can be exercised.
+func orgVoyagePortTestAPIWithDB(t *testing.T, m *mockQuerier, db *sql.DB) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	RegisterOrgVoyagePortRoutes(api, m, db)
 	return api
 }
 
@@ -119,6 +129,71 @@ func TestOrgVoyagePorts_Remove(t *testing.T) {
 		}
 		if got.ID != 9 || got.VoyageID != 3 || !got.OrgID.Valid {
 			t.Fatalf("unexpected delete params: %+v", got)
+		}
+	})
+}
+
+func TestOrgVoyagePorts_Reorder(t *testing.T) {
+	t.Run("non-admin forbidden", func(t *testing.T) {
+		m := withOrgRole(&mockQuerier{}, "crew")
+		resp := orgVoyagePortTestAPI(t, m).PutCtx(userCtx(context.Background()),
+			"/orgs/club/voyages/3/ports/order", map[string]any{"port_ids": []int64{2, 1}})
+		if resp.Code != http.StatusForbidden {
+			t.Fatalf("got %d, want 403", resp.Code)
+		}
+	})
+
+	t.Run("voyage not found", func(t *testing.T) {
+		m := withOrgRole(&mockQuerier{
+			getOrgVoyageFn: func(context.Context, sqlcdb.GetOrgVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{}, sql.ErrNoRows
+			},
+		}, "admin")
+		resp := orgVoyagePortTestAPI(t, m).PutCtx(userCtx(context.Background()),
+			"/orgs/club/voyages/3/ports/order", map[string]any{"port_ids": []int64{2, 1}})
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("got %d, want 404; body=%s", resp.Code, resp.Body)
+		}
+	})
+
+	t.Run("admin ok", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("sqlmock: %v", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		m := withOrgRole(&mockQuerier{
+			getOrgVoyageFn: func(context.Context, sqlcdb.GetOrgVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: 3}, nil
+			},
+			listOrgVoyagePortsFn: func(context.Context, sqlcdb.ListOrgVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+				return []sqlcdb.VoyagePort{
+					{ID: 2, VoyageID: 3, Name: "Vis", Position: 0},
+					{ID: 1, VoyageID: 3, Name: "Split", Position: 1},
+				}, nil
+			},
+		}, "admin")
+
+		mock.ExpectBegin()
+		mock.ExpectExec("UPDATE voyage_ports").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectExec("UPDATE voyage_ports").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		resp := orgVoyagePortTestAPIWithDB(t, m, db).PutCtx(userCtx(context.Background()),
+			"/orgs/club/voyages/3/ports/order", map[string]any{"port_ids": []int64{2, 1}})
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		var ports []dto.VoyagePort
+		if err := json.Unmarshal(resp.Body.Bytes(), &ports); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(ports) != 2 || ports[0].Name != "Vis" {
+			t.Fatalf("unexpected ports: %+v", ports)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatalf("unmet sqlmock expectations: %v", err)
 		}
 	})
 }
