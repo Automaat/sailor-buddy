@@ -94,6 +94,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search towns/places by name */
+        get: operations["geocode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/import/confirm": {
         parameters: {
             query?: never;
@@ -710,6 +727,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orgs/{slug}/voyages/{voyageID}/ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List an org voyage's visited ports */
+        get: operations["list-org-voyage-ports"];
+        put?: never;
+        /** Add a visited port to an org voyage (admin) */
+        post: operations["add-org-voyage-port"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{slug}/voyages/{voyageID}/ports/{portID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a visited port from an org voyage (admin) */
+        delete: operations["remove-org-voyage-port"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orgs/{slug}/yachts": {
         parameters: {
             query?: never;
@@ -1100,6 +1152,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voyages/{voyageID}/ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a voyage's visited ports */
+        get: operations["list-voyage-ports"];
+        put?: never;
+        /** Add a visited port to a voyage */
+        post: operations["add-voyage-port"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voyages/{voyageID}/ports/{portID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a visited port from a voyage */
+        delete: operations["remove-voyage-port"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/yachts": {
         parameters: {
             query?: never;
@@ -1173,6 +1260,8 @@ export interface components {
             hours_total?: number;
             /** Format: double */
             miles?: number;
+            /** @description Ports visited during the trip */
+            ports?: components["schemas"]["VoyagePortBody"][] | null;
             /** Format: int64 */
             tidal_waters?: number;
             /** Format: int64 */
@@ -1519,6 +1608,13 @@ export interface components {
              * @enum {string}
              */
             format: "pdf" | "docx";
+        };
+        GeocodeResult: {
+            /** Format: double */
+            latitude: number;
+            /** Format: double */
+            longitude: number;
+            name: string;
         };
         ImportData: {
             /**
@@ -2227,6 +2323,52 @@ export interface components {
             /** Format: int64 */
             voyage_id: number;
         };
+        VoyagePort: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/VoyagePort.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            latitude: number;
+            /** Format: double */
+            longitude: number;
+            name: string;
+            /** Format: int64 */
+            position: number;
+            /** Format: int64 */
+            voyage_id: number;
+        };
+        VoyagePortBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/VoyagePortBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: double
+             * @description Latitude
+             */
+            latitude: number;
+            /**
+             * Format: double
+             * @description Longitude
+             */
+            longitude: number;
+            /** @description Port / town name */
+            name: string;
+            /**
+             * Format: int64
+             * @description Order in the visited sequence
+             */
+            position?: number;
+        };
         VoyagesByYear: {
             /** Format: int64 */
             total_days: number;
@@ -2590,6 +2732,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    geocode: {
+        parameters: {
+            query?: {
+                /** @description Town or place name to search for */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeocodeResult"][] | null;
                 };
             };
             /** @description Error */
@@ -4535,6 +4709,112 @@ export interface operations {
             };
         };
     };
+    "list-org-voyage-ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                slug: string;
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoyagePort"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "add-org-voyage-port": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                slug: string;
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoyagePortBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoyagePort"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "remove-org-voyage-port": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization slug */
+                slug: string;
+                /** @description Voyage ID */
+                voyageID: number;
+                /** @description Port ID */
+                portID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-org-yachts": {
         parameters: {
             query?: {
@@ -5792,6 +6072,106 @@ export interface operations {
                 content: {
                     "application/json": string;
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-voyage-ports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoyagePort"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "add-voyage-port": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoyagePortBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoyagePort"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "remove-voyage-port": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+                /** @description Port ID */
+                portID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

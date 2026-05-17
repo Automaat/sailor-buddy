@@ -17,6 +17,10 @@ export type Voyage = Schemas['Voyage'];
 export type VoyageBody = Schemas['VoyageBody'];
 export type CompleteTripPayload = Schemas['CompleteTripBody'];
 
+export type VoyagePort = Schemas['VoyagePort'];
+export type VoyagePortBody = Schemas['VoyagePortBody'];
+export type GeocodeResult = Schemas['GeocodeResult'];
+
 export type Yacht = Schemas['Yacht'];
 export type YachtBody = Schemas['YachtBody'];
 

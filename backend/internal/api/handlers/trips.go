@@ -254,6 +254,22 @@ func completeTripTx(ctx context.Context, db *sql.DB, orgID types.NullInt64, trip
 		return sqlcdb.Voyage{}, &QueryError{Op: "CreateVoyageFromTrip", Err: err}
 	}
 
+	for i, port := range req.Ports {
+		position := int64(i)
+		if port.Position != nil {
+			position = *port.Position
+		}
+		if _, err := qtx.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
+			VoyageID:  voyage.ID,
+			Name:      port.Name,
+			Latitude:  port.Latitude,
+			Longitude: port.Longitude,
+			Position:  position,
+		}); err != nil {
+			return sqlcdb.Voyage{}, &QueryError{Op: "CreateVoyagePort", Err: err}
+		}
+	}
+
 	if err := qtx.RepointCrewAssignmentsToVoyage(ctx, sqlcdb.RepointCrewAssignmentsToVoyageParams{
 		VoyageID: types.NullInt64{Int64: voyage.ID, Valid: true},
 		TripID:   types.NullInt64{Int64: trip.ID, Valid: true},

@@ -10,12 +10,24 @@
 		deleteVoyageOpinion,
 		downloadVoyageOpinion,
 		listAssignableCrew,
+		listVoyagePorts,
+		addVoyagePort,
+		deleteVoyagePort,
 		getCruise
 	} from '$lib/api/routes';
-	import type { Voyage, CrewAssignment, CrewMember, VoyageOpinion, Cruise } from '$lib/api/types';
+	import type {
+		Voyage,
+		CrewAssignment,
+		CrewMember,
+		VoyageOpinion,
+		VoyagePort,
+		VoyagePortBody,
+		Cruise
+	} from '$lib/api/types';
 	import { ApiError } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
 	import NotFound from '$lib/components/NotFound.svelte';
+	import PortPicker from '$lib/components/PortPicker.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -24,6 +36,7 @@
 	let cruise = $state<Cruise | null>(null);
 	let crew = $state<CrewAssignment[]>([]);
 	let opinions = $state<VoyageOpinion[]>([]);
+	let ports = $state<VoyagePort[]>([]);
 	let allCrewMembers = $state<CrewMember[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -44,9 +57,10 @@
 			// list has loaded — wait so a direct visit hits the right endpoint.
 			await orgStore.ensureLoaded();
 			voyage = await getVoyage(id);
-			[crew, opinions, allCrewMembers] = await Promise.all([
+			[crew, opinions, ports, allCrewMembers] = await Promise.all([
 				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),
 				listVoyageOpinions(id).then((o) => o ?? []).catch(() => []),
+				listVoyagePorts(id).then((p) => p ?? []).catch(() => []),
 				listAssignableCrew().catch(() => [])
 			]);
 			if (voyage?.cruise_id) {
@@ -123,6 +137,18 @@
 		if (!confirm('Usunąć przypisanie załoganta?')) return;
 		await removeVoyageCrew(id, assignmentId);
 		crew = crew.filter((c) => c.id !== assignmentId);
+	}
+
+	async function addPort(body: VoyagePortBody) {
+		const port = await addVoyagePort(id, { ...body, position: ports.length });
+		ports = [...ports, port];
+	}
+
+	async function removePort(index: number) {
+		const port = ports[index];
+		if (!port) return;
+		await deleteVoyagePort(id, port.id);
+		ports = ports.filter((_, i) => i !== index);
 	}
 </script>
 
@@ -206,6 +232,11 @@
 				<p class="whitespace-pre-wrap text-sm">{voyage.description}</p>
 			</div>
 		{/if}
+
+		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+			<h2 class="mb-3 font-semibold text-[var(--navy)]">Odwiedzone porty ({ports.length})</h2>
+			<PortPicker {ports} onAdd={addPort} onRemove={removePort} />
+		</div>
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">

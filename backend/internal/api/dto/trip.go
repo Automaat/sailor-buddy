@@ -56,14 +56,15 @@ type TripBody struct {
 // CompleteTripBody is the request payload for completing a trip into a voyage.
 // All fields are optional; year falls back to the trip embark date.
 type CompleteTripBody struct {
-	Year         *int64   `json:"year,omitempty"`
-	HoursTotal   *float64 `json:"hours_total,omitempty"`
-	HoursSail    *float64 `json:"hours_sail,omitempty"`
-	HoursEngine  *float64 `json:"hours_engine,omitempty"`
-	HoursOver6bf *float64 `json:"hours_over_6bf,omitempty"`
-	Miles        *float64 `json:"miles,omitempty"`
-	Days         *int64   `json:"days,omitempty"`
-	TidalWaters  *int64   `json:"tidal_waters,omitempty"`
+	Year         *int64           `json:"year,omitempty"`
+	HoursTotal   *float64         `json:"hours_total,omitempty"`
+	HoursSail    *float64         `json:"hours_sail,omitempty"`
+	HoursEngine  *float64         `json:"hours_engine,omitempty"`
+	HoursOver6bf *float64         `json:"hours_over_6bf,omitempty"`
+	Miles        *float64         `json:"miles,omitempty"`
+	Days         *int64           `json:"days,omitempty"`
+	TidalWaters  *int64           `json:"tidal_waters,omitempty"`
+	Ports        []VoyagePortBody `json:"ports,omitempty" doc:"Ports visited during the trip"`
 }
 
 // TripFromDB maps a database row to the API model.

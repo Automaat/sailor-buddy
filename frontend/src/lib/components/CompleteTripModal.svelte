@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { CompleteTripPayload } from '$lib/api/types';
+	import type { CompleteTripPayload, VoyagePortBody } from '$lib/api/types';
+	import PortPicker from './PortPicker.svelte';
 
 	type Props = {
 		tripName: string;
@@ -36,8 +37,17 @@
 		tidal_waters: false
 	});
 	const hoursTotal = $derived((form.hours_sail || 0) + (form.hours_engine || 0));
+	let ports = $state<VoyagePortBody[]>([]);
 	let submitting = $state(false);
 	let error = $state('');
+
+	function addPort(port: VoyagePortBody) {
+		ports = [...ports, { ...port, position: ports.length }];
+	}
+
+	function removePort(index: number) {
+		ports = ports.filter((_, i) => i !== index).map((p, i) => ({ ...p, position: i }));
+	}
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -52,7 +62,8 @@
 				hours_over_6bf: form.hours_over_6bf || undefined,
 				miles: form.miles || undefined,
 				days: computedDays || undefined,
-				tidal_waters: form.tidal_waters ? 1 : 0
+				tidal_waters: form.tidal_waters ? 1 : 0,
+				ports: ports.length > 0 ? ports : undefined
 			});
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zrealizować rejsu';
@@ -63,7 +74,7 @@
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-	<div class="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+	<div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
 		<h2 class="mb-1 text-xl font-semibold text-[var(--navy)]">Zrealizuj rejs</h2>
 		<p class="mb-4 text-sm text-[var(--text-muted)]">{tripName}</p>
 
@@ -96,6 +107,8 @@
 					<input id="m-h6" type="number" step="0.1" bind:value={form.hours_over_6bf} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
 				</div>
 			</div>
+
+			<PortPicker {ports} onAdd={addPort} onRemove={removePort} />
 
 			<div class="flex justify-end gap-2 pt-2">
 				<button type="button" onclick={onClose} class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50">
