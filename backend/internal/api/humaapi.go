@@ -33,6 +33,8 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 	handlers.RegisterDashboardRoutes(api, q)
 	handlers.RegisterTripRoutes(api, q, db)
 	handlers.RegisterVoyageRoutes(api, q)
+	handlers.RegisterVoyagePortRoutes(api, q)
+	handlers.RegisterGeocodeRoutes(api)
 	handlers.RegisterYachtRoutes(api, q)
 	handlers.RegisterTrainingRoutes(api, q)
 	handlers.RegisterCrewRoutes(api, q)
@@ -47,6 +49,7 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 	handlers.RegisterOrgCruiseRoutes(api, q)
 	handlers.RegisterCruiseEnrollmentRoutes(api, q)
 	handlers.RegisterOrgCrewAssignmentRoutes(api, q)
+	handlers.RegisterOrgVoyagePortRoutes(api, q)
 	handlers.RegisterOrgVoyageOpinionRoutes(api, q, uploadDir)
 }
 

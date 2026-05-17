@@ -197,6 +197,34 @@ export function removeVoyageCrew(id: number, assignmentID: number) {
 			});
 }
 
+export function listVoyagePorts(id: number) {
+	const slug = tripSlug();
+	return slug
+		? api.get('/orgs/{slug}/voyages/{voyageID}/ports', { path: { slug, voyageID: id } })
+		: api.get('/voyages/{voyageID}/ports', { path: { voyageID: id } });
+}
+
+export function addVoyagePort(id: number, body: Schemas['VoyagePortBody']) {
+	const slug = tripSlug();
+	return slug
+		? api.post('/orgs/{slug}/voyages/{voyageID}/ports', { path: { slug, voyageID: id }, body })
+		: api.post('/voyages/{voyageID}/ports', { path: { voyageID: id }, body });
+}
+
+export function deleteVoyagePort(id: number, portID: number) {
+	const slug = tripSlug();
+	return slug
+		? api.del('/orgs/{slug}/voyages/{voyageID}/ports/{portID}', {
+				path: { slug, voyageID: id, portID }
+			})
+		: api.del('/voyages/{voyageID}/ports/{portID}', { path: { voyageID: id, portID } });
+}
+
+// geocode searches towns/places by name via the backend Nominatim proxy.
+export function geocode(q: string): Promise<Schemas['GeocodeResult'][]> {
+	return api.get('/geocode', { query: { q } }).then((r) => r ?? []);
+}
+
 export function listVoyageOpinions(id: number) {
 	const slug = tripSlug();
 	return slug

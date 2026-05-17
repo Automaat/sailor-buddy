@@ -255,6 +255,16 @@ type VoyageOpinion struct {
 	CreatedAt    types.NullTime `json:"created_at"`
 }
 
+type VoyagePort struct {
+	ID        int64          `json:"id"`
+	VoyageID  int64          `json:"voyage_id"`
+	Name      string         `json:"name"`
+	Latitude  float64        `json:"latitude"`
+	Longitude float64        `json:"longitude"`
+	Position  int64          `json:"position"`
+	CreatedAt types.NullTime `json:"created_at"`
+}
+
 type Yacht struct {
 	ID             int64            `json:"id"`
 	OwnerID        int64            `json:"owner_id"`

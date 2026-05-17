@@ -34,6 +34,13 @@ type mockQuerier struct {
 	getDashboardFn     func(ctx context.Context, ownerID int64) (sqlcdb.GetDashboardStatsRow, error)
 	getVoyagesByYearFn func(ctx context.Context, ownerID int64) ([]sqlcdb.GetVoyagesByYearRow, error)
 
+	// voyage ports
+	createVoyagePortFn    func(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error)
+	listVoyagePortsFn     func(ctx context.Context, arg sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error)
+	deleteVoyagePortFn    func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
+	listOrgVoyagePortsFn  func(ctx context.Context, arg sqlcdb.ListOrgVoyagePortsParams) ([]sqlcdb.VoyagePort, error)
+	deleteOrgVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteOrgVoyagePortParams) error
+
 	// org trips/voyages
 	listOrgTripsFn    func(ctx context.Context, orgID types.NullInt64) ([]sqlcdb.Trip, error)
 	getOrgTripFn      func(ctx context.Context, arg sqlcdb.GetOrgTripParams) (sqlcdb.Trip, error)
@@ -1067,6 +1074,41 @@ func (m *mockQuerier) CountCruiseEnrollments(context.Context, int64) (sqlcdb.Cou
 
 func (m *mockQuerier) GetUserCruiseEnrollment(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 	panic("unexpected call to GetUserCruiseEnrollment")
+}
+
+func (m *mockQuerier) CreateVoyagePort(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
+	if m.createVoyagePortFn == nil {
+		panic("unexpected call to CreateVoyagePort")
+	}
+	return m.createVoyagePortFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListVoyagePorts(ctx context.Context, arg sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+	if m.listVoyagePortsFn == nil {
+		panic("unexpected call to ListVoyagePorts")
+	}
+	return m.listVoyagePortsFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteVoyagePort(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error {
+	if m.deleteVoyagePortFn == nil {
+		panic("unexpected call to DeleteVoyagePort")
+	}
+	return m.deleteVoyagePortFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListOrgVoyagePorts(ctx context.Context, arg sqlcdb.ListOrgVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+	if m.listOrgVoyagePortsFn == nil {
+		panic("unexpected call to ListOrgVoyagePorts")
+	}
+	return m.listOrgVoyagePortsFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteOrgVoyagePort(ctx context.Context, arg sqlcdb.DeleteOrgVoyagePortParams) error {
+	if m.deleteOrgVoyagePortFn == nil {
+		panic("unexpected call to DeleteOrgVoyagePort")
+	}
+	return m.deleteOrgVoyagePortFn(ctx, arg)
 }
 
 func userCtx(ctx context.Context) context.Context {

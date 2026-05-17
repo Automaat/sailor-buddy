@@ -206,6 +206,11 @@ type Querier interface {
 	//
 	//  INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format) VALUES ($1, $2, $3, $4) RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at
 	CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpinionParams) (VoyageOpinion, error)
+	//CreateVoyagePort
+	//
+	//  INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position)
+	//  VALUES ($1, $2, $3, $4, $5) RETURNING id, voyage_id, name, latitude, longitude, position, created_at
+	CreateVoyagePort(ctx context.Context, arg CreateVoyagePortParams) (VoyagePort, error)
 	//CreateYacht
 	//
 	//  INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
@@ -254,6 +259,15 @@ type Querier interface {
 	//    AND crew_assignments.voyage_id = $2
 	//    AND crew_assignments.voyage_id IN (SELECT voyages.id FROM voyages WHERE voyages.org_id = $3)
 	DeleteOrgVoyageCrewAssignment(ctx context.Context, arg DeleteOrgVoyageCrewAssignmentParams) error
+	//DeleteOrgVoyagePort
+	//
+	//  DELETE FROM voyage_ports
+	//  WHERE voyage_ports.id = $1
+	//    AND voyage_ports.voyage_id = $2
+	//    AND voyage_ports.voyage_id IN (
+	//        SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
+	//    )
+	DeleteOrgVoyagePort(ctx context.Context, arg DeleteOrgVoyagePortParams) error
 	//DeleteOrgYacht
 	//
 	//  DELETE FROM yachts WHERE id = $1 AND org_id = $2
@@ -300,6 +314,15 @@ type Querier interface {
 	//
 	//  DELETE FROM voyage_opinions WHERE id = $1
 	DeleteVoyageOpinion(ctx context.Context, id int64) error
+	//DeleteVoyagePort
+	//
+	//  DELETE FROM voyage_ports
+	//  WHERE voyage_ports.id = $1
+	//    AND voyage_ports.voyage_id = $2
+	//    AND voyage_ports.voyage_id IN (
+	//        SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
+	//    )
+	DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortParams) error
 	//DeleteYacht
 	//
 	//  DELETE FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
@@ -586,6 +609,13 @@ type Querier interface {
 	//  WHERE ca.voyage_id = $1 AND v.org_id = $2
 	//  ORDER BY cm.full_name
 	ListOrgVoyageCrewAssignments(ctx context.Context, arg ListOrgVoyageCrewAssignmentsParams) ([]ListOrgVoyageCrewAssignmentsRow, error)
+	//ListOrgVoyagePorts
+	//
+	//  SELECT vp.id, vp.voyage_id, vp.name, vp.latitude, vp.longitude, vp.position, vp.created_at FROM voyage_ports vp
+	//  JOIN voyages v ON v.id = vp.voyage_id
+	//  WHERE vp.voyage_id = $1 AND v.org_id = $2
+	//  ORDER BY vp.position, vp.id
+	ListOrgVoyagePorts(ctx context.Context, arg ListOrgVoyagePortsParams) ([]VoyagePort, error)
 	//ListOrgVoyages
 	//
 	//  SELECT id, owner_id, org_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, cruise_id FROM voyages WHERE org_id = $1 ORDER BY year DESC, embark_date DESC, id DESC LIMIT $2 OFFSET $3
@@ -640,6 +670,13 @@ type Querier interface {
 	//  WHERE ca.voyage_id = $1 AND v.owner_id = $2
 	//  ORDER BY cm.full_name
 	ListVoyageCrewAssignments(ctx context.Context, arg ListVoyageCrewAssignmentsParams) ([]ListVoyageCrewAssignmentsRow, error)
+	//ListVoyagePorts
+	//
+	//  SELECT vp.id, vp.voyage_id, vp.name, vp.latitude, vp.longitude, vp.position, vp.created_at FROM voyage_ports vp
+	//  JOIN voyages v ON v.id = vp.voyage_id
+	//  WHERE vp.voyage_id = $1 AND v.owner_id = $2 AND v.org_id IS NULL
+	//  ORDER BY vp.position, vp.id
+	ListVoyagePorts(ctx context.Context, arg ListVoyagePortsParams) ([]VoyagePort, error)
 	//ListVoyageVoyageOpinions
 	//
 	//  SELECT vo.id, vo.voyage_id, vo.crew_member_id, vo.file_path, vo.file_format, vo.created_at, cm.full_name
