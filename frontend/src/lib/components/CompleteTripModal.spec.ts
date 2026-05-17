@@ -27,7 +27,9 @@ function setup(overrides: Partial<Props> = {}) {
 	return { ...result, onClose, onSubmit };
 }
 
-const value = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+async function submit() {
+	await fireEvent.click(screen.getByRole('button', { name: 'Zrealizuj rejs' }));
+}
 
 describe('CompleteTripModal', () => {
 	it('renders the trip name', () => {
@@ -35,31 +37,39 @@ describe('CompleteTripModal', () => {
 		expect(screen.getByText('Rejs Bałtyk')).toBeInTheDocument();
 	});
 
-	it('derives the year from the embark date', () => {
-		setup({ embarkDate: '2024-08-12' });
-		expect(value('Rok')).toBe('2024');
+	it('derives the year from the embark date', async () => {
+		const { onSubmit } = setup({ embarkDate: '2024-08-12' });
+		await submit();
+		await waitFor(() => expect(onSubmit.mock.calls[0][0]).toMatchObject({ year: 2024 }));
 	});
 
-	it('falls back to the current year without an embark date', () => {
-		setup({ embarkDate: null });
-		expect(value('Rok')).toBe(String(new Date().getFullYear()));
+	it('falls back to the current year without an embark date', async () => {
+		const { onSubmit } = setup({ embarkDate: null });
+		await submit();
+		await waitFor(() =>
+			expect(onSubmit.mock.calls[0][0]).toMatchObject({ year: new Date().getFullYear() })
+		);
 	});
 
-	it('derives an inclusive day count between the two dates', () => {
-		setup({ embarkDate: '2025-06-01', disembarkDate: '2025-06-07' });
-		expect(value('Dni')).toBe('7');
+	it('derives an inclusive day count between the two dates', async () => {
+		const { onSubmit } = setup({ embarkDate: '2025-06-01', disembarkDate: '2025-06-07' });
+		await submit();
+		await waitFor(() => expect(onSubmit.mock.calls[0][0]).toMatchObject({ days: 7 }));
 	});
 
-	it('shows zero days when disembark precedes embark', () => {
-		setup({ embarkDate: '2025-06-07', disembarkDate: '2025-06-01' });
-		expect(value('Dni')).toBe('0');
+	it('omits days when disembark precedes embark', async () => {
+		const { onSubmit } = setup({ embarkDate: '2025-06-07', disembarkDate: '2025-06-01' });
+		await submit();
+		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+		expect(onSubmit.mock.calls[0][0].days).toBeUndefined();
 	});
 
 	it('derives total hours from sail and engine hours', async () => {
-		setup();
+		const { onSubmit } = setup();
 		await fireEvent.input(screen.getByLabelText('Godziny żagli'), { target: { value: '10' } });
 		await fireEvent.input(screen.getByLabelText('Godziny silnika'), { target: { value: '5' } });
-		expect(value('Godziny łącznie')).toBe('15');
+		await submit();
+		await waitFor(() => expect(onSubmit.mock.calls[0][0]).toMatchObject({ hours_total: 15 }));
 	});
 
 	it('submits a payload with computed and entered values', async () => {
@@ -68,7 +78,7 @@ describe('CompleteTripModal', () => {
 		await fireEvent.input(screen.getByLabelText('Godziny silnika'), { target: { value: '5' } });
 		await fireEvent.input(screen.getByLabelText('Mile'), { target: { value: '120' } });
 		await fireEvent.click(screen.getByLabelText('Wody pływowe'));
-		await fireEvent.click(screen.getByRole('button', { name: 'Zrealizuj rejs' }));
+		await submit();
 
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith({
@@ -86,7 +96,7 @@ describe('CompleteTripModal', () => {
 
 	it('sends tidal_waters as 0 when the checkbox is unchecked', async () => {
 		const { onSubmit } = setup();
-		await fireEvent.click(screen.getByRole('button', { name: 'Zrealizuj rejs' }));
+		await submit();
 		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
 		expect(onSubmit.mock.calls[0][0]).toMatchObject({ tidal_waters: 0 });
 	});
@@ -94,7 +104,7 @@ describe('CompleteTripModal', () => {
 	it('shows an error message when submission fails', async () => {
 		const onSubmit = vi.fn().mockRejectedValue(new Error('Serwer padł'));
 		setup({ onSubmit });
-		await fireEvent.click(screen.getByRole('button', { name: 'Zrealizuj rejs' }));
+		await submit();
 		expect(await screen.findByText('Serwer padł')).toBeInTheDocument();
 	});
 

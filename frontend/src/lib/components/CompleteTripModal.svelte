@@ -74,14 +74,6 @@
 		<form onsubmit={handleSubmit} class="space-y-4">
 			<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 				<div>
-					<label for="m-year" class="mb-1 block text-xs font-medium">Rok</label>
-					<input id="m-year" type="number" value={computedYear} readonly class="w-full rounded-lg border bg-gray-50 px-2 py-1.5 text-sm text-[var(--text-muted)]" />
-				</div>
-				<div>
-					<label for="m-days" class="mb-1 block text-xs font-medium">Dni</label>
-					<input id="m-days" type="number" value={computedDays} readonly class="w-full rounded-lg border bg-gray-50 px-2 py-1.5 text-sm text-[var(--text-muted)]" />
-				</div>
-				<div>
 					<label for="m-miles" class="mb-1 block text-xs font-medium">Mile</label>
 					<input id="m-miles" type="number" step="0.1" bind:value={form.miles} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
 				</div>
@@ -90,10 +82,6 @@
 						<input type="checkbox" bind:checked={form.tidal_waters} />
 						Wody pływowe
 					</label>
-				</div>
-				<div>
-					<label for="m-ht" class="mb-1 block text-xs font-medium">Godziny łącznie</label>
-					<input id="m-ht" type="number" step="0.1" value={hoursTotal} readonly class="w-full rounded-lg border bg-gray-50 px-2 py-1.5 text-sm text-[var(--text-muted)]" />
 				</div>
 				<div>
 					<label for="m-hs" class="mb-1 block text-xs font-medium">Godziny żagli</label>
