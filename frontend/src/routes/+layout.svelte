@@ -65,8 +65,14 @@
 		goto('/');
 	}
 
+	// Routes a logged-out visitor may reach: the login screen and the public
+	// enrollment preview shared via invite link.
+	function isPublicRoute(pathname: string) {
+		return pathname.startsWith('/login') || pathname.startsWith('/enroll');
+	}
+
 	$effect(() => {
-		if (!auth.loading && !auth.isAuthenticated && !$page.url.pathname.startsWith('/login')) {
+		if (!auth.loading && !auth.isAuthenticated && !isPublicRoute($page.url.pathname)) {
 			goto('/login');
 		}
 	});
@@ -109,7 +115,7 @@
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 		<Anchor class="h-10 w-10 text-white" />
 	</div>
-{:else if $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/join')}
+{:else if $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/join') || $page.url.pathname.startsWith('/enroll')}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">

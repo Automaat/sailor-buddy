@@ -18,23 +18,45 @@ type ctxKey string
 
 const UserCtxKey ctxKey = "user"
 
+// optionalAuthPath reports whether a request may proceed without
+// authentication. The enrollment preview (GET /api/enroll/{token}) is shared
+// with people who do not yet have an account, so a missing or invalid token
+// resolves to an anonymous request instead of a 401.
+func optionalAuthPath(r *http.Request) bool {
+	return r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/enroll/")
+}
+
 func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			optional := optionalAuthPath(r)
+
 			header := r.Header.Get("Authorization")
 			if header == "" {
+				if optional {
+					next.ServeHTTP(w, r)
+					return
+				}
 				http.Error(w, `{"error":"missing authorization header"}`, http.StatusUnauthorized)
 				return
 			}
 
 			token := strings.TrimPrefix(header, "Bearer ")
 			if token == header {
+				if optional {
+					next.ServeHTTP(w, r)
+					return
+				}
 				http.Error(w, `{"error":"invalid authorization format"}`, http.StatusUnauthorized)
 				return
 			}
 
 			fbToken, err := fbClient.VerifyIDToken(r.Context(), token)
 			if err != nil {
+				if optional {
+					next.ServeHTTP(w, r)
+					return
+				}
 				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
 				return
 			}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import {
 		signInWithEmailAndPassword,
 		createUserWithEmailAndPassword,
@@ -13,6 +14,14 @@
 
 	const googleProvider = new GoogleAuthProvider();
 	googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+	// destination resolves the post-login target from ?redirect=, accepting
+	// only same-origin paths so the param can't be used for open redirects.
+	function destination() {
+		const r = page.url.searchParams.get('redirect');
+		if (r && r.startsWith('/') && !r.startsWith('//')) return r;
+		return '/';
+	}
 
 	let isRegister = $state(false);
 	let email = $state('');
@@ -33,7 +42,7 @@
 			} else {
 				await signInWithEmailAndPassword(firebaseAuth, email, password);
 			}
-			goto('/');
+			goto(destination());
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
@@ -46,7 +55,7 @@
 		loading = true;
 		try {
 			await signInWithPopup(firebaseAuth, googleProvider);
-			goto('/');
+			goto(destination());
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
@@ -56,7 +65,7 @@
 
 	$effect(() => {
 		if (auth.isAuthenticated) {
-			goto('/');
+			goto(destination());
 		}
 	});
 </script>

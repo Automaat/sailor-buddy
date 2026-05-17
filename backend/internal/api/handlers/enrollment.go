@@ -115,9 +115,11 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 			AcceptedCount: counts.Accepted,
 			TotalCount:    counts.Total,
 		}
-		if e, err := h.q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: trip.ID, UserID: user.UserID}); err == nil {
-			info.Enrolled = true
-			info.Enrollment = new(dto.TripEnrollmentToDTO(e))
+		if user != nil {
+			if e, err := h.q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: trip.ID, UserID: user.UserID}); err == nil {
+				info.Enrolled = true
+				info.Enrollment = new(dto.TripEnrollmentToDTO(e))
+			}
 		}
 		return &enrollInfoOutput{Body: info}, nil
 	}
@@ -147,9 +149,11 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 		AcceptedCount: counts.Accepted,
 		TotalCount:    counts.Total,
 	}
-	if e, err := h.q.GetUserCruiseEnrollment(ctx, sqlcdb.GetUserCruiseEnrollmentParams{CruiseID: cruise.ID, UserID: user.UserID}); err == nil {
-		info.Enrolled = true
-		info.Enrollment = new(dto.CruiseEnrollmentToDTO(e))
+	if user != nil {
+		if e, err := h.q.GetUserCruiseEnrollment(ctx, sqlcdb.GetUserCruiseEnrollmentParams{CruiseID: cruise.ID, UserID: user.UserID}); err == nil {
+			info.Enrolled = true
+			info.Enrollment = new(dto.CruiseEnrollmentToDTO(e))
+		}
 	}
 	return &enrollInfoOutput{Body: info}, nil
 }

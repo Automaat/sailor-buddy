@@ -2,6 +2,7 @@
 	import { resolveEnroll, enroll } from '$lib/api/routes';
 	import type { EnrollPageData } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
@@ -13,6 +14,7 @@
 	let success = $state(false);
 
 	const token = $derived((page.params as Record<string, string>).token);
+	const loginHref = $derived(`/login?redirect=${encodeURIComponent(`/enroll/${token}`)}`);
 
 	onMount(async () => {
 		try {
@@ -40,10 +42,11 @@
 	}
 </script>
 
+<div class="min-h-screen bg-[var(--surface)] px-4 py-12">
 {#if loading}
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if error && !data}
-	<div class="mx-auto max-w-lg py-12 text-center">
+	<div class="mx-auto max-w-lg text-center">
 		<div class="rounded-2xl bg-white p-8 shadow-sm">
 			<h1 class="mb-2 text-2xl font-bold text-red-600">Nieprawidłowy link</h1>
 			<p class="text-[var(--text-muted)]">{error}</p>
@@ -163,6 +166,18 @@
 						Status: <span class="font-semibold">{statusLabels[data.enrollment.status] ?? data.enrollment.status}</span>
 					{/if}
 				</div>
+			{:else if !auth.isAuthenticated}
+				<div class="rounded-lg bg-gray-50 p-4 text-center">
+					<p class="mb-3 text-sm text-[var(--text-muted)]">
+						Zaloguj się lub załóż konto, aby dołączyć do tego rejsu.
+					</p>
+					<a
+						href={loginHref}
+						class="inline-block rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)]"
+					>
+						Zaloguj się, aby dołączyć
+					</a>
+				</div>
 			{:else}
 				<form onsubmit={handleEnroll} class="space-y-4">
 					<div>
@@ -187,3 +202,4 @@
 		</div>
 	</div>
 {/if}
+</div>
