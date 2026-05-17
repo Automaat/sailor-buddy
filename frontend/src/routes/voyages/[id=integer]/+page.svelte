@@ -13,6 +13,8 @@
 		getCruise
 	} from '$lib/api/routes';
 	import type { Voyage, CrewAssignment, CrewMember, VoyageOpinion, Cruise } from '$lib/api/types';
+	import { ApiError } from '$lib/api/client';
+	import NotFound from '$lib/components/NotFound.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -23,6 +25,7 @@
 	let opinions = $state<VoyageOpinion[]>([]);
 	let allCrewMembers = $state<CrewMember[]>([]);
 	let loading = $state(true);
+	let notFound = $state(false);
 
 	let genCrewId = $state('');
 	let genFormat = $state<'pdf' | 'docx'>('pdf');
@@ -46,7 +49,11 @@
 				cruise = await getCruise(voyage.cruise_id).catch(() => null);
 			}
 		} catch (err) {
-			console.error('Failed to load voyage:', err);
+			if (err instanceof ApiError && err.status === 404) {
+				notFound = true;
+			} else {
+				console.error('Failed to load voyage:', err);
+			}
 		} finally {
 			loading = false;
 		}
@@ -296,4 +303,18 @@
 			{/if}
 		</div>
 	</div>
+{:else if notFound}
+	<NotFound
+		title="Nie znaleziono rejsu"
+		message="Ten zrealizowany rejs nie istnieje lub nie masz do niego dostępu."
+		backHref="/voyages"
+		backLabel="Zrealizowane rejsy"
+	/>
+{:else}
+	<NotFound
+		title="Nie udało się wczytać rejsu"
+		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
+		backHref="/voyages"
+		backLabel="Zrealizowane rejsy"
+	/>
 {/if}

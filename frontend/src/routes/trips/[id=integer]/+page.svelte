@@ -14,16 +14,19 @@
 		clearTripEnrollToken
 	} from '$lib/api/routes';
 	import type { Trip, CrewAssignment, CrewMember, Cruise, CompleteTripPayload } from '$lib/api/types';
+	import { ApiError } from '$lib/api/client';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import CompleteTripModal from '$lib/components/CompleteTripModal.svelte';
+	import NotFound from '$lib/components/NotFound.svelte';
 
 	let trip = $state<Trip | null>(null);
 	let cruise = $state<Cruise | null>(null);
 	let crew = $state<CrewAssignment[]>([]);
 	let allCrewMembers = $state<CrewMember[]>([]);
 	let loading = $state(true);
+	let notFound = $state(false);
 
 	let assignCrewId = $state('');
 	let assignRole = $state('');
@@ -49,7 +52,11 @@
 				cruise = await getCruise(trip.cruise_id).catch(() => null);
 			}
 		} catch (err) {
-			console.error('Failed to load trip:', err);
+			if (err instanceof ApiError && err.status === 404) {
+				notFound = true;
+			} else {
+				console.error('Failed to load trip:', err);
+			}
 		} finally {
 			loading = false;
 		}
@@ -304,4 +311,18 @@
 			onSubmit={handleComplete}
 		/>
 	{/if}
+{:else if notFound}
+	<NotFound
+		title="Nie znaleziono rejsu"
+		message="Ten rejs nie istnieje lub nie masz do niego dostępu."
+		backHref="/trips"
+		backLabel="Wszystkie rejsy"
+	/>
+{:else}
+	<NotFound
+		title="Nie udało się wczytać rejsu"
+		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
+		backHref="/trips"
+		backLabel="Wszystkie rejsy"
+	/>
 {/if}

@@ -13,6 +13,8 @@
 		deleteCruiseEnrollment
 	} from '$lib/api/routes';
 	import type { Cruise, Trip, Voyage, CruiseEnrollment } from '$lib/api/types';
+	import { ApiError } from '$lib/api/client';
+	import NotFound from '$lib/components/NotFound.svelte';
 	import { statusLabels } from '$lib/enrollment';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -25,6 +27,7 @@
 	let voyages = $state<Voyage[]>([]);
 	let enrollments = $state<CruiseEnrollment[]>([]);
 	let loading = $state(true);
+	let notFound = $state(false);
 	let enrollToken = $state<string | null>(null);
 	let togglingEnroll = $state(false);
 
@@ -48,7 +51,11 @@
 			voyages = v;
 			enrollments = e;
 		} catch (err) {
-			console.error('Failed to load cruise:', err);
+			if (err instanceof ApiError && err.status === 404) {
+				notFound = true;
+			} else {
+				console.error('Failed to load cruise:', err);
+			}
 		} finally {
 			loading = false;
 		}
@@ -302,4 +309,18 @@
 			</div>
 		{/if}
 	</div>
+{:else if notFound}
+	<NotFound
+		title="Nie znaleziono wydarzenia"
+		message="To wydarzenie nie istnieje lub nie masz do niego dostępu."
+		backHref="/cruises"
+		backLabel="Wszystkie wydarzenia"
+	/>
+{:else}
+	<NotFound
+		title="Nie udało się wczytać wydarzenia"
+		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
+		backHref="/cruises"
+		backLabel="Wszystkie wydarzenia"
+	/>
 {/if}

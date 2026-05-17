@@ -7,6 +7,19 @@ import type { paths } from './schema';
 // at the backend; it falls back to /api when unset.
 const BASE = env.PUBLIC_API_URL || '/api';
 
+// ApiError carries the HTTP status alongside the message so callers can branch
+// on it — e.g. a detail page renders a "not found" panel for 404 instead of a
+// blank screen, but a generic error for everything else.
+export class ApiError extends Error {
+	readonly status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+	}
+}
+
 type HttpMethod = 'get' | 'put' | 'post' | 'delete';
 
 // PathsFor selects the path templates that declare a given HTTP method.
@@ -115,10 +128,10 @@ async function authHeaders(extra: Record<string, string> = {}): Promise<Record<s
 async function fail(res: Response): Promise<never> {
 	if (res.status === 401) {
 		await auth.logout();
-		throw new Error('Session expired');
+		throw new ApiError(401, 'Session expired');
 	}
 	const body = await res.json().catch(() => ({}));
-	throw new Error(body.detail || body.title || `Request failed: ${res.status}`);
+	throw new ApiError(res.status, body.detail || body.title || `Request failed: ${res.status}`);
 }
 
 // sendRequest issues one authenticated request against the API, attaching
