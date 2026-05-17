@@ -24,9 +24,15 @@ export function connectEmulator(auth: Auth, url: string): void {
 	}
 }
 
-if (import.meta.env.DEV) {
-	connectEmulator(
-		firebaseAuth,
-		import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL || 'http://localhost:9099'
-	);
+// Connecting to the emulator is a runtime decision, not a build-time one: the
+// production image is a single artifact run against the local emulator in
+// docker-compose. PUBLIC_FIREBASE_AUTH_EMULATOR_URL is read at runtime via
+// $env/dynamic/public; the import.meta.env paths cover the vite dev server.
+const emulatorUrl =
+	env.PUBLIC_FIREBASE_AUTH_EMULATOR_URL ||
+	import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL ||
+	(import.meta.env.DEV ? 'http://localhost:9099' : undefined);
+
+if (emulatorUrl) {
+	connectEmulator(firebaseAuth, emulatorUrl);
 }
