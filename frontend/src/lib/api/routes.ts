@@ -16,6 +16,15 @@ function requireOrg(): string {
 	return slug;
 }
 
+// tripSlug picks the scope for trips and voyages: org admins act on the
+// organization's records, everyone else (non-admin members and personal
+// mode) owns standalone personal trips. The org trip POST is admin-only, so
+// non-admins always get personal trips — every read/update helper must use
+// this same decision or it 404s against the wrong scope.
+function tripSlug(): string | null {
+	return orgStore.isOrgAdmin ? orgStore.currentSlug : null;
+}
+
 // ---- dashboard --------------------------------------------------------------
 
 export function getDashboard() {
@@ -28,70 +37,70 @@ export function getDashboard() {
 // ---- trips ------------------------------------------------------------------
 
 export function listTrips() {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug ? api.list('/orgs/{slug}/trips', { path: { slug } }) : api.list('/trips');
 }
 
 export function getTrip(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.get('/orgs/{slug}/trips/{tripID}', { path: { slug, tripID: id } })
 		: api.get('/trips/{tripID}', { path: { tripID: id } });
 }
 
 export function createTrip(body: Schemas['TripBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	// The org trip POST is admin-only; members (and personal mode) get a
 	// personal trip so a non-admin can still plan a standalone rejs.
-	return slug && orgStore.isOrgAdmin
+	return slug
 		? api.post('/orgs/{slug}/trips', { path: { slug }, body })
 		: api.post('/trips', { body });
 }
 
 export function updateTrip(id: number, body: Schemas['TripBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.put('/orgs/{slug}/trips/{tripID}', { path: { slug, tripID: id }, body })
 		: api.put('/trips/{tripID}', { path: { tripID: id }, body });
 }
 
 export function deleteTrip(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.del('/orgs/{slug}/trips/{tripID}', { path: { slug, tripID: id } })
 		: api.del('/trips/{tripID}', { path: { tripID: id } });
 }
 
 export function cancelTrip(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.post('/orgs/{slug}/trips/{tripID}/cancel', { path: { slug, tripID: id } })
 		: api.post('/trips/{tripID}/cancel', { path: { tripID: id } });
 }
 
 export function completeTrip(id: number, body: Schemas['CompleteTripBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.post('/orgs/{slug}/trips/{tripID}/complete', { path: { slug, tripID: id }, body })
 		: api.post('/trips/{tripID}/complete', { path: { tripID: id }, body });
 }
 
 export function listTripCrew(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.get('/orgs/{slug}/trips/{tripID}/crew', { path: { slug, tripID: id } })
 		: api.get('/trips/{tripID}/crew', { path: { tripID: id } });
 }
 
 export function assignTripCrew(id: number, body: Schemas['CrewAssignmentBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.post('/orgs/{slug}/trips/{tripID}/crew', { path: { slug, tripID: id }, body })
 		: api.post('/trips/{tripID}/crew', { path: { tripID: id }, body });
 }
 
 export function removeTripCrew(id: number, assignmentID: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.del('/orgs/{slug}/trips/{tripID}/crew/{assignmentID}', {
 				path: { slug, tripID: id, assignmentID }
@@ -131,54 +140,54 @@ export function deleteTripEnrollment(tripID: number, enrollmentID: number) {
 // ---- voyages ----------------------------------------------------------------
 
 export function listVoyages() {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug ? api.list('/orgs/{slug}/voyages', { path: { slug } }) : api.list('/voyages');
 }
 
 export function getVoyage(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.get('/orgs/{slug}/voyages/{voyageID}', { path: { slug, voyageID: id } })
 		: api.get('/voyages/{voyageID}', { path: { voyageID: id } });
 }
 
 export function createVoyage(body: Schemas['VoyageBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.post('/orgs/{slug}/voyages', { path: { slug }, body })
 		: api.post('/voyages', { body });
 }
 
 export function updateVoyage(id: number, body: Schemas['VoyageBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.put('/orgs/{slug}/voyages/{voyageID}', { path: { slug, voyageID: id }, body })
 		: api.put('/voyages/{voyageID}', { path: { voyageID: id }, body });
 }
 
 export function deleteVoyage(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.del('/orgs/{slug}/voyages/{voyageID}', { path: { slug, voyageID: id } })
 		: api.del('/voyages/{voyageID}', { path: { voyageID: id } });
 }
 
 export function listVoyageCrew(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.get('/orgs/{slug}/voyages/{voyageID}/crew', { path: { slug, voyageID: id } })
 		: api.get('/voyages/{voyageID}/crew', { path: { voyageID: id } });
 }
 
 export function assignVoyageCrew(id: number, body: Schemas['CrewAssignmentBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.post('/orgs/{slug}/voyages/{voyageID}/crew', { path: { slug, voyageID: id }, body })
 		: api.post('/voyages/{voyageID}/crew', { path: { voyageID: id }, body });
 }
 
 export function removeVoyageCrew(id: number, assignmentID: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.del('/orgs/{slug}/voyages/{voyageID}/crew/{assignmentID}', {
 				path: { slug, voyageID: id, assignmentID }
@@ -189,14 +198,14 @@ export function removeVoyageCrew(id: number, assignmentID: number) {
 }
 
 export function listVoyageOpinions(id: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.get('/orgs/{slug}/voyages/{voyageID}/opinions', { path: { slug, voyageID: id } })
 		: api.get('/voyages/{voyageID}/opinions', { path: { voyageID: id } });
 }
 
 export function generateVoyageOpinion(id: number, body: Schemas['GenerateOpinionBody']) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.post('/orgs/{slug}/voyages/{voyageID}/opinions', {
 				path: { slug, voyageID: id },
@@ -206,7 +215,7 @@ export function generateVoyageOpinion(id: number, body: Schemas['GenerateOpinion
 }
 
 export function deleteVoyageOpinion(id: number, opinionID: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.del('/orgs/{slug}/voyages/{voyageID}/opinions/{opinionID}', {
 				path: { slug, voyageID: id, opinionID }
@@ -217,7 +226,7 @@ export function deleteVoyageOpinion(id: number, opinionID: number) {
 }
 
 export function downloadVoyageOpinion(id: number, opinionID: number) {
-	const slug = orgStore.currentSlug;
+	const slug = tripSlug();
 	return slug
 		? api.download('/orgs/{slug}/voyages/{voyageID}/opinions/{opinionID}/download', {
 				path: { slug, voyageID: id, opinionID }

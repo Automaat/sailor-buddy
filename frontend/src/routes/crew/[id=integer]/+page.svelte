@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { getCrew, deleteCrew } from '$lib/api/routes';
 	import type { CrewMember } from '$lib/api/types';
+	import { ApiError } from '$lib/api/client';
+	import NotFound from '$lib/components/NotFound.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
 	let member = $state<CrewMember | null>(null);
 	let loading = $state(true);
+	let notFound = $state(false);
 
 	const id = $derived(Number(page.params.id));
 
@@ -14,7 +17,11 @@
 		try {
 			member = await getCrew(id);
 		} catch (err) {
-			console.error('Failed to load crew member:', err);
+			if (err instanceof ApiError && err.status === 404) {
+				notFound = true;
+			} else {
+				console.error('Failed to load crew member:', err);
+			}
 		} finally {
 			loading = false;
 		}
@@ -51,4 +58,18 @@
 			</dl>
 		</div>
 	</div>
+{:else if notFound}
+	<NotFound
+		title="Nie znaleziono załoganta"
+		message="Ten członek załogi nie istnieje lub nie masz do niego dostępu."
+		backHref="/crew"
+		backLabel="Cała załoga"
+	/>
+{:else}
+	<NotFound
+		title="Nie udało się wczytać załoganta"
+		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
+		backHref="/crew"
+		backLabel="Cała załoga"
+	/>
 {/if}
