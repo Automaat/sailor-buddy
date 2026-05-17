@@ -19,11 +19,17 @@ type ctxKey string
 const UserCtxKey ctxKey = "user"
 
 // optionalAuthPath reports whether a request may proceed without
-// authentication. The enrollment preview (GET /api/enroll/{token}) is shared
-// with people who do not yet have an account, so a missing or invalid token
-// resolves to an anonymous request instead of a 401.
+// authentication. Only the enrollment preview (GET /api/enroll/{token}, a
+// single token segment) is public — it is shared with people who do not yet
+// have an account, so a missing or invalid token resolves to an anonymous
+// request instead of a 401. Matching the exact route shape keeps any future
+// /api/enroll/* subroute authenticated by default.
 func optionalAuthPath(r *http.Request) bool {
-	return r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/enroll/")
+	if r.Method != http.MethodGet {
+		return false
+	}
+	token, ok := strings.CutPrefix(r.URL.Path, "/api/enroll/")
+	return ok && token != "" && !strings.Contains(token, "/")
 }
 
 func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Handler {

@@ -65,10 +65,16 @@
 		goto('/');
 	}
 
-	// Routes a logged-out visitor may reach: the login screen and the public
-	// enrollment preview shared via invite link.
+	// The public enrollment preview shared via invite link. Matched on the
+	// exact segment so an unrelated route like /enrollments stays private.
+	function isEnrollRoute(pathname: string) {
+		return pathname === '/enroll' || pathname.startsWith('/enroll/');
+	}
+
+	// Routes a logged-out visitor may reach: the login screen and the
+	// enrollment preview.
 	function isPublicRoute(pathname: string) {
-		return pathname.startsWith('/login') || pathname.startsWith('/enroll');
+		return pathname.startsWith('/login') || isEnrollRoute(pathname);
 	}
 
 	$effect(() => {
@@ -115,7 +121,7 @@
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 		<Anchor class="h-10 w-10 text-white" />
 	</div>
-{:else if $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/join') || $page.url.pathname.startsWith('/enroll')}
+{:else if $page.url.pathname.startsWith('/login') || $page.url.pathname.startsWith('/join') || isEnrollRoute($page.url.pathname)}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">
