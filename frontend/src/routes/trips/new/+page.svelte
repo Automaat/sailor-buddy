@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { page } from '$app/state';
-	import { listYachts, listCruises, createTrip } from '$lib/api/routes';
-	import type { Yacht, Cruise } from '$lib/api/types';
+	import { listCruises, createTrip } from '$lib/api/routes';
+	import type { Cruise } from '$lib/api/types';
 	import { onMount } from 'svelte';
 
-	let yachts = $state<Yacht[]>([]);
 	let cruises = $state<Cruise[]>([]);
 	let error = $state('');
 	let loading = $state(false);
@@ -24,18 +24,15 @@
 		countries: '',
 		start_port: '',
 		end_port: '',
-		captain_name: '',
-		yacht_id: 0,
 		cruise_id: 0,
-		cost_total: 0,
 		cost_per_person: 0,
 		max_crew: 0,
 		description: ''
 	});
 
 	onMount(async () => {
-		yachts = await listYachts();
-		if (orgStore.isOrgMode) {
+		// Club events belong to org admins; regular members plan standalone trips.
+		if (orgStore.isOrgAdmin) {
 			cruises = await listCruises().catch(() => []);
 		}
 		if (initialCruiseID) {
@@ -58,7 +55,8 @@
 		try {
 			const payload = {
 				...form,
-				yacht_id: form.yacht_id || undefined,
+				// The planning user is the captain by default.
+				captain_name: auth.user?.name ?? undefined,
 				cruise_id: form.cruise_id || undefined
 			};
 			const trip = await createTrip(payload);
@@ -84,7 +82,7 @@
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 			</div>
-			{#if orgStore.isOrgMode && cruises.length > 0}
+			{#if orgStore.isOrgAdmin && cruises.length > 0}
 				<div class="col-span-2">
 					<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu</label>
 					<select id="cruise" bind:value={form.cruise_id} class="w-full rounded-lg border px-3 py-2">
@@ -95,19 +93,6 @@
 					</select>
 				</div>
 			{/if}
-			<div>
-				<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
-				<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
-					<option value={0}>-- Wybierz --</option>
-					{#each yachts as yacht}
-						<option value={yacht.id}>{yacht.name}</option>
-					{/each}
-				</select>
-			</div>
-			<div>
-				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-				<input id="captain" type="text" bind:value={form.captain_name} class="w-full rounded-lg border px-3 py-2" />
-			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
 				<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />
@@ -132,11 +117,7 @@
 
 		<hr />
 		<h3 class="font-semibold text-[var(--navy)]">Koszty i załoga</h3>
-		<div class="grid grid-cols-3 gap-4">
-			<div>
-				<label for="cost_total" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
-				<input id="cost_total" type="number" step="0.01" bind:value={form.cost_total} class="w-full rounded-lg border px-3 py-2" />
-			</div>
+		<div class="grid grid-cols-2 gap-4">
 			<div>
 				<label for="cost_pp" class="mb-1 block text-sm font-medium">Koszt na osobę</label>
 				<input id="cost_pp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
