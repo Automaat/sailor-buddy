@@ -868,6 +868,10 @@ components:
           type: integer
         name:
           type: string
+        patent_number:
+          type: string
+        patent_type:
+          type: string
       required:
         - id
         - email
@@ -1600,6 +1604,27 @@ components:
         - created_at
         - updated_at
       type: object
+    UpdatePatentBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/UpdatePatentBody.json
+          format: uri
+          readOnly: true
+          type: string
+        patent_number:
+          description: Patent registration number
+          type: string
+        patent_type:
+          description: Polish sailing patent grade
+          enum:
+            - zeglarz_jachtowy
+            - jachtowy_sternik_morski
+            - kapitan_jachtowy
+          type: string
+      type: object
     UploadURLOutputBody:
       additionalProperties: false
       properties:
@@ -1959,6 +1984,30 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Current authenticated user
+      tags:
+        - Auth
+    put:
+      operationId: update-me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePatentBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update the current user's sailing patent
       tags:
         - Auth
   /crew:

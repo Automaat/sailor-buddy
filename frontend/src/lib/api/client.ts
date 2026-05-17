@@ -1,7 +1,11 @@
+import { env } from '$env/dynamic/public';
 import { auth } from '$lib/stores/auth.svelte';
 import type { paths } from './schema';
 
-const BASE = '/api';
+// Dev serves the API through the Vite proxy at /api. The production build
+// (adapter-node) has no proxy, so PUBLIC_API_URL points the browser straight
+// at the backend; it falls back to /api when unset.
+const BASE = env.PUBLIC_API_URL || '/api';
 
 type HttpMethod = 'get' | 'put' | 'post' | 'delete';
 

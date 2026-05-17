@@ -147,6 +147,10 @@ type mockQuerier struct {
 	countTrainingsFn      func(ctx context.Context, userID int64) (int64, error)
 	countCrewMembersFn    func(ctx context.Context, ownerID int64) (int64, error)
 	countOrgCrewMembersFn func(ctx context.Context, orgID types.NullInt64) (int64, error)
+
+	// users
+	getUserByIDFn      func(ctx context.Context, id int64) (sqlcdb.User, error)
+	updateUserPatentFn func(ctx context.Context, arg sqlcdb.UpdateUserPatentParams) error
 }
 
 // --- trips ---
@@ -948,8 +952,18 @@ func (m *mockQuerier) GetUserByFirebaseUID(context.Context, types.NullString) (s
 	panic("unexpected call to GetUserByFirebaseUID")
 }
 
-func (m *mockQuerier) GetUserByID(context.Context, int64) (sqlcdb.User, error) {
-	panic("unexpected call to GetUserByID")
+func (m *mockQuerier) GetUserByID(ctx context.Context, id int64) (sqlcdb.User, error) {
+	if m.getUserByIDFn == nil {
+		panic("unexpected call to GetUserByID")
+	}
+	return m.getUserByIDFn(ctx, id)
+}
+
+func (m *mockQuerier) UpdateUserPatent(ctx context.Context, arg sqlcdb.UpdateUserPatentParams) error {
+	if m.updateUserPatentFn == nil {
+		panic("unexpected call to UpdateUserPatent")
+	}
+	return m.updateUserPatentFn(ctx, arg)
 }
 
 func (m *mockQuerier) LinkFirebaseUIDByEmail(context.Context, sqlcdb.LinkFirebaseUIDByEmailParams) (sqlcdb.User, error) {

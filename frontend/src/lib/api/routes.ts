@@ -41,7 +41,9 @@ export function getTrip(id: number) {
 
 export function createTrip(body: Schemas['TripBody']) {
 	const slug = orgStore.currentSlug;
-	return slug
+	// The org trip POST is admin-only; members (and personal mode) get a
+	// personal trip so a non-admin can still plan a standalone rejs.
+	return slug && orgStore.isOrgAdmin
 		? api.post('/orgs/{slug}/trips', { path: { slug }, body })
 		: api.post('/trips', { body });
 }
@@ -436,6 +438,10 @@ export function deleteOrgInvite(slug: string, inviteID: number) {
 
 export function getMe() {
 	return api.get('/auth/me');
+}
+
+export function updateMe(body: Schemas['UpdatePatentBody']) {
+	return api.put('/auth/me', { body });
 }
 
 // resolveEnroll rebuilds the flat EnrollInfo response into the discriminated

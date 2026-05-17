@@ -12,7 +12,7 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 `
 
 type CreateUserParams struct {
@@ -23,7 +23,7 @@ type CreateUserParams struct {
 
 // CreateUser
 //
-//	INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+//	INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.FirebaseUid)
 	var i User
@@ -36,17 +36,19 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FirebaseUid,
+		&i.PatentType,
+		&i.PatentNumber,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = $1
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE email = $1
 `
 
 // GetUserByEmail
 //
-//	SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = $1
+//	SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE email = $1
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
 	var i User
@@ -59,17 +61,19 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FirebaseUid,
+		&i.PatentType,
+		&i.PatentNumber,
 	)
 	return i, err
 }
 
 const getUserByFirebaseUID = `-- name: GetUserByFirebaseUID :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = $1
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE firebase_uid = $1
 `
 
 // GetUserByFirebaseUID
 //
-//	SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = $1
+//	SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE firebase_uid = $1
 func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByFirebaseUID, firebaseUid)
 	var i User
@@ -82,17 +86,19 @@ func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid types.Nu
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FirebaseUid,
+		&i.PatentType,
+		&i.PatentNumber,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = $1
+SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE id = $1
 `
 
 // GetUserByID
 //
-//	SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = $1
+//	SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE id = $1
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
@@ -105,6 +111,8 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FirebaseUid,
+		&i.PatentType,
+		&i.PatentNumber,
 	)
 	return i, err
 }
@@ -116,7 +124,7 @@ UPDATE users SET
   updated_at = CURRENT_TIMESTAMP
 WHERE email = $3
   AND (firebase_uid IS NULL OR firebase_uid = $1)
-RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 `
 
 type LinkFirebaseUIDByEmailParams struct {
@@ -133,7 +141,7 @@ type LinkFirebaseUIDByEmailParams struct {
 //	  updated_at = CURRENT_TIMESTAMP
 //	WHERE email = $3
 //	  AND (firebase_uid IS NULL OR firebase_uid = $1)
-//	RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+//	RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, linkFirebaseUIDByEmail, arg.FirebaseUid, arg.NewName, arg.Email)
 	var i User
@@ -146,6 +154,8 @@ func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FirebaseUid,
+		&i.PatentType,
+		&i.PatentNumber,
 	)
 	return i, err
 }
@@ -174,6 +184,24 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 	return err
 }
 
+const updateUserPatent = `-- name: UpdateUserPatent :exec
+UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
+`
+
+type UpdateUserPatentParams struct {
+	PatentType   types.NullString `json:"patent_type"`
+	PatentNumber types.NullString `json:"patent_number"`
+	ID           int64            `json:"id"`
+}
+
+// UpdateUserPatent
+//
+//	UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
+func (q *Queries) UpdateUserPatent(ctx context.Context, arg UpdateUserPatentParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPatent, arg.PatentType, arg.PatentNumber, arg.ID)
+	return err
+}
+
 const upsertUserByFirebaseUID = `-- name: UpsertUserByFirebaseUID :one
 INSERT INTO users (email, name, password_hash, firebase_uid)
 VALUES ($1, $2, '', $3)
@@ -181,7 +209,7 @@ ON CONFLICT(firebase_uid) DO UPDATE SET
   email = EXCLUDED.email,
   name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
   updated_at = CURRENT_TIMESTAMP
-RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 `
 
 type UpsertUserByFirebaseUIDParams struct {
@@ -198,7 +226,7 @@ type UpsertUserByFirebaseUIDParams struct {
 //	  email = EXCLUDED.email,
 //	  name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
 //	  updated_at = CURRENT_TIMESTAMP
-//	RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+//	RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserByFirebaseUID, arg.Email, arg.Name, arg.FirebaseUid)
 	var i User
@@ -211,6 +239,8 @@ func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByF
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.FirebaseUid,
+		&i.PatentType,
+		&i.PatentNumber,
 	)
 	return i, err
 }

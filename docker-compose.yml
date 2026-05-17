@@ -65,15 +65,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"
+      - "5173:3000"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/static:/app/static
     environment:
       - PUBLIC_API_URL=http://localhost:8081/api
-      - VITE_BACKEND_URL=http://backend:8080
-      - VITE_FIREBASE_AUTH_EMULATOR_URL=http://localhost:9099
-      - VITE_FIREBASE_PROJECT_ID=sailor-buddy-dev
+      - PUBLIC_FIREBASE_AUTH_EMULATOR_URL=http://localhost:9099
+      - PUBLIC_FIREBASE_PROJECT_ID=sailor-buddy-dev
 
 volumes:
   postgres-data:

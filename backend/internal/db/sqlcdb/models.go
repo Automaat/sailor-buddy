@@ -211,6 +211,8 @@ type User struct {
 	CreatedAt    types.NullTime   `json:"created_at"`
 	UpdatedAt    types.NullTime   `json:"updated_at"`
 	FirebaseUid  types.NullString `json:"firebase_uid"`
+	PatentType   types.NullString `json:"patent_type"`
+	PatentNumber types.NullString `json:"patent_number"`
 }
 
 type Voyage struct {

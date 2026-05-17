@@ -186,9 +186,12 @@
 				{/each}
 			</div>
 			<div class="border-t border-white/10 p-4">
-				<div class="mb-2 text-sm text-white/70">
+				<a
+					href="/profile"
+					class="mb-2 block text-sm text-white/70 transition-colors hover:text-white"
+				>
 					{auth.user?.name || auth.firebaseUser?.displayName || ''}
-				</div>
+				</a>
 				<button
 					onclick={handleLogout}
 					class="text-sm text-white/50 transition-colors hover:text-white"
