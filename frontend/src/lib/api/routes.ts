@@ -264,6 +264,15 @@ export function listCrew() {
 	return slug ? api.list('/orgs/{slug}/crew', { path: { slug } }) : api.list('/crew');
 }
 
+// listAssignableCrew returns the crew pool for trip/voyage assignment pickers.
+// It is scoped by tripSlug() so the picker matches assignTripCrew/
+// assignVoyageCrew — listCrew()'s org scope 404s for non-admin members, whose
+// trips are personal.
+export function listAssignableCrew() {
+	const slug = tripSlug();
+	return slug ? api.list('/orgs/{slug}/crew', { path: { slug } }) : api.list('/crew');
+}
+
 export function getCrew(id: number) {
 	const slug = orgStore.currentSlug;
 	return slug

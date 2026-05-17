@@ -8,7 +8,7 @@
 		removeTripCrew,
 		cancelTrip,
 		completeTrip,
-		listCrew,
+		listAssignableCrew,
 		getCruise,
 		generateTripEnrollToken,
 		clearTripEnrollToken
@@ -46,7 +46,7 @@
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers] = await Promise.all([
 				listTripCrew(id).then((c) => c ?? []).catch(() => []),
-				listCrew().catch(() => [])
+				listAssignableCrew().catch(() => [])
 			]);
 			if (trip?.cruise_id) {
 				cruise = await getCruise(trip.cruise_id).catch(() => null);

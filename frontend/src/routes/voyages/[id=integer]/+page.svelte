@@ -9,7 +9,7 @@
 		generateVoyageOpinion,
 		deleteVoyageOpinion,
 		downloadVoyageOpinion,
-		listCrew,
+		listAssignableCrew,
 		getCruise
 	} from '$lib/api/routes';
 	import type { Voyage, CrewAssignment, CrewMember, VoyageOpinion, Cruise } from '$lib/api/types';
@@ -43,7 +43,7 @@
 			[crew, opinions, allCrewMembers] = await Promise.all([
 				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),
 				listVoyageOpinions(id).then((o) => o ?? []).catch(() => []),
-				listCrew().catch(() => [])
+				listAssignableCrew().catch(() => [])
 			]);
 			if (voyage?.cruise_id) {
 				cruise = await getCruise(voyage.cruise_id).catch(() => null);
