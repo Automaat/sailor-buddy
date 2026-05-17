@@ -4,10 +4,31 @@ import "github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 
 // Me is the authenticated user's profile.
 type Me struct {
-	ID        int64  `json:"id"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	AvatarURL string `json:"avatar_url"`
+	ID           int64   `json:"id"`
+	Email        string  `json:"email"`
+	Name         string  `json:"name"`
+	AvatarURL    string  `json:"avatar_url"`
+	PatentType   *string `json:"patent_type,omitempty"`
+	PatentNumber *string `json:"patent_number,omitempty"`
+}
+
+// MeFromUser maps a stored user row onto the profile DTO.
+func MeFromUser(u sqlcdb.User) Me {
+	return Me{
+		ID:           u.ID,
+		Email:        u.Email,
+		Name:         u.Name,
+		AvatarURL:    u.AvatarUrl.String,
+		PatentType:   strPtr(u.PatentType),
+		PatentNumber: strPtr(u.PatentNumber),
+	}
+}
+
+// UpdatePatentBody is the request body for setting the user's sailing patent.
+// PatentType is one of the three Polish patent grades, or omitted for none.
+type UpdatePatentBody struct {
+	PatentType   *string `json:"patent_type,omitempty" enum:"zeglarz_jachtowy,jachtowy_sternik_morski,kapitan_jachtowy" doc:"Polish sailing patent grade"`
+	PatentNumber *string `json:"patent_number,omitempty" doc:"Patent registration number"`
 }
 
 // VoyagesByYear is one row of the per-year sailing breakdown.

@@ -13,7 +13,8 @@ export interface paths {
         };
         /** Current authenticated user */
         get: operations["get-me"];
-        put?: never;
+        /** Update the current user's sailing patent */
+        put: operations["update-me"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1644,6 +1645,8 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+            patent_number?: string;
+            patent_type?: string;
         };
         MemberRoleBody: {
             /**
@@ -2069,6 +2072,21 @@ export interface components {
             user_id: number;
             user_name: string;
         };
+        UpdatePatentBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/UpdatePatentBody.json
+             */
+            readonly $schema?: string;
+            /** @description Patent registration number */
+            patent_number?: string;
+            /**
+             * @description Polish sailing patent grade
+             * @enum {string}
+             */
+            patent_type?: "zeglarz_jachtowy" | "jachtowy_sternik_morski" | "kapitan_jachtowy";
+        };
         UploadURLOutputBody: {
             /**
              * Format: uri
@@ -2271,6 +2289,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePatentBody"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

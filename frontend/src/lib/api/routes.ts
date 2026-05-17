@@ -438,6 +438,10 @@ export function getMe() {
 	return api.get('/auth/me');
 }
 
+export function updateMe(body: Schemas['UpdatePatentBody']) {
+	return api.put('/auth/me', { body });
+}
+
 // resolveEnroll rebuilds the flat EnrollInfo response into the discriminated
 // union the page consumes. The backend populates trip/cruise per `kind`; this
 // throws rather than emitting a malformed union when that contract is broken.

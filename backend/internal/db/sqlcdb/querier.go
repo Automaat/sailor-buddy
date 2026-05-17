@@ -185,7 +185,7 @@ type Querier interface {
 	CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error)
 	//CreateUser
 	//
-	//  INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+	//  INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	//CreateVoyage
 	//
@@ -446,15 +446,15 @@ type Querier interface {
 	GetTripStatus(ctx context.Context, id int64) (TripStatus, error)
 	//GetUserByEmail
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE email = $1
+	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE email = $1
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	//GetUserByFirebaseUID
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE firebase_uid = $1
+	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE firebase_uid = $1
 	GetUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (User, error)
 	//GetUserByID
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid FROM users WHERE id = $1
+	//  SELECT id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number FROM users WHERE id = $1
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	//GetUserCruiseEnrollment
 	//
@@ -511,7 +511,7 @@ type Querier interface {
 	//    updated_at = CURRENT_TIMESTAMP
 	//  WHERE email = $3
 	//    AND (firebase_uid IS NULL OR firebase_uid = $1)
-	//  RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+	//  RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	//ListCrewMembers
 	//
@@ -772,6 +772,10 @@ type Querier interface {
 	//
 	//  UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
+	//UpdateUserPatent
+	//
+	//  UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
+	UpdateUserPatent(ctx context.Context, arg UpdateUserPatentParams) error
 	//UpdateVoyage
 	//
 	//  UPDATE voyages SET
@@ -796,7 +800,7 @@ type Querier interface {
 	//    email = EXCLUDED.email,
 	//    name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
 	//    updated_at = CURRENT_TIMESTAMP
-	//  RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid
+	//  RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at, firebase_uid, patent_type, patent_number
 	UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error)
 	//UpsertVoyageOpinion
 	//

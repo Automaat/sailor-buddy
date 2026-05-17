@@ -30,3 +30,6 @@ RETURNING *;
 
 -- name: UpdateUser :exec
 UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4;
+
+-- name: UpdateUserPatent :exec
+UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3;
