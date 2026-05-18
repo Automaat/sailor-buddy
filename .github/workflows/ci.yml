@@ -100,7 +100,7 @@ jobs:
       - run: go test -coverprofile=coverage.out ./...
         env:
           SAILOR_TEST_DATABASE_URL: postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable
-      - uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+      - uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           files: backend/coverage.out
           flags: backend
@@ -159,7 +159,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run test:coverage
-      - uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+      - uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           files: frontend/coverage/cobertura-coverage.xml
           flags: frontend
