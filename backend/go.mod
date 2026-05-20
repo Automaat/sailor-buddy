@@ -12,7 +12,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/lukasjarosch/go-docx v0.5.0
 	github.com/xuri/excelize/v2 v2.10.1
-	google.golang.org/api v0.279.0
+	google.golang.org/api v0.280.0
 )
 
 require (
