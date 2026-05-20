@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import {
 		getTrip,
 		deleteTrip,
@@ -39,6 +40,11 @@
 	let showCompleteModal = $state(false);
 
 	const id = $derived(Number(page.params.id));
+	// Trip owner (captain) manages crew. Org admins get the same access so they
+	// can support members across the organization.
+	const canManageCrew = $derived(
+		(!!trip && !!auth.user && trip.owner_id === auth.user.id) || orgStore.isOrgAdmin
+	);
 
 	onMount(async () => {
 		try {
@@ -251,58 +257,60 @@
 			</div>
 		{/if}
 
-		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<div class="mb-3 flex items-center justify-between">
-				<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
-			</div>
-
-			{#if allCrewMembers.length > 0 && trip.status === 'planned'}
-				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
-					<div>
-						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
-							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member}
-								<option value={member.id}>{member.full_name}</option>
-							{/each}
-						</select>
-					</div>
-					<div>
-						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
-						<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
-					</div>
-					<button
-						type="submit"
-						disabled={!assignCrewId || !assignRole || assigning}
-						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
-					>
-						{assigning ? 'Dodawanie...' : 'Dodaj'}
-					</button>
-				</form>
-			{/if}
-
-			{#if crew.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
-			{:else}
-				<div class="space-y-2">
-					{#each crew as member}
-						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-							<div class="flex items-center gap-2">
-								<span class="font-medium">{member.full_name}</span>
-								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
-									{member.role}
-								</span>
-							</div>
-							{#if trip.status === 'planned'}
-								<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
-									Usuń
-								</button>
-							{/if}
-						</div>
-					{/each}
+		{#if canManageCrew}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
 				</div>
-			{/if}
-		</div>
+
+				{#if allCrewMembers.length > 0 && trip.status === 'planned'}
+					<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
+						<div>
+							<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
+							<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+								<option value="">Wybierz...</option>
+								{#each allCrewMembers as member}
+									<option value={member.id}>{member.full_name}</option>
+								{/each}
+							</select>
+						</div>
+						<div>
+							<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
+							<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
+						</div>
+						<button
+							type="submit"
+							disabled={!assignCrewId || !assignRole || assigning}
+							class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
+						>
+							{assigning ? 'Dodawanie...' : 'Dodaj'}
+						</button>
+					</form>
+				{/if}
+
+				{#if crew.length === 0}
+					<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
+				{:else}
+					<div class="space-y-2">
+						{#each crew as member}
+							<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+								<div class="flex items-center gap-2">
+									<span class="font-medium">{member.full_name}</span>
+									<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+										{member.role}
+									</span>
+								</div>
+								{#if trip.status === 'planned'}
+									<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
+										Usuń
+									</button>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	{#if showCompleteModal}
