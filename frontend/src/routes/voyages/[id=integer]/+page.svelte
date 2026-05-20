@@ -27,6 +27,7 @@
 	} from '$lib/api/types';
 	import { ApiError } from '$lib/api/client';
 	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import NotFound from '$lib/components/NotFound.svelte';
 	import PortPicker from '$lib/components/PortPicker.svelte';
 	import { page } from '$app/state';
@@ -51,6 +52,11 @@
 	let assigning = $state(false);
 
 	const id = $derived(Number(page.params.id));
+	// Voyage owner (captain) manages crew & opinions. Org admins get the same
+	// access so they can support members across the organization.
+	const canManageCrew = $derived(
+		(!!voyage && !!auth.user && voyage.owner_id === auth.user.id) || orgStore.isOrgAdmin
+	);
 
 	onMount(async () => {
 		try {
@@ -183,12 +189,14 @@
 					{#if voyage.year} · {voyage.year}{/if}
 				</p>
 			</div>
-			<div class="flex gap-2">
-				<a href="/voyages/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
-				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-					Usuń
-				</button>
-			</div>
+			{#if canManageCrew}
+				<div class="flex gap-2">
+					<a href="/voyages/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+						Usuń
+					</button>
+				</div>
+			{/if}
 		</div>
 
 		<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -249,105 +257,107 @@
 			<PortPicker {ports} onAdd={addPort} onRemove={removePort} onReorder={reorderPorts} />
 		</div>
 
-		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<div class="mb-3 flex items-center justify-between">
-				<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
-			</div>
+		{#if canManageCrew}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
+				</div>
 
-			{#if allCrewMembers.length > 0}
-				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
-					<div>
-						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
-							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member}
-								<option value={member.id}>{member.full_name}</option>
-							{/each}
-						</select>
-					</div>
-					<div>
-						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
-						<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
-					</div>
-					<button type="submit" disabled={!assignCrewId || !assignRole || assigning} class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50">
-						{assigning ? 'Dodawanie...' : 'Dodaj'}
-					</button>
-				</form>
-			{/if}
-
-			{#if crew.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
-			{:else}
-				<div class="space-y-2">
-					{#each crew as member}
-						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-							<div class="flex items-center gap-2">
-								<span class="font-medium">{member.full_name}</span>
-								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
-									{member.role}
-								</span>
-							</div>
-							<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
-								Usuń
-							</button>
+				{#if allCrewMembers.length > 0}
+					<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
+						<div>
+							<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
+							<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+								<option value="">Wybierz...</option>
+								{#each allCrewMembers as member}
+									<option value={member.id}>{member.full_name}</option>
+								{/each}
+							</select>
 						</div>
-					{/each}
-				</div>
-			{/if}
-		</div>
+						<div>
+							<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
+							<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
+						</div>
+						<button type="submit" disabled={!assignCrewId || !assignRole || assigning} class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50">
+							{assigning ? 'Dodawanie...' : 'Dodaj'}
+						</button>
+					</form>
+				{/if}
 
-		<div class="rounded-2xl bg-white p-6 shadow-sm">
-			<h2 class="mb-3 font-semibold text-[var(--navy)]">Opinie z rejsu</h2>
-
-			{#if crew.length > 0}
-				<div class="mb-4 flex flex-wrap items-end gap-2">
-					<div>
-						<label for="gen-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="gen-crew" bind:value={genCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
-							<option value="">Wybierz...</option>
-							{#each crew as member}
-								<option value={member.crew_member_id}>{member.full_name}</option>
-							{/each}
-						</select>
-					</div>
-					<div>
-						<label for="gen-format" class="block text-xs text-[var(--text-muted)]">Format</label>
-						<select id="gen-format" bind:value={genFormat} class="rounded-lg border px-3 py-1.5 text-sm">
-							<option value="pdf">PDF</option>
-							<option value="docx">DOCX</option>
-						</select>
-					</div>
-					<button onclick={generateOpinion} disabled={!genCrewId || generating} class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50">
-						{generating ? 'Generowanie...' : 'Generuj'}
-					</button>
-				</div>
-			{/if}
-
-			{#if opinions.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">Brak wygenerowanych opinii.</p>
-			{:else}
-				<div class="space-y-2">
-					{#each opinions as op}
-						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-							<div class="flex items-center gap-2">
-								<span class="font-medium">{op.full_name}</span>
-								<span class="rounded-full bg-[var(--sand)]/20 px-2 py-0.5 text-xs uppercase text-[var(--sand)]">
-									{op.file_format}
-								</span>
-							</div>
-							<div class="flex gap-2">
-								<button onclick={() => downloadOpinion(op.id)} class="text-sm text-[var(--ocean)] hover:underline">
-									Pobierz
-								</button>
-								<button onclick={() => deleteOpinion(op.id)} class="text-sm text-red-500 hover:underline">
+				{#if crew.length === 0}
+					<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
+				{:else}
+					<div class="space-y-2">
+						{#each crew as member}
+							<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+								<div class="flex items-center gap-2">
+									<span class="font-medium">{member.full_name}</span>
+									<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+										{member.role}
+									</span>
+								</div>
+								<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
 									Usuń
 								</button>
 							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<div class="rounded-2xl bg-white p-6 shadow-sm">
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Opinie z rejsu</h2>
+
+				{#if crew.length > 0}
+					<div class="mb-4 flex flex-wrap items-end gap-2">
+						<div>
+							<label for="gen-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
+							<select id="gen-crew" bind:value={genCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+								<option value="">Wybierz...</option>
+								{#each crew as member}
+									<option value={member.crew_member_id}>{member.full_name}</option>
+								{/each}
+							</select>
 						</div>
-					{/each}
-				</div>
-			{/if}
-		</div>
+						<div>
+							<label for="gen-format" class="block text-xs text-[var(--text-muted)]">Format</label>
+							<select id="gen-format" bind:value={genFormat} class="rounded-lg border px-3 py-1.5 text-sm">
+								<option value="pdf">PDF</option>
+								<option value="docx">DOCX</option>
+							</select>
+						</div>
+						<button onclick={generateOpinion} disabled={!genCrewId || generating} class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50">
+							{generating ? 'Generowanie...' : 'Generuj'}
+						</button>
+					</div>
+				{/if}
+
+				{#if opinions.length === 0}
+					<p class="text-sm text-[var(--text-muted)]">Brak wygenerowanych opinii.</p>
+				{:else}
+					<div class="space-y-2">
+						{#each opinions as op}
+							<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
+								<div class="flex items-center gap-2">
+									<span class="font-medium">{op.full_name}</span>
+									<span class="rounded-full bg-[var(--sand)]/20 px-2 py-0.5 text-xs uppercase text-[var(--sand)]">
+										{op.file_format}
+									</span>
+								</div>
+								<div class="flex gap-2">
+									<button onclick={() => downloadOpinion(op.id)} class="text-sm text-[var(--ocean)] hover:underline">
+										Pobierz
+									</button>
+									<button onclick={() => deleteOpinion(op.id)} class="text-sm text-red-500 hover:underline">
+										Usuń
+									</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</div>
 {:else if notFound}
 	<NotFound
