@@ -32,7 +32,7 @@ export interface paths {
         /** List crew members */
         get: operations["list-crew"];
         put?: never;
-        /** Create a crew member */
+        /** Create a crew member (admin) */
         post: operations["create-crew-member"];
         delete?: never;
         options?: never;
@@ -49,11 +49,168 @@ export interface paths {
         };
         /** Get a crew member */
         get: operations["get-crew-member"];
-        /** Update a crew member */
+        /** Update a crew member (admin) */
         put: operations["update-crew-member"];
         post?: never;
-        /** Delete a crew member */
+        /** Delete a crew member (admin) */
         delete: operations["delete-crew-member"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cruises */
+        get: operations["list-cruises"];
+        put?: never;
+        /** Create a cruise (admin) */
+        post: operations["create-cruise"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a cruise */
+        get: operations["get-cruise"];
+        /** Update a cruise (admin) */
+        put: operations["update-cruise"];
+        post?: never;
+        /** Delete a cruise (admin) */
+        delete: operations["delete-cruise"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a cruise enrollment token (admin) */
+        post: operations["generate-cruise-enroll-token"];
+        /** Clear a cruise enrollment token (admin) */
+        delete: operations["clear-cruise-enroll-token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a cruise's enrollments (admin) */
+        get: operations["list-cruise-enrollments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/enrollments/{enrollmentID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a cruise enrollment (admin) */
+        delete: operations["delete-cruise-enrollment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/enrollments/{enrollmentID}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a cruise enrollment's status (admin) */
+        put: operations["update-cruise-enrollment-status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/enrollments/{enrollmentID}/trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign a cruise enrollment to a trip (admin) */
+        put: operations["assign-cruise-enrollment-trip"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a cruise's child trips */
+        get: operations["list-cruise-trips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/voyages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a cruise's child voyages */
+        get: operations["list-cruise-voyages"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -66,7 +223,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Owner sailing summary */
+        /** Club sailing summary */
         get: operations["get-dashboard"];
         put?: never;
         post?: never;
@@ -145,136 +302,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/join/{token}": {
+    "/members": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Resolve an invite token */
-        get: operations["get-invite-info"];
+        /** List club members */
+        get: operations["list-members"];
         put?: never;
-        /** Accept an invite */
-        post: operations["accept-invite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List the caller's organizations */
-        get: operations["list-orgs"];
-        put?: never;
-        /** Create an organization */
-        post: operations["create-org"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an organization */
-        get: operations["get-org"];
-        /** Update an organization (admin) */
-        put: operations["update-org"];
         post?: never;
-        /** Delete an organization (admin) */
-        delete: operations["delete-org"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List org crew members */
-        get: operations["list-org-crew"];
-        put?: never;
-        /** Create an org crew member (admin) */
-        post: operations["create-org-crew-member"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/orgs/{slug}/crew/{crewID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an org crew member */
-        get: operations["get-org-crew-member"];
-        /** Update an org crew member (admin) */
-        put: operations["update-org-crew-member"];
-        post?: never;
-        /** Delete an org crew member (admin) */
-        delete: operations["delete-org-crew-member"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List org cruises */
-        get: operations["list-org-cruises"];
-        put?: never;
-        /** Create an org cruise (admin) */
-        post: operations["create-org-cruise"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an org cruise */
-        get: operations["get-org-cruise"];
-        /** Update an org cruise (admin) */
-        put: operations["update-org-cruise"];
-        post?: never;
-        /** Delete an org cruise (admin) */
-        delete: operations["delete-org-cruise"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/enroll-token": {
+    "/members/{userID}/role": {
         parameters: {
             query?: never;
             header?: never;
@@ -282,535 +327,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
-        /** Generate a cruise enrollment token (admin) */
-        post: operations["generate-cruise-enroll-token"];
-        /** Clear a cruise enrollment token (admin) */
-        delete: operations["clear-cruise-enroll-token"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/enrollments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a cruise's enrollments */
-        get: operations["list-cruise-enrollments"];
-        put?: never;
+        /** Change a member's role (admin) */
+        put: operations["update-member-role"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete a cruise enrollment (admin) */
-        delete: operations["delete-cruise-enrollment"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update a cruise enrollment's status (admin) */
-        put: operations["update-cruise-enrollment-status"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/enrollments/{enrollmentID}/trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Assign a cruise enrollment to a trip (admin) */
-        put: operations["assign-cruise-enrollment-trip"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/trips": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a cruise's child trips */
-        get: operations["list-cruise-trips"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/cruises/{cruiseID}/voyages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List a cruise's child voyages */
-        get: operations["list-cruise-voyages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Org sailing and membership summary */
-        get: operations["get-org-dashboard"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/invites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List invite links (admin) */
-        get: operations["list-org-invites"];
-        put?: never;
-        /** Create an invite link (admin) */
-        post: operations["create-org-invite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/invites/{inviteID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete an invite link (admin) */
-        delete: operations["delete-org-invite"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List organization members */
-        get: operations["list-org-members"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/members/{memberID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove a member (admin) */
-        delete: operations["remove-org-member"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/members/{memberID}/role": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update a member's role (admin) */
-        put: operations["update-org-member-role"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/trips": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List org trips */
-        get: operations["list-org-trips"];
-        put?: never;
-        /** Create an org trip (admin) */
-        post: operations["create-org-trip"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/trips/{tripID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an org trip */
-        get: operations["get-org-trip"];
-        /** Update an org trip (admin) */
-        put: operations["update-org-trip"];
-        post?: never;
-        /** Delete an org trip (admin) */
-        delete: operations["delete-org-trip"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/trips/{tripID}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel an org trip (admin) */
-        post: operations["cancel-org-trip"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/trips/{tripID}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Complete an org trip into a voyage (admin) */
-        post: operations["complete-org-trip"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/trips/{tripID}/crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List an org trip's crew */
-        get: operations["list-org-trip-crew"];
-        put?: never;
-        /** Assign a crew member to an org trip (admin) */
-        post: operations["assign-org-trip-crew"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/trips/{tripID}/crew/{assignmentID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove a crew assignment from an org trip (admin) */
-        delete: operations["remove-org-trip-crew"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List org voyages */
-        get: operations["list-org-voyages"];
-        put?: never;
-        /** Create an org voyage (admin) */
-        post: operations["create-org-voyage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an org voyage */
-        get: operations["get-org-voyage"];
-        /** Update an org voyage (admin) */
-        put: operations["update-org-voyage"];
-        post?: never;
-        /** Delete an org voyage (admin) */
-        delete: operations["delete-org-voyage"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List an org voyage's crew */
-        get: operations["list-org-voyage-crew"];
-        put?: never;
-        /** Assign a crew member to an org voyage (admin) */
-        post: operations["assign-org-voyage-crew"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/crew/{assignmentID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove a crew assignment from an org voyage (admin) */
-        delete: operations["remove-org-voyage-crew"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/opinions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List an org voyage's generated opinions */
-        get: operations["list-org-voyage-opinions"];
-        put?: never;
-        /** Generate a crew opinion document for an org voyage (admin) */
-        post: operations["generate-org-voyage-opinion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/opinions/{opinionID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete an org voyage opinion (admin) */
-        delete: operations["delete-org-voyage-opinion"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/opinions/{opinionID}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Download an org voyage opinion document */
-        get: operations["download-org-voyage-opinion"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/ports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List an org voyage's visited ports */
-        get: operations["list-org-voyage-ports"];
-        put?: never;
-        /** Add a visited port to an org voyage (admin) */
-        post: operations["add-org-voyage-port"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/ports/order": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Reorder an org voyage's visited ports (admin) */
-        put: operations["reorder-org-voyage-ports"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/voyages/{voyageID}/ports/{portID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove a visited port from an org voyage (admin) */
-        delete: operations["remove-org-voyage-port"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/yachts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List org yachts */
-        get: operations["list-org-yachts"];
-        put?: never;
-        /** Create an org yacht (admin) */
-        post: operations["create-org-yacht"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/orgs/{slug}/yachts/{yachtID}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get an org yacht */
-        get: operations["get-org-yacht"];
-        /** Update an org yacht (admin) */
-        put: operations["update-org-yacht"];
-        post?: never;
-        /** Delete an org yacht (admin) */
-        delete: operations["delete-org-yacht"];
         options?: never;
         head?: never;
         patch?: never;
@@ -823,7 +343,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List trainings */
+        /** List the current member's trainings */
         get: operations["list-trainings"];
         put?: never;
         /** Create a training */
@@ -863,7 +383,7 @@ export interface paths {
         /** List trips */
         get: operations["list-trips"];
         put?: never;
-        /** Create a trip */
+        /** Create a trip (admin) */
         post: operations["create-trip"];
         delete?: never;
         options?: never;
@@ -880,10 +400,10 @@ export interface paths {
         };
         /** Get a trip */
         get: operations["get-trip"];
-        /** Update a trip */
+        /** Update a trip (admin) */
         put: operations["update-trip"];
         post?: never;
-        /** Delete a trip */
+        /** Delete a trip (admin) */
         delete: operations["delete-trip"];
         options?: never;
         head?: never;
@@ -899,7 +419,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel a trip */
+        /** Cancel a trip (admin) */
         post: operations["cancel-trip"];
         delete?: never;
         options?: never;
@@ -916,7 +436,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Complete a trip into a voyage */
+        /** Complete a trip into a voyage (admin) */
         post: operations["complete-trip"];
         delete?: never;
         options?: never;
@@ -934,7 +454,7 @@ export interface paths {
         /** List a trip's crew */
         get: operations["list-trip-crew"];
         put?: never;
-        /** Assign a crew member to a trip */
+        /** Assign a crew member to a trip (admin) */
         post: operations["assign-trip-crew"];
         delete?: never;
         options?: never;
@@ -952,7 +472,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a crew assignment from a trip */
+        /** Remove a crew assignment from a trip (admin) */
         delete: operations["remove-trip-crew"];
         options?: never;
         head?: never;
@@ -968,9 +488,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Generate a trip enrollment share token */
+        /** Generate a trip enrollment share token (admin) */
         post: operations["generate-trip-enroll-token"];
-        /** Clear a trip enrollment share token */
+        /** Clear a trip enrollment share token (admin) */
         delete: operations["clear-trip-enroll-token"];
         options?: never;
         head?: never;
@@ -1004,7 +524,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete a trip enrollment */
+        /** Delete a trip enrollment (admin) */
         delete: operations["delete-trip-enrollment"];
         options?: never;
         head?: never;
@@ -1019,7 +539,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update a trip enrollment's status */
+        /** Update a trip enrollment's status (admin) */
         put: operations["update-trip-enrollment-status"];
         post?: never;
         delete?: never;
@@ -1055,7 +575,7 @@ export interface paths {
         /** List voyages */
         get: operations["list-voyages"];
         put?: never;
-        /** Create a voyage */
+        /** Create a voyage (admin) */
         post: operations["create-voyage"];
         delete?: never;
         options?: never;
@@ -1072,10 +592,10 @@ export interface paths {
         };
         /** Get a voyage */
         get: operations["get-voyage"];
-        /** Update a voyage */
+        /** Update a voyage (admin) */
         put: operations["update-voyage"];
         post?: never;
-        /** Delete a voyage */
+        /** Delete a voyage (admin) */
         delete: operations["delete-voyage"];
         options?: never;
         head?: never;
@@ -1092,7 +612,7 @@ export interface paths {
         /** List a voyage's crew */
         get: operations["list-voyage-crew"];
         put?: never;
-        /** Assign a crew member to a voyage */
+        /** Assign a crew member to a voyage (admin) */
         post: operations["assign-voyage-crew"];
         delete?: never;
         options?: never;
@@ -1110,7 +630,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a crew assignment from a voyage */
+        /** Remove a crew assignment from a voyage (admin) */
         delete: operations["remove-voyage-crew"];
         options?: never;
         head?: never;
@@ -1127,7 +647,7 @@ export interface paths {
         /** List a voyage's generated opinions */
         get: operations["list-voyage-opinions"];
         put?: never;
-        /** Generate a crew opinion document */
+        /** Generate a crew opinion document (admin) */
         post: operations["generate-voyage-opinion"];
         delete?: never;
         options?: never;
@@ -1145,7 +665,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete an opinion */
+        /** Delete an opinion (admin) */
         delete: operations["delete-voyage-opinion"];
         options?: never;
         head?: never;
@@ -1179,7 +699,7 @@ export interface paths {
         /** List a voyage's visited ports */
         get: operations["list-voyage-ports"];
         put?: never;
-        /** Add a visited port to a voyage */
+        /** Add a visited port to a voyage (admin) */
         post: operations["add-voyage-port"];
         delete?: never;
         options?: never;
@@ -1195,7 +715,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Reorder a voyage's visited ports */
+        /** Reorder a voyage's visited ports (admin) */
         put: operations["reorder-voyage-ports"];
         post?: never;
         delete?: never;
@@ -1214,7 +734,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a visited port from a voyage */
+        /** Remove a visited port from a voyage (admin) */
         delete: operations["remove-voyage-port"];
         options?: never;
         head?: never;
@@ -1231,7 +751,7 @@ export interface paths {
         /** List yachts */
         get: operations["list-yachts"];
         put?: never;
-        /** Create a yacht */
+        /** Create a yacht (admin) */
         post: operations["create-yacht"];
         delete?: never;
         options?: never;
@@ -1248,10 +768,10 @@ export interface paths {
         };
         /** Get a yacht */
         get: operations["get-yacht"];
-        /** Update a yacht */
+        /** Update a yacht (admin) */
         put: operations["update-yacht"];
         post?: never;
-        /** Delete a yacht */
+        /** Delete a yacht (admin) */
         delete: operations["delete-yacht"];
         options?: never;
         head?: never;
@@ -1348,16 +868,14 @@ export interface components {
             readonly $schema?: string;
             /** Format: date-time */
             created_at: string;
+            /** Format: int64 */
+            created_by?: number;
             email?: string;
             emergency_contact_name?: string;
             emergency_contact_phone?: string;
             full_name: string;
             /** Format: int64 */
             id: number;
-            /** Format: int64 */
-            org_id?: number;
-            /** Format: int64 */
-            owner_id: number;
             patent_number?: string;
             phone?: string;
             pzz_license_number?: string;
@@ -1375,9 +893,14 @@ export interface components {
              */
             readonly $schema?: string;
             email?: string;
+            emergency_contact_name?: string;
+            emergency_contact_phone?: string;
             /** @description Crew member full name */
             full_name: string;
             patent_number?: string;
+            phone?: string;
+            pzz_license_number?: string;
+            pzz_license_type?: string;
         };
         Cruise: {
             /**
@@ -1391,6 +914,8 @@ export interface components {
             countries?: string;
             /** Format: date-time */
             created_at: string;
+            /** Format: int64 */
+            created_by?: number;
             description?: string;
             disembark_date?: string;
             embark_date?: string;
@@ -1404,8 +929,6 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
-            /** Format: int64 */
-            org_id: number;
             start_port?: string;
             /** Format: date-time */
             updated_at: string;
@@ -1497,8 +1020,6 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
-            /** Format: int64 */
-            org_id: number;
             start_port?: string;
         };
         EnrollInfo: {
@@ -1717,53 +1238,6 @@ export interface components {
             /** Format: int64 */
             year?: number;
         };
-        InviteAcceptResult: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/InviteAcceptResult.json
-             */
-            readonly $schema?: string;
-            org_name: string;
-            org_slug: string;
-            role: string;
-        };
-        InviteInfo: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/InviteInfo.json
-             */
-            readonly $schema?: string;
-            already_member: boolean;
-            org_name: string;
-            org_slug: string;
-            role: string;
-        };
-        InviteRequestBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/InviteRequestBody.json
-             */
-            readonly $schema?: string;
-            /**
-             * Format: int64
-             * @description Invite lifetime in hours
-             */
-            expires_in_hours?: number;
-            /**
-             * Format: int64
-             * @description Maximum number of uses
-             */
-            max_uses?: number;
-            /**
-             * @description Role granted to invitees
-             * @default crew
-             * @enum {string}
-             */
-            role: "admin" | "captain" | "crew";
-        };
         Me: {
             /**
              * Format: uri
@@ -1778,138 +1252,19 @@ export interface components {
             name: string;
             patent_number?: string;
             patent_type?: string;
+            role: string;
         };
-        MemberRoleBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/MemberRoleBody.json
-             */
-            readonly $schema?: string;
-            /**
-             * @description New role
-             * @enum {string}
-             */
-            role: "admin" | "captain" | "crew";
-        };
-        OrgBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/OrgBody.json
-             */
-            readonly $schema?: string;
-            city?: string;
-            description?: string;
-            logo_url?: string;
-            /** @description Organization name */
+        Member: {
+            avatar_url?: string;
+            /** Format: date-time */
+            created_at: string;
+            email: string;
+            /** Format: int64 */
+            id: number;
             name: string;
-            pzz_club_number?: string;
-            /** @description URL slug (lowercase letters, digits, hyphens); required on create */
-            slug?: string;
-            website?: string;
-        };
-        OrgCrewBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/OrgCrewBody.json
-             */
-            readonly $schema?: string;
-            email?: string;
-            emergency_contact_name?: string;
-            emergency_contact_phone?: string;
-            /** @description Crew member full name */
-            full_name: string;
             patent_number?: string;
-            phone?: string;
-            pzz_license_number?: string;
-            pzz_license_type?: string;
-        };
-        OrgDashboard: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/OrgDashboard.json
-             */
-            readonly $schema?: string;
-            by_year: components["schemas"]["VoyagesByYear"][] | null;
-            /** Format: int64 */
-            member_count: number;
-            /** Format: int64 */
-            total_days: number;
-            /** Format: double */
-            total_hours: number;
-            /** Format: double */
-            total_hours_engine: number;
-            /** Format: double */
-            total_hours_sail: number;
-            /** Format: double */
-            total_miles: number;
-            /** Format: int64 */
-            voyage_count: number;
-            /** Format: int64 */
-            yacht_count: number;
-        };
-        OrgInvite: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/OrgInvite.json
-             */
-            readonly $schema?: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: int64 */
-            created_by: number;
-            creator_name?: string;
-            /** Format: date-time */
-            expires_at?: string;
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            max_uses?: number;
-            /** Format: int64 */
-            org_id: number;
+            patent_type?: string;
             role: string;
-            token: string;
-            /** Format: int64 */
-            use_count: number;
-        };
-        OrgMember: {
-            /** Format: int64 */
-            id: number;
-            /** Format: date-time */
-            joined_at: string;
-            /** Format: int64 */
-            org_id: number;
-            role: string;
-            user_avatar_url?: string;
-            user_email: string;
-            /** Format: int64 */
-            user_id: number;
-            user_name: string;
-        };
-        Organization: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/Organization.json
-             */
-            readonly $schema?: string;
-            city?: string;
-            /** Format: date-time */
-            created_at: string;
-            description?: string;
-            /** Format: int64 */
-            id: number;
-            logo_url?: string;
-            name: string;
-            pzz_club_number?: string;
-            slug: string;
-            /** Format: date-time */
-            updated_at: string;
-            website?: string;
         };
         PageCrewMember: {
             /**
@@ -2067,6 +1422,19 @@ export interface components {
              */
             total: number;
         };
+        RoleBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/RoleBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description New role
+             * @enum {string}
+             */
+            role: "admin" | "member";
+        };
         TokenOutputBody: {
             /**
              * Format: uri
@@ -2129,6 +1497,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
+            created_by?: number;
+            /** Format: int64 */
             cruise_id?: number;
             description?: string;
             disembark_date?: string;
@@ -2143,10 +1513,6 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
-            /** Format: int64 */
-            org_id?: number;
-            /** Format: int64 */
-            owner_id: number;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -2227,22 +1593,6 @@ export interface components {
             readonly $schema?: string;
             url: string;
         };
-        UserOrganization: {
-            city?: string;
-            /** Format: date-time */
-            created_at: string;
-            description?: string;
-            /** Format: int64 */
-            id: number;
-            logo_url?: string;
-            name: string;
-            pzz_club_number?: string;
-            role: string;
-            slug: string;
-            /** Format: date-time */
-            updated_at: string;
-            website?: string;
-        };
         Voyage: {
             /**
              * Format: uri
@@ -2258,6 +1608,8 @@ export interface components {
             countries?: string;
             /** Format: date-time */
             created_at: string;
+            /** Format: int64 */
+            created_by?: number;
             /** Format: int64 */
             cruise_id?: number;
             /** Format: int64 */
@@ -2282,10 +1634,6 @@ export interface components {
             /** Format: double */
             miles: number;
             name: string;
-            /** Format: int64 */
-            org_id?: number;
-            /** Format: int64 */
-            owner_id: number;
             start_port?: string;
             /** Format: int64 */
             tidal_waters: number;
@@ -2436,12 +1784,10 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
+            created_by?: number;
+            /** Format: int64 */
             id: number;
             name: string;
-            /** Format: int64 */
-            org_id?: number;
-            /** Format: int64 */
-            owner_id: number;
             registration_no?: string;
             /** Format: date-time */
             updated_at: string;
@@ -2693,6 +2039,431 @@ export interface operations {
             };
         };
     };
+    "list-cruises": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageCruise"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-cruise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CruiseBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cruise"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-cruise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cruise"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-cruise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CruiseBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-cruise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "generate-cruise-enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-cruise-enroll-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cruise-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CruiseEnrollmentDetail"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-cruise-enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+                /** @description Enrollment ID */
+                enrollmentID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-cruise-enrollment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+                /** @description Enrollment ID */
+                enrollmentID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentStatusBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "assign-cruise-enrollment-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+                /** @description Enrollment ID */
+                enrollmentID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignTripBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cruise-trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trip"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cruise-voyages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Voyage"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-dashboard": {
         parameters: {
             query?: never;
@@ -2894,71 +2665,7 @@ export interface operations {
             };
         };
     };
-    "get-invite-info": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Invite token */
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteInfo"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "accept-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Invite token */
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InviteAcceptResult"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-orgs": {
+    "list-members": {
         parameters: {
             query?: never;
             header?: never;
@@ -2973,7 +2680,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserOrganization"][] | null;
+                    "application/json": components["schemas"]["Member"][] | null;
                 };
             };
             /** @description Error */
@@ -2987,2073 +2694,21 @@ export interface operations {
             };
         };
     };
-    "create-org": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OrgBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Organization"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org": {
+    "update-member-role": {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Organization"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
+                /** @description User ID */
+                userID: number;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OrgBody"];
+                "application/json": components["schemas"]["RoleBody"];
             };
         };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-crew": {
-        parameters: {
-            query?: {
-                /** @description Maximum number of items to return */
-                limit?: number;
-                /** @description Number of items to skip */
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageCrewMember"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "create-org-crew-member": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OrgCrewBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewMember"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org-crew-member": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Crew member ID */
-                crewID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewMember"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org-crew-member": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Crew member ID */
-                crewID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OrgCrewBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-crew-member": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Crew member ID */
-                crewID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-cruises": {
-        parameters: {
-            query?: {
-                /** @description Maximum number of items to return */
-                limit?: number;
-                /** @description Number of items to skip */
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageCruise"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "create-org-cruise": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CruiseBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Cruise"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org-cruise": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Cruise"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org-cruise": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CruiseBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-cruise": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "generate-cruise-enroll-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "clear-cruise-enroll-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-cruise-enrollments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CruiseEnrollmentDetail"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-cruise-enrollment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-                /** @description Enrollment ID */
-                enrollmentID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-cruise-enrollment-status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-                /** @description Enrollment ID */
-                enrollmentID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EnrollmentStatusBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "assign-cruise-enrollment-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-                /** @description Enrollment ID */
-                enrollmentID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignTripBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-cruise-trips": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-cruise-voyages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Cruise ID */
-                cruiseID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Voyage"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org-dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgDashboard"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-invites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgInvite"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "create-org-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InviteRequestBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgInvite"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Invite ID */
-                inviteID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-members": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrgMember"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "remove-org-member": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Org member ID */
-                memberID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org-member-role": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Org member ID */
-                memberID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MemberRoleBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-trips": {
-        parameters: {
-            query?: {
-                /** @description Maximum number of items to return */
-                limit?: number;
-                /** @description Number of items to skip */
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageTrip"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "create-org-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TripBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TripBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "cancel-org-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "complete-org-trip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompleteTripBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Voyage"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-trip-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewAssignment"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "assign-org-trip-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CrewAssignmentBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewAssignment"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "remove-org-trip-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Trip ID */
-                tripID: number;
-                /** @description Assignment ID */
-                assignmentID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-voyages": {
-        parameters: {
-            query?: {
-                /** @description Maximum number of items to return */
-                limit?: number;
-                /** @description Number of items to skip */
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageVoyage"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "create-org-voyage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VoyageBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Voyage"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org-voyage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Voyage"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org-voyage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VoyageBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-voyage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-voyage-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewAssignment"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "assign-org-voyage-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CrewAssignmentBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewAssignment"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "remove-org-voyage-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-                /** @description Assignment ID */
-                assignmentID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-voyage-opinions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoyageOpinion"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "generate-org-voyage-opinion": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenerateOpinionBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoyageOpinion"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-voyage-opinion": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-                /** @description Opinion ID */
-                opinionID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "download-org-voyage-opinion": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-                /** @description Opinion ID */
-                opinionID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    "Content-Disposition"?: string;
-                    "Content-Type"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-voyage-ports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoyagePort"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "add-org-voyage-port": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VoyagePortBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoyagePort"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "reorder-org-voyage-ports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VoyagePortOrderBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoyagePort"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "remove-org-voyage-port": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Voyage ID */
-                voyageID: number;
-                /** @description Port ID */
-                portID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-org-yachts": {
-        parameters: {
-            query?: {
-                /** @description Maximum number of items to return */
-                limit?: number;
-                /** @description Number of items to skip */
-                offset?: number;
-            };
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageYacht"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "create-org-yacht": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["YachtBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Yacht"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-org-yacht": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Yacht ID */
-                yachtID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Yacht"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "update-org-yacht": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Yacht ID */
-                yachtID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["YachtBody"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-org-yacht": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Organization slug */
-                slug: string;
-                /** @description Yacht ID */
-                yachtID: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description No Content */
             204: {

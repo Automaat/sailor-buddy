@@ -65,7 +65,7 @@ type tripEnrollmentParam struct {
 }
 
 // RegisterEnrollmentRoutes wires the share-token enrollment flow and the
-// owner-side trip enrollment management onto the API.
+// admin-side trip enrollment management onto the API.
 func RegisterEnrollmentRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewEnrollmentHandler(q)
 	tag := []string{"Enrollment"}
@@ -81,11 +81,11 @@ func RegisterEnrollmentRoutes(api huma.API, q sqlcdb.Querier) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "generate-trip-enroll-token", Method: http.MethodPost, Path: "/trips/{tripID}/enroll-token",
-		Summary: "Generate a trip enrollment share token", Tags: tag,
+		Summary: "Generate a trip enrollment share token (admin)", Tags: tag,
 	}, h.generateToken)
 	huma.Register(api, huma.Operation{
 		OperationID: "clear-trip-enroll-token", Method: http.MethodDelete, Path: "/trips/{tripID}/enroll-token",
-		Summary: "Clear a trip enrollment share token", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Clear a trip enrollment share token (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.clearToken)
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trip-enrollments", Method: http.MethodGet, Path: "/trips/{tripID}/enrollments",
@@ -93,11 +93,11 @@ func RegisterEnrollmentRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.listEnrollments)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-trip-enrollment-status", Method: http.MethodPut, Path: "/trips/{tripID}/enrollments/{id}/status",
-		Summary: "Update a trip enrollment's status", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Update a trip enrollment's status (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateStatus)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-trip-enrollment", Method: http.MethodDelete, Path: "/trips/{tripID}/enrollments/{id}",
-		Summary: "Delete a trip enrollment", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Delete a trip enrollment (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.deleteEnrollment)
 }
 
@@ -212,12 +212,14 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 }
 
 func (h *EnrollmentHandler) generateToken(ctx context.Context, in *tripIDParam) (*tokenOutput, error) {
-	user := middleware.GetUser(ctx)
-	if _, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, OwnerID: user.UserID}); err != nil {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if _, err := h.q.GetTrip(ctx, in.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
 		}
-		slog.Error("get trip for token generation", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		slog.Error("get trip for token generation", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to get trip")
 	}
 
@@ -230,9 +232,8 @@ func (h *EnrollmentHandler) generateToken(ctx context.Context, in *tripIDParam) 
 	if err := h.q.SetTripEnrollToken(ctx, sqlcdb.SetTripEnrollTokenParams{
 		EnrollToken: types.NullString{String: token, Valid: true},
 		ID:          in.ID,
-		OwnerID:     user.UserID,
 	}); err != nil {
-		slog.Error("set trip enroll token", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		slog.Error("set trip enroll token", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to set token")
 	}
 	out := &tokenOutput{}
@@ -241,41 +242,48 @@ func (h *EnrollmentHandler) generateToken(ctx context.Context, in *tripIDParam) 
 }
 
 func (h *EnrollmentHandler) clearToken(ctx context.Context, in *tripIDParam) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.q.ClearTripEnrollToken(ctx, sqlcdb.ClearTripEnrollTokenParams{ID: in.ID, OwnerID: user.UserID}); err != nil {
-		slog.Error("clear trip enroll token", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.q.ClearTripEnrollToken(ctx, in.ID); err != nil {
+		slog.Error("clear trip enroll token", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to clear token")
 	}
 	return &noContentOutput{}, nil
 }
 
 func (h *EnrollmentHandler) listEnrollments(ctx context.Context, in *tripIDParam) (*tripEnrollmentsOutput, error) {
-	user := middleware.GetUser(ctx)
-	enrollments, err := h.q.ListTripEnrollments(ctx, sqlcdb.ListTripEnrollmentsParams{TripID: in.ID, OwnerID: user.UserID})
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	enrollments, err := h.q.ListTripEnrollments(ctx, in.ID)
 	if err != nil {
-		slog.Error("list trip enrollments", "trip_id", in.ID, "user_id", user.UserID, "err", err)
+		slog.Error("list trip enrollments", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list enrollments")
 	}
 	return &tripEnrollmentsOutput{Body: dto.TripEnrollmentsFromDB(enrollments)}, nil
 }
 
 func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollmentStatusInput) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
 	if err := h.q.UpdateTripEnrollmentStatus(ctx, sqlcdb.UpdateTripEnrollmentStatusParams{
-		Status:  in.Body.Status,
-		ID:      in.ID,
-		OwnerID: user.UserID,
+		Status: in.Body.Status,
+		ID:     in.ID,
 	}); err != nil {
-		slog.Error("update trip enrollment status", "enrollment_id", in.ID, "user_id", user.UserID, "status", in.Body.Status, "err", err)
+		slog.Error("update trip enrollment status", "enrollment_id", in.ID, "status", in.Body.Status, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update status")
 	}
 	return &noContentOutput{}, nil
 }
 
 func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnrollmentParam) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.q.DeleteTripEnrollment(ctx, sqlcdb.DeleteTripEnrollmentParams{ID: in.ID, OwnerID: user.UserID}); err != nil {
-		slog.Error("delete trip enrollment", "enrollment_id", in.ID, "user_id", user.UserID, "err", err)
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.q.DeleteTripEnrollment(ctx, in.ID); err != nil {
+		slog.Error("delete trip enrollment", "enrollment_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete enrollment")
 	}
 	return &noContentOutput{}, nil

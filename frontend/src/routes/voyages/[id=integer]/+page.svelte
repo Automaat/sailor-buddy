@@ -26,7 +26,6 @@
 		Cruise
 	} from '$lib/api/types';
 	import { ApiError } from '$lib/api/client';
-	import { orgStore } from '$lib/stores/org.svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import NotFound from '$lib/components/NotFound.svelte';
 	import PortPicker from '$lib/components/PortPicker.svelte';
@@ -52,17 +51,11 @@
 	let assigning = $state(false);
 
 	const id = $derived(Number(page.params.id));
-	// Voyage owner (captain) manages crew & opinions. Org admins get the same
-	// access so they can support members across the organization.
-	const canManageCrew = $derived(
-		(!!voyage && !!auth.user && voyage.owner_id === auth.user.id) || orgStore.isOrgAdmin
-	);
+	// Voyages are club-managed: only admins manage crew & opinions.
+	const canManageCrew = $derived(auth.isAdmin);
 
 	onMount(async () => {
 		try {
-			// getVoyage scopes on isOrgAdmin, which is only known once the org
-			// list has loaded — wait so a direct visit hits the right endpoint.
-			await orgStore.ensureLoaded();
 			voyage = await getVoyage(id);
 			[crew, opinions, ports, allCrewMembers] = await Promise.all([
 				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),

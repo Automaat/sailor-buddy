@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { createCruise } from '$lib/api/routes';
 
 	let error = $state('');
 	let loading = $state(false);
 
 	$effect(() => {
-		if (orgStore.loaded && !orgStore.isOrgAdmin) {
+		if (auth.user && !auth.isAdmin) {
 			goto('/cruises');
 		}
 	});
@@ -26,11 +26,7 @@
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
-		if (!orgStore.isOrgMode) {
-			error = 'Wydarzenia istnieją tylko w klubie';
-			return;
-		}
-		if (!orgStore.isOrgAdmin) {
+		if (!auth.isAdmin) {
 			error = 'Tylko administratorzy mogą tworzyć wydarzenia';
 			return;
 		}

@@ -22,10 +22,10 @@ func crewTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 
 func TestCrewHandler_List(t *testing.T) {
 	m := &mockQuerier{
-		listCrewMembersFn: func(context.Context, int64) ([]sqlcdb.CrewMember, error) {
+		listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) {
 			return []sqlcdb.CrewMember{{ID: 1, FullName: "Jan Nowak"}}, nil
 		},
-		countCrewMembersFn: func(context.Context, int64) (int64, error) { return 1, nil },
+		countCrewMembersFn: func(context.Context) (int64, error) { return 1, nil },
 	}
 	resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew")
 	if resp.Code != http.StatusOK {
@@ -57,7 +57,7 @@ func TestCrewHandler_Create(t *testing.T) {
 func TestCrewHandler_AssignTripCrew(t *testing.T) {
 	t.Run("trip not found", func(t *testing.T) {
 		m := &mockQuerier{
-			getTripFn: func(context.Context, sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
+			getTripFn: func(context.Context, int64) (sqlcdb.Trip, error) {
 				return sqlcdb.Trip{}, sql.ErrNoRows
 			},
 		}
@@ -70,11 +70,11 @@ func TestCrewHandler_AssignTripCrew(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getTripFn: func(_ context.Context, arg sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{ID: arg.ID}, nil
+			getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{ID: id}, nil
 			},
-			getCrewMemberFn: func(_ context.Context, arg sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{ID: arg.ID}, nil
+			getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
+				return sqlcdb.CrewMember{ID: id}, nil
 			},
 			createTripCrewFn: func(_ context.Context, arg sqlcdb.CreateTripCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
 				return sqlcdb.CrewAssignment{ID: 1, CrewMemberID: arg.CrewMemberID, Role: arg.Role, TripID: types.NullInt64{Int64: 9, Valid: true}}, nil
@@ -89,10 +89,10 @@ func TestCrewHandler_AssignTripCrew(t *testing.T) {
 
 	t.Run("crew member of another owner rejected", func(t *testing.T) {
 		m := &mockQuerier{
-			getTripFn: func(_ context.Context, arg sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{ID: arg.ID}, nil
+			getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{ID: id}, nil
 			},
-			getCrewMemberFn: func(context.Context, sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
+			getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) {
 				return sqlcdb.CrewMember{}, sql.ErrNoRows
 			},
 		}
@@ -115,11 +115,11 @@ func TestCrewHandler_AssignTripCrew(t *testing.T) {
 func TestCrewHandler_AssignVoyageCrew(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getVoyageFn: func(_ context.Context, arg sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
-				return sqlcdb.Voyage{ID: arg.ID}, nil
+			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: id}, nil
 			},
-			getCrewMemberFn: func(_ context.Context, arg sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{ID: arg.ID}, nil
+			getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
+				return sqlcdb.CrewMember{ID: id}, nil
 			},
 			createVoyageCrewFn: func(_ context.Context, arg sqlcdb.CreateVoyageCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
 				return sqlcdb.CrewAssignment{ID: 1, CrewMemberID: arg.CrewMemberID, Role: arg.Role, VoyageID: types.NullInt64{Int64: 9, Valid: true}}, nil
@@ -134,10 +134,10 @@ func TestCrewHandler_AssignVoyageCrew(t *testing.T) {
 
 	t.Run("crew member of another owner rejected", func(t *testing.T) {
 		m := &mockQuerier{
-			getVoyageFn: func(_ context.Context, arg sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
-				return sqlcdb.Voyage{ID: arg.ID}, nil
+			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: id}, nil
 			},
-			getCrewMemberFn: func(context.Context, sqlcdb.GetCrewMemberParams) (sqlcdb.CrewMember, error) {
+			getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) {
 				return sqlcdb.CrewMember{}, sql.ErrNoRows
 			},
 		}
@@ -151,7 +151,7 @@ func TestCrewHandler_AssignVoyageCrew(t *testing.T) {
 
 func TestCrewHandler_ListTripCrew(t *testing.T) {
 	m := &mockQuerier{
-		listTripCrewFn: func(context.Context, sqlcdb.ListTripCrewAssignmentsParams) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
+		listTripCrewFn: func(context.Context, types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
 			return []sqlcdb.ListTripCrewAssignmentsRow{{ID: 1, CrewMemberID: 2, Role: "skipper", FullName: "Jan"}}, nil
 		},
 	}
@@ -170,5 +170,13 @@ func TestCrewHandler_RemoveTripCrew_DBError(t *testing.T) {
 	resp := crewTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/crew/1")
 	if resp.Code != http.StatusInternalServerError {
 		t.Fatalf("got %d, want 500", resp.Code)
+	}
+}
+
+func TestCrewHandler_Create_MemberForbidden(t *testing.T) {
+	resp := crewTestAPI(t, &mockQuerier{}).PostCtx(
+		userCtxRole(context.Background(), "member"), "/crew", map[string]any{"full_name": "Anna"})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("got %d, want 403; body=%s", resp.Code, resp.Body)
 	}
 }

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import {
 		getTrip,
@@ -40,17 +39,11 @@
 	let showCompleteModal = $state(false);
 
 	const id = $derived(Number(page.params.id));
-	// Trip owner (captain) manages crew. Org admins get the same access so they
-	// can support members across the organization.
-	const canManageCrew = $derived(
-		(!!trip && !!auth.user && trip.owner_id === auth.user.id) || orgStore.isOrgAdmin
-	);
+	// Trips are club-managed: only admins create, edit and crew them.
+	const canManageCrew = $derived(auth.isAdmin);
 
 	onMount(async () => {
 		try {
-			// getTrip scopes on isOrgAdmin, which is only known once the org
-			// list has loaded — wait so a direct visit hits the right endpoint.
-			await orgStore.ensureLoaded();
 			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers] = await Promise.all([
@@ -177,28 +170,30 @@
 					{#if trip.countries} · {trip.countries}{/if}
 				</p>
 			</div>
-			<div class="flex gap-2">
-				{#if trip.status === 'planned'}
-					<button
-						onclick={() => (showCompleteModal = true)}
-						disabled={completing}
-						class="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
-					>
-						Zrealizuj
+			{#if canManageCrew}
+				<div class="flex gap-2">
+					{#if trip.status === 'planned'}
+						<button
+							onclick={() => (showCompleteModal = true)}
+							disabled={completing}
+							class="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+						>
+							Zrealizuj
+						</button>
+						<button
+							onclick={handleCancel}
+							disabled={completing}
+							class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+						>
+							Anuluj
+						</button>
+					{/if}
+					<a href="/trips/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+						Usuń
 					</button>
-					<button
-						onclick={handleCancel}
-						disabled={completing}
-						class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-					>
-						Anuluj
-					</button>
-				{/if}
-				<a href="/trips/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
-				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-					Usuń
-				</button>
-			</div>
+				</div>
+			{/if}
 		</div>
 
 		{#if trip.embark_date || trip.captain_name || trip.cost_total}
@@ -232,7 +227,7 @@
 			</div>
 		{/if}
 
-		{#if !orgStore.isOrgMode}
+		{#if canManageCrew}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Zapisy</h2>
 				<div class="flex flex-wrap items-center gap-3">

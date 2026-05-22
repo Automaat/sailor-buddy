@@ -12,84 +12,29 @@ import (
 )
 
 const countCrewMembers = `-- name: CountCrewMembers :one
-SELECT COUNT(*)::BIGINT FROM crew_members WHERE owner_id = $1 AND org_id IS NULL
+SELECT COUNT(*)::BIGINT FROM crew_members
 `
 
 // CountCrewMembers
 //
-//	SELECT COUNT(*)::BIGINT FROM crew_members WHERE owner_id = $1 AND org_id IS NULL
-func (q *Queries) CountCrewMembers(ctx context.Context, ownerID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countCrewMembers, ownerID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const countOrgCrewMembers = `-- name: CountOrgCrewMembers :one
-SELECT COUNT(*)::BIGINT FROM crew_members WHERE org_id = $1
-`
-
-// CountOrgCrewMembers
-//
-//	SELECT COUNT(*)::BIGINT FROM crew_members WHERE org_id = $1
-func (q *Queries) CountOrgCrewMembers(ctx context.Context, orgID types.NullInt64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countOrgCrewMembers, orgID)
+//	SELECT COUNT(*)::BIGINT FROM crew_members
+func (q *Queries) CountCrewMembers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCrewMembers)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
 }
 
 const createCrewMember = `-- name: CreateCrewMember :one
-INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
+INSERT INTO crew_members (
+    created_by, user_id, full_name, email, patent_number,
+    phone, pzz_license_type, pzz_license_number,
+    emergency_contact_name, emergency_contact_phone
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at
 `
 
 type CreateCrewMemberParams struct {
-	OwnerID      int64            `json:"owner_id"`
-	UserID       types.NullInt64  `json:"user_id"`
-	FullName     string           `json:"full_name"`
-	Email        types.NullString `json:"email"`
-	PatentNumber types.NullString `json:"patent_number"`
-}
-
-// CreateCrewMember
-//
-//	INSERT INTO crew_members (owner_id, user_id, full_name, email, patent_number) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
-func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error) {
-	row := q.db.QueryRowContext(ctx, createCrewMember,
-		arg.OwnerID,
-		arg.UserID,
-		arg.FullName,
-		arg.Email,
-		arg.PatentNumber,
-	)
-	var i CrewMember
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.UserID,
-		&i.FullName,
-		&i.Email,
-		&i.PatentNumber,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
-		&i.Phone,
-		&i.PzzLicenseType,
-		&i.PzzLicenseNumber,
-		&i.EmergencyContactName,
-		&i.EmergencyContactPhone,
-	)
-	return i, err
-}
-
-const createOrgCrewMember = `-- name: CreateOrgCrewMember :one
-INSERT INTO crew_members (owner_id, org_id, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
-`
-
-type CreateOrgCrewMemberParams struct {
-	OwnerID               int64            `json:"owner_id"`
-	OrgID                 types.NullInt64  `json:"org_id"`
+	CreatedBy             types.NullInt64  `json:"created_by"`
 	UserID                types.NullInt64  `json:"user_id"`
 	FullName              string           `json:"full_name"`
 	Email                 types.NullString `json:"email"`
@@ -101,14 +46,16 @@ type CreateOrgCrewMemberParams struct {
 	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
 }
 
-// CreateOrgCrewMember
+// CreateCrewMember
 //
-//	INSERT INTO crew_members (owner_id, org_id, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone)
-//	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone
-func (q *Queries) CreateOrgCrewMember(ctx context.Context, arg CreateOrgCrewMemberParams) (CrewMember, error) {
-	row := q.db.QueryRowContext(ctx, createOrgCrewMember,
-		arg.OwnerID,
-		arg.OrgID,
+//	INSERT INTO crew_members (
+//	    created_by, user_id, full_name, email, patent_number,
+//	    phone, pzz_license_type, pzz_license_number,
+//	    emergency_contact_name, emergency_contact_phone
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at
+func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, createCrewMember,
+		arg.CreatedBy,
 		arg.UserID,
 		arg.FullName,
 		arg.Email,
@@ -122,174 +69,104 @@ func (q *Queries) CreateOrgCrewMember(ctx context.Context, arg CreateOrgCrewMemb
 	var i CrewMember
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
+		&i.CreatedBy,
 		&i.UserID,
 		&i.FullName,
 		&i.Email,
 		&i.PatentNumber,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
 		&i.Phone,
 		&i.PzzLicenseType,
 		&i.PzzLicenseNumber,
 		&i.EmergencyContactName,
 		&i.EmergencyContactPhone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const deleteCrewMember = `-- name: DeleteCrewMember :exec
-DELETE FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
+DELETE FROM crew_members WHERE id = $1
 `
-
-type DeleteCrewMemberParams struct {
-	ID      int64 `json:"id"`
-	OwnerID int64 `json:"owner_id"`
-}
 
 // DeleteCrewMember
 //
-//	DELETE FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
-func (q *Queries) DeleteCrewMember(ctx context.Context, arg DeleteCrewMemberParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCrewMember, arg.ID, arg.OwnerID)
-	return err
-}
-
-const deleteOrgCrewMember = `-- name: DeleteOrgCrewMember :exec
-DELETE FROM crew_members WHERE id = $1 AND org_id = $2
-`
-
-type DeleteOrgCrewMemberParams struct {
-	ID    int64           `json:"id"`
-	OrgID types.NullInt64 `json:"org_id"`
-}
-
-// DeleteOrgCrewMember
-//
-//	DELETE FROM crew_members WHERE id = $1 AND org_id = $2
-func (q *Queries) DeleteOrgCrewMember(ctx context.Context, arg DeleteOrgCrewMemberParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOrgCrewMember, arg.ID, arg.OrgID)
+//	DELETE FROM crew_members WHERE id = $1
+func (q *Queries) DeleteCrewMember(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteCrewMember, id)
 	return err
 }
 
 const getCrewMember = `-- name: GetCrewMember :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
+SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE id = $1
 `
-
-type GetCrewMemberParams struct {
-	ID      int64 `json:"id"`
-	OwnerID int64 `json:"owner_id"`
-}
 
 // GetCrewMember
 //
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
-func (q *Queries) GetCrewMember(ctx context.Context, arg GetCrewMemberParams) (CrewMember, error) {
-	row := q.db.QueryRowContext(ctx, getCrewMember, arg.ID, arg.OwnerID)
+//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE id = $1
+func (q *Queries) GetCrewMember(ctx context.Context, id int64) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, getCrewMember, id)
 	var i CrewMember
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
+		&i.CreatedBy,
 		&i.UserID,
 		&i.FullName,
 		&i.Email,
 		&i.PatentNumber,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
 		&i.Phone,
 		&i.PzzLicenseType,
 		&i.PzzLicenseNumber,
 		&i.EmergencyContactName,
 		&i.EmergencyContactPhone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getCrewMemberByName = `-- name: GetCrewMemberByName :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND full_name = $2 AND org_id IS NULL
+SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE full_name = $1
 `
-
-type GetCrewMemberByNameParams struct {
-	OwnerID  int64  `json:"owner_id"`
-	FullName string `json:"full_name"`
-}
 
 // GetCrewMemberByName
 //
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND full_name = $2 AND org_id IS NULL
-func (q *Queries) GetCrewMemberByName(ctx context.Context, arg GetCrewMemberByNameParams) (CrewMember, error) {
-	row := q.db.QueryRowContext(ctx, getCrewMemberByName, arg.OwnerID, arg.FullName)
+//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE full_name = $1
+func (q *Queries) GetCrewMemberByName(ctx context.Context, fullName string) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, getCrewMemberByName, fullName)
 	var i CrewMember
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
+		&i.CreatedBy,
 		&i.UserID,
 		&i.FullName,
 		&i.Email,
 		&i.PatentNumber,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
 		&i.Phone,
 		&i.PzzLicenseType,
 		&i.PzzLicenseNumber,
 		&i.EmergencyContactName,
 		&i.EmergencyContactPhone,
-	)
-	return i, err
-}
-
-const getOrgCrewMember = `-- name: GetOrgCrewMember :one
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND org_id = $2
-`
-
-type GetOrgCrewMemberParams struct {
-	ID    int64           `json:"id"`
-	OrgID types.NullInt64 `json:"org_id"`
-}
-
-// GetOrgCrewMember
-//
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE id = $1 AND org_id = $2
-func (q *Queries) GetOrgCrewMember(ctx context.Context, arg GetOrgCrewMemberParams) (CrewMember, error) {
-	row := q.db.QueryRowContext(ctx, getOrgCrewMember, arg.ID, arg.OrgID)
-	var i CrewMember
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.UserID,
-		&i.FullName,
-		&i.Email,
-		&i.PatentNumber,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.OrgID,
-		&i.Phone,
-		&i.PzzLicenseType,
-		&i.PzzLicenseNumber,
-		&i.EmergencyContactName,
-		&i.EmergencyContactPhone,
 	)
 	return i, err
 }
 
 const listCrewMembers = `-- name: ListCrewMembers :many
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name, id LIMIT $2 OFFSET $3
+SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members ORDER BY full_name, id LIMIT $1 OFFSET $2
 `
 
 type ListCrewMembersParams struct {
-	OwnerID int64 `json:"owner_id"`
-	Limit   int32 `json:"limit"`
-	Offset  int32 `json:"offset"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
 }
 
 // ListCrewMembers
 //
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE owner_id = $1 AND org_id IS NULL ORDER BY full_name, id LIMIT $2 OFFSET $3
+//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members ORDER BY full_name, id LIMIT $1 OFFSET $2
 func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error) {
-	rows, err := q.db.QueryContext(ctx, listCrewMembers, arg.OwnerID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listCrewMembers, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -299,70 +176,18 @@ func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams
 		var i CrewMember
 		if err := rows.Scan(
 			&i.ID,
-			&i.OwnerID,
+			&i.CreatedBy,
 			&i.UserID,
 			&i.FullName,
 			&i.Email,
 			&i.PatentNumber,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OrgID,
 			&i.Phone,
 			&i.PzzLicenseType,
 			&i.PzzLicenseNumber,
 			&i.EmergencyContactName,
 			&i.EmergencyContactPhone,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listOrgCrewMembers = `-- name: ListOrgCrewMembers :many
-SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name, id LIMIT $2 OFFSET $3
-`
-
-type ListOrgCrewMembersParams struct {
-	OrgID  types.NullInt64 `json:"org_id"`
-	Limit  int32           `json:"limit"`
-	Offset int32           `json:"offset"`
-}
-
-// ListOrgCrewMembers
-//
-//	SELECT id, owner_id, user_id, full_name, email, patent_number, created_at, updated_at, org_id, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone FROM crew_members WHERE org_id = $1 ORDER BY full_name, id LIMIT $2 OFFSET $3
-func (q *Queries) ListOrgCrewMembers(ctx context.Context, arg ListOrgCrewMembersParams) ([]CrewMember, error) {
-	rows, err := q.db.QueryContext(ctx, listOrgCrewMembers, arg.OrgID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []CrewMember
-	for rows.Next() {
-		var i CrewMember
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.UserID,
-			&i.FullName,
-			&i.Email,
-			&i.PatentNumber,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.OrgID,
-			&i.Phone,
-			&i.PzzLicenseType,
-			&i.PzzLicenseNumber,
-			&i.EmergencyContactName,
-			&i.EmergencyContactPhone,
 		); err != nil {
 			return nil, err
 		}
@@ -378,41 +203,15 @@ func (q *Queries) ListOrgCrewMembers(ctx context.Context, arg ListOrgCrewMembers
 }
 
 const updateCrewMember = `-- name: UpdateCrewMember :exec
-UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
-`
-
-type UpdateCrewMemberParams struct {
-	FullName     string           `json:"full_name"`
-	Email        types.NullString `json:"email"`
-	PatentNumber types.NullString `json:"patent_number"`
-	ID           int64            `json:"id"`
-	OwnerID      int64            `json:"owner_id"`
-}
-
-// UpdateCrewMember
-//
-//	UPDATE crew_members SET full_name = $1, email = $2, patent_number = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
-func (q *Queries) UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error {
-	_, err := q.db.ExecContext(ctx, updateCrewMember,
-		arg.FullName,
-		arg.Email,
-		arg.PatentNumber,
-		arg.ID,
-		arg.OwnerID,
-	)
-	return err
-}
-
-const updateOrgCrewMember = `-- name: UpdateOrgCrewMember :exec
 UPDATE crew_members SET
     full_name = $1, email = $2, patent_number = $3,
     phone = $4, pzz_license_type = $5, pzz_license_number = $6,
     emergency_contact_name = $7, emergency_contact_phone = $8,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9 AND org_id = $10
+WHERE id = $9
 `
 
-type UpdateOrgCrewMemberParams struct {
+type UpdateCrewMemberParams struct {
 	FullName              string           `json:"full_name"`
 	Email                 types.NullString `json:"email"`
 	PatentNumber          types.NullString `json:"patent_number"`
@@ -422,19 +221,18 @@ type UpdateOrgCrewMemberParams struct {
 	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
 	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
 	ID                    int64            `json:"id"`
-	OrgID                 types.NullInt64  `json:"org_id"`
 }
 
-// UpdateOrgCrewMember
+// UpdateCrewMember
 //
 //	UPDATE crew_members SET
 //	    full_name = $1, email = $2, patent_number = $3,
 //	    phone = $4, pzz_license_type = $5, pzz_license_number = $6,
 //	    emergency_contact_name = $7, emergency_contact_phone = $8,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $9 AND org_id = $10
-func (q *Queries) UpdateOrgCrewMember(ctx context.Context, arg UpdateOrgCrewMemberParams) error {
-	_, err := q.db.ExecContext(ctx, updateOrgCrewMember,
+//	WHERE id = $9
+func (q *Queries) UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error {
+	_, err := q.db.ExecContext(ctx, updateCrewMember,
 		arg.FullName,
 		arg.Email,
 		arg.PatentNumber,
@@ -444,7 +242,6 @@ func (q *Queries) UpdateOrgCrewMember(ctx context.Context, arg UpdateOrgCrewMemb
 		arg.EmergencyContactName,
 		arg.EmergencyContactPhone,
 		arg.ID,
-		arg.OrgID,
 	)
 	return err
 }

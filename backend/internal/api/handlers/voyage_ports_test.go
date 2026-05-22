@@ -33,9 +33,9 @@ func voyagePortTestAPIWithDB(t *testing.T, m *mockQuerier, db *sql.DB) humatest.
 
 func TestVoyagePorts_List(t *testing.T) {
 	m := &mockQuerier{
-		listVoyagePortsFn: func(_ context.Context, arg sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
-			if arg.VoyageID != 5 || arg.OwnerID != 1 {
-				t.Fatalf("unexpected params: %+v", arg)
+		listVoyagePortsFn: func(_ context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error) {
+			if voyageID != 5 {
+				t.Fatalf("unexpected voyage id: %d", voyageID)
 			}
 			return []sqlcdb.VoyagePort{
 				{ID: 1, VoyageID: 5, Name: "Split", Latitude: 43.5, Longitude: 16.4, Position: 0},
@@ -57,8 +57,8 @@ func TestVoyagePorts_List(t *testing.T) {
 
 func TestVoyagePorts_Add(t *testing.T) {
 	m := &mockQuerier{
-		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
-			return sqlcdb.Voyage{ID: 5, OwnerID: 1}, nil
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
+			return sqlcdb.Voyage{ID: 5}, nil
 		},
 		createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
 			return sqlcdb.VoyagePort{
@@ -83,7 +83,7 @@ func TestVoyagePorts_Add(t *testing.T) {
 
 func TestVoyagePorts_Add_VoyageNotFound(t *testing.T) {
 	m := &mockQuerier{
-		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{}, sql.ErrNoRows
 		},
 	}
@@ -96,7 +96,7 @@ func TestVoyagePorts_Add_VoyageNotFound(t *testing.T) {
 
 func TestVoyagePorts_Reorder_VoyageNotFound(t *testing.T) {
 	m := &mockQuerier{
-		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{}, sql.ErrNoRows
 		},
 	}
@@ -115,10 +115,10 @@ func TestVoyagePorts_Reorder(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	m := &mockQuerier{
-		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{ID: 5}, nil
 		},
-		listVoyagePortsFn: func(context.Context, sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+		listVoyagePortsFn: func(context.Context, int64) ([]sqlcdb.VoyagePort, error) {
 			return []sqlcdb.VoyagePort{
 				{ID: 3, VoyageID: 5, Name: "Hvar", Position: 0},
 				{ID: 1, VoyageID: 5, Name: "Split", Position: 1},
@@ -130,11 +130,11 @@ func TestVoyagePorts_Reorder(t *testing.T) {
 	// Each port is renumbered to its index in the request body, all inside
 	// one transaction.
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(3), int64(5), int64(1), int64(0)).
+	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(3), int64(5), int64(0)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(1), int64(5), int64(1), int64(1)).
+	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(1), int64(5), int64(1)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(2), int64(5), int64(1), int64(2)).
+	mock.ExpectExec("UPDATE voyage_ports").WithArgs(int64(2), int64(5), int64(2)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -163,10 +163,10 @@ func TestVoyagePorts_Reorder_RollsBackOnError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	m := &mockQuerier{
-		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{ID: 5}, nil
 		},
-		listVoyagePortsFn: func(context.Context, sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+		listVoyagePortsFn: func(context.Context, int64) ([]sqlcdb.VoyagePort, error) {
 			return []sqlcdb.VoyagePort{
 				{ID: 3, VoyageID: 5, Name: "Hvar"},
 				{ID: 1, VoyageID: 5, Name: "Split"},
@@ -190,10 +190,10 @@ func TestVoyagePorts_Reorder_RollsBackOnError(t *testing.T) {
 
 func TestVoyagePorts_Reorder_RejectsMismatch(t *testing.T) {
 	m := &mockQuerier{
-		getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{ID: 5}, nil
 		},
-		listVoyagePortsFn: func(context.Context, sqlcdb.ListVoyagePortsParams) ([]sqlcdb.VoyagePort, error) {
+		listVoyagePortsFn: func(context.Context, int64) ([]sqlcdb.VoyagePort, error) {
 			return []sqlcdb.VoyagePort{
 				{ID: 3, VoyageID: 5, Name: "Hvar"},
 				{ID: 1, VoyageID: 5, Name: "Split"},
@@ -220,7 +220,16 @@ func TestVoyagePorts_Remove(t *testing.T) {
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204; body=%s", resp.Code, resp.Body)
 	}
-	if got.ID != 9 || got.VoyageID != 5 || got.OwnerID != 1 {
+	if got.ID != 9 || got.VoyageID != 5 {
 		t.Fatalf("unexpected delete params: %+v", got)
+	}
+}
+
+func TestVoyagePorts_Add_MemberForbidden(t *testing.T) {
+	resp := voyagePortTestAPI(t, &mockQuerier{}).PostCtx(
+		userCtxRole(context.Background(), "member"), "/voyages/5/ports",
+		map[string]any{"name": "Hvar", "latitude": 43.17, "longitude": 16.44})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body=%s", resp.Code, resp.Body)
 	}
 }

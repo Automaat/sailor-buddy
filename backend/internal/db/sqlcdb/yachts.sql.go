@@ -11,77 +11,27 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
-const countOrgYachts = `-- name: CountOrgYachts :one
-SELECT COUNT(*)::BIGINT FROM yachts WHERE org_id = $1
-`
-
-// CountOrgYachts
-//
-//	SELECT COUNT(*)::BIGINT FROM yachts WHERE org_id = $1
-func (q *Queries) CountOrgYachts(ctx context.Context, orgID types.NullInt64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countOrgYachts, orgID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const countYachts = `-- name: CountYachts :one
-SELECT COUNT(*)::BIGINT FROM yachts WHERE owner_id = $1 AND org_id IS NULL
+SELECT COUNT(*)::BIGINT FROM yachts
 `
 
 // CountYachts
 //
-//	SELECT COUNT(*)::BIGINT FROM yachts WHERE owner_id = $1 AND org_id IS NULL
-func (q *Queries) CountYachts(ctx context.Context, ownerID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countYachts, ownerID)
+//	SELECT COUNT(*)::BIGINT FROM yachts
+func (q *Queries) CountYachts(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countYachts)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
 }
 
-const createOrgYacht = `-- name: CreateOrgYacht :one
-INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
-`
-
-type CreateOrgYachtParams struct {
-	OwnerID        int64            `json:"owner_id"`
-	OrgID          types.NullInt64  `json:"org_id"`
-	Name           string           `json:"name"`
-	RegistrationNo types.NullString `json:"registration_no"`
-	YachtType      types.NullString `json:"yacht_type"`
-}
-
-// CreateOrgYacht
-//
-//	INSERT INTO yachts (owner_id, org_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
-func (q *Queries) CreateOrgYacht(ctx context.Context, arg CreateOrgYachtParams) (Yacht, error) {
-	row := q.db.QueryRowContext(ctx, createOrgYacht,
-		arg.OwnerID,
-		arg.OrgID,
-		arg.Name,
-		arg.RegistrationNo,
-		arg.YachtType,
-	)
-	var i Yacht
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.Name,
-		&i.RegistrationNo,
-		&i.YachtType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
-	)
-	return i, err
-}
-
 const createYacht = `-- name: CreateYacht :one
-INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
+INSERT INTO yachts (created_by, name, registration_no, yacht_type)
+VALUES ($1, $2, $3, $4) RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at
 `
 
 type CreateYachtParams struct {
-	OwnerID        int64            `json:"owner_id"`
+	CreatedBy      types.NullInt64  `json:"created_by"`
 	Name           string           `json:"name"`
 	RegistrationNo types.NullString `json:"registration_no"`
 	YachtType      types.NullString `json:"yacht_type"`
@@ -89,10 +39,11 @@ type CreateYachtParams struct {
 
 // CreateYacht
 //
-//	INSERT INTO yachts (owner_id, name, registration_no, yacht_type) VALUES ($1, $2, $3, $4) RETURNING id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id
+//	INSERT INTO yachts (created_by, name, registration_no, yacht_type)
+//	VALUES ($1, $2, $3, $4) RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at
 func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error) {
 	row := q.db.QueryRowContext(ctx, createYacht,
-		arg.OwnerID,
+		arg.CreatedBy,
 		arg.Name,
 		arg.RegistrationNo,
 		arg.YachtType,
@@ -100,195 +51,86 @@ func (q *Queries) CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht
 	var i Yacht
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
+		&i.CreatedBy,
 		&i.Name,
 		&i.RegistrationNo,
 		&i.YachtType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.OrgID,
 	)
 	return i, err
-}
-
-const deleteOrgYacht = `-- name: DeleteOrgYacht :exec
-DELETE FROM yachts WHERE id = $1 AND org_id = $2
-`
-
-type DeleteOrgYachtParams struct {
-	ID    int64           `json:"id"`
-	OrgID types.NullInt64 `json:"org_id"`
-}
-
-// DeleteOrgYacht
-//
-//	DELETE FROM yachts WHERE id = $1 AND org_id = $2
-func (q *Queries) DeleteOrgYacht(ctx context.Context, arg DeleteOrgYachtParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOrgYacht, arg.ID, arg.OrgID)
-	return err
 }
 
 const deleteYacht = `-- name: DeleteYacht :exec
-DELETE FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
+DELETE FROM yachts WHERE id = $1
 `
-
-type DeleteYachtParams struct {
-	ID      int64 `json:"id"`
-	OwnerID int64 `json:"owner_id"`
-}
 
 // DeleteYacht
 //
-//	DELETE FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
-func (q *Queries) DeleteYacht(ctx context.Context, arg DeleteYachtParams) error {
-	_, err := q.db.ExecContext(ctx, deleteYacht, arg.ID, arg.OwnerID)
+//	DELETE FROM yachts WHERE id = $1
+func (q *Queries) DeleteYacht(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteYacht, id)
 	return err
 }
 
-const getOrgYacht = `-- name: GetOrgYacht :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND org_id = $2
-`
-
-type GetOrgYachtParams struct {
-	ID    int64           `json:"id"`
-	OrgID types.NullInt64 `json:"org_id"`
-}
-
-// GetOrgYacht
-//
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND org_id = $2
-func (q *Queries) GetOrgYacht(ctx context.Context, arg GetOrgYachtParams) (Yacht, error) {
-	row := q.db.QueryRowContext(ctx, getOrgYacht, arg.ID, arg.OrgID)
-	var i Yacht
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.Name,
-		&i.RegistrationNo,
-		&i.YachtType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrgID,
-	)
-	return i, err
-}
-
 const getYacht = `-- name: GetYacht :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
+SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE id = $1
 `
-
-type GetYachtParams struct {
-	ID      int64 `json:"id"`
-	OwnerID int64 `json:"owner_id"`
-}
 
 // GetYacht
 //
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE id = $1 AND owner_id = $2 AND org_id IS NULL
-func (q *Queries) GetYacht(ctx context.Context, arg GetYachtParams) (Yacht, error) {
-	row := q.db.QueryRowContext(ctx, getYacht, arg.ID, arg.OwnerID)
+//	SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE id = $1
+func (q *Queries) GetYacht(ctx context.Context, id int64) (Yacht, error) {
+	row := q.db.QueryRowContext(ctx, getYacht, id)
 	var i Yacht
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
+		&i.CreatedBy,
 		&i.Name,
 		&i.RegistrationNo,
 		&i.YachtType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.OrgID,
 	)
 	return i, err
 }
 
 const getYachtByName = `-- name: GetYachtByName :one
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
+SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE name = $1
 `
-
-type GetYachtByNameParams struct {
-	OwnerID int64  `json:"owner_id"`
-	Name    string `json:"name"`
-}
 
 // GetYachtByName
 //
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND name = $2 AND org_id IS NULL
-func (q *Queries) GetYachtByName(ctx context.Context, arg GetYachtByNameParams) (Yacht, error) {
-	row := q.db.QueryRowContext(ctx, getYachtByName, arg.OwnerID, arg.Name)
+//	SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE name = $1
+func (q *Queries) GetYachtByName(ctx context.Context, name string) (Yacht, error) {
+	row := q.db.QueryRowContext(ctx, getYachtByName, name)
 	var i Yacht
 	err := row.Scan(
 		&i.ID,
-		&i.OwnerID,
+		&i.CreatedBy,
 		&i.Name,
 		&i.RegistrationNo,
 		&i.YachtType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.OrgID,
 	)
 	return i, err
 }
 
-const listOrgYachts = `-- name: ListOrgYachts :many
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name, id LIMIT $2 OFFSET $3
-`
-
-type ListOrgYachtsParams struct {
-	OrgID  types.NullInt64 `json:"org_id"`
-	Limit  int32           `json:"limit"`
-	Offset int32           `json:"offset"`
-}
-
-// ListOrgYachts
-//
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE org_id = $1 ORDER BY name, id LIMIT $2 OFFSET $3
-func (q *Queries) ListOrgYachts(ctx context.Context, arg ListOrgYachtsParams) ([]Yacht, error) {
-	rows, err := q.db.QueryContext(ctx, listOrgYachts, arg.OrgID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Yacht
-	for rows.Next() {
-		var i Yacht
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.Name,
-			&i.RegistrationNo,
-			&i.YachtType,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OrgID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listYachts = `-- name: ListYachts :many
-SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name, id LIMIT $2 OFFSET $3
+SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 `
 
 type ListYachtsParams struct {
-	OwnerID int64 `json:"owner_id"`
-	Limit   int32 `json:"limit"`
-	Offset  int32 `json:"offset"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
 }
 
 // ListYachts
 //
-//	SELECT id, owner_id, name, registration_no, yacht_type, created_at, updated_at, org_id FROM yachts WHERE owner_id = $1 AND org_id IS NULL ORDER BY name, id LIMIT $2 OFFSET $3
+//	SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 func (q *Queries) ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error) {
-	rows, err := q.db.QueryContext(ctx, listYachts, arg.OwnerID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listYachts, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -298,13 +140,12 @@ func (q *Queries) ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht
 		var i Yacht
 		if err := rows.Scan(
 			&i.ID,
-			&i.OwnerID,
+			&i.CreatedBy,
 			&i.Name,
 			&i.RegistrationNo,
 			&i.YachtType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.OrgID,
 		); err != nil {
 			return nil, err
 		}
@@ -319,34 +160,9 @@ func (q *Queries) ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht
 	return items, nil
 }
 
-const updateOrgYacht = `-- name: UpdateOrgYacht :exec
-UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND org_id = $5
-`
-
-type UpdateOrgYachtParams struct {
-	Name           string           `json:"name"`
-	RegistrationNo types.NullString `json:"registration_no"`
-	YachtType      types.NullString `json:"yacht_type"`
-	ID             int64            `json:"id"`
-	OrgID          types.NullInt64  `json:"org_id"`
-}
-
-// UpdateOrgYacht
-//
-//	UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND org_id = $5
-func (q *Queries) UpdateOrgYacht(ctx context.Context, arg UpdateOrgYachtParams) error {
-	_, err := q.db.ExecContext(ctx, updateOrgYacht,
-		arg.Name,
-		arg.RegistrationNo,
-		arg.YachtType,
-		arg.ID,
-		arg.OrgID,
-	)
-	return err
-}
-
 const updateYacht = `-- name: UpdateYacht :exec
-UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
+UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP
+WHERE id = $4
 `
 
 type UpdateYachtParams struct {
@@ -354,19 +170,18 @@ type UpdateYachtParams struct {
 	RegistrationNo types.NullString `json:"registration_no"`
 	YachtType      types.NullString `json:"yacht_type"`
 	ID             int64            `json:"id"`
-	OwnerID        int64            `json:"owner_id"`
 }
 
 // UpdateYacht
 //
-//	UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 AND owner_id = $5 AND org_id IS NULL
+//	UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $4
 func (q *Queries) UpdateYacht(ctx context.Context, arg UpdateYachtParams) error {
 	_, err := q.db.ExecContext(ctx, updateYacht,
 		arg.Name,
 		arg.RegistrationNo,
 		arg.YachtType,
 		arg.ID,
-		arg.OwnerID,
 	)
 	return err
 }

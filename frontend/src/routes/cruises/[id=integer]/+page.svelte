@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import {
 		getCruise,
 		deleteCruise,
@@ -32,7 +32,7 @@
 	let togglingEnroll = $state(false);
 
 	const id = $derived(Number(page.params.id));
-	const isAdmin = $derived(orgStore.isOrgAdmin);
+	const isAdmin = $derived(auth.isAdmin);
 
 	async function reloadEnrollments() {
 		enrollments = (await listCruiseEnrollments(id)) ?? [];

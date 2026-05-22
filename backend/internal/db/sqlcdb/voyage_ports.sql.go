@@ -7,8 +7,6 @@ package sqlcdb
 
 import (
 	"context"
-
-	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createVoyagePort = `-- name: CreateVoyagePort :one
@@ -49,131 +47,32 @@ func (q *Queries) CreateVoyagePort(ctx context.Context, arg CreateVoyagePortPara
 	return i, err
 }
 
-const deleteOrgVoyagePort = `-- name: DeleteOrgVoyagePort :exec
-DELETE FROM voyage_ports
-WHERE voyage_ports.id = $1
-  AND voyage_ports.voyage_id = $2
-  AND voyage_ports.voyage_id IN (
-      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
-  )
-`
-
-type DeleteOrgVoyagePortParams struct {
-	ID       int64           `json:"id"`
-	VoyageID int64           `json:"voyage_id"`
-	OrgID    types.NullInt64 `json:"org_id"`
-}
-
-// DeleteOrgVoyagePort
-//
-//	DELETE FROM voyage_ports
-//	WHERE voyage_ports.id = $1
-//	  AND voyage_ports.voyage_id = $2
-//	  AND voyage_ports.voyage_id IN (
-//	      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
-//	  )
-func (q *Queries) DeleteOrgVoyagePort(ctx context.Context, arg DeleteOrgVoyagePortParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOrgVoyagePort, arg.ID, arg.VoyageID, arg.OrgID)
-	return err
-}
-
 const deleteVoyagePort = `-- name: DeleteVoyagePort :exec
-DELETE FROM voyage_ports
-WHERE voyage_ports.id = $1
-  AND voyage_ports.voyage_id = $2
-  AND voyage_ports.voyage_id IN (
-      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
-  )
+DELETE FROM voyage_ports WHERE id = $1 AND voyage_id = $2
 `
 
 type DeleteVoyagePortParams struct {
 	ID       int64 `json:"id"`
 	VoyageID int64 `json:"voyage_id"`
-	OwnerID  int64 `json:"owner_id"`
 }
 
 // DeleteVoyagePort
 //
-//	DELETE FROM voyage_ports
-//	WHERE voyage_ports.id = $1
-//	  AND voyage_ports.voyage_id = $2
-//	  AND voyage_ports.voyage_id IN (
-//	      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
-//	  )
+//	DELETE FROM voyage_ports WHERE id = $1 AND voyage_id = $2
 func (q *Queries) DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortParams) error {
-	_, err := q.db.ExecContext(ctx, deleteVoyagePort, arg.ID, arg.VoyageID, arg.OwnerID)
+	_, err := q.db.ExecContext(ctx, deleteVoyagePort, arg.ID, arg.VoyageID)
 	return err
-}
-
-const listOrgVoyagePorts = `-- name: ListOrgVoyagePorts :many
-SELECT vp.id, vp.voyage_id, vp.name, vp.latitude, vp.longitude, vp.position, vp.created_at FROM voyage_ports vp
-JOIN voyages v ON v.id = vp.voyage_id
-WHERE vp.voyage_id = $1 AND v.org_id = $2
-ORDER BY vp.position, vp.id
-`
-
-type ListOrgVoyagePortsParams struct {
-	VoyageID int64           `json:"voyage_id"`
-	OrgID    types.NullInt64 `json:"org_id"`
-}
-
-// ListOrgVoyagePorts
-//
-//	SELECT vp.id, vp.voyage_id, vp.name, vp.latitude, vp.longitude, vp.position, vp.created_at FROM voyage_ports vp
-//	JOIN voyages v ON v.id = vp.voyage_id
-//	WHERE vp.voyage_id = $1 AND v.org_id = $2
-//	ORDER BY vp.position, vp.id
-func (q *Queries) ListOrgVoyagePorts(ctx context.Context, arg ListOrgVoyagePortsParams) ([]VoyagePort, error) {
-	rows, err := q.db.QueryContext(ctx, listOrgVoyagePorts, arg.VoyageID, arg.OrgID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []VoyagePort
-	for rows.Next() {
-		var i VoyagePort
-		if err := rows.Scan(
-			&i.ID,
-			&i.VoyageID,
-			&i.Name,
-			&i.Latitude,
-			&i.Longitude,
-			&i.Position,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listVoyagePorts = `-- name: ListVoyagePorts :many
-SELECT vp.id, vp.voyage_id, vp.name, vp.latitude, vp.longitude, vp.position, vp.created_at FROM voyage_ports vp
-JOIN voyages v ON v.id = vp.voyage_id
-WHERE vp.voyage_id = $1 AND v.owner_id = $2 AND v.org_id IS NULL
-ORDER BY vp.position, vp.id
+SELECT id, voyage_id, name, latitude, longitude, position, created_at FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
 `
-
-type ListVoyagePortsParams struct {
-	VoyageID int64 `json:"voyage_id"`
-	OwnerID  int64 `json:"owner_id"`
-}
 
 // ListVoyagePorts
 //
-//	SELECT vp.id, vp.voyage_id, vp.name, vp.latitude, vp.longitude, vp.position, vp.created_at FROM voyage_ports vp
-//	JOIN voyages v ON v.id = vp.voyage_id
-//	WHERE vp.voyage_id = $1 AND v.owner_id = $2 AND v.org_id IS NULL
-//	ORDER BY vp.position, vp.id
-func (q *Queries) ListVoyagePorts(ctx context.Context, arg ListVoyagePortsParams) ([]VoyagePort, error) {
-	rows, err := q.db.QueryContext(ctx, listVoyagePorts, arg.VoyageID, arg.OwnerID)
+//	SELECT id, voyage_id, name, latitude, longitude, position, created_at FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
+func (q *Queries) ListVoyagePorts(ctx context.Context, voyageID int64) ([]VoyagePort, error) {
+	rows, err := q.db.QueryContext(ctx, listVoyagePorts, voyageID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,74 +102,20 @@ func (q *Queries) ListVoyagePorts(ctx context.Context, arg ListVoyagePortsParams
 	return items, nil
 }
 
-const setOrgVoyagePortPosition = `-- name: SetOrgVoyagePortPosition :exec
-UPDATE voyage_ports
-SET position = $4
-WHERE voyage_ports.id = $1
-  AND voyage_ports.voyage_id = $2
-  AND voyage_ports.voyage_id IN (
-      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
-  )
-`
-
-type SetOrgVoyagePortPositionParams struct {
-	ID       int64           `json:"id"`
-	VoyageID int64           `json:"voyage_id"`
-	OrgID    types.NullInt64 `json:"org_id"`
-	Position int64           `json:"position"`
-}
-
-// SetOrgVoyagePortPosition
-//
-//	UPDATE voyage_ports
-//	SET position = $4
-//	WHERE voyage_ports.id = $1
-//	  AND voyage_ports.voyage_id = $2
-//	  AND voyage_ports.voyage_id IN (
-//	      SELECT voyages.id FROM voyages WHERE voyages.org_id = $3
-//	  )
-func (q *Queries) SetOrgVoyagePortPosition(ctx context.Context, arg SetOrgVoyagePortPositionParams) error {
-	_, err := q.db.ExecContext(ctx, setOrgVoyagePortPosition,
-		arg.ID,
-		arg.VoyageID,
-		arg.OrgID,
-		arg.Position,
-	)
-	return err
-}
-
 const setVoyagePortPosition = `-- name: SetVoyagePortPosition :exec
-UPDATE voyage_ports
-SET position = $4
-WHERE voyage_ports.id = $1
-  AND voyage_ports.voyage_id = $2
-  AND voyage_ports.voyage_id IN (
-      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
-  )
+UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2
 `
 
 type SetVoyagePortPositionParams struct {
 	ID       int64 `json:"id"`
 	VoyageID int64 `json:"voyage_id"`
-	OwnerID  int64 `json:"owner_id"`
 	Position int64 `json:"position"`
 }
 
 // SetVoyagePortPosition
 //
-//	UPDATE voyage_ports
-//	SET position = $4
-//	WHERE voyage_ports.id = $1
-//	  AND voyage_ports.voyage_id = $2
-//	  AND voyage_ports.voyage_id IN (
-//	      SELECT voyages.id FROM voyages WHERE voyages.owner_id = $3 AND voyages.org_id IS NULL
-//	  )
+//	UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2
 func (q *Queries) SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) error {
-	_, err := q.db.ExecContext(ctx, setVoyagePortPosition,
-		arg.ID,
-		arg.VoyageID,
-		arg.OwnerID,
-		arg.Position,
-	)
+	_, err := q.db.ExecContext(ctx, setVoyagePortPosition, arg.ID, arg.VoyageID, arg.Position)
 	return err
 }

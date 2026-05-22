@@ -24,10 +24,10 @@ func tripTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 
 func TestListTrips_Huma(t *testing.T) {
 	m := &mockQuerier{
-		listTripsFn: func(_ context.Context, ownerID int64) ([]sqlcdb.Trip, error) {
-			return []sqlcdb.Trip{{ID: 7, OwnerID: ownerID, Name: "Adriatic", Status: sqlcdb.TripStatusPlanned}}, nil
+		listTripsFn: func(context.Context, sqlcdb.ListTripsParams) ([]sqlcdb.Trip, error) {
+			return []sqlcdb.Trip{{ID: 7, Name: "Adriatic", Status: sqlcdb.TripStatusPlanned}}, nil
 		},
-		countTripsFn: func(context.Context, int64) (int64, error) { return 1, nil },
+		countTripsFn: func(context.Context) (int64, error) { return 1, nil },
 	}
 	resp := tripTestAPI(t, m).GetCtx(userCtx(context.Background()), "/trips")
 	if resp.Code != http.StatusOK {
@@ -47,7 +47,7 @@ func TestListTrips_Huma(t *testing.T) {
 
 func TestGetTrip_Huma_NotFound(t *testing.T) {
 	m := &mockQuerier{
-		getTripFn: func(context.Context, sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
+		getTripFn: func(context.Context, int64) (sqlcdb.Trip, error) {
 			return sqlcdb.Trip{}, sql.ErrNoRows
 		},
 	}
@@ -97,7 +97,7 @@ func TestUpdateTrip_Huma(t *testing.T) {
 
 func TestDeleteTrip_Huma(t *testing.T) {
 	m := &mockQuerier{
-		deleteTripFn: func(context.Context, sqlcdb.DeleteTripParams) error { return nil },
+		deleteTripFn: func(context.Context, int64) error { return nil },
 	}
 	resp := tripTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/1")
 	if resp.Code != http.StatusNoContent {
@@ -108,8 +108,8 @@ func TestDeleteTrip_Huma(t *testing.T) {
 func TestCancelTrip_Huma(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			cancelTripFn: func(_ context.Context, arg sqlcdb.CancelTripParams) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{ID: arg.ID, Status: sqlcdb.TripStatusCancelled}, nil
+			cancelTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{ID: id, Status: sqlcdb.TripStatusCancelled}, nil
 			},
 		}
 		resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/1/cancel")
@@ -120,7 +120,7 @@ func TestCancelTrip_Huma(t *testing.T) {
 
 	t.Run("invalid transition", func(t *testing.T) {
 		m := &mockQuerier{
-			cancelTripFn: func(context.Context, sqlcdb.CancelTripParams) (sqlcdb.Trip, error) {
+			cancelTripFn: func(context.Context, int64) (sqlcdb.Trip, error) {
 				return sqlcdb.Trip{}, sql.ErrNoRows
 			},
 		}
@@ -134,7 +134,7 @@ func TestCancelTrip_Huma(t *testing.T) {
 func TestCreateTrip_Huma(t *testing.T) {
 	m := &mockQuerier{
 		createTripFn: func(_ context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
-			return sqlcdb.Trip{ID: 1, OwnerID: arg.OwnerID, Name: arg.Name, Status: sqlcdb.TripStatusPlanned}, nil
+			return sqlcdb.Trip{ID: 1, Name: arg.Name, Status: sqlcdb.TripStatusPlanned}, nil
 		},
 	}
 	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{"name": "Baltic"})
@@ -147,5 +147,13 @@ func TestCreateTrip_Huma(t *testing.T) {
 	}
 	if trip.Name != "Baltic" || trip.Status != "planned" {
 		t.Fatalf("unexpected trip: %+v", trip)
+	}
+}
+
+func TestCreateTrip_Huma_MemberForbidden(t *testing.T) {
+	resp := tripTestAPI(t, &mockQuerier{}).PostCtx(
+		userCtxRole(context.Background(), "member"), "/trips", map[string]any{"name": "X"})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body=%s", resp.Code, resp.Body)
 	}
 }

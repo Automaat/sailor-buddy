@@ -7,7 +7,9 @@
 	} from '$lib/api/routes';
 	import type { TripEnrollment, Trip } from '$lib/api/types';
 	import { statusLabels } from '$lib/enrollment';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
 	type EnrollStatus = 'accepted' | 'rejected' | 'waitlisted' | 'pending';
@@ -17,6 +19,13 @@
 	let loading = $state(true);
 
 	const id = $derived(Number(page.params.id));
+
+	// Managing enrollments is an admin task; redirect regular members away.
+	$effect(() => {
+		if (auth.user && !auth.isAdmin) {
+			goto(`/trips/${id}`);
+		}
+	});
 
 	onMount(async () => {
 		try {

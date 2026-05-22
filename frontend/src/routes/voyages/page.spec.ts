@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/svelte';
 import { makeVoyage } from '$lib/test-utils';
 
 vi.mock('$lib/api/client', () => ({ api: { list: vi.fn() } }));
-vi.mock('$lib/stores/org.svelte', () => ({
-	orgStore: { currentSlug: 'alfa', isOrgAdmin: true, apiPrefix: () => '/orgs/alfa' }
+vi.mock('$lib/stores/auth.svelte', () => ({
+	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
 import { api } from '$lib/api/client';
@@ -24,10 +24,10 @@ describe('voyages page', () => {
 		expect(screen.getByText('Wczytywanie...')).toBeInTheDocument();
 	});
 
-	it('requests voyages from the org-scoped endpoint', async () => {
+	it('requests voyages from the club endpoint', async () => {
 		render(VoyagesPage);
 		await screen.findByText('Brak zrealizowanych rejsów');
-		expect(apiList).toHaveBeenCalledWith('/orgs/{slug}/voyages', { path: { slug: 'alfa' } });
+		expect(apiList).toHaveBeenCalledWith('/voyages');
 	});
 
 	it('shows the empty state when there are no voyages', async () => {

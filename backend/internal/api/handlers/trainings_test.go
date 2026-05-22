@@ -22,7 +22,7 @@ func trainingTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 func TestTrainingHandler_List(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			listTrainingsFn: func(context.Context, int64) ([]sqlcdb.Training, error) {
+			listTrainingsFn: func(context.Context, sqlcdb.ListTrainingsParams) ([]sqlcdb.Training, error) {
 				return []sqlcdb.Training{{ID: 1, Name: "RYA Day Skipper"}}, nil
 			},
 			countTrainingsFn: func(context.Context, int64) (int64, error) { return 1, nil },
@@ -35,7 +35,7 @@ func TestTrainingHandler_List(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			listTrainingsFn: func(context.Context, int64) ([]sqlcdb.Training, error) {
+			listTrainingsFn: func(context.Context, sqlcdb.ListTrainingsParams) ([]sqlcdb.Training, error) {
 				return nil, errors.New("fail")
 			},
 		}

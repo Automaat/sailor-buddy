@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { listTrips } from '$lib/api/routes';
 	import type { Trip } from '$lib/api/types';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
@@ -19,7 +19,6 @@
 	}
 
 	$effect(() => {
-		orgStore.currentSlug;
 		load();
 	});
 
@@ -40,12 +39,14 @@
 				<a href="/voyages" class="text-[var(--ocean)] hover:underline">Zobacz zrealizowane →</a>
 			</p>
 		</div>
-		<a
-			href="/trips/new"
-			class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
-		>
-			+ Zaplanuj rejs
-		</a>
+		{#if auth.isAdmin}
+			<a
+				href="/trips/new"
+				class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
+			>
+				+ Zaplanuj rejs
+			</a>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -54,9 +55,11 @@
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak planowanych rejsów</p>
-			<a href="/trips/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
-				Zaplanuj pierwszy rejs
-			</a>
+			{#if auth.isAdmin}
+				<a href="/trips/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
+					Zaplanuj pierwszy rejs
+				</a>
+			{/if}
 		</div>
 	{:else}
 		<div class="grid gap-4">

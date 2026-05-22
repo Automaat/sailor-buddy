@@ -9,8 +9,7 @@ import (
 // Yacht is the API representation of a yacht.
 type Yacht struct {
 	ID             int64     `json:"id"`
-	OwnerID        int64     `json:"owner_id"`
-	OrgID          *int64    `json:"org_id,omitempty"`
+	CreatedBy      *int64    `json:"created_by,omitempty"`
 	Name           string    `json:"name"`
 	RegistrationNo *string   `json:"registration_no,omitempty"`
 	YachtType      *string   `json:"yacht_type,omitempty"`
@@ -29,8 +28,7 @@ type YachtBody struct {
 func YachtFromDB(y sqlcdb.Yacht) Yacht {
 	return Yacht{
 		ID:             y.ID,
-		OwnerID:        y.OwnerID,
-		OrgID:          intPtr(y.OrgID),
+		CreatedBy:      intPtr(y.CreatedBy),
 		Name:           y.Name,
 		RegistrationNo: strPtr(y.RegistrationNo),
 		YachtType:      strPtr(y.YachtType),

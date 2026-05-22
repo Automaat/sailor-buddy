@@ -107,7 +107,24 @@ func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Han
 				return
 			}
 
-			claims := &auth.Claims{UserID: user.ID, Email: user.Email, Name: user.Name, AvatarUrl: user.AvatarUrl.String}
+			// First-user-admin: the first account ever provisioned becomes the
+			// club admin. Self-healing — only fires while no admin exists.
+			role := user.Role
+			if role != "admin" {
+				if n, cerr := q.CountAdmins(r.Context()); cerr == nil && n == 0 {
+					if uerr := q.UpdateUserRole(r.Context(), sqlcdb.UpdateUserRoleParams{Role: "admin", ID: user.ID}); uerr == nil {
+						role = "admin"
+					}
+				}
+			}
+
+			claims := &auth.Claims{
+				UserID:    user.ID,
+				Email:     user.Email,
+				Name:      user.Name,
+				AvatarUrl: user.AvatarUrl.String,
+				Role:      role,
+			}
 			ctx := context.WithValue(r.Context(), UserCtxKey, claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

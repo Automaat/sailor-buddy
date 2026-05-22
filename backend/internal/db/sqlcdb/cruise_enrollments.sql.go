@@ -15,8 +15,7 @@ const assignCruiseEnrollmentToTrip = `-- name: AssignCruiseEnrollmentToTrip :exe
 UPDATE cruise_enrollments ce SET
     trip_id = $1,
     updated_at = CURRENT_TIMESTAMP
-FROM cruises c
-WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
+WHERE ce.id = $2
   AND ($1::BIGINT IS NULL OR EXISTS (
       SELECT 1 FROM trips t WHERE t.id = $1 AND t.cruise_id = ce.cruise_id
   ))
@@ -25,7 +24,6 @@ WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
 type AssignCruiseEnrollmentToTripParams struct {
 	TripID types.NullInt64 `json:"trip_id"`
 	ID     int64           `json:"id"`
-	OrgID  int64           `json:"org_id"`
 }
 
 // AssignCruiseEnrollmentToTrip
@@ -33,13 +31,12 @@ type AssignCruiseEnrollmentToTripParams struct {
 //	UPDATE cruise_enrollments ce SET
 //	    trip_id = $1,
 //	    updated_at = CURRENT_TIMESTAMP
-//	FROM cruises c
-//	WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
+//	WHERE ce.id = $2
 //	  AND ($1::BIGINT IS NULL OR EXISTS (
 //	      SELECT 1 FROM trips t WHERE t.id = $1 AND t.cruise_id = ce.cruise_id
 //	  ))
 func (q *Queries) AssignCruiseEnrollmentToTrip(ctx context.Context, arg AssignCruiseEnrollmentToTripParams) error {
-	_, err := q.db.ExecContext(ctx, assignCruiseEnrollmentToTrip, arg.TripID, arg.ID, arg.OrgID)
+	_, err := q.db.ExecContext(ctx, assignCruiseEnrollmentToTrip, arg.TripID, arg.ID)
 	return err
 }
 
@@ -102,23 +99,14 @@ func (q *Queries) CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEn
 }
 
 const deleteCruiseEnrollment = `-- name: DeleteCruiseEnrollment :exec
-DELETE FROM cruise_enrollments ce
-USING cruises c
-WHERE ce.id = $1 AND ce.cruise_id = c.id AND c.org_id = $2
+DELETE FROM cruise_enrollments WHERE id = $1
 `
-
-type DeleteCruiseEnrollmentParams struct {
-	ID    int64 `json:"id"`
-	OrgID int64 `json:"org_id"`
-}
 
 // DeleteCruiseEnrollment
 //
-//	DELETE FROM cruise_enrollments ce
-//	USING cruises c
-//	WHERE ce.id = $1 AND ce.cruise_id = c.id AND c.org_id = $2
-func (q *Queries) DeleteCruiseEnrollment(ctx context.Context, arg DeleteCruiseEnrollmentParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCruiseEnrollment, arg.ID, arg.OrgID)
+//	DELETE FROM cruise_enrollments WHERE id = $1
+func (q *Queries) DeleteCruiseEnrollment(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteCruiseEnrollment, id)
 	return err
 }
 
@@ -158,16 +146,10 @@ SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.creat
        t.name AS trip_name
 FROM cruise_enrollments ce
 JOIN users u ON u.id = ce.user_id
-JOIN cruises c ON c.id = ce.cruise_id
 LEFT JOIN trips t ON t.id = ce.trip_id
-WHERE ce.cruise_id = $1 AND c.org_id = $2
+WHERE ce.cruise_id = $1
 ORDER BY ce.created_at
 `
-
-type ListCruiseEnrollmentsParams struct {
-	CruiseID int64 `json:"cruise_id"`
-	OrgID    int64 `json:"org_id"`
-}
 
 type ListCruiseEnrollmentsRow struct {
 	ID        int64            `json:"id"`
@@ -190,12 +172,11 @@ type ListCruiseEnrollmentsRow struct {
 //	       t.name AS trip_name
 //	FROM cruise_enrollments ce
 //	JOIN users u ON u.id = ce.user_id
-//	JOIN cruises c ON c.id = ce.cruise_id
 //	LEFT JOIN trips t ON t.id = ce.trip_id
-//	WHERE ce.cruise_id = $1 AND c.org_id = $2
+//	WHERE ce.cruise_id = $1
 //	ORDER BY ce.created_at
-func (q *Queries) ListCruiseEnrollments(ctx context.Context, arg ListCruiseEnrollmentsParams) ([]ListCruiseEnrollmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseEnrollments, arg.CruiseID, arg.OrgID)
+func (q *Queries) ListCruiseEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseEnrollmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseEnrollments, cruiseID)
 	if err != nil {
 		return nil, err
 	}
@@ -230,27 +211,18 @@ func (q *Queries) ListCruiseEnrollments(ctx context.Context, arg ListCruiseEnrol
 }
 
 const updateCruiseEnrollmentStatus = `-- name: UpdateCruiseEnrollmentStatus :exec
-UPDATE cruise_enrollments ce SET
-    status = $1,
-    updated_at = CURRENT_TIMESTAMP
-FROM cruises c
-WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
+UPDATE cruise_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
 
 type UpdateCruiseEnrollmentStatusParams struct {
 	Status string `json:"status"`
 	ID     int64  `json:"id"`
-	OrgID  int64  `json:"org_id"`
 }
 
 // UpdateCruiseEnrollmentStatus
 //
-//	UPDATE cruise_enrollments ce SET
-//	    status = $1,
-//	    updated_at = CURRENT_TIMESTAMP
-//	FROM cruises c
-//	WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
+//	UPDATE cruise_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 func (q *Queries) UpdateCruiseEnrollmentStatus(ctx context.Context, arg UpdateCruiseEnrollmentStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateCruiseEnrollmentStatus, arg.Status, arg.ID, arg.OrgID)
+	_, err := q.db.ExecContext(ctx, updateCruiseEnrollmentStatus, arg.Status, arg.ID)
 	return err
 }

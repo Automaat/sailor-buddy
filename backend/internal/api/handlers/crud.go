@@ -9,37 +9,27 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// crudScope carries the authenticated caller's user ID (used as the created_by
+// audit column on writes) and the structured log attributes for the request.
 type crudScope struct {
 	userID   int64
-	orgID    types.NullInt64
 	logAttrs []any
 }
 
-func ownerCRUDScope(ctx context.Context) crudScope {
+// memberScope allows any authenticated member. Used for read operations.
+func memberScope(ctx context.Context) (crudScope, error) {
 	user := middleware.GetUser(ctx)
-	return crudScope{userID: user.UserID, logAttrs: []any{"user_id", user.UserID}}
+	return crudScope{userID: user.UserID, logAttrs: []any{"user_id", user.UserID}}, nil
 }
 
-func orgCRUDScope(ctx context.Context, q sqlcdb.Querier, slug string, requireAdmin bool) (crudScope, error) {
-	octx, err := resolveOrg(ctx, q, slug, requireAdmin)
-	if err != nil {
+// adminScope requires the caller to be a club admin. Used for mutations.
+func adminScope(ctx context.Context) (crudScope, error) {
+	if err := requireAdmin(ctx); err != nil {
 		return crudScope{}, err
 	}
-	user := middleware.GetUser(ctx)
-	return crudScope{
-		userID:   user.UserID,
-		orgID:    orgID(octx),
-		logAttrs: []any{"org_id", octx.OrgID},
-	}, nil
-}
-
-// orgID wraps an org context's ID as the nullable column the org queries take.
-func orgID(octx *middleware.OrgContext) types.NullInt64 {
-	return types.NullInt64{Int64: octx.OrgID, Valid: true}
+	return memberScope(ctx)
 }
 
 type crudConfig[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut, ItemOut any] struct {

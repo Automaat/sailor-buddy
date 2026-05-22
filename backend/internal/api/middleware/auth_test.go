@@ -39,6 +39,7 @@ func TestGetUser_ValidClaims(t *testing.T) {
 		Email:     "sailor@example.com",
 		Name:      "Captain Hook",
 		AvatarUrl: "https://example.com/avatar.png",
+		Role:      "admin",
 	}
 	ctx := context.WithValue(context.Background(), UserCtxKey, want)
 
@@ -57,6 +58,9 @@ func TestGetUser_ValidClaims(t *testing.T) {
 	}
 	if got.AvatarUrl != want.AvatarUrl {
 		t.Errorf("AvatarUrl = %q, want %q", got.AvatarUrl, want.AvatarUrl)
+	}
+	if got.Role != want.Role {
+		t.Errorf("Role = %q, want %q", got.Role, want.Role)
 	}
 }
 

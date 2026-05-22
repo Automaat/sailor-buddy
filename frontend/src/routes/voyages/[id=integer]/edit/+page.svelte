@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { auth } from '$lib/stores/auth.svelte';
 	import { getVoyage, updateVoyage, listYachts } from '$lib/api/routes';
 	import type { Yacht } from '$lib/api/types';
 	import { page } from '$app/state';
@@ -9,6 +10,13 @@
 	let loading = $state(true);
 	let saving = $state(false);
 	let yachts = $state<Yacht[]>([]);
+
+	// Editing voyages is an admin task; redirect regular members away.
+	$effect(() => {
+		if (auth.user && !auth.isAdmin) {
+			goto(`/voyages/${page.params.id}`);
+		}
+	});
 
 	let form = $state({
 		name: '',

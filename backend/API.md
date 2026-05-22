@@ -4,6 +4,10 @@ HTTP/JSON API for the Sailor Buddy backend. All application endpoints live
 under `/api`. The frontend dev server proxies `/api` to the backend on
 `:8080` (see `frontend/vite.config.ts`).
 
+Sailor Buddy is a single-club app: all sailing data (cruises, trips, voyages,
+yachts, crew) is shared across the club. Every member sees the same data;
+only **admins** may create, edit or delete it.
+
 ## Authentication
 
 Every `/api/*` endpoint requires a Firebase ID token:
@@ -13,14 +17,16 @@ Authorization: Bearer <firebase_id_token>
 ```
 
 The `Auth` middleware verifies the token, then upserts a `users` row keyed by
-Firebase UID (linking by verified email if the UID is new). The resulting user
-identity scopes all owner-scoped data.
+Firebase UID (linking by verified email if the UID is new). The **first user
+ever provisioned becomes the club admin**; every account after is a regular
+`member`. Admins manage other members' roles on the members page.
 
 Public endpoints (no token):
 
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /healthz` | Liveness probe, returns `200` with empty body |
+| `GET /api/enroll/{token}` | Enrollment preview — resolves a share token without auth |
 
 There is no `/auth/register` endpoint — account provisioning happens
 automatically on the first authenticated request.
@@ -69,35 +75,30 @@ body for `401` responses via `http.Error`.
 
 | Status | Meaning | Example |
 |--------|---------|---------|
-| 200 | Success with body | `GET /api/trips`, `PUT`/`DELETE` on org invite accept |
-| 201 | Resource created | `POST /api/trips`, `POST /api/orgs` |
+| 200 | Success with body | `GET /api/trips` |
+| 201 | Resource created | `POST /api/trips` |
 | 204 | Success, no body | `PUT`/`DELETE` on most resources |
-| 400 | Bad request — malformed body, failed validation, or unparseable path id | Missing `name`, `invalid trip id` |
+| 400 | Bad request — malformed body, failed validation, or unparseable path id | Missing `name`, `cannot demote the last admin` |
 | 401 | Unauthorized — missing/invalid token | Missing `Authorization` header |
-| 403 | Forbidden — authenticated but not allowed | Non-member or non-admin on an org route |
-| 404 | Not found — resource missing or not owned by caller | `GET /api/trips/999` |
-| 409 | Conflict — uniqueness or state violation | Org slug taken, already enrolled |
-| 410 | Gone — resource expired | Org invite expired or max uses reached |
+| 403 | Forbidden — authenticated but not an admin | Member calling a mutating route |
+| 404 | Not found — resource missing | `GET /api/trips/999` |
+| 409 | Conflict — uniqueness or state violation | Already enrolled |
 | 500 | Internal server error | Database unavailable |
 
 Notes:
 
 - The whole API is served by the huma framework and described by
   `backend/openapi.yaml`. Malformed request bodies and unparseable path ids
-  return `422` with a body-level error list. Some semantic checks still return
-  `422` from the handler (`slug is required`, `cannot demote the last admin`).
+  return `422` with a body-level error list.
 - The error envelope is huma's RFC 9457 problem shape (`title`, `status`,
   `detail`, `errors`), not the legacy `{"error": "..."}` object.
-- **Ownership is enforced via the query, not a separate check.** Requesting a
-  resource owned by another user returns `404` (`sql.ErrNoRows`), not `403`.
 - **Empty list responses serialize as `[]`**, never `null`.
 
 ## Pagination
 
 Top-level collection list endpoints (`GET /api/trips`, `/voyages`, `/yachts`,
-`/crew`, `/trainings`, their `/orgs/{slug}/...` equivalents, and
-`/orgs/{slug}/cruises`) are offset-paginated. They accept two query
-parameters:
+`/crew`, `/trainings`, `/cruises`) are offset-paginated. They accept two
+query parameters:
 
 | Param | Default | Bounds | Meaning |
 |-------|---------|--------|---------|
@@ -121,19 +122,24 @@ bare array:
 beyond the window. `items` always serialises as `[]`, never `null`.
 
 Nested sub-resource lists (a trip's crew, a cruise's child trips/voyages,
-org members and invites) are not paginated — they stay bare JSON arrays.
+the members roster) are not paginated — they stay bare JSON arrays.
 
-## Data model & scoping
+## Data model & authorization
 
-Two scopes exist:
+All sailing data is **club-wide**: there is one club and every member sees
+every cruise, trip, voyage, yacht and crew member. Authorization is by role,
+held on the `users.role` column:
 
-- **Owner-scoped** (`/api/trips`, `/api/voyages`, `/api/yachts`, `/api/crew`,
-  `/api/trainings`, `/api/dashboard`): rows filtered by the caller's
-  `owner_id`. Other users' rows are invisible (`404` on direct access).
-- **Org-scoped** (`/api/orgs/{slug}/...`): rows filtered by `org_id`. Access
-  requires org membership; mutations require the `admin` role.
+- **Reads** (`GET`) — open to any authenticated member.
+- **Mutations** (`POST`/`PUT`/`DELETE`, plus `complete`/`cancel`/enroll-token)
+  on shared club data — require the caller to be an `admin`; a member gets
+  `403 admin only`.
+- **Trainings** are the exception: a per-member course/certification log,
+  scoped to the caller. Each member manages their own trainings.
 
-`crew_members` are decoupled from `users` — crew need not have accounts.
+Resources keep a `created_by` audit column (the user who created the row); it
+is never used for access control. `crew_members` are decoupled from `users` —
+crew need not have accounts.
 
 Trip lifecycle: a `trip` is `planned`, then either `cancelled` or `completed`.
 Completing a trip atomically converts it into a `voyage` (a logged, finished
@@ -141,28 +147,38 @@ sailing record) and repoints crew assignments.
 
 ## Endpoint reference
 
-`{id}` path segments are integers; `{slug}` and `{token}` are strings.
-Mutating org routes additionally require the caller to be an org `admin`
-(marked **admin** below).
+`{id}` path segments are integers; `{token}` is a string. Mutating routes
+require the caller to be an `admin` (marked **admin** below).
 
 ### Identity
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/auth/me` | Current user: `{id, email, name, avatar_url}` |
-| GET | `/api/dashboard` | Owner sailing stats + per-year breakdown |
+| GET | `/api/auth/me` | Current user: `{id, email, name, avatar_url, role, patent_type, patent_number}` |
+| PUT | `/api/auth/me` | Update the caller's sailing patent |
+| GET | `/api/dashboard` | Club sailing stats + per-year breakdown |
 
-### Trips (owner-scoped)
+### Members
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| GET | `/api/trips` | List trips | 200 |
-| POST | `/api/trips` | Create trip | 201 |
-| GET | `/api/trips/{id}` | Get trip | 200 |
-| PUT | `/api/trips/{id}` | Update trip | 204 |
-| DELETE | `/api/trips/{id}` | Delete trip | 204 |
-| POST | `/api/trips/{id}/complete` | Complete trip → create voyage | 201 (voyage) |
-| POST | `/api/trips/{id}/cancel` | Cancel trip | 200 (trip) |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/members` | member | List club members `{id, name, email, role, ...}` |
+| PUT | `/api/members/{userID}/role` | **admin** | Set a member's role, 204 |
+
+Roles: `admin`, `member`. The last `admin` cannot be demoted (`400 cannot
+demote the last admin`). Role body: `{ "role": "admin" }`.
+
+### Trips
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/trips` | member | List trips | 200 |
+| POST | `/api/trips` | **admin** | Create trip | 201 |
+| GET | `/api/trips/{id}` | member | Get trip | 200 |
+| PUT | `/api/trips/{id}` | **admin** | Update trip | 204 |
+| DELETE | `/api/trips/{id}` | **admin** | Delete trip | 204 |
+| POST | `/api/trips/{id}/complete` | **admin** | Complete trip → create voyage | 201 (voyage) |
+| POST | `/api/trips/{id}/cancel` | **admin** | Cancel trip | 200 (trip) |
 
 `POST`/`PUT` body — only `name` is required:
 
@@ -202,11 +218,11 @@ is missing or already completed/cancelled. `cancel` returns `404`
 
 ### Trip crew assignments
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| GET | `/api/trips/{tripID}/crew` | List trip crew | 200 |
-| POST | `/api/trips/{tripID}/crew` | Assign crew member | 201 |
-| DELETE | `/api/trips/{tripID}/crew/{assignmentID}` | Remove assignment | 204 |
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/trips/{tripID}/crew` | member | List trip crew | 200 |
+| POST | `/api/trips/{tripID}/crew` | **admin** | Assign crew member | 201 |
+| DELETE | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
 Assignment body — `crew_member_id` and `role` required:
 
@@ -218,13 +234,13 @@ Assignment body — `crew_member_id` and `role` required:
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/trips/{tripID}/enroll-token` | owner | Generate share token → `{token}` |
-| DELETE | `/api/trips/{tripID}/enroll-token` | owner | Clear share token, 204 |
-| GET | `/api/trips/{tripID}/enrollments` | owner | List enrollments |
-| PUT | `/api/trips/{tripID}/enrollments/{id}/status` | owner | Set status, 204 |
-| DELETE | `/api/trips/{tripID}/enrollments/{id}` | owner | Delete enrollment, 204 |
-| GET | `/api/enroll/{token}` | any user | Resolve token → trip or cruise |
-| POST | `/api/enroll/{token}` | any user | Enroll self, 201 |
+| POST | `/api/trips/{tripID}/enroll-token` | **admin** | Generate share token → `{token}` |
+| DELETE | `/api/trips/{tripID}/enroll-token` | **admin** | Clear share token, 204 |
+| GET | `/api/trips/{tripID}/enrollments` | **admin** | List enrollments |
+| PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204 |
+| DELETE | `/api/trips/{tripID}/enrollments/{id}` | **admin** | Delete enrollment, 204 |
+| GET | `/api/enroll/{token}` | public | Resolve token → trip or cruise |
+| POST | `/api/enroll/{token}` | member | Enroll self, 201 |
 
 `GET /api/enroll/{token}` returns `{"kind": "trip" \| "cruise", ...}` —
 the token may resolve to either. `404 invalid enrollment link` if unknown.
@@ -235,31 +251,40 @@ Enroll conflicts return `409` (`already enrolled`,
 
 Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
 
-### Voyages (owner-scoped)
+### Voyages
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| GET | `/api/voyages` | List voyages | 200 |
-| POST | `/api/voyages` | Create voyage | 201 |
-| GET | `/api/voyages/{id}` | Get voyage | 200 |
-| PUT | `/api/voyages/{id}` | Update voyage | 204 |
-| DELETE | `/api/voyages/{id}` | Delete voyage | 204 |
-| GET | `/api/voyages/{voyageID}/crew` | List voyage crew | 200 |
-| POST | `/api/voyages/{voyageID}/crew` | Assign crew member | 201 |
-| DELETE | `/api/voyages/{voyageID}/crew/{assignmentID}` | Remove assignment | 204 |
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/voyages` | member | List voyages | 200 |
+| POST | `/api/voyages` | **admin** | Create voyage | 201 |
+| GET | `/api/voyages/{id}` | member | Get voyage | 200 |
+| PUT | `/api/voyages/{id}` | **admin** | Update voyage | 204 |
+| DELETE | `/api/voyages/{id}` | **admin** | Delete voyage | 204 |
+| GET | `/api/voyages/{voyageID}/crew` | member | List voyage crew | 200 |
+| POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member | 201 |
+| DELETE | `/api/voyages/{voyageID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
 Voyage body — `name` required; also accepts `year` and the sailing-log fields
 (`hours_total`, `hours_sail`, `hours_engine`, `hours_over_6bf`, `miles`,
 `days`, `tidal_waters`) plus the trip fields above.
 
+### Voyage ports
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/voyages/{voyageID}/ports` | member | List visited ports | 200 |
+| POST | `/api/voyages/{voyageID}/ports` | **admin** | Add a port | 201 |
+| DELETE | `/api/voyages/{voyageID}/ports/{portID}` | **admin** | Remove a port | 204 |
+| PUT | `/api/voyages/{voyageID}/ports/order` | **admin** | Reorder ports | 200 |
+
 ### Voyage opinions (crew documents)
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| GET | `/api/voyages/{voyageID}/opinions` | List generated opinions | 200 |
-| POST | `/api/voyages/{voyageID}/opinions` | Generate opinion document | 201 |
-| GET | `/api/voyages/{voyageID}/opinions/{id}/download` | Download file | 200 (file) |
-| DELETE | `/api/voyages/{voyageID}/opinions/{id}` | Delete opinion | 204 |
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/voyages/{voyageID}/opinions` | member | List generated opinions | 200 |
+| POST | `/api/voyages/{voyageID}/opinions` | **admin** | Generate opinion document | 201 |
+| GET | `/api/voyages/{voyageID}/opinions/{id}/download` | member | Download file | 200 (file) |
+| DELETE | `/api/voyages/{voyageID}/opinions/{id}` | **admin** | Delete opinion | 204 |
 
 Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 
@@ -269,35 +294,66 @@ Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 
 `404 crew member not assigned to this voyage` if the member has no assignment.
 
-### Yachts (owner-scoped)
+### Cruises
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| GET | `/api/yachts` | List yachts | 200 |
-| POST | `/api/yachts` | Create yacht | 201 |
-| GET | `/api/yachts/{id}` | Get yacht | 200 |
-| PUT | `/api/yachts/{id}` | Update yacht | 204 |
-| DELETE | `/api/yachts/{id}` | Delete yacht | 204 |
+A **cruise** is a club event that groups child trips and voyages (one per
+yacht) and accepts cruise-level enrollments.
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/cruises` | member | List cruises | 200 |
+| POST | `/api/cruises` | **admin** | Create cruise | 201 |
+| GET | `/api/cruises/{id}` | member | Get cruise | 200 |
+| PUT | `/api/cruises/{id}` | **admin** | Update cruise | 204 |
+| DELETE | `/api/cruises/{id}` | **admin** | Delete cruise | 204 |
+| GET | `/api/cruises/{id}/trips` | member | Child trips | 200 |
+| GET | `/api/cruises/{id}/voyages` | member | Child voyages | 200 |
+| POST | `/api/cruises/{id}/enroll-token` | **admin** | Generate token → `{token}` | 200 |
+| DELETE | `/api/cruises/{id}/enroll-token` | **admin** | Clear token, 204 | 204 |
+| GET | `/api/cruises/{id}/enrollments` | **admin** | List cruise enrollments | 200 |
+| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/status` | **admin** | Set status, 204 | 204 |
+| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip, 204 | 204 |
+| DELETE | `/api/cruises/{id}/enrollments/{enrollmentID}` | **admin** | Delete enrollment, 204 | 204 |
+
+Cruise body — `name` required, plus `embark_date`, `disembark_date`,
+`countries`, `start_port`, `end_port`, `description`, `image_*_url`,
+`max_crew`, `cost_per_person`. Cruise enrollment status values: `pending`,
+`accepted`, `rejected`, `waitlisted`. Assign-to-trip body: `{ "trip_id": 5 }`
+(`null` unassigns).
+
+### Yachts
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/yachts` | member | List yachts | 200 |
+| POST | `/api/yachts` | **admin** | Create yacht | 201 |
+| GET | `/api/yachts/{id}` | member | Get yacht | 200 |
+| PUT | `/api/yachts/{id}` | **admin** | Update yacht | 204 |
+| DELETE | `/api/yachts/{id}` | **admin** | Delete yacht | 204 |
 
 Body — `name` required: `{ "name": "Bavaria 46", "registration_no": null, "yacht_type": "sailing yacht" }`.
 
-### Crew members (owner-scoped)
+### Crew members
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/crew` | member | List crew members | 200 |
+| POST | `/api/crew` | **admin** | Create crew member | 201 |
+| GET | `/api/crew/{id}` | member | Get crew member | 200 |
+| PUT | `/api/crew/{id}` | **admin** | Update crew member | 204 |
+| DELETE | `/api/crew/{id}` | **admin** | Delete crew member | 204 |
+
+Body — `full_name` required; also accepts `email`, `patent_number`, `phone`,
+`pzz_license_type`, `pzz_license_number`, `emergency_contact_name`,
+`emergency_contact_phone`.
+
+### Trainings (per-member)
+
+Each member keeps their own training/certification log.
 
 | Method | Path | Description | Success |
 |--------|------|-------------|---------|
-| GET | `/api/crew` | List crew members | 200 |
-| POST | `/api/crew` | Create crew member | 201 |
-| GET | `/api/crew/{id}` | Get crew member | 200 |
-| PUT | `/api/crew/{id}` | Update crew member | 204 |
-| DELETE | `/api/crew/{id}` | Delete crew member | 204 |
-
-Body — `full_name` required: `{ "full_name": "Jan Nowak", "email": null, "patent_number": null }`.
-
-### Trainings (owner-scoped)
-
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| GET | `/api/trainings` | List trainings | 200 |
+| GET | `/api/trainings` | List the caller's trainings | 200 |
 | POST | `/api/trainings` | Create training | 201 |
 | GET | `/api/trainings/{id}` | Get training | 200 |
 | PUT | `/api/trainings/{id}` | Update training | 204 |
@@ -316,104 +372,10 @@ Body — `name` required: `{ "name": "ISSA Skipper", "date": "2026-03-01", "orga
 
 ### Import (XLSX)
 
-| Method | Path | Description | Success |
-|--------|------|-------------|---------|
-| POST | `/api/import/xlsx` | Upload XLSX, returns parsed preview (`voyages`, `trainings`) | 200 |
-| POST | `/api/import/confirm` | Persist the reviewed preview | 201 |
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| POST | `/api/import/xlsx` | member | Upload XLSX, returns parsed preview (`voyages`, `trainings`) | 200 |
+| POST | `/api/import/confirm` | **admin** | Persist the reviewed preview | 201 |
 
 `confirm` body echoes the preview shape: `{ "voyages": [...], "trainings": [...] }`.
 Returns `{voyages_created, trainings_created, yachts_created, crew_created}`.
-
-### Organizations
-
-| Method | Path | Auth | Description | Success |
-|--------|------|------|-------------|---------|
-| GET | `/api/orgs` | member | List the caller's orgs | 200 |
-| POST | `/api/orgs` | any user | Create org (caller becomes admin) | 201 |
-| GET | `/api/orgs/{slug}` | member | Get org | 200 |
-| PUT | `/api/orgs/{slug}` | **admin** | Update org | 204 |
-| DELETE | `/api/orgs/{slug}` | **admin** | Delete org | 204 |
-
-Create/update body — `name` and (on create) `slug` required. `slug` is
-lowercased and must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`:
-
-```json
-{
-  "name": "Warsaw Sailing Club", "slug": "warsaw-sailing",
-  "description": null, "logo_url": null,
-  "pzz_club_number": null, "city": "Warsaw", "website": null
-}
-```
-
-`409 slug already taken` on a duplicate slug.
-
-Org-resolution failures (`/api/orgs/{slug}/...`):
-
-| Status | `error` value | Cause |
-|--------|---------------|-------|
-| 404 | `organization not found` | Unknown slug |
-| 403 | `not a member of this organization` | Caller not a member |
-| 403 | `insufficient permissions` | Member but not `admin` on an admin route |
-
-### Org members & invites
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/orgs/{slug}/members` | member | List members |
-| PUT | `/api/orgs/{slug}/members/{memberID}/role` | **admin** | Set role, 204 |
-| DELETE | `/api/orgs/{slug}/members/{memberID}` | **admin** | Remove member, 204 |
-| POST | `/api/orgs/{slug}/invites` | **admin** | Create invite, 201 |
-| GET | `/api/orgs/{slug}/invites` | **admin** | List invites |
-| DELETE | `/api/orgs/{slug}/invites/{inviteID}` | **admin** | Delete invite, 204 |
-| GET | `/api/join/{token}` | any user | Invite info → `{org_name, org_slug, role, already_member}` |
-| POST | `/api/join/{token}` | any user | Accept invite, 200 |
-
-Roles: `admin`, `captain`, `crew`. The last `admin` cannot be demoted or
-removed (`400`). Invite body:
-
-```json
-{ "role": "crew", "expires_in_hours": 168, "max_uses": 10 }
-```
-
-`expires_in_hours` and `max_uses` are optional; an unknown `role` defaults to
-`crew`. Accepting an invite returns `410` when expired or fully used, and
-`409 already a member` if the caller already belongs.
-
-### Org resources (`/api/orgs/{slug}/...`)
-
-All read routes require membership; create/update/delete require **admin**.
-
-| Resource | Routes |
-|----------|--------|
-| Yachts | `GET \|POST /yachts`, `GET\|PUT\|DELETE /yachts/{id}` |
-| Crew | `GET \|POST /crew`, `GET\|PUT\|DELETE /crew/{id}` |
-| Trips | `GET \|POST /trips`, `GET\|PUT\|DELETE /trips/{id}`, `POST /trips/{id}/complete`, `POST /trips/{id}/cancel` |
-| Trip crew | `GET\|POST /trips/{id}/crew`, `DELETE /trips/{id}/crew/{assignmentID}` |
-| Voyages | `GET \|POST /voyages`, `GET\|PUT\|DELETE /voyages/{id}` |
-| Voyage crew | `GET\|POST /voyages/{id}/crew`, `DELETE /voyages/{id}/crew/{assignmentID}` |
-| Voyage opinions | `GET\|POST /voyages/{id}/opinions`, `GET /voyages/{id}/opinions/{opinionID}/download`, `DELETE /voyages/{id}/opinions/{opinionID}` |
-| Cruises | `GET \|POST /cruises`, `GET\|PUT\|DELETE /cruises/{id}` |
-| Dashboard | `GET /dashboard` |
-
-Org trip/voyage crew assignment and voyage opinion routes mirror their
-owner-scoped counterparts: reads require membership, mutations require
-**admin**, and rows are scoped by `org_id`.
-
-A **cruise** is an org-level event that groups child trips and voyages:
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/orgs/{slug}/cruises/{id}/trips` | member | Child trips |
-| GET | `/api/orgs/{slug}/cruises/{id}/voyages` | member | Child voyages |
-| GET | `/api/orgs/{slug}/cruises/{id}/enrollments` | member | Cruise enrollments |
-| POST | `/api/orgs/{slug}/cruises/{id}/enroll-token` | **admin** | Generate token → `{token}` |
-| DELETE | `/api/orgs/{slug}/cruises/{id}/enroll-token` | **admin** | Clear token, 204 |
-| PUT | `/api/orgs/{slug}/cruises/{id}/enrollments/{enrollmentID}/status` | **admin** | Set status, 204 |
-| PUT | `/api/orgs/{slug}/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip, 204 |
-| DELETE | `/api/orgs/{slug}/cruises/{id}/enrollments/{enrollmentID}` | **admin** | Delete enrollment, 204 |
-
-Cruise enrollment status values: `pending`, `accepted`, `rejected`,
-`waitlisted`. Assign-to-trip body: `{ "trip_id": 5 }` (`null` unassigns).
-Cruise body — `name` required, plus `embark_date`, `disembark_date`,
-`countries`, `start_port`, `end_port`, `description`, `image_*_url`,
-`max_crew`, `cost_per_person`.

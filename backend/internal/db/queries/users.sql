@@ -33,3 +33,15 @@ UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TI
 
 -- name: UpdateUserPatent :exec
 UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3;
+
+-- name: CountUsers :one
+SELECT COUNT(*)::BIGINT FROM users;
+
+-- name: CountAdmins :one
+SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin';
+
+-- name: ListUsers :many
+SELECT * FROM users ORDER BY role, name, id;
+
+-- name: UpdateUserRole :exec
+UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;

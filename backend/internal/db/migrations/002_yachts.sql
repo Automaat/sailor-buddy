@@ -1,6 +1,6 @@
 CREATE TABLE yachts (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     registration_no TEXT,
     yacht_type TEXT,

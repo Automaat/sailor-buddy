@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { orgStore } from '$lib/stores/org.svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { page } from '$app/state';
 	import { listCruises, createTrip } from '$lib/api/routes';
@@ -10,6 +9,13 @@
 	let cruises = $state<Cruise[]>([]);
 	let error = $state('');
 	let loading = $state(false);
+
+	// Planning trips is an admin task; redirect regular members away.
+	$effect(() => {
+		if (auth.user && !auth.isAdmin) {
+			goto('/trips');
+		}
+	});
 
 	const initialCruiseID = $derived.by(() => {
 		const v = page.url.searchParams.get('cruise_id');
@@ -31,10 +37,7 @@
 	});
 
 	onMount(async () => {
-		// Club events belong to org admins; regular members plan standalone trips.
-		if (orgStore.isOrgAdmin) {
-			cruises = await listCruises().catch(() => []);
-		}
+		cruises = await listCruises().catch(() => []);
 		if (initialCruiseID) {
 			form.cruise_id = initialCruiseID;
 			const c = cruises.find((x) => x.id === initialCruiseID);
@@ -83,7 +86,7 @@
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 			</div>
-			{#if orgStore.isOrgAdmin && cruises.length > 0}
+			{#if cruises.length > 0}
 				<div class="col-span-2">
 					<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu</label>
 					<select id="cruise" bind:value={form.cruise_id} class="w-full rounded-lg border px-3 py-2">

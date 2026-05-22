@@ -22,10 +22,10 @@ func voyageTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 func TestVoyageHandler_List(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			listVoyagesFn: func(context.Context, int64) ([]sqlcdb.Voyage, error) {
+			listVoyagesFn: func(context.Context, sqlcdb.ListVoyagesParams) ([]sqlcdb.Voyage, error) {
 				return []sqlcdb.Voyage{{ID: 1, Name: "Adriatic 2025"}}, nil
 			},
-			countVoyagesFn: func(context.Context, int64) (int64, error) { return 1, nil },
+			countVoyagesFn: func(context.Context) (int64, error) { return 1, nil },
 		}
 		resp := voyageTestAPI(t, m).GetCtx(userCtx(context.Background()), "/voyages")
 		if resp.Code != http.StatusOK {
@@ -35,7 +35,7 @@ func TestVoyageHandler_List(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			listVoyagesFn: func(context.Context, int64) ([]sqlcdb.Voyage, error) {
+			listVoyagesFn: func(context.Context, sqlcdb.ListVoyagesParams) ([]sqlcdb.Voyage, error) {
 				return nil, errors.New("fail")
 			},
 		}
@@ -49,8 +49,8 @@ func TestVoyageHandler_List(t *testing.T) {
 func TestVoyageHandler_Get(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getVoyageFn: func(_ context.Context, arg sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
-				return sqlcdb.Voyage{ID: arg.ID, Name: "Baltic"}, nil
+			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{ID: id, Name: "Baltic"}, nil
 			},
 		}
 		resp := voyageTestAPI(t, m).GetCtx(userCtx(context.Background()), "/voyages/1")
@@ -61,7 +61,7 @@ func TestVoyageHandler_Get(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		m := &mockQuerier{
-			getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+			getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 				return sqlcdb.Voyage{}, sql.ErrNoRows
 			},
 		}
@@ -73,7 +73,7 @@ func TestVoyageHandler_Get(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			getVoyageFn: func(context.Context, sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
+			getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 				return sqlcdb.Voyage{}, errors.New("fail")
 			},
 		}
@@ -149,7 +149,7 @@ func TestVoyageHandler_Update(t *testing.T) {
 func TestVoyageHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			deleteVoyageFn: func(context.Context, sqlcdb.DeleteVoyageParams) error { return nil },
+			deleteVoyageFn: func(context.Context, int64) error { return nil },
 		}
 		resp := voyageTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/voyages/1")
 		if resp.Code != http.StatusNoContent {
@@ -159,11 +159,19 @@ func TestVoyageHandler_Delete(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			deleteVoyageFn: func(context.Context, sqlcdb.DeleteVoyageParams) error { return errors.New("fail") },
+			deleteVoyageFn: func(context.Context, int64) error { return errors.New("fail") },
 		}
 		resp := voyageTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/voyages/1")
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
+}
+
+func TestVoyageHandler_Create_MemberForbidden(t *testing.T) {
+	resp := voyageTestAPI(t, &mockQuerier{}).PostCtx(
+		userCtxRole(context.Background(), "member"), "/voyages", map[string]any{"name": "X"})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("got %d, want 403; body=%s", resp.Code, resp.Body)
+	}
 }

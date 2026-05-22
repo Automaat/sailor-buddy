@@ -8,6 +8,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type VoyageHandler struct {
@@ -40,7 +41,8 @@ type cruiseVoyagesOutput struct {
 	Body []dto.Voyage
 }
 
-// RegisterVoyageRoutes wires the owner-scoped voyage operations onto the API.
+// RegisterVoyageRoutes wires the club voyage operations onto the API. Reads are
+// open to any member; mutations require an admin.
 func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewVoyageHandler(q)
 	tag := []string{"Voyages"}
@@ -55,61 +57,54 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.get)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-voyage", Method: http.MethodPost, Path: "/voyages",
-		Summary: "Create a voyage", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Create a voyage (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.create)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-voyage", Method: http.MethodPut, Path: "/voyages/{voyageID}",
-		Summary: "Update a voyage", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Update a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.update)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-voyage", Method: http.MethodDelete, Path: "/voyages/{voyageID}",
-		Summary: "Delete a voyage", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Delete a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 }
 
 func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
-	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
-		return ownerCRUDScope(ctx), nil
-	}
 	return crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
-		listScope: func(ctx context.Context, in *pageParams) (crudScope, error) {
-			return ownerScope(ctx, in)
+		listScope: func(ctx context.Context, _ *pageParams) (crudScope, error) {
+			return memberScope(ctx)
 		},
-		getScope: func(ctx context.Context, in *voyageIDParam) (crudScope, error) {
-			return ownerScope(ctx, in)
+		getScope: func(ctx context.Context, _ *voyageIDParam) (crudScope, error) {
+			return memberScope(ctx)
 		},
-		createScope: func(ctx context.Context, in *createVoyageInput) (crudScope, error) {
-			return ownerScope(ctx, in)
+		createScope: func(ctx context.Context, _ *createVoyageInput) (crudScope, error) {
+			return adminScope(ctx)
 		},
-		updateScope: func(ctx context.Context, in *updateVoyageInput) (crudScope, error) {
-			return ownerScope(ctx, in)
+		updateScope: func(ctx context.Context, _ *updateVoyageInput) (crudScope, error) {
+			return adminScope(ctx)
 		},
-		deleteScope: func(ctx context.Context, in *voyageIDParam) (crudScope, error) {
-			return ownerScope(ctx, in)
+		deleteScope: func(ctx context.Context, _ *voyageIDParam) (crudScope, error) {
+			return adminScope(ctx)
 		},
-		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Voyage, error) {
-			return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{
-				OwnerID: scope.userID,
-				Limit:   in.Limit,
-				Offset:  in.Offset,
-			})
+		list: func(ctx context.Context, _ crudScope, in *pageParams) ([]sqlcdb.Voyage, error) {
+			return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{Limit: in.Limit, Offset: in.Offset})
 		},
-		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {
-			return q.CountVoyages(ctx, scope.userID)
+		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
+			return q.CountVoyages(ctx)
 		},
-		get: func(ctx context.Context, scope crudScope, in *voyageIDParam) (sqlcdb.Voyage, error) {
-			return q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, OwnerID: scope.userID})
+		get: func(ctx context.Context, _ crudScope, in *voyageIDParam) (sqlcdb.Voyage, error) {
+			return q.GetVoyage(ctx, in.ID)
 		},
 		create: func(ctx context.Context, scope crudScope, in *createVoyageInput) (sqlcdb.Voyage, error) {
 			return q.CreateVoyage(ctx, createVoyageParams(scope, in.Body))
 		},
-		update: func(ctx context.Context, scope crudScope, in *updateVoyageInput) error {
-			params := updateVoyageParams(scope, in.Body)
+		update: func(ctx context.Context, _ crudScope, in *updateVoyageInput) error {
+			params := updateVoyageParams(in.Body)
 			params.ID = in.ID
 			return q.UpdateVoyage(ctx, params)
 		},
-		delete: func(ctx context.Context, scope crudScope, in *voyageIDParam) error {
-			return q.DeleteVoyage(ctx, sqlcdb.DeleteVoyageParams{ID: in.ID, OwnerID: scope.userID})
+		delete: func(ctx context.Context, _ crudScope, in *voyageIDParam) error {
+			return q.DeleteVoyage(ctx, in.ID)
 		},
 		listOutput: func(in *pageParams, rows []sqlcdb.Voyage, total int64) *voyageListOutput {
 			return &voyageListOutput{Body: dto.NewPage(dto.VoyagesFromDB(rows), total, in.Limit, in.Offset)}
@@ -148,7 +143,8 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 
 func createVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateVoyageParams {
 	return sqlcdb.CreateVoyageParams{
-		OwnerID:       scope.userID,
+		CreatedBy:     types.NullInt64{Int64: scope.userID, Valid: true},
+		CruiseID:      nullInt64(body.CruiseID),
 		Name:          body.Name,
 		Year:          nullInt64(body.Year),
 		EmbarkDate:    nullString(body.EmbarkDate),
@@ -174,7 +170,7 @@ func createVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateVoyag
 	}
 }
 
-func updateVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.UpdateVoyageParams {
+func updateVoyageParams(body dto.VoyageBody) sqlcdb.UpdateVoyageParams {
 	return sqlcdb.UpdateVoyageParams{
 		Name:          body.Name,
 		Year:          nullInt64(body.Year),
@@ -198,6 +194,6 @@ func updateVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.UpdateVoyag
 		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
 		ImageRouteUrl: nullString(body.ImageRouteUrl),
 		Description:   nullString(body.Description),
-		OwnerID:       scope.userID,
+		CruiseID:      nullInt64(body.CruiseID),
 	}
 }

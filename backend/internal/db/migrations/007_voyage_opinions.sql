@@ -1,8 +1,0 @@
-CREATE TABLE voyage_opinions (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    cruise_id BIGINT NOT NULL REFERENCES cruises(id) ON DELETE CASCADE,
-    crew_member_id BIGINT NOT NULL REFERENCES crew_members(id) ON DELETE CASCADE,
-    file_path TEXT NOT NULL,
-    file_format TEXT NOT NULL DEFAULT 'pdf',
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-);

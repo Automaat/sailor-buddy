@@ -9,8 +9,7 @@ import (
 // Trip is the API representation of a planned trip.
 type Trip struct {
 	ID            int64     `json:"id"`
-	OwnerID       int64     `json:"owner_id"`
-	OrgID         *int64    `json:"org_id,omitempty"`
+	CreatedBy     *int64    `json:"created_by,omitempty"`
 	CruiseID      *int64    `json:"cruise_id,omitempty"`
 	Name          string    `json:"name"`
 	Status        string    `json:"status" enum:"planned,cancelled"`
@@ -71,8 +70,7 @@ type CompleteTripBody struct {
 func TripFromDB(t sqlcdb.Trip) Trip {
 	return Trip{
 		ID:            t.ID,
-		OwnerID:       t.OwnerID,
-		OrgID:         intPtr(t.OrgID),
+		CreatedBy:     intPtr(t.CreatedBy),
 		CruiseID:      intPtr(t.CruiseID),
 		Name:          t.Name,
 		Status:        string(t.Status),

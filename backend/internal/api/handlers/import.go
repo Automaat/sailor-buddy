@@ -100,6 +100,9 @@ func (h *ImportHandler) upload(_ context.Context, in *importUploadInput) (*impor
 }
 
 func (h *ImportHandler) confirm(ctx context.Context, in *importConfirmInput) (*importResultOutput, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 
 	var result dto.ImportResult
@@ -169,7 +172,7 @@ func resolveYacht(ctx context.Context, q sqlcdb.Querier, ownerID int64, yachtIDs
 	if _, ok := yachtIDs[name]; ok {
 		return false, nil
 	}
-	existing, lookupErr := q.GetYachtByName(ctx, sqlcdb.GetYachtByNameParams{OwnerID: ownerID, Name: name})
+	existing, lookupErr := q.GetYachtByName(ctx, name)
 	if lookupErr == nil {
 		yachtIDs[name] = existing.ID
 		return false, nil
@@ -179,7 +182,7 @@ func resolveYacht(ctx context.Context, q sqlcdb.Querier, ownerID int64, yachtIDs
 		yachtType = types.NullString{String: *yachtTypePtr, Valid: true}
 	}
 	row, createErr := q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
-		OwnerID:   ownerID,
+		CreatedBy: types.NullInt64{Int64: ownerID, Valid: true},
 		Name:      name,
 		YachtType: yachtType,
 	})
@@ -194,12 +197,15 @@ func resolveCaptain(ctx context.Context, q sqlcdb.Querier, ownerID int64, captai
 	if _, ok := captainIDs[name]; ok {
 		return false, nil
 	}
-	existing, lookupErr := q.GetCrewMemberByName(ctx, sqlcdb.GetCrewMemberByNameParams{OwnerID: ownerID, FullName: name})
+	existing, lookupErr := q.GetCrewMemberByName(ctx, name)
 	if lookupErr == nil {
 		captainIDs[name] = existing.ID
 		return false, nil
 	}
-	row, createErr := q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{OwnerID: ownerID, FullName: name})
+	row, createErr := q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{
+		CreatedBy: types.NullInt64{Int64: ownerID, Valid: true},
+		FullName:  name,
+	})
 	if createErr != nil {
 		return false, fmt.Errorf("failed to create crew member %q: %w", name, createErr)
 	}
@@ -219,7 +225,7 @@ func createImportVoyages(ctx context.Context, q sqlcdb.Querier, ownerID int64, v
 			yachtID = types.NullInt64{Int64: yachtIDs[*c.YachtName], Valid: true}
 		}
 		_, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-			OwnerID:       ownerID,
+			CreatedBy:     types.NullInt64{Int64: ownerID, Valid: true},
 			Name:          c.Name,
 			Year:          nullInt64(c.Year),
 			EmbarkDate:    nullString(c.EmbarkDate),

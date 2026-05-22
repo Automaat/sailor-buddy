@@ -147,12 +147,6 @@ describe('api.list pagination', () => {
 		await expect(api.list('/trips')).resolves.toEqual([]);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
-
-	it('substitutes path params before the pagination query', async () => {
-		fetchMock.mockResolvedValue(jsonResponse(page([], false)));
-		await api.list('/orgs/{slug}/trips', { path: { slug: 'alfa' } });
-		expect(fetchMock.mock.calls[0][0]).toBe('/api/orgs/alfa/trips?limit=100&offset=0');
-	});
 });
 
 describe('api.upload', () => {

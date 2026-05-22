@@ -1,19 +1,13 @@
 // Reusable factories and helpers shared across form/component test suites.
-import type { Organization, Trip, Voyage } from '$lib/api/types';
+import type { Member, Trip, Voyage } from '$lib/api/types';
 
-export function makeOrg(overrides: Partial<Organization> = {}): Organization {
+export function makeMember(overrides: Partial<Member> = {}): Member {
 	return {
 		id: 1,
-		name: 'Klub Alfa',
-		slug: 'alfa',
+		name: 'Kasia Admin',
+		email: 'kasia@example.dev',
 		role: 'admin',
-		description: 'Opis klubu',
-		city: 'Gdynia',
-		website: 'https://alfa.example',
-		pzz_club_number: 'PZZ-001',
-		logo_url: '',
 		created_at: '2026-01-01T00:00:00Z',
-		updated_at: '2026-01-01T00:00:00Z',
 		...overrides
 	};
 }
@@ -21,7 +15,6 @@ export function makeOrg(overrides: Partial<Organization> = {}): Organization {
 export function makeTrip(overrides: Partial<Trip> = {}): Trip {
 	return {
 		id: 1,
-		owner_id: 1,
 		name: 'Rejs Bałtyk',
 		status: 'planned',
 		embark_date: '2025-06-01',
@@ -35,7 +28,6 @@ export function makeTrip(overrides: Partial<Trip> = {}): Trip {
 export function makeVoyage(overrides: Partial<Voyage> = {}): Voyage {
 	return {
 		id: 1,
-		owner_id: 1,
 		name: 'Rejs Bałtyk',
 		hours_total: 0,
 		hours_sail: 0,

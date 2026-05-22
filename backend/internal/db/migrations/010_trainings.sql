@@ -1,3 +1,5 @@
+-- Trainings are a per-member course / certification log.
+
 CREATE TABLE trainings (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
