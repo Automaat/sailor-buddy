@@ -6,7 +6,7 @@ coverage:
         flags:
           - backend
       frontend:
-        target: 0%
+        target: 80%
         flags:
           - frontend
     patch:
@@ -15,7 +15,7 @@ coverage:
         flags:
           - backend
       frontend:
-        target: 0%
+        target: 80%
         flags:
           - frontend
 
