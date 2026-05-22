@@ -9,8 +9,7 @@ import (
 // Voyage is the API representation of a completed, logged sailing record.
 type Voyage struct {
 	ID            int64     `json:"id"`
-	OwnerID       int64     `json:"owner_id"`
-	OrgID         *int64    `json:"org_id,omitempty"`
+	CreatedBy     *int64    `json:"created_by,omitempty"`
 	CruiseID      *int64    `json:"cruise_id,omitempty"`
 	Name          string    `json:"name"`
 	Year          *int64    `json:"year,omitempty"`
@@ -78,8 +77,7 @@ func VoyagesFromDB(vs []sqlcdb.Voyage) []Voyage {
 func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 	return Voyage{
 		ID:            v.ID,
-		OwnerID:       v.OwnerID,
-		OrgID:         intPtr(v.OrgID),
+		CreatedBy:     intPtr(v.CreatedBy),
 		CruiseID:      intPtr(v.CruiseID),
 		Name:          v.Name,
 		Year:          intPtr(v.Year),

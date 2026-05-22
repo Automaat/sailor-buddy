@@ -1,19 +1,13 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { listCruises } from '$lib/api/routes';
 	import type { Cruise } from '$lib/api/types';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
-	import { goto } from '$app/navigation';
 
 	let cruises = $state<Cruise[]>([]);
 	let loading = $state(true);
 
 	async function load() {
-		if (!orgStore.isOrgMode) {
-			cruises = [];
-			loading = false;
-			return;
-		}
 		loading = true;
 		try {
 			cruises = await listCruises();
@@ -25,7 +19,6 @@
 	}
 
 	$effect(() => {
-		orgStore.currentSlug;
 		load();
 	});
 </script>
@@ -38,7 +31,7 @@
 				Rejsy wieloyachtowe z otwartymi zapisami
 			</p>
 		</div>
-		{#if orgStore.isOrgMode && orgStore.isOrgAdmin}
+		{#if auth.isAdmin}
 			<a
 				href="/cruises/new"
 				class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
@@ -48,24 +41,13 @@
 		{/if}
 	</div>
 
-	{#if !orgStore.isOrgMode}
-		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
-			<p class="mt-4 text-lg text-[var(--text-muted)]">Wydarzenia istnieją tylko w klubie</p>
-			<button
-				onclick={() => goto('/orgs')}
-				class="mt-2 text-[var(--ocean)] hover:underline"
-			>
-				Przejdź do klubów
-			</button>
-		</div>
-	{:else if loading}
+	{#if loading}
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 	{:else if cruises.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak wydarzeń</p>
-			{#if orgStore.isOrgAdmin}
+			{#if auth.isAdmin}
 				<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
 					Utwórz pierwsze wydarzenie
 				</a>

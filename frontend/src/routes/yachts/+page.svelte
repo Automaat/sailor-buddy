@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { listYachts, createYacht, deleteYacht } from '$lib/api/routes';
 	import type { Yacht } from '$lib/api/types';
 	import Ship from '@lucide/svelte/icons/ship';
@@ -22,7 +22,6 @@
 	}
 
 	$effect(() => {
-		orgStore.currentSlug;
 		load();
 	});
 
@@ -51,12 +50,14 @@
 <div>
 	<div class="mb-6 flex items-center justify-between">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Jachty</h1>
-		<button onclick={() => (showForm = !showForm)} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]">
-			{showForm ? 'Anuluj' : '+ Dodaj jacht'}
-		</button>
+		{#if auth.isAdmin}
+			<button onclick={() => (showForm = !showForm)} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]">
+				{showForm ? 'Anuluj' : '+ Dodaj jacht'}
+			</button>
+		{/if}
 	</div>
 
-	{#if showForm}
+	{#if showForm && auth.isAdmin}
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-3 gap-4">
 				<div>
@@ -99,7 +100,9 @@
 						{#if yacht.registration_no}
 							<span class="text-sm text-[var(--text-muted)]">{yacht.registration_no}</span>
 						{/if}
-						<button onclick={() => handleDelete(yacht.id)} class="text-sm text-red-400 hover:text-red-600">Usuń</button>
+						{#if auth.isAdmin}
+							<button onclick={() => handleDelete(yacht.id)} class="text-sm text-red-400 hover:text-red-600">Usuń</button>
+						{/if}
 					</div>
 				</div>
 			{/each}

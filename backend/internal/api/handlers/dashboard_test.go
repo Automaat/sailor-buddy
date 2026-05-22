@@ -21,10 +21,10 @@ func dashboardTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 func TestDashboardHandler_Get(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getDashboardFn: func(context.Context, int64) (sqlcdb.GetDashboardStatsRow, error) {
+			getDashboardFn: func(context.Context) (sqlcdb.GetDashboardStatsRow, error) {
 				return sqlcdb.GetDashboardStatsRow{VoyageCount: 3, TotalMiles: 420}, nil
 			},
-			getVoyagesByYearFn: func(context.Context, int64) ([]sqlcdb.GetVoyagesByYearRow, error) {
+			getVoyagesByYearFn: func(context.Context) ([]sqlcdb.GetVoyagesByYearRow, error) {
 				return []sqlcdb.GetVoyagesByYearRow{{VoyageCount: 3, TotalMiles: 420}}, nil
 			},
 		}
@@ -36,7 +36,7 @@ func TestDashboardHandler_Get(t *testing.T) {
 
 	t.Run("stats db error", func(t *testing.T) {
 		m := &mockQuerier{
-			getDashboardFn: func(context.Context, int64) (sqlcdb.GetDashboardStatsRow, error) {
+			getDashboardFn: func(context.Context) (sqlcdb.GetDashboardStatsRow, error) {
 				return sqlcdb.GetDashboardStatsRow{}, errors.New("fail")
 			},
 		}
@@ -48,10 +48,10 @@ func TestDashboardHandler_Get(t *testing.T) {
 
 	t.Run("yearly db error", func(t *testing.T) {
 		m := &mockQuerier{
-			getDashboardFn: func(context.Context, int64) (sqlcdb.GetDashboardStatsRow, error) {
+			getDashboardFn: func(context.Context) (sqlcdb.GetDashboardStatsRow, error) {
 				return sqlcdb.GetDashboardStatsRow{}, nil
 			},
-			getVoyagesByYearFn: func(context.Context, int64) ([]sqlcdb.GetVoyagesByYearRow, error) {
+			getVoyagesByYearFn: func(context.Context) ([]sqlcdb.GetVoyagesByYearRow, error) {
 				return nil, errors.New("fail")
 			},
 		}

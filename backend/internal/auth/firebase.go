@@ -13,6 +13,7 @@ type Claims struct {
 	Email     string `json:"email"`
 	Name      string `json:"name"`
 	AvatarUrl string `json:"avatar_url"`
+	Role      string `json:"role"`
 }
 
 func NewFirebaseAuth(ctx context.Context, projectID string) (*fbauth.Client, error) {

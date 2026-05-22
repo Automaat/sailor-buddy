@@ -30,6 +30,11 @@ function createAuthStore() {
 		get isAuthenticated() {
 			return !!firebaseUser;
 		},
+		// isAdmin gates club-management UI. It reads the role from the /auth/me
+		// profile, so it is false until that profile has loaded.
+		get isAdmin() {
+			return dbUser?.role === 'admin';
+		},
 		get loading() {
 			return loading;
 		},

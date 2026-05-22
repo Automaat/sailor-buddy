@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { getCruise, updateCruise } from '$lib/api/routes';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -24,7 +24,7 @@
 	const id = $derived(Number(page.params.id));
 
 	$effect(() => {
-		if (orgStore.loaded && !orgStore.isOrgAdmin) {
+		if (auth.user && !auth.isAdmin) {
 			goto(`/cruises/${id}`);
 		}
 	});

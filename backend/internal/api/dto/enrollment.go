@@ -78,7 +78,6 @@ type EnrollTrip struct {
 // EnrollCruise is the cruise summary returned when resolving an enrollment token.
 type EnrollCruise struct {
 	ID            int64    `json:"id"`
-	OrgID         int64    `json:"org_id"`
 	Name          string   `json:"name"`
 	EmbarkDate    *string  `json:"embark_date,omitempty"`
 	DisembarkDate *string  `json:"disembark_date,omitempty"`
@@ -192,7 +191,6 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow) EnrollCruise {
 	return EnrollCruise{
 		ID:            c.ID,
-		OrgID:         c.OrgID,
 		Name:          c.Name,
 		EmbarkDate:    strPtr(c.EmbarkDate),
 		DisembarkDate: strPtr(c.DisembarkDate),

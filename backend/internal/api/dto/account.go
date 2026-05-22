@@ -8,6 +8,7 @@ type Me struct {
 	Email        string  `json:"email"`
 	Name         string  `json:"name"`
 	AvatarURL    string  `json:"avatar_url"`
+	Role         string  `json:"role"`
 	PatentType   *string `json:"patent_type,omitempty"`
 	PatentNumber *string `json:"patent_number,omitempty"`
 }
@@ -19,6 +20,7 @@ func MeFromUser(u sqlcdb.User) Me {
 		Email:        u.Email,
 		Name:         u.Name,
 		AvatarURL:    u.AvatarUrl.String,
+		Role:         u.Role,
 		PatentType:   strPtr(u.PatentType),
 		PatentNumber: strPtr(u.PatentNumber),
 	}
@@ -40,7 +42,7 @@ type VoyagesByYear struct {
 	TotalDays   int64   `json:"total_days"`
 }
 
-// Dashboard is the owner-scoped sailing summary.
+// Dashboard is the club-wide sailing summary.
 type Dashboard struct {
 	VoyageCount      int64           `json:"voyage_count"`
 	TotalHours       float64         `json:"total_hours"`
@@ -53,21 +55,6 @@ type Dashboard struct {
 
 // VoyagesByYearFromDB maps the per-year rows, returning a non-nil slice.
 func VoyagesByYearFromDB(rows []sqlcdb.GetVoyagesByYearRow) []VoyagesByYear {
-	out := make([]VoyagesByYear, len(rows))
-	for i := range rows {
-		out[i] = VoyagesByYear{
-			Year:        intPtr(rows[i].Year),
-			VoyageCount: rows[i].VoyageCount,
-			TotalHours:  rows[i].TotalHours,
-			TotalMiles:  rows[i].TotalMiles,
-			TotalDays:   rows[i].TotalDays,
-		}
-	}
-	return out
-}
-
-// OrgVoyagesByYearFromDB maps the org per-year rows, returning a non-nil slice.
-func OrgVoyagesByYearFromDB(rows []sqlcdb.GetOrgVoyagesByYearRow) []VoyagesByYear {
 	out := make([]VoyagesByYear, len(rows))
 	for i := range rows {
 		out[i] = VoyagesByYear{

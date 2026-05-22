@@ -24,10 +24,10 @@ func yachtTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 func TestYachtHandler_List(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			listYachtsFn: func(context.Context, int64) ([]sqlcdb.Yacht, error) {
+			listYachtsFn: func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
 				return []sqlcdb.Yacht{{ID: 1, Name: "Bavaria 46"}}, nil
 			},
-			countYachtsFn: func(context.Context, int64) (int64, error) { return 1, nil },
+			countYachtsFn: func(context.Context) (int64, error) { return 1, nil },
 		}
 		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts")
 		if resp.Code != http.StatusOK {
@@ -37,7 +37,7 @@ func TestYachtHandler_List(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			listYachtsFn: func(context.Context, int64) ([]sqlcdb.Yacht, error) {
+			listYachtsFn: func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
 				return nil, errors.New("fail")
 			},
 		}
@@ -49,8 +49,8 @@ func TestYachtHandler_List(t *testing.T) {
 
 	t.Run("count error", func(t *testing.T) {
 		m := &mockQuerier{
-			listYachtsFn:  func(context.Context, int64) ([]sqlcdb.Yacht, error) { return nil, nil },
-			countYachtsFn: func(context.Context, int64) (int64, error) { return 0, errors.New("fail") },
+			listYachtsFn:  func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) { return nil, nil },
+			countYachtsFn: func(context.Context) (int64, error) { return 0, errors.New("fail") },
 		}
 		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts")
 		if resp.Code != http.StatusInternalServerError {
@@ -62,10 +62,10 @@ func TestYachtHandler_List(t *testing.T) {
 func TestYachtHandler_List_Pagination(t *testing.T) {
 	t.Run("envelope echoes limit/offset and total", func(t *testing.T) {
 		m := &mockQuerier{
-			listYachtsFn: func(context.Context, int64) ([]sqlcdb.Yacht, error) {
+			listYachtsFn: func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
 				return []sqlcdb.Yacht{{ID: 1, Name: "Bavaria 46"}}, nil
 			},
-			countYachtsFn: func(context.Context, int64) (int64, error) { return 42, nil },
+			countYachtsFn: func(context.Context) (int64, error) { return 42, nil },
 		}
 		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts?limit=10&offset=20")
 		if resp.Code != http.StatusOK {
@@ -88,8 +88,8 @@ func TestYachtHandler_List_Pagination(t *testing.T) {
 
 	t.Run("default limit when omitted", func(t *testing.T) {
 		m := &mockQuerier{
-			listYachtsFn:  func(context.Context, int64) ([]sqlcdb.Yacht, error) { return nil, nil },
-			countYachtsFn: func(context.Context, int64) (int64, error) { return 0, nil },
+			listYachtsFn:  func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) { return nil, nil },
+			countYachtsFn: func(context.Context) (int64, error) { return 0, nil },
 		}
 		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts")
 		if resp.Code != http.StatusOK {
@@ -120,8 +120,8 @@ func TestYachtHandler_List_Pagination(t *testing.T) {
 func TestYachtHandler_Get(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getYachtFn: func(_ context.Context, arg sqlcdb.GetYachtParams) (sqlcdb.Yacht, error) {
-				return sqlcdb.Yacht{ID: arg.ID, Name: "Sun Odyssey"}, nil
+			getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
+				return sqlcdb.Yacht{ID: id, Name: "Sun Odyssey"}, nil
 			},
 		}
 		resp := yachtTestAPI(t, m).GetCtx(userCtx(context.Background()), "/yachts/1")
@@ -132,7 +132,7 @@ func TestYachtHandler_Get(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		m := &mockQuerier{
-			getYachtFn: func(context.Context, sqlcdb.GetYachtParams) (sqlcdb.Yacht, error) {
+			getYachtFn: func(context.Context, int64) (sqlcdb.Yacht, error) {
 				return sqlcdb.Yacht{}, sql.ErrNoRows
 			},
 		}
@@ -144,7 +144,7 @@ func TestYachtHandler_Get(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			getYachtFn: func(context.Context, sqlcdb.GetYachtParams) (sqlcdb.Yacht, error) {
+			getYachtFn: func(context.Context, int64) (sqlcdb.Yacht, error) {
 				return sqlcdb.Yacht{}, errors.New("fail")
 			},
 		}
@@ -220,7 +220,7 @@ func TestYachtHandler_Update(t *testing.T) {
 func TestYachtHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			deleteYachtFn: func(context.Context, sqlcdb.DeleteYachtParams) error { return nil },
+			deleteYachtFn: func(context.Context, int64) error { return nil },
 		}
 		resp := yachtTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/yachts/1")
 		if resp.Code != http.StatusNoContent {
@@ -230,11 +230,19 @@ func TestYachtHandler_Delete(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			deleteYachtFn: func(context.Context, sqlcdb.DeleteYachtParams) error { return errors.New("fail") },
+			deleteYachtFn: func(context.Context, int64) error { return errors.New("fail") },
 		}
 		resp := yachtTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/yachts/1")
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
+}
+
+func TestYachtHandler_Create_MemberForbidden(t *testing.T) {
+	resp := yachtTestAPI(t, &mockQuerier{}).PostCtx(
+		userCtxRole(context.Background(), "member"), "/yachts", map[string]any{"name": "X"})
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("got %d, want 403; body=%s", resp.Code, resp.Body)
+	}
 }

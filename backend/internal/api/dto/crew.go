@@ -9,8 +9,7 @@ import (
 // CrewMember is the API representation of a crew member.
 type CrewMember struct {
 	ID                    int64     `json:"id"`
-	OwnerID               int64     `json:"owner_id"`
-	OrgID                 *int64    `json:"org_id,omitempty"`
+	CreatedBy             *int64    `json:"created_by,omitempty"`
 	UserID                *int64    `json:"user_id,omitempty"`
 	FullName              string    `json:"full_name"`
 	Email                 *string   `json:"email,omitempty"`
@@ -24,16 +23,9 @@ type CrewMember struct {
 	UpdatedAt             time.Time `json:"updated_at"`
 }
 
-// CrewMemberBody is the owner-scoped create/update payload for a crew member.
+// CrewMemberBody is the create/update payload for a crew member, covering the
+// PZŻ licence and emergency-contact fields.
 type CrewMemberBody struct {
-	FullName     string  `json:"full_name" minLength:"1" doc:"Crew member full name"`
-	Email        *string `json:"email,omitempty"`
-	PatentNumber *string `json:"patent_number,omitempty"`
-}
-
-// OrgCrewBody is the org-scoped create/update payload for a crew member,
-// covering the extended PZŻ licence and emergency-contact fields.
-type OrgCrewBody struct {
 	FullName              string  `json:"full_name" minLength:"1" doc:"Crew member full name"`
 	Email                 *string `json:"email,omitempty"`
 	PatentNumber          *string `json:"patent_number,omitempty"`
@@ -68,8 +60,7 @@ type CrewAssignmentBody struct {
 func CrewMemberFromDB(m sqlcdb.CrewMember) CrewMember {
 	return CrewMember{
 		ID:                    m.ID,
-		OwnerID:               m.OwnerID,
-		OrgID:                 intPtr(m.OrgID),
+		CreatedBy:             intPtr(m.CreatedBy),
 		UserID:                intPtr(m.UserID),
 		FullName:              m.FullName,
 		Email:                 strPtr(m.Email),
@@ -128,46 +119,6 @@ func TripCrewFromDB(rows []sqlcdb.ListTripCrewAssignmentsRow) []CrewAssignment {
 
 // VoyageCrewFromDB maps the joined voyage-crew rows, returning a non-nil slice.
 func VoyageCrewFromDB(rows []sqlcdb.ListVoyageCrewAssignmentsRow) []CrewAssignment {
-	out := make([]CrewAssignment, len(rows))
-	for i := range rows {
-		r := rows[i]
-		out[i] = CrewAssignment{
-			ID:           r.ID,
-			TripID:       intPtr(r.TripID),
-			VoyageID:     intPtr(r.VoyageID),
-			CrewMemberID: r.CrewMemberID,
-			Role:         r.Role,
-			PatentNumber: strPtr(r.PatentNumber),
-			FullName:     r.FullName,
-			Email:        strPtr(r.Email),
-			CreatedAt:    timeVal(r.CreatedAt),
-		}
-	}
-	return out
-}
-
-// OrgTripCrewFromDB maps the joined org trip-crew rows, returning a non-nil slice.
-func OrgTripCrewFromDB(rows []sqlcdb.ListOrgTripCrewAssignmentsRow) []CrewAssignment {
-	out := make([]CrewAssignment, len(rows))
-	for i := range rows {
-		r := rows[i]
-		out[i] = CrewAssignment{
-			ID:           r.ID,
-			TripID:       intPtr(r.TripID),
-			VoyageID:     intPtr(r.VoyageID),
-			CrewMemberID: r.CrewMemberID,
-			Role:         r.Role,
-			PatentNumber: strPtr(r.PatentNumber),
-			FullName:     r.FullName,
-			Email:        strPtr(r.Email),
-			CreatedAt:    timeVal(r.CreatedAt),
-		}
-	}
-	return out
-}
-
-// OrgVoyageCrewFromDB maps the joined org voyage-crew rows, returning a non-nil slice.
-func OrgVoyageCrewFromDB(rows []sqlcdb.ListOrgVoyageCrewAssignmentsRow) []CrewAssignment {
 	out := make([]CrewAssignment, len(rows))
 	for i := range rows {
 		r := rows[i]

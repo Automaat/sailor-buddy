@@ -56,34 +56,33 @@ func (ns NullTripStatus) Value() (driver.Value, error) {
 
 type CrewAssignment struct {
 	ID           int64            `json:"id"`
+	TripID       types.NullInt64  `json:"trip_id"`
+	VoyageID     types.NullInt64  `json:"voyage_id"`
 	CrewMemberID int64            `json:"crew_member_id"`
 	Role         string           `json:"role"`
 	PatentNumber types.NullString `json:"patent_number"`
 	CreatedAt    types.NullTime   `json:"created_at"`
-	TripID       types.NullInt64  `json:"trip_id"`
-	VoyageID     types.NullInt64  `json:"voyage_id"`
 }
 
 type CrewMember struct {
 	ID                    int64            `json:"id"`
-	OwnerID               int64            `json:"owner_id"`
+	CreatedBy             types.NullInt64  `json:"created_by"`
 	UserID                types.NullInt64  `json:"user_id"`
 	FullName              string           `json:"full_name"`
 	Email                 types.NullString `json:"email"`
 	PatentNumber          types.NullString `json:"patent_number"`
-	CreatedAt             types.NullTime   `json:"created_at"`
-	UpdatedAt             types.NullTime   `json:"updated_at"`
-	OrgID                 types.NullInt64  `json:"org_id"`
 	Phone                 types.NullString `json:"phone"`
 	PzzLicenseType        types.NullString `json:"pzz_license_type"`
 	PzzLicenseNumber      types.NullString `json:"pzz_license_number"`
 	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
 	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
+	CreatedAt             types.NullTime   `json:"created_at"`
+	UpdatedAt             types.NullTime   `json:"updated_at"`
 }
 
 type Cruise struct {
 	ID            int64             `json:"id"`
-	OrgID         int64             `json:"org_id"`
+	CreatedBy     types.NullInt64   `json:"created_by"`
 	Name          string            `json:"name"`
 	EmbarkDate    types.NullString  `json:"embark_date"`
 	DisembarkDate types.NullString  `json:"disembark_date"`
@@ -112,39 +111,6 @@ type CruiseEnrollment struct {
 	UpdatedAt types.NullTime   `json:"updated_at"`
 }
 
-type OrgInvite struct {
-	ID        int64           `json:"id"`
-	OrgID     int64           `json:"org_id"`
-	Token     string          `json:"token"`
-	Role      string          `json:"role"`
-	CreatedBy int64           `json:"created_by"`
-	ExpiresAt types.NullTime  `json:"expires_at"`
-	MaxUses   types.NullInt64 `json:"max_uses"`
-	UseCount  int64           `json:"use_count"`
-	CreatedAt types.NullTime  `json:"created_at"`
-}
-
-type OrgMember struct {
-	ID       int64          `json:"id"`
-	OrgID    int64          `json:"org_id"`
-	UserID   int64          `json:"user_id"`
-	Role     string         `json:"role"`
-	JoinedAt types.NullTime `json:"joined_at"`
-}
-
-type Organization struct {
-	ID            int64            `json:"id"`
-	Name          string           `json:"name"`
-	Slug          string           `json:"slug"`
-	Description   types.NullString `json:"description"`
-	LogoUrl       types.NullString `json:"logo_url"`
-	PzzClubNumber types.NullString `json:"pzz_club_number"`
-	City          types.NullString `json:"city"`
-	Website       types.NullString `json:"website"`
-	CreatedAt     types.NullTime   `json:"created_at"`
-	UpdatedAt     types.NullTime   `json:"updated_at"`
-}
-
 type RefreshToken struct {
 	ID        int64          `json:"id"`
 	UserID    int64          `json:"user_id"`
@@ -168,8 +134,8 @@ type Training struct {
 
 type Trip struct {
 	ID            int64             `json:"id"`
-	OwnerID       int64             `json:"owner_id"`
-	OrgID         types.NullInt64   `json:"org_id"`
+	CreatedBy     types.NullInt64   `json:"created_by"`
+	CruiseID      types.NullInt64   `json:"cruise_id"`
 	Name          string            `json:"name"`
 	EmbarkDate    types.NullString  `json:"embark_date"`
 	DisembarkDate types.NullString  `json:"disembark_date"`
@@ -189,7 +155,6 @@ type Trip struct {
 	EnrollToken   types.NullString  `json:"enroll_token"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
-	CruiseID      types.NullInt64   `json:"cruise_id"`
 }
 
 type TripEnrollment struct {
@@ -208,17 +173,18 @@ type User struct {
 	Name         string           `json:"name"`
 	PasswordHash string           `json:"password_hash"`
 	AvatarUrl    types.NullString `json:"avatar_url"`
-	CreatedAt    types.NullTime   `json:"created_at"`
-	UpdatedAt    types.NullTime   `json:"updated_at"`
 	FirebaseUid  types.NullString `json:"firebase_uid"`
+	Role         string           `json:"role"`
 	PatentType   types.NullString `json:"patent_type"`
 	PatentNumber types.NullString `json:"patent_number"`
+	CreatedAt    types.NullTime   `json:"created_at"`
+	UpdatedAt    types.NullTime   `json:"updated_at"`
 }
 
 type Voyage struct {
 	ID            int64             `json:"id"`
-	OwnerID       int64             `json:"owner_id"`
-	OrgID         types.NullInt64   `json:"org_id"`
+	CreatedBy     types.NullInt64   `json:"created_by"`
+	CruiseID      types.NullInt64   `json:"cruise_id"`
 	Name          string            `json:"name"`
 	Year          types.NullInt64   `json:"year"`
 	EmbarkDate    types.NullString  `json:"embark_date"`
@@ -243,7 +209,6 @@ type Voyage struct {
 	Description   types.NullString  `json:"description"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
-	CruiseID      types.NullInt64   `json:"cruise_id"`
 }
 
 type VoyageOpinion struct {
@@ -267,11 +232,10 @@ type VoyagePort struct {
 
 type Yacht struct {
 	ID             int64            `json:"id"`
-	OwnerID        int64            `json:"owner_id"`
+	CreatedBy      types.NullInt64  `json:"created_by"`
 	Name           string           `json:"name"`
 	RegistrationNo types.NullString `json:"registration_no"`
 	YachtType      types.NullString `json:"yacht_type"`
 	CreatedAt      types.NullTime   `json:"created_at"`
 	UpdatedAt      types.NullTime   `json:"updated_at"`
-	OrgID          types.NullInt64  `json:"org_id"`
 }

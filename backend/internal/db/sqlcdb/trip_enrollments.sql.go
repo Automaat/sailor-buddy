@@ -69,23 +69,14 @@ func (q *Queries) CreateTripEnrollment(ctx context.Context, arg CreateTripEnroll
 }
 
 const deleteTripEnrollment = `-- name: DeleteTripEnrollment :exec
-DELETE FROM trip_enrollments te
-USING trips t
-WHERE te.id = $1 AND te.trip_id = t.id AND t.owner_id = $2
+DELETE FROM trip_enrollments WHERE id = $1
 `
-
-type DeleteTripEnrollmentParams struct {
-	ID      int64 `json:"id"`
-	OwnerID int64 `json:"owner_id"`
-}
 
 // DeleteTripEnrollment
 //
-//	DELETE FROM trip_enrollments te
-//	USING trips t
-//	WHERE te.id = $1 AND te.trip_id = t.id AND t.owner_id = $2
-func (q *Queries) DeleteTripEnrollment(ctx context.Context, arg DeleteTripEnrollmentParams) error {
-	_, err := q.db.ExecContext(ctx, deleteTripEnrollment, arg.ID, arg.OwnerID)
+//	DELETE FROM trip_enrollments WHERE id = $1
+func (q *Queries) DeleteTripEnrollment(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteTripEnrollment, id)
 	return err
 }
 
@@ -135,15 +126,9 @@ SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.upda
        u.name AS user_name, u.email AS user_email
 FROM trip_enrollments te
 JOIN users u ON u.id = te.user_id
-JOIN trips t ON t.id = te.trip_id
-WHERE te.trip_id = $1 AND t.owner_id = $2
+WHERE te.trip_id = $1
 ORDER BY te.created_at
 `
-
-type ListTripEnrollmentsParams struct {
-	TripID  int64 `json:"trip_id"`
-	OwnerID int64 `json:"owner_id"`
-}
 
 type ListTripEnrollmentsRow struct {
 	ID        int64            `json:"id"`
@@ -163,11 +148,10 @@ type ListTripEnrollmentsRow struct {
 //	       u.name AS user_name, u.email AS user_email
 //	FROM trip_enrollments te
 //	JOIN users u ON u.id = te.user_id
-//	JOIN trips t ON t.id = te.trip_id
-//	WHERE te.trip_id = $1 AND t.owner_id = $2
+//	WHERE te.trip_id = $1
 //	ORDER BY te.created_at
-func (q *Queries) ListTripEnrollments(ctx context.Context, arg ListTripEnrollmentsParams) ([]ListTripEnrollmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTripEnrollments, arg.TripID, arg.OwnerID)
+func (q *Queries) ListTripEnrollments(ctx context.Context, tripID int64) ([]ListTripEnrollmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTripEnrollments, tripID)
 	if err != nil {
 		return nil, err
 	}
@@ -200,27 +184,18 @@ func (q *Queries) ListTripEnrollments(ctx context.Context, arg ListTripEnrollmen
 }
 
 const updateTripEnrollmentStatus = `-- name: UpdateTripEnrollmentStatus :exec
-UPDATE trip_enrollments te SET
-    status = $1,
-    updated_at = CURRENT_TIMESTAMP
-FROM trips t
-WHERE te.id = $2 AND te.trip_id = t.id AND t.owner_id = $3
+UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
 
 type UpdateTripEnrollmentStatusParams struct {
-	Status  string `json:"status"`
-	ID      int64  `json:"id"`
-	OwnerID int64  `json:"owner_id"`
+	Status string `json:"status"`
+	ID     int64  `json:"id"`
 }
 
 // UpdateTripEnrollmentStatus
 //
-//	UPDATE trip_enrollments te SET
-//	    status = $1,
-//	    updated_at = CURRENT_TIMESTAMP
-//	FROM trips t
-//	WHERE te.id = $2 AND te.trip_id = t.id AND t.owner_id = $3
+//	UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 func (q *Queries) UpdateTripEnrollmentStatus(ctx context.Context, arg UpdateTripEnrollmentStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateTripEnrollmentStatus, arg.Status, arg.ID, arg.OwnerID)
+	_, err := q.db.ExecContext(ctx, updateTripEnrollmentStatus, arg.Status, arg.ID)
 	return err
 }

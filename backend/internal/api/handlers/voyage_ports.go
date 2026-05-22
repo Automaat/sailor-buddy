@@ -10,7 +10,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -52,7 +51,8 @@ type voyagePortListOutput struct {
 	Body []dto.VoyagePort
 }
 
-// RegisterVoyagePortRoutes wires the owner-scoped voyage port operations.
+// RegisterVoyagePortRoutes wires the club voyage port operations. Reads are
+// open to any member; mutations require an admin.
 func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	h := NewVoyagePortHandler(q, db)
 	tag := []string{"Voyage ports"}
@@ -65,40 +65,38 @@ func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	huma.Register(api, huma.Operation{
 		OperationID: "add-voyage-port", Method: http.MethodPost,
 		Path:    "/voyages/{voyageID}/ports",
-		Summary: "Add a visited port to a voyage", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Add a visited port to a voyage (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.add)
 	huma.Register(api, huma.Operation{
 		OperationID: "remove-voyage-port", Method: http.MethodDelete,
 		Path:    "/voyages/{voyageID}/ports/{portID}",
-		Summary: "Remove a visited port from a voyage", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Remove a visited port from a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.remove)
 	huma.Register(api, huma.Operation{
 		OperationID: "reorder-voyage-ports", Method: http.MethodPut,
 		Path:    "/voyages/{voyageID}/ports/order",
-		Summary: "Reorder a voyage's visited ports", Tags: tag,
+		Summary: "Reorder a voyage's visited ports (admin)", Tags: tag,
 	}, h.reorder)
 }
 
 func (h *VoyagePortHandler) list(ctx context.Context, in *voyagePortListInput) (*voyagePortListOutput, error) {
-	user := middleware.GetUser(ctx)
-	ports, err := h.q.ListVoyagePorts(ctx, sqlcdb.ListVoyagePortsParams{
-		VoyageID: in.VoyageID,
-		OwnerID:  user.UserID,
-	})
+	ports, err := h.q.ListVoyagePorts(ctx, in.VoyageID)
 	if err != nil {
-		slog.Error("list voyage ports", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
+		slog.Error("list voyage ports", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list voyage ports")
 	}
 	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(ports)}, nil
 }
 
 func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*voyagePortOutput, error) {
-	user := middleware.GetUser(ctx)
-	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, OwnerID: user.UserID}); err != nil {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if _, err := h.q.GetVoyage(ctx, in.VoyageID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
 		}
-		slog.Error("verify voyage for port", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
+		slog.Error("verify voyage for port", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to verify voyage")
 	}
 	port, err := h.q.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
@@ -109,38 +107,38 @@ func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*v
 		Position:  valOrZeroInt(in.Body.Position),
 	})
 	if err != nil {
-		slog.Error("add voyage port", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
+		slog.Error("add voyage port", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to add voyage port")
 	}
 	return &voyagePortOutput{Body: dto.VoyagePortFromDB(port)}, nil
 }
 
 func (h *VoyagePortHandler) remove(ctx context.Context, in *removeVoyagePortInput) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
 	if err := h.q.DeleteVoyagePort(ctx, sqlcdb.DeleteVoyagePortParams{
 		ID:       in.PortID,
 		VoyageID: in.VoyageID,
-		OwnerID:  user.UserID,
 	}); err != nil {
-		slog.Error("remove voyage port", "port_id", in.PortID, "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
+		slog.Error("remove voyage port", "port_id", in.PortID, "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to remove voyage port")
 	}
 	return &noContentOutput{}, nil
 }
 
 func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsInput) (*voyagePortListOutput, error) {
-	user := middleware.GetUser(ctx)
-	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, OwnerID: user.UserID}); err != nil {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if _, err := h.q.GetVoyage(ctx, in.VoyageID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
 		}
-		slog.Error("verify voyage for reorder", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
+		slog.Error("verify voyage for reorder", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to verify voyage")
 	}
-	current, err := h.q.ListVoyagePorts(ctx, sqlcdb.ListVoyagePortsParams{
-		VoyageID: in.VoyageID,
-		OwnerID:  user.UserID,
-	})
+	current, err := h.q.ListVoyagePorts(ctx, in.VoyageID)
 	if err != nil {
 		slog.Error("list voyage ports for reorder", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
@@ -161,7 +159,6 @@ func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsI
 		if err := qtx.SetVoyagePortPosition(ctx, sqlcdb.SetVoyagePortPositionParams{
 			ID:       portID,
 			VoyageID: in.VoyageID,
-			OwnerID:  user.UserID,
 			Position: int64(i),
 		}); err != nil {
 			slog.Error("reorder voyage port", "port_id", portID, "voyage_id", in.VoyageID, "err", err)

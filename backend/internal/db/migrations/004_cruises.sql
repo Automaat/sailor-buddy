@@ -1,28 +1,23 @@
+-- A cruise is a multi-yacht club event container. Each cruise has many trips
+-- (one per yacht); members enroll at the cruise level and an admin assigns each
+-- accepted enrollment to a specific trip.
+
 CREATE TABLE cruises (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
-    year BIGINT,
     embark_date TEXT,
     disembark_date TEXT,
     countries TEXT,
     start_port TEXT,
     end_port TEXT,
-    hours_total DOUBLE PRECISION DEFAULT 0,
-    hours_sail DOUBLE PRECISION DEFAULT 0,
-    hours_engine DOUBLE PRECISION DEFAULT 0,
-    hours_over_6bf DOUBLE PRECISION DEFAULT 0,
-    miles DOUBLE PRECISION DEFAULT 0,
-    days BIGINT DEFAULT 0,
-    captain_name TEXT,
-    yacht_id BIGINT REFERENCES yachts(id),
-    tidal_waters BIGINT DEFAULT 0,
-    cost_total DOUBLE PRECISION DEFAULT 0,
-    cost_per_person DOUBLE PRECISION DEFAULT 0,
+    description TEXT,
     image_logo_url TEXT,
     image_photo_url TEXT,
     image_route_url TEXT,
-    description TEXT,
+    max_crew BIGINT,
+    cost_per_person DOUBLE PRECISION,
+    enroll_token TEXT UNIQUE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

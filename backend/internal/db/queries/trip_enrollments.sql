@@ -7,21 +7,14 @@ SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.upda
        u.name AS user_name, u.email AS user_email
 FROM trip_enrollments te
 JOIN users u ON u.id = te.user_id
-JOIN trips t ON t.id = te.trip_id
-WHERE te.trip_id = $1 AND t.owner_id = $2
+WHERE te.trip_id = $1
 ORDER BY te.created_at;
 
 -- name: UpdateTripEnrollmentStatus :exec
-UPDATE trip_enrollments te SET
-    status = $1,
-    updated_at = CURRENT_TIMESTAMP
-FROM trips t
-WHERE te.id = $2 AND te.trip_id = t.id AND t.owner_id = $3;
+UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 
 -- name: DeleteTripEnrollment :exec
-DELETE FROM trip_enrollments te
-USING trips t
-WHERE te.id = $1 AND te.trip_id = t.id AND t.owner_id = $2;
+DELETE FROM trip_enrollments WHERE id = $1;
 
 -- name: CountTripEnrollments :one
 SELECT

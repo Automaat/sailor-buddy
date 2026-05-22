@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { auth } from '$lib/stores/auth.svelte';
 	import { getCrew, deleteCrew } from '$lib/api/routes';
 	import type { CrewMember } from '$lib/api/types';
 	import { ApiError } from '$lib/api/client';
@@ -40,9 +41,11 @@
 	<div class="mx-auto max-w-2xl">
 		<div class="mb-6 flex items-center justify-between">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">{member.full_name}</h1>
-			<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-				Usuń
-			</button>
+			{#if auth.isAdmin}
+				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+					Usuń
+				</button>
+			{/if}
 		</div>
 
 		<div class="rounded-2xl bg-white p-6 shadow-sm">

@@ -1,18 +1,18 @@
 -- name: CreateCruise :one
 INSERT INTO cruises (
-    org_id, name, embark_date, disembark_date, countries, start_port, end_port,
+    created_by, name, embark_date, disembark_date, countries, start_port, end_port,
     description, image_logo_url, image_photo_url, image_route_url,
     max_crew, cost_per_person
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: GetCruise :one
-SELECT * FROM cruises WHERE id = $1 AND org_id = $2;
+SELECT * FROM cruises WHERE id = $1;
 
 -- name: ListCruises :many
-SELECT * FROM cruises WHERE org_id = $1 ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $2 OFFSET $3;
+SELECT * FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2;
 
 -- name: CountCruises :one
-SELECT COUNT(*)::BIGINT FROM cruises WHERE org_id = $1;
+SELECT COUNT(*)::BIGINT FROM cruises;
 
 -- name: UpdateCruise :exec
 UPDATE cruises SET
@@ -21,21 +21,19 @@ UPDATE cruises SET
     image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
     max_crew = $11, cost_per_person = $12,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $13 AND org_id = $14;
+WHERE id = $13;
 
 -- name: DeleteCruise :exec
-DELETE FROM cruises WHERE id = $1 AND org_id = $2;
+DELETE FROM cruises WHERE id = $1;
 
 -- name: SetCruiseEnrollToken :exec
-UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP
-WHERE id = $2 AND org_id = $3;
+UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 
 -- name: ClearCruiseEnrollToken :exec
-UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND org_id = $2;
+UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
 -- name: GetCruiseByEnrollToken :one
-SELECT id, org_id, name, embark_date, disembark_date, countries, start_port, end_port,
+SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, image_photo_url, max_crew, cost_per_person
 FROM cruises WHERE enroll_token = $1;
 

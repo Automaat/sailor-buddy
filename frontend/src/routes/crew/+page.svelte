@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { listCrew, createCrew } from '$lib/api/routes';
 	import type { CrewMember } from '$lib/api/types';
 	import Users from '@lucide/svelte/icons/users';
@@ -22,7 +22,6 @@
 	}
 
 	$effect(() => {
-		orgStore.currentSlug;
 		load();
 	});
 
@@ -45,15 +44,17 @@
 <div>
 	<div class="mb-6 flex items-center justify-between">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Załoga</h1>
-		<button
-			onclick={() => (showForm = !showForm)}
-			class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]"
-		>
-			{showForm ? 'Anuluj' : '+ Dodaj załoganta'}
-		</button>
+		{#if auth.isAdmin}
+			<button
+				onclick={() => (showForm = !showForm)}
+				class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]"
+			>
+				{showForm ? 'Anuluj' : '+ Dodaj załoganta'}
+			</button>
+		{/if}
 	</div>
 
-	{#if showForm}
+	{#if showForm && auth.isAdmin}
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-3 gap-4">
 				<div>

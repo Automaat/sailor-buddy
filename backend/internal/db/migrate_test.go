@@ -57,35 +57,6 @@ func embeddedMigrations(t *testing.T) []string {
 	return names
 }
 
-// applyMigrationsThrough applies migrations in order up to and including the
-// named file, recording each in schema_migrations so a later Migrate call
-// continues from the next one.
-func applyMigrationsThrough(t *testing.T, conn *sql.DB, last string) {
-	t.Helper()
-	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
-		version TEXT PRIMARY KEY,
-		applied_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-	)`); err != nil {
-		t.Fatalf("create schema_migrations: %v", err)
-	}
-	for _, name := range embeddedMigrations(t) {
-		content, err := fs.ReadFile(migrationsFS, "migrations/"+name)
-		if err != nil {
-			t.Fatalf("read migration %s: %v", name, err)
-		}
-		if _, err := conn.Exec(string(content)); err != nil {
-			t.Fatalf("apply migration %s: %v", name, err)
-		}
-		if _, err := conn.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", name); err != nil {
-			t.Fatalf("record migration %s: %v", name, err)
-		}
-		if name == last {
-			return
-		}
-	}
-	t.Fatalf("migration %s not found", last)
-}
-
 func assertTableExists(t *testing.T, conn *sql.DB, name string) {
 	t.Helper()
 	var exists bool
@@ -161,9 +132,9 @@ func TestMigrate_FreshSchema(t *testing.T) {
 
 	for _, table := range []string{
 		"users", "refresh_tokens", "yachts", "crew_members", "trainings",
-		"organizations", "org_members", "org_invites",
 		"trips", "voyages", "cruises", "crew_assignments",
 		"trip_enrollments", "cruise_enrollments", "voyage_opinions",
+		"voyage_ports",
 	} {
 		assertTableExists(t, conn, table)
 	}
@@ -171,10 +142,9 @@ func TestMigrate_FreshSchema(t *testing.T) {
 	for _, index := range []string{
 		"crew_assignments_trip_member_uniq",
 		"crew_assignments_voyage_member_uniq",
-		"idx_trips_org_id",
-		"idx_voyages_org_id",
-		"idx_cruises_org_id",
 		"idx_trips_cruise_id",
+		"idx_voyages_cruise_id",
+		"voyage_ports_voyage_id_idx",
 	} {
 		assertIndexExists(t, conn, index)
 	}
@@ -193,111 +163,5 @@ func TestMigrate_Idempotent(t *testing.T) {
 	}
 	if err := Migrate(conn); err != nil {
 		t.Fatalf("second migrate should be a no-op: %v", err)
-	}
-}
-
-// TestMigrate_PreservesDataAcrossSplit seeds pre-015 cruise, crew, assignment
-// and opinion rows, then runs the cruise-splitting migrations and checks the
-// data lands in the new trips/voyages tables.
-func TestMigrate_PreservesDataAcrossSplit(t *testing.T) {
-	conn := testDB(t)
-	resetSchema(t, conn)
-
-	applyMigrationsThrough(t, conn, "014_cruise_status.sql")
-
-	var ownerID int64
-	if err := conn.QueryRow(
-		`INSERT INTO users (email, name, password_hash)
-		 VALUES ('skipper@example.com', 'Skipper', 'x') RETURNING id`,
-	).Scan(&ownerID); err != nil {
-		t.Fatalf("seed user: %v", err)
-	}
-
-	var crewID int64
-	if err := conn.QueryRow(
-		`INSERT INTO crew_members (owner_id, full_name)
-		 VALUES ($1, 'Jan Nowak') RETURNING id`, ownerID,
-	).Scan(&crewID); err != nil {
-		t.Fatalf("seed crew member: %v", err)
-	}
-
-	var voyageCruiseID int64
-	if err := conn.QueryRow(
-		`INSERT INTO cruises (owner_id, name, status)
-		 VALUES ($1, 'Old Voyage', 'completed') RETURNING id`, ownerID,
-	).Scan(&voyageCruiseID); err != nil {
-		t.Fatalf("seed completed cruise: %v", err)
-	}
-
-	var tripCruiseID int64
-	if err := conn.QueryRow(
-		`INSERT INTO cruises (owner_id, name, status)
-		 VALUES ($1, 'Old Trip', 'planned') RETURNING id`, ownerID,
-	).Scan(&tripCruiseID); err != nil {
-		t.Fatalf("seed planned cruise: %v", err)
-	}
-
-	if _, err := conn.Exec(
-		`INSERT INTO crew_assignments (cruise_id, crew_member_id, role)
-		 VALUES ($1, $2, 'skipper')`, voyageCruiseID, crewID,
-	); err != nil {
-		t.Fatalf("seed crew assignment: %v", err)
-	}
-
-	if _, err := conn.Exec(
-		`INSERT INTO voyage_opinions (cruise_id, crew_member_id, file_path)
-		 VALUES ($1, $2, 'opinions/old.pdf')`, voyageCruiseID, crewID,
-	); err != nil {
-		t.Fatalf("seed voyage opinion: %v", err)
-	}
-
-	if err := Migrate(conn); err != nil {
-		t.Fatalf("migrate through split: %v", err)
-	}
-
-	var voyageName string
-	if err := conn.QueryRow(
-		"SELECT name FROM voyages WHERE id = $1", voyageCruiseID,
-	).Scan(&voyageName); err != nil {
-		t.Fatalf("completed cruise did not become a voyage: %v", err)
-	}
-	if voyageName != "Old Voyage" {
-		t.Errorf("voyage name = %q, want %q", voyageName, "Old Voyage")
-	}
-
-	var tripName string
-	if err := conn.QueryRow(
-		"SELECT name FROM trips WHERE id = $1", tripCruiseID,
-	).Scan(&tripName); err != nil {
-		t.Fatalf("planned cruise did not become a trip: %v", err)
-	}
-	if tripName != "Old Trip" {
-		t.Errorf("trip name = %q, want %q", tripName, "Old Trip")
-	}
-
-	var (
-		assignedVoyage sql.NullInt64
-		assignedTrip   sql.NullInt64
-	)
-	if err := conn.QueryRow(
-		"SELECT voyage_id, trip_id FROM crew_assignments WHERE crew_member_id = $1", crewID,
-	).Scan(&assignedVoyage, &assignedTrip); err != nil {
-		t.Fatalf("crew assignment lost across split: %v", err)
-	}
-	if !assignedVoyage.Valid || assignedVoyage.Int64 != voyageCruiseID {
-		t.Errorf("crew assignment voyage_id = %v, want %d", assignedVoyage, voyageCruiseID)
-	}
-	if assignedTrip.Valid {
-		t.Errorf("crew assignment trip_id = %v, want NULL", assignedTrip)
-	}
-
-	var opinionVoyage int64
-	if err := conn.QueryRow(
-		"SELECT voyage_id FROM voyage_opinions WHERE crew_member_id = $1", crewID,
-	).Scan(&opinionVoyage); err != nil {
-		t.Fatalf("voyage opinion lost across split: %v", err)
-	}
-	if opinionVoyage != voyageCruiseID {
-		t.Errorf("voyage opinion voyage_id = %d, want %d", opinionVoyage, voyageCruiseID)
 	}
 }

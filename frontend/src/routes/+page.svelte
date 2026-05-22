@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { orgStore } from '$lib/stores/org.svelte';
 	import { getDashboard } from '$lib/api/routes';
-	import type { DashboardStats, OrgDashboardStats } from '$lib/api/types';
+	import type { DashboardStats } from '$lib/api/types';
 
-	let stats = $state<DashboardStats | OrgDashboardStats | null>(null);
+	let stats = $state<DashboardStats | null>(null);
 	let loading = $state(true);
 
 	async function load() {
@@ -18,7 +17,6 @@
 	}
 
 	$effect(() => {
-		orgStore.currentSlug;
 		load();
 	});
 </script>

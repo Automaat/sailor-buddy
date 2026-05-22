@@ -39,14 +39,15 @@ type trainingListOutput struct {
 	Body dto.Page[dto.Training]
 }
 
-// RegisterTrainingRoutes wires the owner-scoped training operations onto the API.
+// RegisterTrainingRoutes wires the per-member training log onto the API. Each
+// member keeps their own course/certification list.
 func RegisterTrainingRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewTrainingHandler(q)
 	tag := []string{"Trainings"}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trainings", Method: http.MethodGet, Path: "/trainings",
-		Summary: "List trainings", Tags: tag,
+		Summary: "List the current member's trainings", Tags: tag,
 	}, h.list)
 	huma.Register(api, huma.Operation{
 		OperationID: "get-training", Method: http.MethodGet, Path: "/trainings/{trainingID}",
@@ -67,24 +68,21 @@ func RegisterTrainingRoutes(api huma.API, q sqlcdb.Querier) {
 }
 
 func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput] {
-	ownerScope := func(ctx context.Context, _ any) (crudScope, error) {
-		return ownerCRUDScope(ctx), nil
-	}
 	return crudConfig[pageParams, trainingIDParam, createTrainingInput, updateTrainingInput, trainingIDParam, sqlcdb.Training, trainingListOutput, trainingOutput]{
-		listScope: func(ctx context.Context, in *pageParams) (crudScope, error) {
-			return ownerScope(ctx, in)
+		listScope: func(ctx context.Context, _ *pageParams) (crudScope, error) {
+			return memberScope(ctx)
 		},
-		getScope: func(ctx context.Context, in *trainingIDParam) (crudScope, error) {
-			return ownerScope(ctx, in)
+		getScope: func(ctx context.Context, _ *trainingIDParam) (crudScope, error) {
+			return memberScope(ctx)
 		},
-		createScope: func(ctx context.Context, in *createTrainingInput) (crudScope, error) {
-			return ownerScope(ctx, in)
+		createScope: func(ctx context.Context, _ *createTrainingInput) (crudScope, error) {
+			return memberScope(ctx)
 		},
-		updateScope: func(ctx context.Context, in *updateTrainingInput) (crudScope, error) {
-			return ownerScope(ctx, in)
+		updateScope: func(ctx context.Context, _ *updateTrainingInput) (crudScope, error) {
+			return memberScope(ctx)
 		},
-		deleteScope: func(ctx context.Context, in *trainingIDParam) (crudScope, error) {
-			return ownerScope(ctx, in)
+		deleteScope: func(ctx context.Context, _ *trainingIDParam) (crudScope, error) {
+			return memberScope(ctx)
 		},
 		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Training, error) {
 			return q.ListTrainings(ctx, sqlcdb.ListTrainingsParams{

@@ -1,153 +1,85 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { createTestUser, loginViaUI, clearFirebaseUsers, apiRequest } from './helpers';
+
+// Persona matrix for the single-club role model. There are two personas:
+// `admin` (the first account ever provisioned — auto-promoted to club admin)
+// and `member` (every account after). This spec is the source of truth for
+// the role feature: admins manage club data, members get read-only access.
+//
+// Assumes a freshly migrated database with no pre-existing admin.
 
 const RUN_ID = Date.now().toString(36);
 const PASSWORD = 'TestPass123!';
+const adminEmail = `pa-admin-${RUN_ID}@test.local`;
+const memberEmail = `pa-member-${RUN_ID}@test.local`;
 
-const orgSlug = `pa-club-${RUN_ID}`;
-const orgDisplayName = `PA Club ${RUN_ID}`;
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:5173/api';
 
-type OrgRole = 'admin' | 'captain' | 'crew';
-
-type Persona = {
-	key: string;
-	// org role, or null for a user that belongs to no organization
-	role: OrgRole | null;
-	email: string;
-	name: string;
-	// nav: club-only entry (Wydarzenia)
-	seesClubNav: boolean;
-	// nav: admin-only entries (Członkowie, Ustawienia)
-	seesAdminNav: boolean;
-	// /cruises: can start a new cruise
-	canManageCruises: boolean;
-};
-
-const personas: Persona[] = [
-	{
-		key: 'admin',
-		role: 'admin',
-		email: `pa-admin-${RUN_ID}@test.local`,
-		name: 'Persona Admin',
-		seesClubNav: true,
-		seesAdminNav: true,
-		canManageCruises: true
-	},
-	{
-		key: 'captain',
-		role: 'captain',
-		email: `pa-captain-${RUN_ID}@test.local`,
-		name: 'Persona Captain',
-		seesClubNav: true,
-		seesAdminNav: false,
-		canManageCruises: false
-	},
-	{
-		key: 'crew',
-		role: 'crew',
-		email: `pa-crew-${RUN_ID}@test.local`,
-		name: 'Persona Crew',
-		seesClubNav: true,
-		seesAdminNav: false,
-		canManageCruises: false
-	},
-	{
-		key: 'solo',
-		role: null,
-		email: `pa-solo-${RUN_ID}@test.local`,
-		name: 'Persona Solo',
-		seesClubNav: false,
-		seesAdminNav: false,
-		canManageCruises: false
-	}
-];
-
-// An org member has their org auto-selected on login; wait for the nav to settle.
-async function settleOrgContext(page: Page, persona: Persona) {
-	if (persona.role) {
-		await expect(page.locator('nav').getByText(orgDisplayName)).toBeVisible();
-	}
+// mutationStatus issues an authenticated mutating request and returns the HTTP
+// status, so the test can assert a member is forbidden (403).
+async function mutationStatus(
+	token: string,
+	method: string,
+	path: string,
+	body?: unknown
+): Promise<number> {
+	const res = await fetch(`${API_BASE}${path}`, {
+		method,
+		headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+		body: body ? JSON.stringify(body) : undefined
+	});
+	return res.status;
 }
 
 test.describe.serial('Persona access matrix', () => {
+	let memberToken = '';
+
 	test.beforeAll(async () => {
 		await clearFirebaseUsers();
 	});
 
-	test('setup: provision personas, org and role assignments', async () => {
-		// create every persona via the Firebase API; the backend auto-provisions
-		// the DB user on the first authenticated request
-		const tokens: Record<string, string> = {};
-		for (const persona of personas) {
-			const user = await createTestUser(persona.email, PASSWORD, persona.name);
-			tokens[persona.key] = user.idToken;
-		}
+	test('setup: first user becomes admin, second becomes member', async () => {
+		// The first account provisioned becomes the club admin — provision it
+		// first by making one authenticated request, then the member.
+		const admin = await createTestUser(adminEmail, PASSWORD, 'Persona Admin');
+		const adminMe = (await apiRequest(admin.idToken, 'GET', '/auth/me')) as { role: string };
+		expect(adminMe.role).toBe('admin');
 
-		// admin creates the org (creator becomes admin) and role-scoped invites
-		await apiRequest(tokens.admin, 'POST', '/orgs', {
-			name: orgDisplayName,
-			slug: orgSlug
-		});
-		await apiRequest(tokens.admin, 'POST', `/orgs/${orgSlug}/invites`, { role: 'captain' });
-		await apiRequest(tokens.admin, 'POST', `/orgs/${orgSlug}/invites`, { role: 'crew' });
-
-		const invites = (await apiRequest(
-			tokens.admin,
-			'GET',
-			`/orgs/${orgSlug}/invites`
-		)) as Array<{ token: string; role: string }>;
-		const capToken = invites.find((i) => i.role === 'captain')!.token;
-		const crewToken = invites.find((i) => i.role === 'crew')!.token;
-
-		// captain and crew join with their role-scoped invites
-		await apiRequest(tokens.captain, 'POST', `/join/${capToken}`);
-		await apiRequest(tokens.crew, 'POST', `/join/${crewToken}`);
-		// solo persona intentionally joins no org
+		const member = await createTestUser(memberEmail, PASSWORD, 'Persona Member');
+		memberToken = member.idToken;
+		const memberMe = (await apiRequest(member.idToken, 'GET', '/auth/me')) as { role: string };
+		expect(memberMe.role).toBe('member');
 	});
 
-	for (const persona of personas) {
-		test(`${persona.key}: navigation reflects role`, async ({ page }) => {
-			await loginViaUI(page, persona.email, PASSWORD);
-			await settleOrgContext(page, persona);
+	test('admin: sees the members nav and can manage cruises', async ({ page }) => {
+		await loginViaUI(page, adminEmail, PASSWORD);
 
-			await expect(page.getByRole('link', { name: 'Wydarzenia' })).toHaveCount(
-				persona.seesClubNav ? 1 : 0
-			);
-			await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(
-				persona.seesAdminNav ? 1 : 0
-			);
-			await expect(page.getByRole('link', { name: 'Ustawienia' })).toHaveCount(
-				persona.seesAdminNav ? 1 : 0
-			);
-		});
+		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
 
-		test(`${persona.key}: cruise creation gated by role`, async ({ page }) => {
-			await loginViaUI(page, persona.email, PASSWORD);
-			await settleOrgContext(page, persona);
+		await page.goto('/cruises');
+		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(1);
 
-			await page.goto('/cruises');
-			await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(
-				persona.canManageCruises ? 1 : 0
-			);
-		});
+		await page.goto('/members');
+		await expect(page.getByRole('heading', { name: 'Członkowie' })).toBeVisible();
+	});
 
-		test(`${persona.key}: org admin pages gated by role`, async ({ page }) => {
-			await loginViaUI(page, persona.email, PASSWORD);
-			await settleOrgContext(page, persona);
+	test('member: no members nav, cruises are read-only', async ({ page }) => {
+		await loginViaUI(page, memberEmail, PASSWORD);
 
-			if (persona.seesAdminNav) {
-				await page.goto(`/orgs/${orgSlug}/members`);
-				await page.waitForURL(`**/orgs/${orgSlug}/members`);
-				await expect(page.getByRole('heading', { name: 'Członkowie' })).toBeVisible();
-			} else if (persona.role) {
-				// non-admin org member is redirected away from admin-only pages
-				await page.goto(`/orgs/${orgSlug}/members`);
-				await page.waitForURL('/', { timeout: 10_000 });
+		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
 
-				await page.goto(`/orgs/${orgSlug}/settings`);
-				await page.waitForURL('/', { timeout: 10_000 });
-			}
-			// solo persona is not an org member — covered by the navigation test
-		});
-	}
+		await page.goto('/cruises');
+		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(0);
+
+		// the members page redirects a non-admin away
+		await page.goto('/members');
+		await page.waitForURL('/', { timeout: 10_000 });
+	});
+
+	test('member: club-data mutations are rejected with 403', async () => {
+		expect(await mutationStatus(memberToken, 'POST', '/cruises', { name: 'X' })).toBe(403);
+		expect(await mutationStatus(memberToken, 'POST', '/trips', { name: 'X' })).toBe(403);
+		expect(await mutationStatus(memberToken, 'POST', '/yachts', { name: 'X' })).toBe(403);
+		expect(await mutationStatus(memberToken, 'POST', '/crew', { full_name: 'X' })).toBe(403);
+	});
 });

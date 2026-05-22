@@ -6,7 +6,8 @@ Sailing cruise tracker and crew document generator.
 
 - **Backend**: Go 1.26 + chi router + PostgreSQL 18 (pgx/v5) + sqlc
 - **Frontend**: SvelteKit 5 (Svelte 5 runes) + Tailwind CSS
-- **Auth**: JWT access (15min) + refresh tokens (30d) + bcrypt
+- **Auth**: Firebase Auth (ID token verified server-side); `users.role`
+  (`admin`|`member`) — first registered user becomes admin
 
 ## Project Structure
 
@@ -16,12 +17,13 @@ backend/
   cmd/migrate/main.go       # standalone migration runner
   internal/
     api/router.go           # chi router setup
-    api/handlers/            # HTTP handlers (auth, cruises, crew, yachts, trainings, dashboard, import)
-    api/middleware/auth.go   # JWT middleware
-    auth/jwt.go             # JWT + bcrypt helpers
+    api/handlers/            # HTTP handlers (auth, members, cruises, trips, voyages, crew, yachts, trainings, dashboard, import)
+    api/handlers/authz.go    # requireAdmin role gate
+    api/middleware/auth.go   # Firebase auth middleware + first-user-admin
+    auth/firebase.go         # Firebase client + Claims
     config/config.go         # env-based config
     db/db.go                # PostgreSQL connection + migration runner
-    db/migrations/           # SQL migration files (001-008)
+    db/migrations/           # SQL migration files (001-012)
     db/queries/              # sqlc SQL query files
     db/sqlcdb/               # generated sqlc Go code (DO NOT EDIT)
 frontend/
@@ -73,17 +75,20 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   wired up in `internal/api/humaapi.go`.
 - Regenerate both artifacts after changing a DTO or operation:
   `mise run gen-api`. `openapi.yaml` and `schema.d.ts` are committed.
-- Every API endpoint is huma-served and in the spec. Org routes resolve
-  their scope via the `resolveOrg` helper (membership + role check),
-  which replaced the former chi org middleware. Only static file
-  serving (`GET /uploads/*`) stays on chi — it is not an API operation.
+- Every API endpoint is huma-served and in the spec. Mutating routes gate on
+  the caller's role via the `requireAdmin` helper (`internal/api/handlers/
+  authz.go`). Only static file serving (`GET /uploads/*`) stays on chi — it
+  is not an API operation.
 
 ## Key Conventions
 
 - sqlc-generated code in `db/sqlcdb/` is auto-generated - edit `db/queries/*.sql` instead
 - All API routes under `/api/` - frontend proxies via vite config
-- Auth routes (`/auth/*`) are public; all others require JWT
-- Owner-scoped data: cruises, yachts, crew_members filtered by `owner_id`
+- Single club: all sailing data (cruises, trips, voyages, yachts, crew) is
+  club-wide and shared. No per-user/per-org scoping.
+- Roles on `users.role` (`admin`|`member`); first registered user becomes
+  admin. Reads open to any member; mutations require admin (`requireAdmin`).
+- Trainings are the exception — a per-member log scoped by `user_id`.
 - crew_members decoupled from users (crew may not have accounts)
 - Go code must pass `gofumpt` formatting
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID

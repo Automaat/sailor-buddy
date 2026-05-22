@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -14,7 +16,7 @@ func TestAuthHandler_Me(t *testing.T) {
 	_, api := humatest.New(t)
 	m := &mockQuerier{
 		getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
-			return sqlcdb.User{ID: id, Email: "test@example.com", Name: "Test User"}, nil
+			return sqlcdb.User{ID: id, Email: "test@example.com", Name: "Test User", Role: "admin"}, nil
 		},
 	}
 	RegisterAuthRoutes(api, m)
@@ -26,6 +28,13 @@ func TestAuthHandler_Me(t *testing.T) {
 		}
 		if ct := resp.Header().Get("Content-Type"); ct != "application/json" {
 			t.Fatalf("got content-type %q, want application/json", ct)
+		}
+		var me dto.Me
+		if err := json.Unmarshal(resp.Body.Bytes(), &me); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if me.Role != "admin" {
+			t.Fatalf("role = %q, want %q", me.Role, "admin")
 		}
 	})
 

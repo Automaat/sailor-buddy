@@ -8,32 +8,24 @@ SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.creat
        t.name AS trip_name
 FROM cruise_enrollments ce
 JOIN users u ON u.id = ce.user_id
-JOIN cruises c ON c.id = ce.cruise_id
 LEFT JOIN trips t ON t.id = ce.trip_id
-WHERE ce.cruise_id = $1 AND c.org_id = $2
+WHERE ce.cruise_id = $1
 ORDER BY ce.created_at;
 
 -- name: UpdateCruiseEnrollmentStatus :exec
-UPDATE cruise_enrollments ce SET
-    status = $1,
-    updated_at = CURRENT_TIMESTAMP
-FROM cruises c
-WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3;
+UPDATE cruise_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 
 -- name: AssignCruiseEnrollmentToTrip :exec
 UPDATE cruise_enrollments ce SET
     trip_id = $1,
     updated_at = CURRENT_TIMESTAMP
-FROM cruises c
-WHERE ce.id = $2 AND ce.cruise_id = c.id AND c.org_id = $3
+WHERE ce.id = $2
   AND ($1::BIGINT IS NULL OR EXISTS (
       SELECT 1 FROM trips t WHERE t.id = $1 AND t.cruise_id = ce.cruise_id
   ));
 
 -- name: DeleteCruiseEnrollment :exec
-DELETE FROM cruise_enrollments ce
-USING cruises c
-WHERE ce.id = $1 AND ce.cruise_id = c.id AND c.org_id = $2;
+DELETE FROM cruise_enrollments WHERE id = $1;
 
 -- name: CountCruiseEnrollments :one
 SELECT

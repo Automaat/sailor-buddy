@@ -54,7 +54,7 @@ func TestEnrollment_GetByToken_Invalid(t *testing.T) {
 
 func TestEnrollment_GenerateToken_TripNotFound(t *testing.T) {
 	m := &mockQuerier{
-		getTripFn: func(context.Context, sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
+		getTripFn: func(context.Context, int64) (sqlcdb.Trip, error) {
 			return sqlcdb.Trip{}, sql.ErrNoRows
 		},
 	}
@@ -74,7 +74,7 @@ func TestEnrollment_UpdateStatus_InvalidEnum(t *testing.T) {
 
 func TestEnrollment_ListEnrollments(t *testing.T) {
 	m := &mockQuerier{
-		listTripEnrollmentsFn: func(context.Context, sqlcdb.ListTripEnrollmentsParams) ([]sqlcdb.ListTripEnrollmentsRow, error) {
+		listTripEnrollmentsFn: func(context.Context, int64) ([]sqlcdb.ListTripEnrollmentsRow, error) {
 			return []sqlcdb.ListTripEnrollmentsRow{{ID: 1, TripID: 9, Status: "pending", UserName: "Jan"}}, nil
 		},
 	}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { listYachts, createVoyage } from '$lib/api/routes';
 	import type { Yacht } from '$lib/api/types';
 	import { onMount } from 'svelte';
@@ -7,6 +8,13 @@
 	let yachts = $state<Yacht[]>([]);
 	let error = $state('');
 	let loading = $state(false);
+
+	// Logging voyages is an admin task; redirect regular members away.
+	$effect(() => {
+		if (auth.user && !auth.isAdmin) {
+			goto('/voyages');
+		}
+	});
 
 	let form = $state({
 		name: '',

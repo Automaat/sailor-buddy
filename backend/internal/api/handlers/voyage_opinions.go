@@ -9,13 +9,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -54,7 +52,8 @@ type opinionFileOutput struct {
 	Body               []byte
 }
 
-// RegisterVoyageOpinionRoutes wires the crew opinion document operations.
+// RegisterVoyageOpinionRoutes wires the crew opinion document operations. Reads
+// are open to any member; generating and deleting require an admin.
 func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploadDir string) {
 	h := NewVoyageOpinionHandler(q, uploadDir)
 	tag := []string{"Voyage opinions"}
@@ -65,7 +64,7 @@ func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploadDir strin
 	}, h.list)
 	huma.Register(api, huma.Operation{
 		OperationID: "generate-voyage-opinion", Method: http.MethodPost, Path: "/voyages/{voyageID}/opinions",
-		Summary: "Generate a crew opinion document", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Generate a crew opinion document (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.generate)
 	huma.Register(api, huma.Operation{
 		OperationID: "download-voyage-opinion", Method: http.MethodGet, Path: "/voyages/{voyageID}/opinions/{opinionID}/download",
@@ -73,33 +72,34 @@ func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploadDir strin
 	}, h.download)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-voyage-opinion", Method: http.MethodDelete, Path: "/voyages/{voyageID}/opinions/{opinionID}",
-		Summary: "Delete an opinion", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Delete an opinion (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 }
 
 func (h *VoyageOpinionHandler) list(ctx context.Context, in *voyageIDParam) (*opinionListOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.verifyVoyage(ctx, in.ID, user.UserID); err != nil {
+	if err := h.verifyVoyage(ctx, in.ID); err != nil {
 		return nil, err
 	}
 	opinions, err := h.q.ListVoyageVoyageOpinions(ctx, in.ID)
 	if err != nil {
-		slog.Error("list voyage opinions", "voyage_id", in.ID, "user_id", user.UserID, "err", err)
+		slog.Error("list voyage opinions", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list opinions")
 	}
 	return &opinionListOutput{Body: dto.VoyageOpinionsFromDB(opinions)}, nil
 }
 
 func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinionInput) (*opinionOutput, error) {
-	user := middleware.GetUser(ctx)
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
 	format := opinionFormat(in.Body.Format)
 
-	voyage, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, OwnerID: user.UserID})
+	voyage, err := h.q.GetVoyage(ctx, in.VoyageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
 		}
-		slog.Error("get voyage for opinion", "voyage_id", in.VoyageID, "user_id", user.UserID, "err", err)
+		slog.Error("get voyage for opinion", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to get voyage")
 	}
 
@@ -110,13 +110,13 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 
 	yachtName, yachtType := "", ""
 	if voyage.YachtID.Valid {
-		if yacht, err := h.q.GetYacht(ctx, sqlcdb.GetYachtParams{ID: voyage.YachtID.Int64, OwnerID: user.UserID}); err == nil {
+		if yacht, err := h.q.GetYacht(ctx, voyage.YachtID.Int64); err == nil {
 			yachtName, yachtType = yacht.Name, yacht.YachtType.String
 		}
 	}
 
 	data := opinionDocData(voyage, assignment, yachtName, yachtType)
-	filePath, err := storeOpinionFile(h.uploadDir, opinionScopeKey("user", user.UserID), in.VoyageID, in.Body.CrewMemberID, format, data)
+	filePath, err := storeOpinionFile(h.uploadDir, in.VoyageID, in.Body.CrewMemberID, format, data)
 	if err != nil {
 		slog.Error("store opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
 		return nil, huma.Error500InternalServerError("failed to generate opinion document")
@@ -136,8 +136,7 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 }
 
 func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (*opinionFileOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.verifyVoyage(ctx, in.VoyageID, user.UserID); err != nil {
+	if err := h.verifyVoyage(ctx, in.VoyageID); err != nil {
 		return nil, err
 	}
 	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)
@@ -157,8 +156,10 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 }
 
 func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*noContentOutput, error) {
-	user := middleware.GetUser(ctx)
-	if err := h.verifyVoyage(ctx, in.VoyageID, user.UserID); err != nil {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.verifyVoyage(ctx, in.VoyageID); err != nil {
 		return nil, err
 	}
 	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)
@@ -173,13 +174,13 @@ func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*n
 	return &noContentOutput{}, nil
 }
 
-// verifyVoyage confirms the voyage exists and belongs to the caller.
-func (h *VoyageOpinionHandler) verifyVoyage(ctx context.Context, voyageID, userID int64) error {
-	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: voyageID, OwnerID: userID}); err != nil {
+// verifyVoyage confirms the voyage exists.
+func (h *VoyageOpinionHandler) verifyVoyage(ctx context.Context, voyageID int64) error {
+	if _, err := h.q.GetVoyage(ctx, voyageID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return huma.Error404NotFound("voyage not found")
 		}
-		slog.Error("verify voyage for opinion", "voyage_id", voyageID, "user_id", userID, "err", err)
+		slog.Error("verify voyage for opinion", "voyage_id", voyageID, "err", err)
 		return huma.Error500InternalServerError("failed to verify voyage")
 	}
 	return nil
@@ -217,12 +218,6 @@ func opinionFormat(format string) string {
 	return format
 }
 
-// opinionScopeKey builds the upload-directory segment that segregates
-// owner-scoped and org-scoped opinion files so their paths never collide.
-func opinionScopeKey(kind string, id int64) string {
-	return kind + "_" + strconv.FormatInt(id, 10)
-}
-
 // getOpinionCrewAssignment loads the voyage crew assignment for a member,
 // mapping a missing row to a 404 so callers return it directly.
 func getOpinionCrewAssignment(ctx context.Context, q sqlcdb.Querier, voyageID, crewMemberID int64) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
@@ -242,12 +237,12 @@ func getOpinionCrewAssignment(ctx context.Context, q sqlcdb.Querier, voyageID, c
 
 // storeOpinionFile renders the opinion document and writes it under the upload
 // directory, removing any prior file in a different format.
-func storeOpinionFile(uploadDir, scopeKey string, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
+func storeOpinionFile(uploadDir string, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
 	fileBytes, err := renderOpinionFile(format, data)
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(uploadDir, scopeKey, "opinions")
+	dir := filepath.Join(uploadDir, "opinions")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}

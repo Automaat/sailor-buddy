@@ -32,7 +32,6 @@ export type TrainingBody = Schemas['TrainingBody'];
 
 export type DashboardStats = Schemas['Dashboard'];
 export type YearStats = Schemas['VoyagesByYear'];
-export type OrgDashboardStats = Schemas['OrgDashboard'];
 
 export type UploadResponse = Schemas['UploadURLOutputBody'];
 
@@ -47,13 +46,8 @@ export type Cruise = Schemas['Cruise'];
 
 export type VoyageOpinion = Schemas['VoyageOpinion'];
 
-/** Organization carries the caller's role; returned by the org list endpoint. */
-export type Organization = Schemas['UserOrganization'];
-/** OrgDetail is the role-free organization record from the single-org endpoint. */
-export type OrgDetail = Schemas['Organization'];
-export type OrgMember = Schemas['OrgMember'];
-export type OrgInvite = Schemas['OrgInvite'];
-export type OrgInviteInfo = Schemas['InviteInfo'];
+/** Member is a club member: a user account plus their role. */
+export type Member = Schemas['Member'];
 
 // EnrollInfo arrives flat (kind plus optional trip/cruise); the page treats it
 // as a discriminated union, which the resolveEnroll route helper narrows to.

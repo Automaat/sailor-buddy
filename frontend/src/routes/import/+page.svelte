@@ -1,10 +1,19 @@
 <script lang="ts">
+	import { auth } from '$lib/stores/auth.svelte';
+	import { goto } from '$app/navigation';
 	import { importXlsx, importConfirm } from '$lib/api/routes';
 	import type { components } from '$lib/api/schema';
 	import Download from '@lucide/svelte/icons/download';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 
 	type ImportData = components['schemas']['ImportData'];
+
+	// Importing club data is an admin task; redirect regular members away.
+	$effect(() => {
+		if (auth.user && !auth.isAdmin) {
+			goto('/');
+		}
+	});
 
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let status = $state<'idle' | 'uploading' | 'preview' | 'confirming' | 'done' | 'error'>('idle');

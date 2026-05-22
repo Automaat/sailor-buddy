@@ -6,10 +6,10 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-// Cruise is the API representation of an org-level cruise event.
+// Cruise is the API representation of a club cruise event.
 type Cruise struct {
 	ID            int64     `json:"id"`
-	OrgID         int64     `json:"org_id"`
+	CreatedBy     *int64    `json:"created_by,omitempty"`
 	Name          string    `json:"name"`
 	EmbarkDate    *string   `json:"embark_date,omitempty"`
 	DisembarkDate *string   `json:"disembark_date,omitempty"`
@@ -47,7 +47,7 @@ type CruiseBody struct {
 func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 	return Cruise{
 		ID:            c.ID,
-		OrgID:         c.OrgID,
+		CreatedBy:     intPtr(c.CreatedBy),
 		Name:          c.Name,
 		EmbarkDate:    strPtr(c.EmbarkDate),
 		DisembarkDate: strPtr(c.DisembarkDate),
