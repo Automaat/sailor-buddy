@@ -15,7 +15,7 @@ WORKDIR /app
 EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 
-FROM alpine:3.23
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates chromium
 ENV CHROME_PATH=/usr/bin/chromium-browser
 WORKDIR /app
