@@ -3,7 +3,7 @@ module github.com/marcinskalski/sailor-buddy/backend
 go 1.26
 
 require (
-	firebase.google.com/go/v4 v4.20.0
+	firebase.google.com/go/v4 v4.21.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/chromedp/cdproto v0.0.0-20260704091341-6ca7914c3938
 	github.com/chromedp/chromedp v0.15.1
