@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -7,7 +7,7 @@ COPY . .
 RUN go build -o /app/sailor-buddy ./cmd/api
 RUN go build -o /app/seed-dev ./cmd/seed-dev
 
-FROM golang:1.26-alpine AS dev
+FROM golang:1.27-alpine AS dev
 RUN apk add --no-cache ca-certificates chromium git
 ENV CHROME_PATH=/usr/bin/chromium-browser
 RUN go install github.com/air-verse/air@v1.65.1
