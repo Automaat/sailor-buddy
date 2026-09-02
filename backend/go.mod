@@ -1,6 +1,6 @@
 module github.com/marcinskalski/sailor-buddy/backend
 
-go 1.26
+go 1.26.0
 
 require (
 	firebase.google.com/go/v4 v4.21.0
@@ -12,7 +12,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/lukasjarosch/go-docx v0.5.0
 	github.com/xuri/excelize/v2 v2.11.0
-	google.golang.org/api v0.296.0
+	google.golang.org/api v0.297.0
 )
 
 require (
