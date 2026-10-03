@@ -5,8 +5,8 @@ go 1.27
 require (
 	firebase.google.com/go/v4 v4.22.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/chromedp/cdproto v0.157.2
-	github.com/chromedp/chromedp v0.16.0
+	github.com/chromedp/cdproto v0.157.3
+	github.com/chromedp/chromedp v0.17.1
 	github.com/danielgtaylor/huma/v2 v2.39.1
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/cors v1.2.2
