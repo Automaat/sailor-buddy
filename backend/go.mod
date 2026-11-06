@@ -6,7 +6,7 @@ require (
 	firebase.google.com/go/v4 v4.22.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/chromedp/cdproto v0.159.2
-	github.com/chromedp/chromedp v0.22.1
+	github.com/chromedp/chromedp v0.23.0
 	github.com/danielgtaylor/huma/v2 v2.40.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
