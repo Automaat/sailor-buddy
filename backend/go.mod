@@ -14,7 +14,7 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/lukasjarosch/go-docx v0.5.0
 	github.com/xuri/excelize/v2 v2.11.1
-	google.golang.org/api v0.312.0
+	google.golang.org/api v0.313.0
 )
 
 require (
