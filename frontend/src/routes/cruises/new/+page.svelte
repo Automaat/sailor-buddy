@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
+	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 
 	let error = $state('');
 	let loading = $state(false);
@@ -14,6 +15,7 @@
 
 	let form = $state({
 		name: '',
+		kind: 'sea' as CruiseKind,
 		embark_date: '',
 		disembark_date: '',
 		countries: '',
@@ -55,6 +57,14 @@
 			<div class="col-span-2">
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa wydarzenia *</label>
 				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+			</div>
+			<div class="col-span-2">
+				<label for="kind" class="mb-1 block text-sm font-medium">Rodzaj rejsu</label>
+				<select id="kind" bind:value={form.kind} class="w-full rounded-lg border px-3 py-2">
+					{#each cruiseKinds as kind (kind)}
+						<option value={kind}>{cruiseKindLabels[kind]}</option>
+					{/each}
+				</select>
 			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
