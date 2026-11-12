@@ -10,6 +10,7 @@
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import Download from '@lucide/svelte/icons/download';
 	import Users from '@lucide/svelte/icons/users';
+	import Repeat from '@lucide/svelte/icons/repeat';
 
 	let { children } = $props();
 
@@ -23,6 +24,7 @@
 	const navItems: NavItem[] = [
 		{ href: '/', label: 'Pulpit', icon: Anchor },
 		{ href: '/cruises', label: 'Wydarzenia', icon: Sailboat },
+		{ href: '/series', label: 'Serie', icon: Repeat },
 		{ href: '/trips', label: 'Planowane', icon: Sailboat },
 		{ href: '/voyages', label: 'Zrealizowane', icon: Sailboat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },

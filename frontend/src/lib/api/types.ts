@@ -43,6 +43,8 @@ export type PublicTrip = Schemas['EnrollTrip'];
 export type PublicCruise = Schemas['EnrollCruise'];
 
 export type Cruise = Schemas['Cruise'];
+export type CruiseSeries = Schemas['CruiseSeries'];
+export type CruiseSeriesEdition = Schemas['CruiseSeriesEdition'];
 
 export type VoyageOpinion = Schemas['VoyageOpinion'];
 

@@ -97,7 +97,7 @@ Notes:
 ## Pagination
 
 Top-level collection list endpoints (`GET /api/trips`, `/voyages`, `/yachts`,
-`/crew`, `/trainings`, `/cruises`) are offset-paginated. They accept two
+`/crew`, `/trainings`, `/cruises`, `/series`) are offset-paginated. They accept two
 query parameters:
 
 | Param | Default | Bounds | Meaning |
@@ -122,7 +122,7 @@ bare array:
 beyond the window. `items` always serialises as `[]`, never `null`.
 
 Nested sub-resource lists (a trip's crew, a cruise's child trips/voyages,
-the members roster) are not paginated — they stay bare JSON arrays.
+a series' editions, the members roster) are not paginated — they stay bare JSON arrays.
 
 ## Data model & authorization
 
@@ -352,9 +352,52 @@ value is rejected with 422.
 
 Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 `countries`, `start_port`, `end_port`, `description`, `image_*_url`,
-`max_crew`, `cost_per_person`. Cruise enrollment status values: `pending`,
-`accepted`, `rejected`, `waitlisted`. Assign-to-trip body: `{ "trip_id": 5 }`
+`max_crew`, `cost_per_person`, `series_id`, `edition` (see Cruise series).
+Cruise enrollment status values: `pending`, `accepted`, `rejected`,
+`waitlisted`. Assign-to-trip body: `{ "trip_id": 5 }`
 (`null` unassigns).
+
+### Cruise series
+
+A **series** groups the yearly editions of a recurring cruise (for example
+AGH Winter Sail Expedition or May I Sail). A cruise links to at most one
+series with `series_id` and carries a free-form `edition` label up to 50
+characters, such as `2025` or `2026/27`; a blank label is stored as null.
+A `series_id` that does not exist is rejected with 422. `PUT
+/api/cruises/{id}` replaces both fields, so omitting them unlinks the
+cruise. Deleting a series keeps its cruises and clears their `series_id`.
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/series` | member | List series | 200 |
+| POST | `/api/series` | **admin** | Create series | 201 |
+| GET | `/api/series/{id}` | member | Get series | 200 |
+| PUT | `/api/series/{id}` | **admin** | Update series | 204 |
+| DELETE | `/api/series/{id}` | **admin** | Delete series; its cruises stay, unlinked | 204 |
+| GET | `/api/series/{id}/editions` | member | Editions with voyage totals | 200 |
+
+Body — `name` required: `{ "name": "May I Sail", "description": "Since 2018" }`.
+
+`GET /api/series/{id}/editions` returns a bare array of the series' cruises,
+newest first (by `embark_date`, with undated planned editions on top, then
+`edition`), each with `voyage_count`,
+`total_miles` and `total_hours` summed over its voyages (`hours_total`).
+An edition without voyages reports zeros. Unknown series → 404.
+
+```json
+[
+  {
+    "cruise_id": 12,
+    "name": "May I Sail 2025",
+    "edition": "2025",
+    "kind": "sea",
+    "embark_date": "2025-05-01",
+    "voyage_count": 2,
+    "total_miles": 200,
+    "total_hours": 40
+  }
+]
+```
 
 ### Yachts
 

@@ -240,6 +240,9 @@ components:
           type: string
         disembark_date:
           type: string
+        edition:
+          description: Edition label within the series, e.g. 2025 or 2026/27
+          type: string
         embark_date:
           type: string
         end_port:
@@ -266,6 +269,10 @@ components:
           type: integer
         name:
           type: string
+        series_id:
+          description: Series this cruise is an edition of
+          format: int64
+          type: integer
         start_port:
           type: string
         updated_at:
@@ -297,6 +304,10 @@ components:
           type: string
         disembark_date:
           type: string
+        edition:
+          description: Edition label within the series, e.g. 2025 or 2026/27
+          maxLength: 50
+          type: string
         embark_date:
           type: string
         end_port:
@@ -321,6 +332,10 @@ components:
           description: Cruise name
           minLength: 1
           type: string
+        series_id:
+          description: Series this cruise is an edition of; omit or null for none
+          format: int64
+          type: integer
         start_port:
           type: string
       required:
@@ -365,6 +380,93 @@ components:
         - status
         - created_at
         - updated_at
+      type: object
+    CruiseSeries:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CruiseSeries.json
+          format: uri
+          readOnly: true
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          format: int64
+          type: integer
+        description:
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - name
+        - created_at
+        - updated_at
+      type: object
+    CruiseSeriesBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CruiseSeriesBody.json
+          format: uri
+          readOnly: true
+          type: string
+        description:
+          type: string
+        name:
+          description: Series name
+          minLength: 1
+          type: string
+      required:
+        - name
+      type: object
+    CruiseSeriesEdition:
+      additionalProperties: false
+      properties:
+        cruise_id:
+          format: int64
+          type: integer
+        disembark_date:
+          type: string
+        edition:
+          type: string
+        embark_date:
+          type: string
+        kind:
+          enum:
+            - sea
+            - inland
+          type: string
+        name:
+          type: string
+        total_hours:
+          format: double
+          type: number
+        total_miles:
+          format: double
+          type: number
+        voyage_count:
+          format: int64
+          type: integer
+      required:
+        - cruise_id
+        - name
+        - kind
+        - voyage_count
+        - total_miles
+        - total_hours
       type: object
     Dashboard:
       additionalProperties: false
@@ -1044,6 +1146,44 @@ components:
         items:
           items:
             $ref: "#/components/schemas/Cruise"
+          type:
+            - array
+            - "null"
+        limit:
+          description: Maximum items returned in this window
+          format: int64
+          type: integer
+        offset:
+          description: Number of items skipped before this window
+          format: int64
+          type: integer
+        total:
+          description: Total number of items matching the query
+          format: int64
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+        - has_more
+      type: object
+    PageCruiseSeries:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PageCruiseSeries.json
+          format: uri
+          readOnly: true
+          type: string
+        has_more:
+          description: Whether more items exist beyond this window
+          type: boolean
+        items:
+          items:
+            $ref: "#/components/schemas/CruiseSeries"
           type:
             - array
             - "null"
@@ -2911,6 +3051,183 @@ paths:
       summary: Change a member's role (admin)
       tags:
         - Members
+  /series:
+    get:
+      operationId: list-series
+      parameters:
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageCruiseSeries"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List cruise series
+      tags:
+        - Series
+    post:
+      operationId: create-series
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CruiseSeriesBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CruiseSeries"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a cruise series (admin)
+      tags:
+        - Series
+  /series/{seriesID}:
+    delete:
+      operationId: delete-series
+      parameters:
+        - description: Series ID
+          in: path
+          name: seriesID
+          required: true
+          schema:
+            description: Series ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a cruise series (admin); its cruises are kept and unlinked
+      tags:
+        - Series
+    get:
+      operationId: get-series
+      parameters:
+        - description: Series ID
+          in: path
+          name: seriesID
+          required: true
+          schema:
+            description: Series ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CruiseSeries"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a cruise series
+      tags:
+        - Series
+    put:
+      operationId: update-series
+      parameters:
+        - description: Series ID
+          in: path
+          name: seriesID
+          required: true
+          schema:
+            description: Series ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CruiseSeriesBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a cruise series (admin)
+      tags:
+        - Series
+  /series/{seriesID}/editions:
+    get:
+      operationId: list-series-editions
+      parameters:
+        - description: Series ID
+          in: path
+          name: seriesID
+          required: true
+          schema:
+            description: Series ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/CruiseSeriesEdition"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a series' editions, newest first, with voyage totals
+      tags:
+        - Series
   /trainings:
     get:
       operationId: list-trainings

@@ -99,6 +99,8 @@ type Cruise struct {
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
 	Kind          string            `json:"kind"`
+	SeriesID      types.NullInt64   `json:"series_id"`
+	Edition       types.NullString  `json:"edition"`
 }
 
 type CruiseEnrollment struct {
@@ -110,6 +112,15 @@ type CruiseEnrollment struct {
 	Status    string           `json:"status"`
 	CreatedAt types.NullTime   `json:"created_at"`
 	UpdatedAt types.NullTime   `json:"updated_at"`
+}
+
+type CruiseSeries struct {
+	ID          int64            `json:"id"`
+	CreatedBy   types.NullInt64  `json:"created_by"`
+	Name        string           `json:"name"`
+	Description types.NullString `json:"description"`
+	CreatedAt   types.NullTime   `json:"created_at"`
+	UpdatedAt   types.NullTime   `json:"updated_at"`
 }
 
 type RefreshToken struct {

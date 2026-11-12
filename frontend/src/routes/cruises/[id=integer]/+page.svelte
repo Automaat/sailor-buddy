@@ -2,6 +2,7 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import {
 		getCruise,
+		getSeries,
 		deleteCruise,
 		listCruiseTrips,
 		listCruiseVoyages,
@@ -12,7 +13,7 @@
 		assignCruiseEnrollmentTrip,
 		deleteCruiseEnrollment
 	} from '#lib/api/routes.js';
-	import type { Cruise, Trip, Voyage, CruiseEnrollment } from '#lib/api/types.js';
+	import type { Cruise, CruiseSeries, Trip, Voyage, CruiseEnrollment } from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import { statusLabels } from '#lib/enrollment.js';
@@ -23,6 +24,7 @@
 	type EnrollStatus = 'accepted' | 'rejected' | 'waitlisted' | 'pending';
 
 	let cruise = $state<Cruise | null>(null);
+	let series = $state<CruiseSeries | null>(null);
 	let trips = $state<Trip[]>([]);
 	let voyages = $state<Voyage[]>([]);
 	let enrollments = $state<CruiseEnrollment[]>([]);
@@ -42,14 +44,17 @@
 		try {
 			cruise = await getCruise(id);
 			enrollToken = cruise?.enroll_token ?? null;
-			const [t, v, e] = await Promise.all([
+			const seriesID = cruise?.series_id;
+			const [t, v, e, s] = await Promise.all([
 				listCruiseTrips(id).then((r) => r ?? []).catch(() => []),
 				listCruiseVoyages(id).then((r) => r ?? []).catch(() => []),
-				listCruiseEnrollments(id).then((r) => r ?? []).catch(() => [])
+				listCruiseEnrollments(id).then((r) => r ?? []).catch(() => []),
+				seriesID ? getSeries(seriesID).catch(() => null) : Promise.resolve(null)
 			]);
 			trips = t;
 			voyages = v;
 			enrollments = e;
+			series = s;
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 404) {
 				notFound = true;
@@ -132,6 +137,12 @@
 		<div class="mb-6 flex items-center justify-between">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
+				{#if series}
+					<p class="mt-1 text-sm">
+						<a href="/series/{series.id}" class="text-[var(--ocean)] hover:underline">{series.name}</a>
+						{#if cruise.edition} · edycja {cruise.edition}{/if}
+					</p>
+				{/if}
 				<p class="mt-1 text-[var(--text-muted)]">
 					{#if cruise.start_port && cruise.end_port}
 						{cruise.start_port} → {cruise.end_port}

@@ -390,6 +390,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cruise series */
+        get: operations["list-series"];
+        put?: never;
+        /** Create a cruise series (admin) */
+        post: operations["create-series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{seriesID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a cruise series */
+        get: operations["get-series"];
+        /** Update a cruise series (admin) */
+        put: operations["update-series"];
+        post?: never;
+        /** Delete a cruise series (admin); its cruises are kept and unlinked */
+        delete: operations["delete-series"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{seriesID}/editions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a series' editions, newest first, with voyage totals */
+        get: operations["list-series-editions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trainings": {
         parameters: {
             query?: never;
@@ -999,6 +1053,8 @@ export interface components {
             created_by?: number;
             description?: string;
             disembark_date?: string;
+            /** @description Edition label within the series, e.g. 2025 or 2026/27 */
+            edition?: string;
             embark_date?: string;
             end_port?: string;
             enroll_token?: string;
@@ -1015,6 +1071,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: int64
+             * @description Series this cruise is an edition of
+             */
+            series_id?: number;
             start_port?: string;
             /** Format: date-time */
             updated_at: string;
@@ -1031,6 +1092,8 @@ export interface components {
             countries?: string;
             description?: string;
             disembark_date?: string;
+            /** @description Edition label within the series, e.g. 2025 or 2026/27 */
+            edition?: string;
             embark_date?: string;
             end_port?: string;
             image_logo_url?: string;
@@ -1046,6 +1109,11 @@ export interface components {
             max_crew?: number;
             /** @description Cruise name */
             name: string;
+            /**
+             * Format: int64
+             * @description Series this cruise is an edition of; omit or null for none
+             */
+            series_id?: number;
             start_port?: string;
         };
         CruiseEnrollmentDetail: {
@@ -1066,6 +1134,51 @@ export interface components {
             /** Format: int64 */
             user_id: number;
             user_name: string;
+        };
+        CruiseSeries: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CruiseSeries.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            created_by?: number;
+            description?: string;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        CruiseSeriesBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CruiseSeriesBody.json
+             */
+            readonly $schema?: string;
+            description?: string;
+            /** @description Series name */
+            name: string;
+        };
+        CruiseSeriesEdition: {
+            /** Format: int64 */
+            cruise_id: number;
+            disembark_date?: string;
+            edition?: string;
+            embark_date?: string;
+            /** @enum {string} */
+            kind: "sea" | "inland";
+            name: string;
+            /** Format: double */
+            total_hours: number;
+            /** Format: double */
+            total_miles: number;
+            /** Format: int64 */
+            voyage_count: number;
         };
         Dashboard: {
             /**
@@ -1436,6 +1549,32 @@ export interface components {
             /** @description Whether more items exist beyond this window */
             has_more: boolean;
             items: components["schemas"]["Cruise"][] | null;
+            /**
+             * Format: int64
+             * @description Maximum items returned in this window
+             */
+            limit: number;
+            /**
+             * Format: int64
+             * @description Number of items skipped before this window
+             */
+            offset: number;
+            /**
+             * Format: int64
+             * @description Total number of items matching the query
+             */
+            total: number;
+        };
+        PageCruiseSeries: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PageCruiseSeries.json
+             */
+            readonly $schema?: string;
+            /** @description Whether more items exist beyond this window */
+            has_more: boolean;
+            items: components["schemas"]["CruiseSeries"][] | null;
             /**
              * Format: int64
              * @description Maximum items returned in this window
@@ -3028,6 +3167,201 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-series": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageCruiseSeries"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CruiseSeriesBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CruiseSeries"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series ID */
+                seriesID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CruiseSeries"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series ID */
+                seriesID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CruiseSeriesBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series ID */
+                seriesID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-series-editions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series ID */
+                seriesID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CruiseSeriesEdition"][] | null;
+                };
             };
             /** @description Error */
             default: {
