@@ -245,7 +245,9 @@ On create, an omitted (or 0) `max_crew` defaults to the yacht's `berths` when
 unknown yacht). An explicit `max_crew` is kept.
 
 `complete` returns `404` `trip not found or not in planned state` when the trip
-is missing or already completed/cancelled. `cancel` returns `404`
+is missing or already completed/cancelled, and `409`
+`trip moved to another cruise; retry` when the trip keeps changing cruise
+while it completes. `cancel` returns `404`
 `trip not found or invalid transition` likewise.
 
 ### Trip crew assignments

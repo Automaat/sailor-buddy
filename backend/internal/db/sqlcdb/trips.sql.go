@@ -420,6 +420,27 @@ func (q *Queries) ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, e
 	return items, nil
 }
 
+const lockTripCruise = `-- name: LockTripCruise :one
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+FOR KEY SHARE OF c
+`
+
+// Key-share-locks the cruise the trip belongs to. Trip completion takes it
+// before the trip lock, in the same order as DELETE FROM cruises (cruise,
+// then trip via the ON DELETE SET NULL cascade), so the two cannot deadlock.
+// No row when the trip has no cruise or the cruise is gone.
+//
+//	SELECT c.id FROM cruises c
+//	WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+//	FOR KEY SHARE OF c
+func (q *Queries) LockTripCruise(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockTripCruise, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const setTripEnrollToken = `-- name: SetTripEnrollToken :exec
 UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
