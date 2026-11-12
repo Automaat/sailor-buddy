@@ -42,16 +42,14 @@ func CruiseEnrollmentsFromDB(rows []sqlcdb.ListCruiseEnrollmentsRow) []CruiseEnr
 		r := rows[i]
 		cid := r.CruiseID
 		out[i] = CruiseEnrollmentDetail{
-			Enrollment: Enrollment{
-				ID:        r.ID,
-				CruiseID:  &cid,
-				TripID:    intPtr(r.TripID),
-				UserID:    r.UserID,
-				Note:      strPtr(r.Note),
-				Status:    r.Status,
-				CreatedAt: timeVal(r.CreatedAt),
-				UpdatedAt: timeVal(r.UpdatedAt),
-			},
+			ID:        r.ID,
+			CruiseID:  &cid,
+			TripID:    intPtr(r.TripID),
+			UserID:    r.UserID,
+			Note:      strPtr(r.Note),
+			Status:    r.Status,
+			CreatedAt: timeVal(r.CreatedAt),
+			UpdatedAt: timeVal(r.UpdatedAt),
 			UserName:  r.UserName,
 			UserEmail: r.UserEmail,
 			TripName:  strPtr(r.TripName),
@@ -154,15 +152,13 @@ func TripEnrollmentsFromDB(rows []sqlcdb.ListTripEnrollmentsRow) []TripEnrollmen
 		r := rows[i]
 		tid := r.TripID
 		out[i] = TripEnrollmentDetail{
-			Enrollment: Enrollment{
-				ID:        r.ID,
-				TripID:    &tid,
-				UserID:    r.UserID,
-				Note:      strPtr(r.Note),
-				Status:    r.Status,
-				CreatedAt: timeVal(r.CreatedAt),
-				UpdatedAt: timeVal(r.UpdatedAt),
-			},
+			ID:        r.ID,
+			TripID:    &tid,
+			UserID:    r.UserID,
+			Note:      strPtr(r.Note),
+			Status:    r.Status,
+			CreatedAt: timeVal(r.CreatedAt),
+			UpdatedAt: timeVal(r.UpdatedAt),
 			UserName:  r.UserName,
 			UserEmail: r.UserEmail,
 		}

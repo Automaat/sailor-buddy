@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { auth } from '$lib/stores/auth.svelte';
-	import { listYachts, createVoyage } from '$lib/api/routes';
-	import type { Yacht } from '$lib/api/types';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { listYachts, createVoyage } from '#lib/api/routes.js';
+	import type { Yacht } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
 
 	let yachts = $state<Yacht[]>([]);

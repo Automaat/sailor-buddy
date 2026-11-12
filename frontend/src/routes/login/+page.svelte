@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -9,7 +9,7 @@
 		GoogleAuthProvider,
 		updateProfile
 	} from 'firebase/auth';
-	import { firebaseAuth } from '$lib/firebase';
+	import { firebaseAuth } from '#lib/firebase.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
 
 	const googleProvider = new GoogleAuthProvider();

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
-	import { listCrew, createCrew } from '$lib/api/routes';
-	import type { CrewMember } from '$lib/api/types';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { listCrew, createCrew } from '#lib/api/routes.js';
+	import type { CrewMember } from '#lib/api/types.js';
 	import Users from '@lucide/svelte/icons/users';
 
 	let members = $state<CrewMember[]>([]);

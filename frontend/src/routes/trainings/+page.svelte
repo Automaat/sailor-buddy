@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { listTrainings, createTraining, deleteTraining } from '$lib/api/routes';
-	import type { Training } from '$lib/api/types';
+	import { listTrainings, createTraining, deleteTraining } from '#lib/api/routes.js';
+	import type { Training } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 

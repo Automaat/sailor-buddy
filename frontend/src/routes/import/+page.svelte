@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
-	import { importXlsx, importConfirm } from '$lib/api/routes';
-	import type { components } from '$lib/api/schema';
+	import { importXlsx, importConfirm } from '#lib/api/routes.js';
+	import type { components } from '#lib/api/schema.js';
 	import Download from '@lucide/svelte/icons/download';
 	import CheckCircle2 from '@lucide/svelte/icons/check-circle-2';
 

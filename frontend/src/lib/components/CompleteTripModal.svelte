@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CompleteTripPayload, VoyagePortBody } from '$lib/api/types';
+	import type { CompleteTripPayload, VoyagePortBody } from '#lib/api/types.js';
 	import PortPicker from './PortPicker.svelte';
 
 	type Props = {

@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import PortPicker from './PortPicker.svelte';
 
 const geocodeMock = vi.fn();
-vi.mock('$lib/api/routes', () => ({ geocode: (q: string) => geocodeMock(q) }));
+vi.mock('#lib/api/routes.js', () => ({ geocode: (q: string) => geocodeMock(q) }));
 
 describe('PortPicker', () => {
 	beforeEach(() => geocodeMock.mockReset());

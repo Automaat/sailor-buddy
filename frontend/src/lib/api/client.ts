@@ -1,11 +1,11 @@
-import { env } from '$env/dynamic/public';
-import { auth } from '$lib/stores/auth.svelte';
+import { PUBLIC_API_URL } from '$app/env/public';
+import { auth } from '#lib/stores/auth.svelte.js';
 import type { paths } from './schema';
 
 // Dev serves the API through the Vite proxy at /api. The production build
 // (adapter-node) has no proxy, so PUBLIC_API_URL points the browser straight
 // at the backend; it falls back to /api when unset.
-const BASE = env.PUBLIC_API_URL || '/api';
+const BASE = PUBLIC_API_URL || '/api';
 
 // ApiError carries the HTTP status alongside the message so callers can branch
 // on it — e.g. a detail page renders a "not found" panel for 404 instead of a

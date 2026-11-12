@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import {
 		getCruise,
 		deleteCruise,
@@ -11,11 +11,11 @@
 		updateCruiseEnrollmentStatus,
 		assignCruiseEnrollmentTrip,
 		deleteCruiseEnrollment
-	} from '$lib/api/routes';
-	import type { Cruise, Trip, Voyage, CruiseEnrollment } from '$lib/api/types';
-	import { ApiError } from '$lib/api/client';
-	import NotFound from '$lib/components/NotFound.svelte';
-	import { statusLabels } from '$lib/enrollment';
+	} from '#lib/api/routes.js';
+	import type { Cruise, Trip, Voyage, CruiseEnrollment } from '#lib/api/types.js';
+	import { ApiError } from '#lib/api/client.js';
+	import NotFound from '#lib/components/NotFound.svelte';
+	import { statusLabels } from '#lib/enrollment.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import type { CompleteTripPayload } from '$lib/api/types';
+import type { CompleteTripPayload } from '#lib/api/types.js';
 import CompleteTripModal from './CompleteTripModal.svelte';
 
 type Props = {

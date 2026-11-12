@@ -15,7 +15,7 @@
 		deleteVoyagePort,
 		reorderVoyagePorts,
 		getCruise
-	} from '$lib/api/routes';
+	} from '#lib/api/routes.js';
 	import type {
 		Voyage,
 		CrewAssignment,
@@ -24,11 +24,11 @@
 		VoyagePort,
 		VoyagePortBody,
 		Cruise
-	} from '$lib/api/types';
-	import { ApiError } from '$lib/api/client';
-	import { auth } from '$lib/stores/auth.svelte';
-	import NotFound from '$lib/components/NotFound.svelte';
-	import PortPicker from '$lib/components/PortPicker.svelte';
+	} from '#lib/api/types.js';
+	import { ApiError } from '#lib/api/client.js';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import NotFound from '#lib/components/NotFound.svelte';
+	import PortPicker from '#lib/components/PortPicker.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import '../app.css';
-	import { auth } from '$lib/stores/auth.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
-	import { getMe } from '$lib/api/routes';
+	import { page } from '$app/state';
+	import { getMe } from '#lib/api/routes.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
@@ -49,7 +49,7 @@
 	}
 
 	$effect(() => {
-		if (!auth.loading && !auth.isAuthenticated && !isPublicRoute($page.url.pathname)) {
+		if (!auth.loading && !auth.isAuthenticated && !isPublicRoute(page.url.pathname)) {
 			goto('/login');
 		}
 	});
@@ -86,7 +86,7 @@
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 		<Anchor class="h-10 w-10 text-white" />
 	</div>
-{:else if $page.url.pathname.startsWith('/login') || isEnrollRoute($page.url.pathname)}
+{:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname)}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">
@@ -100,8 +100,8 @@
 				{#each navItems as item}
 					{#if !item.adminOnly || auth.isAdmin}
 						{@const active =
-							$page.url.pathname === item.href ||
-							(item.href !== '/' && $page.url.pathname.startsWith(item.href))}
+							page.url.pathname === item.href ||
+							(item.href !== '/' && page.url.pathname.startsWith(item.href))}
 						{@const Icon = item.icon}
 						<a
 							href={item.href}

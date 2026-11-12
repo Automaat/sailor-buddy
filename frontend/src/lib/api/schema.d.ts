@@ -1138,13 +1138,6 @@ export interface components {
              */
             type: string;
         };
-        FormFile: {
-            ContentType: string;
-            Filename: string;
-            IsSet: boolean;
-            /** Format: int64 */
-            Size: number;
-        };
         GenerateOpinionBody: {
             /**
              * Format: uri

@@ -5,8 +5,8 @@
 	import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 	import markerIcon from 'leaflet/dist/images/marker-icon.png';
 	import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-	import { geocode } from '$lib/api/routes';
-	import type { GeocodeResult, VoyagePortBody } from '$lib/api/types';
+	import { geocode } from '#lib/api/routes.js';
+	import type { GeocodeResult, VoyagePortBody } from '#lib/api/types.js';
 
 	// A port only needs a name and coordinates to be drawn; both VoyagePort and
 	// VoyagePortBody satisfy this, so the picker works for the completion modal

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
-	import { getCrew, deleteCrew } from '$lib/api/routes';
-	import type { CrewMember } from '$lib/api/types';
-	import { ApiError } from '$lib/api/client';
-	import NotFound from '$lib/components/NotFound.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { getCrew, deleteCrew } from '#lib/api/routes.js';
+	import type { CrewMember } from '#lib/api/types.js';
+	import { ApiError } from '#lib/api/client.js';
+	import NotFound from '#lib/components/NotFound.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

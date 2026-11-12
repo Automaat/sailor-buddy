@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { connectAuthEmulator } = vi.hoisted(() => ({ connectAuthEmulator: vi.fn() }));
 
-vi.mock('$env/dynamic/public', () => ({ env: {} }));
+vi.mock('$app/env/public', () => ({
+	PUBLIC_FIREBASE_API_KEY: '',
+	PUBLIC_FIREBASE_AUTH_DOMAIN: '',
+	PUBLIC_FIREBASE_PROJECT_ID: '',
+	PUBLIC_FIREBASE_AUTH_EMULATOR_URL: '',
+	PUBLIC_API_URL: ''
+}));
 vi.mock('firebase/app', () => ({ initializeApp: vi.fn(() => ({})) }));
 vi.mock('firebase/auth', () => ({
 	getAuth: vi.fn(() => ({})),
