@@ -4,6 +4,7 @@
 	import { freePlaces, numberLegs, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
+	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
@@ -176,6 +177,12 @@
 						notIncluded={data.cruise.not_included}
 					/>
 				</div>
+				<CruiseLogistics
+					class="mb-4"
+					groupChatUrl={data.cruise.group_chat_url}
+					travelNotes={data.cruise.travel_notes}
+					minAge={data.cruise.min_age}
+				/>
 
 				{#if legs.length > 0}
 					<fieldset class="mb-4">

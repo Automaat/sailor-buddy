@@ -4,10 +4,11 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import { cruiseBody, cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { listText, parseList, priceBody, priceFormFrom } from '#lib/pricing.js';
+	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -24,7 +25,10 @@
 		start_port: '',
 		end_port: '',
 		max_crew: 0,
-		description: ''
+		description: '',
+		group_chat_url: '',
+		travel_notes: '',
+		min_age: null as number | null
 	});
 	let price = $state(priceFormFrom());
 	let included = $state('');
@@ -56,7 +60,10 @@
 				start_port: cruise.start_port ?? '',
 				end_port: cruise.end_port ?? '',
 				max_crew: cruise.max_crew ?? 0,
-				description: cruise.description ?? ''
+				description: cruise.description ?? '',
+				group_chat_url: cruise.group_chat_url ?? '',
+				travel_notes: cruise.travel_notes ?? '',
+				min_age: cruise.min_age ?? null
 			};
 			price = priceFormFrom(cruise);
 			included = listText(cruise.included);
@@ -74,11 +81,10 @@
 		error = '';
 		try {
 			await updateCruise(id, {
-				...form,
+				...cruiseBody(form),
 				...priceBody(price),
 				included: parseList(included),
-				not_included: parseList(notIncluded),
-				series_id: form.series_id ?? undefined
+				not_included: parseList(notIncluded)
 			});
 			goto(`/cruises/${id}`);
 		} catch (err) {
@@ -139,6 +145,11 @@
 					<input id="max_crew" type="number" bind:value={form.max_crew} min="0" class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<PriceFields bind:price bind:included bind:notIncluded />
+				<CruiseLogisticsFields
+					bind:groupChatUrl={form.group_chat_url}
+					bind:travelNotes={form.travel_notes}
+					bind:minAge={form.min_age}
+				/>
 			</div>
 
 			<div>

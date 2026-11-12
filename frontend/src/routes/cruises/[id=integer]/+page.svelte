@@ -18,6 +18,8 @@
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { hasPriceInfo } from '#lib/pricing.js';
+	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
+	import { isHttpUrl } from '#lib/cruise.js';
 	import { statusLabels } from '#lib/enrollment.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -184,6 +186,17 @@
 					membership={auth.user?.membership}
 					included={cruise.included}
 					notIncluded={cruise.not_included}
+				/>
+			</div>
+		{/if}
+
+		{#if cruise.travel_notes || cruise.min_age != null || (cruise.group_chat_url && isHttpUrl(cruise.group_chat_url))}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Informacje dla załogi</h2>
+				<CruiseLogistics
+					groupChatUrl={cruise.group_chat_url}
+					travelNotes={cruise.travel_notes}
+					minAge={cruise.min_age}
 				/>
 			</div>
 		{/if}

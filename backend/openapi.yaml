@@ -264,6 +264,9 @@ components:
           type: string
         enroll_token:
           type: string
+        group_chat_url:
+          description: Link to the crew group chat (http or https)
+          type: string
         id:
           format: int64
           type: integer
@@ -289,6 +292,10 @@ components:
         max_crew:
           format: int64
           type: integer
+        min_age:
+          description: Minimum crew age, shown as information only
+          format: int64
+          type: integer
         name:
           type: string
         not_included:
@@ -303,6 +310,9 @@ components:
           format: int64
           type: integer
         start_port:
+          type: string
+        travel_notes:
+          description: "How to get there: flights, transport, meeting point"
           type: string
         updated_at:
           format: date-time
@@ -366,6 +376,10 @@ components:
           type: string
         end_port:
           type: string
+        group_chat_url:
+          description: Link to the crew group chat; must be an http or https URL, blank clears it
+          maxLength: 2000
+          type: string
         image_logo_url:
           type: string
         image_photo_url:
@@ -390,6 +404,12 @@ components:
         max_crew:
           format: int64
           type: integer
+        min_age:
+          description: Minimum crew age, shown as information only; the app does not check it
+          format: int64
+          maximum: 99
+          minimum: 0
+          type: integer
         name:
           description: Cruise name
           minLength: 1
@@ -407,6 +427,10 @@ components:
           format: int64
           type: integer
         start_port:
+          type: string
+        travel_notes:
+          description: "How to get there: flights, transport, meeting point; blank clears it"
+          maxLength: 5000
           type: string
         yacht_fund:
           description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
@@ -630,6 +654,9 @@ components:
           type: string
         end_port:
           type: string
+        group_chat_url:
+          description: Link to the crew group chat; omitted for anonymous callers
+          type: string
         id:
           format: int64
           type: integer
@@ -645,6 +672,10 @@ components:
         max_crew:
           format: int64
           type: integer
+        min_age:
+          description: Minimum crew age, shown as information only
+          format: int64
+          type: integer
         name:
           type: string
         not_included:
@@ -655,6 +686,9 @@ components:
             - array
             - "null"
         start_port:
+          type: string
+        travel_notes:
+          description: "How to get there: flights, transport, meeting point"
           type: string
         yacht_fund:
           description: Estimated yacht fund (kasa jachtowa) per person

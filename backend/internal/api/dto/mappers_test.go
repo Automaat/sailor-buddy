@@ -503,9 +503,12 @@ func TestEnrollTripFromRow(t *testing.T) {
 }
 
 func TestEnrollCruiseFromRow(t *testing.T) {
-	got := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{
+	row := sqlcdb.GetCruiseByEnrollTokenRow{
 		ID: 1, Name: "Token Cruise", MaxCrew: nint(10), CostPerPerson: nflt(300),
-	})
+		TravelNotes: nstr("Tanie loty do Katanii"), MinAge: nint(18),
+		GroupChatUrl: nstr("https://discord.gg/abc"),
+	}
+	got := EnrollCruiseFromRow(row, true)
 	if got.ID != 1 || got.Name != "Token Cruise" {
 		t.Fatalf("unexpected: %+v", got)
 	}
@@ -515,9 +518,26 @@ func TestEnrollCruiseFromRow(t *testing.T) {
 	if got.CostPerPerson == nil || *got.CostPerPerson != 300 {
 		t.Fatalf("cost_per_person = %v", got.CostPerPerson)
 	}
+	if got.TravelNotes == nil || *got.TravelNotes != "Tanie loty do Katanii" {
+		t.Fatalf("travel_notes = %v", got.TravelNotes)
+	}
+	if got.MinAge == nil || *got.MinAge != 18 {
+		t.Fatalf("min_age = %v", got.MinAge)
+	}
+	if got.GroupChatUrl == nil || *got.GroupChatUrl != "https://discord.gg/abc" {
+		t.Fatalf("group_chat_url = %v", got.GroupChatUrl)
+	}
 
-	bare := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{ID: 2, Name: "X"})
-	if bare.MaxCrew != nil || bare.CostPerPerson != nil {
+	anon := EnrollCruiseFromRow(row, false)
+	if anon.GroupChatUrl != nil {
+		t.Fatalf("anonymous caller got group_chat_url %q", *anon.GroupChatUrl)
+	}
+	if anon.TravelNotes == nil || anon.MinAge == nil {
+		t.Fatalf("anonymous caller lost public logistics: %+v", anon)
+	}
+
+	bare := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{ID: 2, Name: "X"}, true)
+	if bare.MaxCrew != nil || bare.CostPerPerson != nil || bare.GroupChatUrl != nil || bare.TravelNotes != nil || bare.MinAge != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }

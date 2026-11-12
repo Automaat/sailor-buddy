@@ -282,6 +282,9 @@ an accepted trip enrollment or an accepted cruise enrollment assigned to the
 trip; the enroll page shows free places as `max_crew` minus that count (a
 `max_crew` of 0 or null means no limit) and hides them when the count is
 missing.
+For a cruise, `cruise` also carries `travel_notes` and `min_age`, and
+`group_chat_url` only when the caller is logged in: the preview is public,
+the chat link is for members.
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,
@@ -361,7 +364,7 @@ value is rejected with 422.
 Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 `countries`, `start_port`, `end_port`, `description`, `image_*_url`,
 `max_crew`, the price fields below, `series_id`, `edition` (see Cruise
-series).
+series), and the logistics fields below.
 
 Cruise prices are shown only; nothing tracks payments. All amounts are per
 person, optional and `>= 0`, in `currency` (`PLN` or `EUR`, `PLN` when
@@ -384,6 +387,19 @@ its `trip` and `cruise` summaries; the lists come with the cruise only.
 Cruises and trips priced before migration 018 keep `cost_per_person` as the
 member price in PLN.
 
+Logistics, all optional and returned on every cruise read:
+
+- `group_chat_url` — link to the crew group chat (Discord, WhatsApp, ...).
+  Must be an absolute `http` or `https` URL, up to 2000 characters;
+  anything else is rejected with 422.
+- `travel_notes` — how to get there (flights, transport, meeting point),
+  up to 5000 characters.
+- `min_age` — minimum crew age, 0–99. Information only: the app stores no
+  dates of birth and does not check it.
+
+Surrounding whitespace is trimmed and a blank `group_chat_url` or
+`travel_notes` clears the field. Like the other optional fields, an omitted
+logistics field resets to null on `PUT`.
 Cruise enrollment status values: `pending`, `accepted`, `rejected`,
 `waitlisted`. Assign-to-trip body: `{ "trip_id": 5 }`
 (`null` unassigns).

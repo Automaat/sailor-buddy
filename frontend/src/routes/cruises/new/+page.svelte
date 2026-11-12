@@ -2,10 +2,11 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
-	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import { cruiseBody, cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { parseList, priceBody, priceFormFrom } from '#lib/pricing.js';
+	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
 
 	let error = $state('');
 	let loading = $state(false);
@@ -27,7 +28,10 @@
 		start_port: '',
 		end_port: '',
 		max_crew: 0,
-		description: ''
+		description: '',
+		group_chat_url: '',
+		travel_notes: '',
+		min_age: null as number | null
 	});
 	let price = $state(priceFormFrom());
 	let included = $state('');
@@ -43,11 +47,10 @@
 		error = '';
 		try {
 			const cruise = await createCruise({
-				...form,
+				...cruiseBody(form),
 				...priceBody(price),
 				included: parseList(included),
-				not_included: parseList(notIncluded),
-				series_id: form.series_id ?? undefined
+				not_included: parseList(notIncluded)
 			});
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
@@ -105,6 +108,11 @@
 				<input id="max_crew" type="number" bind:value={form.max_crew} min="0" class="w-full rounded-lg border px-3 py-2" placeholder="0 = bez limitu" />
 			</div>
 			<PriceFields bind:price bind:included bind:notIncluded />
+			<CruiseLogisticsFields
+				bind:groupChatUrl={form.group_chat_url}
+				bind:travelNotes={form.travel_notes}
+				bind:minAge={form.min_age}
+			/>
 		</div>
 
 		<div>

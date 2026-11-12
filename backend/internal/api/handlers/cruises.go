@@ -8,6 +8,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -175,6 +177,10 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 	if err != nil {
 		return nil, err
 	}
+	chatURL, err := groupChatURL(in.Body.GroupChatUrl)
+	if err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
 		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
@@ -199,6 +205,9 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 		Deposit:                nullFloat64(in.Body.Deposit),
 		Included:               included,
 		NotIncluded:            notIncluded,
+		GroupChatUrl:           chatURL,
+		TravelNotes:            nullTrimmed(in.Body.TravelNotes),
+		MinAge:                 nullInt64(in.Body.MinAge),
 	})
 	if err != nil {
 		if isForeignKeyViolation(err, cruiseSeriesFKey) {
@@ -219,6 +228,10 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 		return nil, err
 	}
 	included, notIncluded, err := cruisePriceLists(&in.Body)
+	if err != nil {
+		return nil, err
+	}
+	chatURL, err := groupChatURL(in.Body.GroupChatUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -244,6 +257,9 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 		Deposit:                nullFloat64(in.Body.Deposit),
 		Included:               included,
 		NotIncluded:            notIncluded,
+		GroupChatUrl:           chatURL,
+		TravelNotes:            nullTrimmed(in.Body.TravelNotes),
+		MinAge:                 nullInt64(in.Body.MinAge),
 		ID:                     in.ID,
 	}); err != nil {
 		if isForeignKeyViolation(err, cruiseSeriesFKey) {
@@ -409,6 +425,11 @@ func (h *CruiseHandler) resolveSeries(ctx context.Context, id *int64) (types.Nul
 
 // nullEdition stores a blank edition label as null.
 func nullEdition(s *string) types.NullString {
+	return nullTrimmed(s)
+}
+
+// nullTrimmed trims surrounding whitespace and stores a blank value as null.
+func nullTrimmed(s *string) types.NullString {
 	if s == nil {
 		return types.NullString{}
 	}
@@ -417,4 +438,28 @@ func nullEdition(s *string) types.NullString {
 		return types.NullString{}
 	}
 	return types.NullString{String: v, Valid: true}
+}
+
+// groupChatURL validates an optional group chat link. A blank link clears it;
+// anything other than an absolute http or https URL is a client error (422).
+func groupChatURL(s *string) (types.NullString, error) {
+	v := nullTrimmed(s)
+	if !v.Valid {
+		return v, nil
+	}
+	u, err := url.Parse(v.String)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || !validPort(u.Port()) {
+		return types.NullString{}, huma.Error422UnprocessableEntity("group_chat_url must be an http or https URL")
+	}
+	return v, nil
+}
+
+// validPort accepts an absent port or one in 1-65535; url.Parse does not
+// check the range, while browsers reject such links.
+func validPort(p string) bool {
+	if p == "" {
+		return true
+	}
+	n, err := strconv.Atoi(p)
+	return err == nil && n >= 1 && n <= 65535
 }

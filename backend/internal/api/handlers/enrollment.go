@@ -177,7 +177,7 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 	}
 	info := dto.EnrollInfo{
 		Kind:          "cruise",
-		Cruise:        new(dto.EnrollCruiseFromRow(cruise)),
+		Cruise:        new(dto.EnrollCruiseFromRow(cruise, user != nil)),
 		Trips:         dto.TripsFromDB(childTrips),
 		AcceptedCount: counts.Accepted,
 		TotalCount:    counts.Total,

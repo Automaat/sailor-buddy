@@ -32,6 +32,9 @@ type Cruise struct {
 	Included               []string  `json:"included" doc:"What the price covers"`
 	NotIncluded            []string  `json:"not_included" doc:"What the price does not cover"`
 	EnrollToken            *string   `json:"enroll_token,omitempty"`
+	GroupChatUrl           *string   `json:"group_chat_url,omitempty" doc:"Link to the crew group chat (http or https)"`
+	TravelNotes            *string   `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
+	MinAge                 *int64    `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
 }
@@ -59,6 +62,9 @@ type CruiseBody struct {
 	Deposit                *float64 `json:"deposit,omitempty" minimum:"0" doc:"Refundable deposit (kaucja) per person"`
 	Included               []string `json:"included,omitempty" maxItems:"30" doc:"What the price covers; blank entries are dropped, each at most 200 characters"`
 	NotIncluded            []string `json:"not_included,omitempty" maxItems:"30" doc:"What the price does not cover; blank entries are dropped, each at most 200 characters"`
+	GroupChatUrl           *string  `json:"group_chat_url,omitempty" maxLength:"2000" doc:"Link to the crew group chat; must be an http or https URL, blank clears it"`
+	TravelNotes            *string  `json:"travel_notes,omitempty" maxLength:"5000" doc:"How to get there: flights, transport, meeting point; blank clears it"`
+	MinAge                 *int64   `json:"min_age,omitempty" minimum:"0" maximum:"99" doc:"Minimum crew age, shown as information only; the app does not check it"`
 }
 
 // CruiseFromDB maps a database row to the API model.
@@ -88,6 +94,9 @@ func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 		Included:               priceList(c.Included),
 		NotIncluded:            priceList(c.NotIncluded),
 		EnrollToken:            strPtr(c.EnrollToken),
+		GroupChatUrl:           strPtr(c.GroupChatUrl),
+		TravelNotes:            strPtr(c.TravelNotes),
+		MinAge:                 intPtr(c.MinAge),
 		CreatedAt:              timeVal(c.CreatedAt),
 		UpdatedAt:              timeVal(c.UpdatedAt),
 	}

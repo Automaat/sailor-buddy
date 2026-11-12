@@ -108,6 +108,9 @@ type Cruise struct {
 	Deposit                types.NullFloat64 `json:"deposit"`
 	Included               json.RawMessage   `json:"included"`
 	NotIncluded            json.RawMessage   `json:"not_included"`
+	GroupChatUrl           types.NullString  `json:"group_chat_url"`
+	TravelNotes            types.NullString  `json:"travel_notes"`
+	MinAge                 types.NullInt64   `json:"min_age"`
 }
 
 type CruiseEnrollment struct {

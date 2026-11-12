@@ -97,6 +97,11 @@ type EnrollCruise struct {
 	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
 	Included               []string `json:"included" doc:"What the price covers"`
 	NotIncluded            []string `json:"not_included" doc:"What the price does not cover"`
+	TravelNotes            *string  `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
+	MinAge                 *int64   `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
+	// GroupChatUrl is returned only to a logged-in caller; the enroll preview
+	// is public and the chat link is for members.
+	GroupChatUrl *string `json:"group_chat_url,omitempty" doc:"Link to the crew group chat; omitted for anonymous callers"`
 }
 
 // EnrollInfo is the resolved target of an enrollment share token. kind selects
@@ -250,9 +255,10 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 	}
 }
 
-// EnrollCruiseFromRow maps the token-resolved cruise row.
-func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow) EnrollCruise {
-	return EnrollCruise{
+// EnrollCruiseFromRow maps the token-resolved cruise row. The group chat link
+// is included only for a logged-in caller (member).
+func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow, member bool) EnrollCruise {
+	out := EnrollCruise{
 		ID:                     c.ID,
 		Name:                   c.Name,
 		EmbarkDate:             strPtr(c.EmbarkDate),
@@ -270,5 +276,11 @@ func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow) EnrollCruise {
 		Deposit:                floatPtr(c.Deposit),
 		Included:               priceList(c.Included),
 		NotIncluded:            priceList(c.NotIncluded),
+		TravelNotes:            strPtr(c.TravelNotes),
+		MinAge:                 intPtr(c.MinAge),
 	}
+	if member {
+		out.GroupChatUrl = strPtr(c.GroupChatUrl)
+	}
+	return out
 }
