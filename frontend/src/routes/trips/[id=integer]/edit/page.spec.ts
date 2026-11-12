@@ -101,6 +101,30 @@ describe('trip edit page', () => {
 		expect(body).toEqual(expect.objectContaining({ cruise_id: 13 }));
 	});
 
+	it('detaches the trip when the cruise list fails to load', async () => {
+		mockListCruises.mockRejectedValue(new Error('boom'));
+		render(EditTripPage);
+		await screen.findByRole('option', { name: 'Wydarzenie #13' });
+
+		await fireEvent.change(screen.getByLabelText('Wydarzenie klubu'), { target: { value: '0' } });
+		expect(screen.queryByRole('option', { name: 'Wydarzenie #13' })).not.toBeInTheDocument();
+		const [, body] = await save();
+
+		expect(body.cruise_id).toBeUndefined();
+	});
+
+	it('hides the cruise select for a standalone trip when no cruises exist', async () => {
+		mockGetTrip.mockResolvedValue(makeTrip({ id: 7, name: 'Solo' }));
+		mockListCruises.mockResolvedValue([]);
+		render(EditTripPage);
+		await screen.findByRole('button', { name: 'Zapisz zmiany' });
+
+		expect(screen.queryByLabelText('Wydarzenie klubu')).not.toBeInTheDocument();
+		const [, body] = await save();
+
+		expect(body.cruise_id).toBeUndefined();
+	});
+
 	it('sends no cruise for a standalone trip', async () => {
 		mockGetTrip.mockResolvedValue(makeTrip({ id: 7, name: 'Solo' }));
 		render(EditTripPage);

@@ -45,6 +45,14 @@
 
 	const id = $derived(Number(page.params.id));
 
+	// A linked cruise missing from the list (e.g. the list failed to load) keeps
+	// an option, so saving does not drop the link.
+	const cruiseOptions = $derived(
+		form.cruise_id && !cruises.some((c) => c.id === form.cruise_id)
+			? [{ id: form.cruise_id, name: `Wydarzenie #${form.cruise_id}` }, ...cruises]
+			: cruises
+	);
+
 	onMount(async () => {
 		try {
 			const [trip, y, c] = await Promise.all([getTrip(id), listYachts(), listCruises().catch(() => [])]);
@@ -120,15 +128,12 @@
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 				</div>
-				{#if cruises.length > 0 || form.cruise_id}
+				{#if cruiseOptions.length > 0}
 					<div class="col-span-2">
 						<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu</label>
 						<select id="cruise" bind:value={form.cruise_id} class="w-full rounded-lg border px-3 py-2">
 							<option value={0}>— samodzielny rejs —</option>
-							{#if form.cruise_id && !cruises.some((c) => c.id === form.cruise_id)}
-								<option value={form.cruise_id}>Wydarzenie #{form.cruise_id}</option>
-							{/if}
-							{#each cruises as cruise}
+							{#each cruiseOptions as cruise (cruise.id)}
 								<option value={cruise.id}>{cruise.name}</option>
 							{/each}
 						</select>
