@@ -20,7 +20,8 @@ DELETE FROM cruise_series WHERE id = $1;
 
 -- name: ListCruiseSeriesEditions :many
 -- Editions of a series newest first, each with the miles and hours summed
--- over its voyages.
+-- over its voyages. An edition without an embark date is still being
+-- planned, so it sorts before every dated one.
 SELECT
     c.id,
     c.name,
@@ -35,4 +36,4 @@ FROM cruises c
 LEFT JOIN voyages v ON v.cruise_id = c.id
 WHERE c.series_id = $1
 GROUP BY c.id
-ORDER BY c.embark_date DESC NULLS LAST, c.edition DESC NULLS LAST, c.id DESC;
+ORDER BY c.embark_date DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC;

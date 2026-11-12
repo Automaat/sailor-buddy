@@ -14,8 +14,9 @@ import (
 func text(s string) types.NullString { return types.NullString{String: s, Valid: true} }
 
 // TestCruiseSeries_Editions checks the editions query against a real
-// database: newest edition first, totals summed over each edition's voyages,
-// and editions without voyages reported as zero.
+// database: newest edition first with an undated (planned) edition on top,
+// totals summed over each edition's voyages, and editions without voyages
+// reported as zero.
 func TestCruiseSeries_Editions(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
@@ -37,8 +38,12 @@ func TestCruiseSeries_Editions(t *testing.T) {
 
 	newCruise := func(name, embark, edition string, seriesID types.NullInt64) sqlcdb.Cruise {
 		t.Helper()
+		embarkDate := types.NullString{}
+		if embark != "" {
+			embarkDate = text(embark)
+		}
 		c, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-			Name: name, EmbarkDate: text(embark), Kind: "sea", SeriesID: seriesID, Edition: text(edition),
+			Name: name, EmbarkDate: embarkDate, Kind: "sea", SeriesID: seriesID, Edition: text(edition),
 		})
 		if err != nil {
 			t.Fatalf("create cruise %s: %v", name, err)
@@ -47,6 +52,7 @@ func TestCruiseSeries_Editions(t *testing.T) {
 	}
 	older := newCruise("MIS 2024", "2024-05-01", "2024", inSeries)
 	newer := newCruise("MIS 2025", "2025-05-01", "2025", inSeries)
+	planned := newCruise("MIS 2027/28", "", "2027/28", inSeries)
 	empty := newCruise("MIS 2026", "2026-05-01", "2026", inSeries)
 	unrelated := newCruise("Other 2025", "2025-06-01", "2025", types.NullInt64{Int64: other.ID, Valid: true})
 
@@ -73,6 +79,7 @@ func TestCruiseSeries_Editions(t *testing.T) {
 		miles, hours float64
 	}
 	want := []got{
+		{planned.ID, 0, 0, 0},
 		{empty.ID, 0, 0, 0},
 		{newer.ID, 2, 200, 40},
 		{older.ID, 1, 100, 20},

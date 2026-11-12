@@ -144,7 +144,7 @@ FROM cruises c
 LEFT JOIN voyages v ON v.cruise_id = c.id
 WHERE c.series_id = $1
 GROUP BY c.id
-ORDER BY c.embark_date DESC NULLS LAST, c.edition DESC NULLS LAST, c.id DESC
+ORDER BY c.embark_date DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 `
 
 type ListCruiseSeriesEditionsRow struct {
@@ -160,7 +160,8 @@ type ListCruiseSeriesEditionsRow struct {
 }
 
 // Editions of a series newest first, each with the miles and hours summed
-// over its voyages.
+// over its voyages. An edition without an embark date is still being
+// planned, so it sorts before every dated one.
 //
 //	SELECT
 //	    c.id,
@@ -176,7 +177,7 @@ type ListCruiseSeriesEditionsRow struct {
 //	LEFT JOIN voyages v ON v.cruise_id = c.id
 //	WHERE c.series_id = $1
 //	GROUP BY c.id
-//	ORDER BY c.embark_date DESC NULLS LAST, c.edition DESC NULLS LAST, c.id DESC
+//	ORDER BY c.embark_date DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, seriesID types.NullInt64) ([]ListCruiseSeriesEditionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseSeriesEditions, seriesID)
 	if err != nil {

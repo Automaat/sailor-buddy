@@ -369,7 +369,8 @@ cruise. Deleting a series keeps its cruises and clears their `series_id`.
 Body — `name` required: `{ "name": "May I Sail", "description": "Since 2018" }`.
 
 `GET /api/series/{id}/editions` returns a bare array of the series' cruises,
-newest first (by `embark_date`, then `edition`), each with `voyage_count`,
+newest first (by `embark_date`, with undated planned editions on top, then
+`edition`), each with `voyage_count`,
 `total_miles` and `total_hours` summed over its voyages (`hours_total`).
 An edition without voyages reports zeros. Unknown series → 404.
 
