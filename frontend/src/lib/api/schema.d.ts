@@ -1140,7 +1140,7 @@ export interface components {
             /** @description Optional note to the organizer, copied to every leg enrollment */
             note?: string;
             /** @description IDs of the cruise's trips (legs) to enroll in */
-            trip_ids: number[] | null;
+            trip_ids: number[];
         };
         EnrollLegsResponse: {
             /**

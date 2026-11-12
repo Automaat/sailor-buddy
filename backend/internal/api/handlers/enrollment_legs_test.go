@@ -18,9 +18,10 @@ import (
 // (UNIQUE(trip_id, user_id)), wired into a mockQuerier for the cruise with
 // ID 7 and the given trips.
 type legStore struct {
-	rows    []sqlcdb.TripEnrollment
-	nextID  int64
-	inserts int
+	rows        []sqlcdb.TripEnrollment
+	nextID      int64
+	inserts     int
+	insertOrder []int64
 }
 
 func (s *legStore) find(tripID, userID int64) (int, bool) {
@@ -52,8 +53,19 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 		getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
 		},
+		lockCruiseTripStatusesFn: func(_ context.Context, cid types.NullInt64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
+			if cid.Int64 != 7 {
+				return nil, nil
+			}
+			out := make([]sqlcdb.LockCruiseTripStatusesRow, len(trips))
+			for i := range trips {
+				out[i] = sqlcdb.LockCruiseTripStatusesRow{ID: trips[i].ID, Status: trips[i].Status}
+			}
+			return out, nil
+		},
 		createTripEnrollmentIfAbsentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error) {
 			s.inserts++
+			s.insertOrder = append(s.insertOrder, arg.TripID)
 			if _, ok := s.find(arg.TripID, arg.UserID); ok {
 				return sqlcdb.TripEnrollment{}, sql.ErrNoRows
 			}
@@ -168,6 +180,21 @@ func TestEnrollLegs_ReportsAlreadyEnrolledAndCreatesOthers(t *testing.T) {
 	}
 }
 
+func TestEnrollLegs_InsertsInTripOrderButReportsInRequestOrder(t *testing.T) {
+	s := &legStore{}
+	code, out, body := postLegs(t, newLegMock(s, legTrips()), userCtxRole(context.Background(), "member"),
+		map[string]any{"trip_ids": []int64{12, 11}})
+	if code != http.StatusCreated {
+		t.Fatalf("got %d, want 201; body=%s", code, body)
+	}
+	if got := fmt.Sprint(s.insertOrder); got != "[11 12]" {
+		t.Errorf("insert order = %s, want [11 12]", got)
+	}
+	if got := fmt.Sprint(resultSummary(out)); got != "[12:created 11:created]" {
+		t.Errorf("results = %s, want request order [12:created 11:created]", got)
+	}
+}
+
 func TestEnrollLegs_RejectsInvalidPicksWithoutWriting(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -176,6 +203,7 @@ func TestEnrollLegs_RejectsInvalidPicksWithoutWriting(t *testing.T) {
 		{"trip of another cruise", []int64{11, 99}},
 		{"cancelled leg", []int64{12, 13}},
 		{"empty pick", []int64{}},
+		{"null pick", nil},
 		{"duplicate pick", []int64{11, 11}},
 	}
 	for _, tc := range cases {
@@ -214,9 +242,9 @@ func TestEnrollLegs_Errors(t *testing.T) {
 			t.Fatalf("got %d, want 500", code)
 		}
 	})
-	t.Run("trip list error", func(t *testing.T) {
+	t.Run("trip lock error", func(t *testing.T) {
 		m := newLegMock(&legStore{}, legTrips())
-		m.listCruiseTripsFn = func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+		m.lockCruiseTripStatusesFn = func(context.Context, types.NullInt64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
 			return nil, errors.New("fail")
 		}
 		code, _, _ := postLegs(t, m, userCtx(context.Background()), map[string]any{"trip_ids": []int64{11}})

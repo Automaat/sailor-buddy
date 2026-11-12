@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -268,11 +269,19 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		return nil, huma.Error500InternalServerError("failed to get cruise")
 	}
 
-	var results []dto.EnrollLegResult
+	if len(in.Body.TripIDs) == 0 {
+		return nil, huma.Error422UnprocessableEntity("pick at least one leg")
+	}
+
+	// Inserts run in ascending trip order so concurrent requests from one
+	// user take the unique-index locks in the same order and cannot deadlock.
+	insertOrder := slices.Clone(in.Body.TripIDs)
+	slices.Sort(insertOrder)
+	byTrip := make(map[int64]dto.EnrollLegResult, len(insertOrder))
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		trips, err := q.ListCruiseTrips(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+		trips, err := q.LockCruiseTripStatuses(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
 		if err != nil {
-			return &QueryError{Op: "ListCruiseTrips", Err: err}
+			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
 		}
 		status := make(map[int64]sqlcdb.TripStatus, len(trips))
 		for i := range trips {
@@ -288,8 +297,7 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 			}
 		}
 
-		results = make([]dto.EnrollLegResult, 0, len(in.Body.TripIDs))
-		for _, id := range in.Body.TripIDs {
+		for _, id := range insertOrder {
 			e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
 				TripID: id,
 				UserID: user.UserID,
@@ -303,11 +311,11 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 			if err != nil {
 				return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
 			}
-			results = append(results, dto.EnrollLegResult{
+			byTrip[id] = dto.EnrollLegResult{
 				TripID:     id,
 				Result:     result,
 				Enrollment: dto.TripEnrollmentToDTO(e),
-			})
+			}
 		}
 		return nil
 	})
@@ -317,6 +325,10 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		}
 		slog.Error("enroll cruise legs", "cruise_id", cruise.ID, "user_id", user.UserID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to enroll")
+	}
+	results := make([]dto.EnrollLegResult, 0, len(in.Body.TripIDs))
+	for _, id := range in.Body.TripIDs {
+		results = append(results, byTrip[id])
 	}
 	return &enrollLegsOutput{Body: dto.EnrollLegsResponse{Results: results}}, nil
 }

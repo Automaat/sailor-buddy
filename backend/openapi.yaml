@@ -526,9 +526,7 @@ components:
             type: integer
           maxItems: 100
           minItems: 1
-          type:
-            - array
-            - "null"
+          type: array
           uniqueItems: true
       required:
         - trip_ids

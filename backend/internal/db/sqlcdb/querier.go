@@ -451,6 +451,14 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Share-locks a cruise's trips for the rest of the transaction, in id order,
+	// so a leg cannot be cancelled or removed between validation and insert.
+	//
+	//  SELECT id, status FROM trips
+	//  WHERE cruise_id = $1
+	//  ORDER BY id
+	//  FOR SHARE
+	LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error)
 	//RepointCrewAssignmentsToVoyage
 	//
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL

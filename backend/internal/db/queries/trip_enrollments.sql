@@ -45,3 +45,11 @@ FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
 WHERE t.cruise_id = $1 AND te.user_id = $2
 ORDER BY t.embark_date ASC, t.id ASC;
+
+-- name: LockCruiseTripStatuses :many
+-- Share-locks a cruise's trips for the rest of the transaction, in id order,
+-- so a leg cannot be cancelled or removed between validation and insert.
+SELECT id, status FROM trips
+WHERE cruise_id = $1
+ORDER BY id
+FOR SHARE;

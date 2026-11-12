@@ -269,6 +269,48 @@ func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUse
 	return items, nil
 }
 
+const lockCruiseTripStatuses = `-- name: LockCruiseTripStatuses :many
+SELECT id, status FROM trips
+WHERE cruise_id = $1
+ORDER BY id
+FOR SHARE
+`
+
+type LockCruiseTripStatusesRow struct {
+	ID     int64      `json:"id"`
+	Status TripStatus `json:"status"`
+}
+
+// Share-locks a cruise's trips for the rest of the transaction, in id order,
+// so a leg cannot be cancelled or removed between validation and insert.
+//
+//	SELECT id, status FROM trips
+//	WHERE cruise_id = $1
+//	ORDER BY id
+//	FOR SHARE
+func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockCruiseTripStatuses, cruiseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockCruiseTripStatusesRow
+	for rows.Next() {
+		var i LockCruiseTripStatusesRow
+		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTripEnrollmentStatus = `-- name: UpdateTripEnrollmentStatus :exec
 UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `

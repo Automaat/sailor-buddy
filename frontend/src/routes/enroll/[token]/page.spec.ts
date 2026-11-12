@@ -129,4 +129,65 @@ describe('enroll page — cruise legs', () => {
 		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 		expect(screen.getByText('Zaloguj się, aby dołączyć')).toBeInTheDocument();
 	});
+
+	it('keeps a cruise-level sign-up visible while offering legs', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({ enrolled: true, enrollment: { id: 9, cruise_id: 7, user_id: 1, status: 'pending' } })
+		);
+		render(EnrollPage);
+		expect(await screen.findByText(/Jesteś zapisany na wydarzenie/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeDisabled();
+		await fireEvent.click(screen.getByRole('checkbox', { name: /Etap 2/ }));
+		await fireEvent.input(screen.getByLabelText('Notatka (opcjonalnie)'), {
+			target: { value: 'koja dziobowa' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się na wybrane etapy (1)' }));
+		await waitFor(() => expect(enrollLegsMock).toHaveBeenCalledWith('tok', [12], 'koja dziobowa'));
+	});
+
+	it('shows the server error when leg enrollment fails', async () => {
+		enrollLegsMock.mockRejectedValue(new Error('trip 12 is not open for enrollment'));
+		render(EnrollPage);
+		await fireEvent.click(await screen.findByRole('checkbox', { name: /Etap 2/ }));
+		await fireEvent.click(screen.getByRole('button', { name: /Zapisz się na wybrane etapy/ }));
+		expect(await screen.findByText('trip 12 is not open for enrollment')).toBeInTheDocument();
+		expect(screen.queryByText(/Zostałeś zapisany!/)).not.toBeInTheDocument();
+	});
+
+	it('shows an invalid-link message when the token does not resolve', async () => {
+		resolveMock.mockRejectedValue(new Error('invalid enrollment link'));
+		render(EnrollPage);
+		expect(await screen.findByText('Nieprawidłowy link')).toBeInTheDocument();
+		expect(screen.getByText('invalid enrollment link')).toBeInTheDocument();
+	});
+});
+
+describe('enroll page — single trip', () => {
+	const tripData = {
+		kind: 'trip',
+		trip: { id: 5, name: 'Adriatyk', embark_date: '2025-05-01', captain_name: 'Nowak' },
+		enrolled: false,
+		accepted_count: 1,
+		total_count: 2
+	};
+
+	it('enrolls in the trip without leg checkboxes', async () => {
+		resolveMock.mockResolvedValue(tripData);
+		render(EnrollPage);
+		expect(await screen.findByText('Adriatyk')).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się' }));
+		await waitFor(() => expect(enrollMock).toHaveBeenCalledWith('tok', undefined));
+	});
+
+	it('reports an existing trip enrollment', async () => {
+		resolveMock.mockResolvedValue({
+			...tripData,
+			enrolled: true,
+			enrollment: { id: 3, trip_id: 5, user_id: 1, status: 'waitlisted' }
+		});
+		render(EnrollPage);
+		expect(await screen.findByText(/Jesteś już zapisany/)).toBeInTheDocument();
+		expect(screen.getByText('lista rezerwowa')).toBeInTheDocument();
+	});
 });

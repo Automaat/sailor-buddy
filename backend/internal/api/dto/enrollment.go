@@ -112,7 +112,7 @@ type EnrollBody struct {
 // EnrollLegsBody is the request payload for signing up for one or more legs
 // (trips) of a cruise in one submission.
 type EnrollLegsBody struct {
-	TripIDs []int64 `json:"trip_ids" minItems:"1" maxItems:"100" uniqueItems:"true" doc:"IDs of the cruise's trips (legs) to enroll in"`
+	TripIDs []int64 `json:"trip_ids" nullable:"false" minItems:"1" maxItems:"100" uniqueItems:"true" doc:"IDs of the cruise's trips (legs) to enroll in"`
 	Note    *string `json:"note,omitempty" doc:"Optional note to the organizer, copied to every leg enrollment"`
 }
 
