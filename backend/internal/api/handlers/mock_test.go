@@ -65,6 +65,8 @@ type mockQuerier struct {
 	deleteTripEnrollmentFn         func(ctx context.Context, id int64) error
 	countTripEnrollmentsFn         func(ctx context.Context, tripID int64) (sqlcdb.CountTripEnrollmentsRow, error)
 	getUserTripEnrollmentFn        func(ctx context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
+	createTripEnrollmentIfAbsentFn func(ctx context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error)
+	listUserCruiseTripEnrollFn     func(ctx context.Context, arg sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error)
 	deleteTripEnrollmentsForTripFn func(ctx context.Context, tripID int64) error
 
 	// cruise enrollments
@@ -853,4 +855,18 @@ func (m *mockQuerier) UpdateVoyageLog(ctx context.Context, arg sqlcdb.UpdateVoya
 		panic("unexpected call to UpdateVoyageLog")
 	}
 	return m.updateVoyageLogFn(ctx, arg)
+}
+
+func (m *mockQuerier) CreateTripEnrollmentIfAbsent(ctx context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error) {
+	if m.createTripEnrollmentIfAbsentFn == nil {
+		panic("unexpected call to CreateTripEnrollmentIfAbsent")
+	}
+	return m.createTripEnrollmentIfAbsentFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListUserCruiseTripEnrollments(ctx context.Context, arg sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {
+	if m.listUserCruiseTripEnrollFn == nil {
+		panic("unexpected call to ListUserCruiseTripEnrollments")
+	}
+	return m.listUserCruiseTripEnrollFn(ctx, arg)
 }

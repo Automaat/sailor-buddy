@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { resolveEnroll, enroll } from '#lib/api/routes.js';
-	import type { EnrollPageData } from '#lib/api/types.js';
-	import { statusLabels } from '#lib/enrollment.js';
+	import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
+	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
+	import { numberLegs, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -12,6 +12,29 @@
 	let note = $state('');
 	let submitting = $state(false);
 	let success = $state(false);
+	let selectedLegs = $state<number[]>([]);
+
+	// Cruise legs (trips) numbered by embark date, each with the caller's
+	// enrollment for it, if any.
+	const legs = $derived.by(() => {
+		if (data?.kind !== 'cruise' || !data.trips) return [];
+		const byTrip = new Map<number, Enrollment>();
+		for (const e of data.leg_enrollments ?? []) {
+			if (e.trip_id != null) byTrip.set(e.trip_id, e);
+		}
+		return numberLegs(data.trips).map((l) => ({ ...l, enrollment: byTrip.get(l.trip.id) }));
+	});
+	const pickableLegs = $derived(
+		legs.filter((l) => l.trip.status === 'planned' && !l.enrollment)
+	);
+	// A whole-cruise sign-up (no legs picked) is offered only to callers with
+	// no enrollment of either kind yet.
+	const canEnrollCruise = $derived(
+		data?.kind === 'cruise' && !data.enrollment && (data.leg_enrollments ?? []).length === 0
+	);
+	const showForm = $derived(
+		data?.kind === 'trip' ? !data.enrolled : canEnrollCruise || pickableLegs.length > 0
+	);
 
 	const token = $derived((page.params as Record<string, string>).token);
 	const loginHref = $derived(`/login?redirect=${encodeURIComponent(`/enroll/${token}`)}`);
@@ -31,8 +54,13 @@
 		submitting = true;
 		error = '';
 		try {
-			await enroll(token, note || undefined);
+			if (selectedLegs.length > 0) {
+				await enrollLegs(token, selectedLegs, note || undefined);
+			} else {
+				await enroll(token, note || undefined);
+			}
 			success = true;
+			selectedLegs = [];
 			data = await resolveEnroll(token);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
@@ -117,23 +145,56 @@
 					<p class="mb-4 whitespace-pre-wrap text-sm">{data.cruise.description}</p>
 				{/if}
 
-				{#if data.trips && data.trips.length > 0}
-					<div class="mb-4">
-						<p class="mb-2 text-xs uppercase tracking-wide text-[var(--text-muted)]">Planowane jachty</p>
+				{#if legs.length > 0}
+					<fieldset class="mb-4">
+						<legend class="mb-2 text-xs uppercase tracking-wide text-[var(--text-muted)]">Etapy</legend>
 						<div class="space-y-1">
-							{#each data.trips as t}
-								<div class="rounded-lg bg-gray-50 px-3 py-2 text-sm">
-									<span class="font-medium">{t.name}</span>
-									{#if t.captain_name}
-										<span class="ml-1 text-[var(--text-muted)]">— kpt. {t.captain_name}</span>
+							{#each legs as leg (leg.trip.id)}
+								{@const cancelled = leg.trip.status === 'cancelled'}
+								<label
+									class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
+									class:opacity-60={cancelled}
+								>
+									{#if auth.isAuthenticated && !leg.enrollment && !cancelled && showForm && !success}
+										<input
+											type="checkbox"
+											class="mt-1"
+											value={leg.trip.id}
+											bind:group={selectedLegs}
+											aria-label={`Etap ${leg.number}: ${leg.trip.name}`}
+										/>
 									{/if}
-								</div>
+									<span class="flex-1">
+										<span class="font-medium">Etap {leg.number}: {leg.trip.name}</span>
+										{#if leg.trip.embark_date}
+											<span class="block text-xs text-[var(--text-muted)]">
+												{leg.trip.embark_date} – {leg.trip.disembark_date ?? '?'}
+												{#if leg.trip.start_port && leg.trip.end_port}
+													· {leg.trip.start_port} → {leg.trip.end_port}
+												{/if}
+											</span>
+										{/if}
+										{#if leg.trip.captain_name}
+											<span class="block text-xs text-[var(--text-muted)]">kpt. {leg.trip.captain_name}</span>
+										{/if}
+									</span>
+									{#if cancelled}
+										<span class="text-xs font-medium text-red-600">odwołany — niedostępny</span>
+									{:else if leg.enrollment}
+										<span class="text-xs font-medium text-blue-700">
+											zapisany: {statusLabels[leg.enrollment.status] ?? leg.enrollment.status}
+										</span>
+									{/if}
+								</label>
 							{/each}
 						</div>
-						<p class="mt-2 text-xs text-[var(--text-muted)]">
-							Organizator przydzieli Cię do konkretnego jachtu po akceptacji.
-						</p>
-					</div>
+						{#if canEnrollCruise}
+							<p class="mt-2 text-xs text-[var(--text-muted)]">
+								Zaznacz etapy, na które chcesz się zapisać. Bez zaznaczenia zgłosisz się na całe
+								wydarzenie, a organizator przydzieli Cię do jachtu.
+							</p>
+						{/if}
+					</fieldset>
 				{/if}
 
 				<div class="mb-6 flex gap-4 text-sm">
@@ -159,7 +220,7 @@
 				<div class="rounded-lg bg-green-50 p-4 text-center text-sm text-green-700">
 					Zostałeś zapisany! Organizator rozpatrzy Twoje zgłoszenie.
 				</div>
-			{:else if data.enrolled}
+			{:else if data.enrolled && !showForm}
 				<div class="rounded-lg bg-blue-50 p-4 text-center text-sm text-blue-700">
 					Jesteś już zapisany.
 					{#if data.enrollment}
@@ -180,6 +241,12 @@
 				</div>
 			{:else}
 				<form onsubmit={handleEnroll} class="space-y-4">
+					{#if data.enrollment}
+						<p class="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
+							Jesteś zapisany na wydarzenie. Status:
+							<span class="font-semibold">{statusLabels[data.enrollment.status] ?? data.enrollment.status}</span>
+						</p>
+					{/if}
 					<div>
 						<label for="note" class="mb-1 block text-sm font-medium">Notatka (opcjonalnie)</label>
 						<textarea
@@ -192,10 +259,14 @@
 					</div>
 					<button
 						type="submit"
-						disabled={submitting}
+						disabled={submitting || (!canEnrollCruise && data.kind === 'cruise' && selectedLegs.length === 0)}
 						class="w-full rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 					>
-						{submitting ? 'Zapisywanie...' : 'Zapisz się'}
+						{submitting
+							? 'Zapisywanie...'
+							: selectedLegs.length > 0
+								? `Zapisz się na wybrane etapy (${selectedLegs.length})`
+								: 'Zapisz się'}
 					</button>
 				</form>
 			{/if}

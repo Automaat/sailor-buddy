@@ -15,7 +15,7 @@ import (
 func enrollTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterEnrollmentRoutes(api, m)
+	registerEnrollmentRoutes(api, &EnrollmentHandler{q: m, runTx: directTxRunner(m)})
 	return api
 }
 

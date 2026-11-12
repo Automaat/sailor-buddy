@@ -38,7 +38,7 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 	handlers.RegisterYachtRoutes(api, q)
 	handlers.RegisterTrainingRoutes(api, q)
 	handlers.RegisterCrewRoutes(api, q)
-	handlers.RegisterEnrollmentRoutes(api, q)
+	handlers.RegisterEnrollmentRoutes(api, q, db)
 	handlers.RegisterVoyageOpinionRoutes(api, q, uploadDir)
 	handlers.RegisterUploadRoutes(api, uploadDir)
 	handlers.RegisterImportRoutes(api, db)
