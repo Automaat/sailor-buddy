@@ -26,9 +26,19 @@ describe('yourPrice', () => {
 		expect(yourPrice({ cost_per_person_non_member: 250 }, membership)).toBe(250);
 	});
 
-	it('treats 0 as an unset price', () => {
-		expect(yourPrice({ cost_per_person: 0, cost_per_person_non_member: 300 }, 'czlonek')).toBe(300);
+	it('treats a lone 0 as no price', () => {
 		expect(yourPrice({ cost_per_person: 0 }, 'gosc')).toBeNull();
+		expect(yourPrice({ cost_per_person_non_member: 0 }, 'czlonek')).toBeNull();
+		expect(yourPrice({ cost_per_person: 0, cost_per_person_non_member: 0 }, 'czlonek')).toBeNull();
+	});
+
+	it('keeps a 0 tier next to a positive one', () => {
+		const freeForMembers = { cost_per_person: 0, cost_per_person_non_member: 500 };
+		expect(yourPrice(freeForMembers, 'czlonek')).toBe(0);
+		expect(yourPrice(freeForMembers, 'sympatyk')).toBe(0);
+		expect(yourPrice(freeForMembers, 'gosc')).toBe(500);
+		expect(priceLines(freeForMembers).map((l) => l.value)).toEqual(['0 PLN', '500 PLN']);
+		expect(hasPriceInfo(freeForMembers)).toBe(true);
 	});
 
 	it('returns null without membership when both tiers are set', () => {

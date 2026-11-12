@@ -20,14 +20,25 @@ function amount(v: number | null | undefined): number | null {
 }
 
 /**
+ * tiers returns the member and non-member prices. A lone 0 means "no
+ * price" (older forms and the trips column default store 0), but next to
+ * a positive other tier a 0 is a real price, e.g. free for members.
+ */
+function tiers(p: Priced): { member: number | null; nonMember: number | null } {
+	const member = p.cost_per_person ?? null;
+	const nonMember = p.cost_per_person_non_member ?? null;
+	if (amount(member) === null && amount(nonMember) === null) return { member: null, nonMember: null };
+	return { member, nonMember };
+}
+
+/**
  * yourPrice is the berth price the caller pays. Members (czlonek) and
  * supporters (sympatyk) pay the member price, guests (gosc) the non-member
  * price. When only one price is set, everyone pays it. It returns null when
  * no price is set, or when both are set and the membership is unknown.
  */
 export function yourPrice(p: Priced, membership: Membership | null | undefined): number | null {
-	const member = amount(p.cost_per_person);
-	const nonMember = amount(p.cost_per_person_non_member);
+	const { member, nonMember } = tiers(p);
 	if (member === null || nonMember === null) return member ?? nonMember;
 	if (membership === 'gosc') return nonMember;
 	if (membership === 'czlonek' || membership === 'sympatyk') return member;
@@ -53,8 +64,7 @@ export interface PriceLine {
  */
 export function priceLines(p: Priced): PriceLine[] {
 	const lines: PriceLine[] = [];
-	const member = amount(p.cost_per_person);
-	const nonMember = amount(p.cost_per_person_non_member);
+	const { member, nonMember } = tiers(p);
 	const yachtFund = amount(p.yacht_fund);
 	const deposit = amount(p.deposit);
 	if (member !== null && nonMember !== null) {

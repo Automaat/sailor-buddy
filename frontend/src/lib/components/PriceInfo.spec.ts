@@ -53,3 +53,14 @@ describe('PriceInfo', () => {
 		expect(container.querySelector('section')).toBeNull();
 	});
 });
+
+describe('PriceInfo — free member berth', () => {
+	it('shows a member 0 and lists both tiers when guests pay', () => {
+		render(PriceInfo, {
+			priced: { currency: 'PLN', cost_per_person: 0, cost_per_person_non_member: 500 },
+			membership: 'czlonek'
+		});
+		expect(screen.getByTestId('your-price')).toHaveTextContent('Twoja cena: 0 PLN');
+		expect(screen.getByText('Goście').nextElementSibling).toHaveTextContent('500 PLN');
+	});
+});
