@@ -4,8 +4,8 @@ INSERT INTO voyages (
     captain_name, yacht_id,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
     cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *;
+    image_logo_url, image_photo_url, image_route_url, description, captain_user_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *;
 
 -- name: GetVoyage :one
 SELECT * FROM voyages WHERE id = $1;
@@ -24,9 +24,16 @@ UPDATE voyages SET
     miles = $14, days = $15, tidal_waters = $16,
     cost_total = $17, cost_per_person = $18,
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
-    cruise_id = $23,
+    cruise_id = $23, captain_user_id = $24,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $24;
+WHERE id = $25;
+
+-- name: UpdateVoyageLog :exec
+UPDATE voyages SET
+    hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
+    miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $9;
 
 -- name: DeleteVoyage :exec
 DELETE FROM voyages WHERE id = $1;

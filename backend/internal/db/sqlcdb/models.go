@@ -155,6 +155,7 @@ type Trip struct {
 	EnrollToken   types.NullString  `json:"enroll_token"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
+	CaptainUserID types.NullInt64   `json:"captain_user_id"`
 }
 
 type TripEnrollment struct {
@@ -179,6 +180,8 @@ type User struct {
 	PatentNumber types.NullString `json:"patent_number"`
 	CreatedAt    types.NullTime   `json:"created_at"`
 	UpdatedAt    types.NullTime   `json:"updated_at"`
+	IsCaptain    bool             `json:"is_captain"`
+	Membership   string           `json:"membership"`
 }
 
 type Voyage struct {
@@ -209,6 +212,8 @@ type Voyage struct {
 	Description   types.NullString  `json:"description"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
+	CaptainUserID types.NullInt64   `json:"captain_user_id"`
+	CaptainNotes  types.NullString  `json:"captain_notes"`
 }
 
 type VoyageOpinion struct {
