@@ -134,6 +134,10 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err != nil {
 		return nil, err
 	}
+	maxCrew, err := defaultMaxCrew(ctx, h.q, in.Body.YachtID, in.Body.MaxCrew)
+	if err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 	trip, err := h.q.CreateTrip(ctx, sqlcdb.CreateTripParams{
 		CreatedBy:     types.NullInt64{Int64: user.UserID, Valid: true},
@@ -149,7 +153,7 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		YachtID:       nullInt64(in.Body.YachtID),
 		CostTotal:     nullFloat64(in.Body.CostTotal),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		MaxCrew:       nullInt64(in.Body.MaxCrew),
+		MaxCrew:       maxCrew,
 		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
 		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
 		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
@@ -161,6 +165,23 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
 	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
+}
+
+// defaultMaxCrew returns the trip's crew limit: the explicit max_crew when
+// given, otherwise the yacht's berth count when the yacht records one.
+func defaultMaxCrew(ctx context.Context, q sqlcdb.Querier, yachtID, maxCrew *int64) (types.NullInt64, error) {
+	if maxCrew != nil || yachtID == nil {
+		return nullInt64(maxCrew), nil
+	}
+	yacht, err := q.GetYacht(ctx, *yachtID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return types.NullInt64{}, huma.Error422UnprocessableEntity("yacht not found")
+		}
+		slog.Error("get yacht for trip crew limit", "yacht_id", *yachtID, "err", err)
+		return types.NullInt64{}, huma.Error500InternalServerError("failed to create trip")
+	}
+	return yacht.Berths, nil
 }
 
 func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noContentOutput, error) {

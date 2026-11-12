@@ -470,6 +470,12 @@ components:
           type: integer
         trip:
           $ref: "#/components/schemas/EnrollTrip"
+        trip_accepted:
+          items:
+            $ref: "#/components/schemas/TripAccepted"
+          type:
+            - array
+            - "null"
         trips:
           items:
             $ref: "#/components/schemas/Trip"
@@ -1306,6 +1312,19 @@ components:
         - created_at
         - updated_at
       type: object
+    TripAccepted:
+      additionalProperties: false
+      properties:
+        accepted_count:
+          format: int64
+          type: integer
+        trip_id:
+          format: int64
+          type: integer
+      required:
+        - trip_id
+        - accepted_count
+      type: object
     TripBody:
       additionalProperties: false
       properties:
@@ -1819,16 +1838,29 @@ components:
           format: uri
           readOnly: true
           type: string
+        berths:
+          format: int64
+          type: integer
+        build_year:
+          format: int64
+          type: integer
         created_at:
           format: date-time
           type: string
         created_by:
           format: int64
           type: integer
+        engine:
+          type: string
         id:
           format: int64
           type: integer
+        length_m:
+          format: double
+          type: number
         name:
+          type: string
+        owner_name:
           type: string
         registration_no:
           type: string
@@ -1853,9 +1885,31 @@ components:
           format: uri
           readOnly: true
           type: string
+        berths:
+          description: Number of berths
+          format: int64
+          minimum: 1
+          type: integer
+        build_year:
+          description: Build year
+          format: int64
+          maximum: 2100
+          minimum: 1800
+          type: integer
+        engine:
+          description: Engine, e.g. Volvo Penta D2-55
+          type: string
+        length_m:
+          description: Length overall in metres
+          exclusiveMinimum: 0
+          format: double
+          type: number
         name:
           description: Yacht name
           minLength: 1
+          type: string
+        owner_name:
+          description: Charter owner (armator)
           type: string
         registration_no:
           type: string

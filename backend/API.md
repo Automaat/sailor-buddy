@@ -232,6 +232,10 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
 }
 ```
 
+On create, an omitted `max_crew` defaults to the yacht's `berths` when
+`yacht_id` is set and the yacht records berths (`422 yacht not found` for an
+unknown yacht). An explicit `max_crew` is kept.
+
 `complete` returns `404` `trip not found or not in planned state` when the trip
 is missing or already completed/cancelled. `cancel` returns `404`
 `trip not found or invalid transition` likewise.
@@ -264,6 +268,9 @@ Assignment body — `crew_member_id` and `role` required:
 
 `GET /api/enroll/{token}` returns `{"kind": "trip" \| "cruise", ...}` —
 the token may resolve to either. `404 invalid enrollment link` if unknown.
+A cruise response also carries `trip_accepted`: `[{trip_id, accepted_count}]`
+per child trip, counting accepted trip enrollments plus accepted cruise
+enrollments assigned to the trip.
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,
@@ -352,7 +359,18 @@ Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 | PUT | `/api/yachts/{id}` | **admin** | Update yacht | 204 |
 | DELETE | `/api/yachts/{id}` | **admin** | Delete yacht | 204 |
 
-Body — `name` required: `{ "name": "Bavaria 46", "registration_no": null, "yacht_type": "sailing yacht" }`.
+Body — `name` required; the specs are optional:
+
+```json
+{
+  "name": "Ilmatar", "registration_no": null, "yacht_type": "Gib'Sea 43",
+  "berths": 10, "length_m": 12.8, "build_year": 2002,
+  "engine": "Volvo Penta D2-55", "owner_name": "Szkoła Żeglarska Kliper"
+}
+```
+
+`berths` must be at least 1, `length_m` above 0 and `build_year` within
+1800–2100, otherwise `422`. `owner_name` is the charter owner (armator).
 
 ### Crew members
 

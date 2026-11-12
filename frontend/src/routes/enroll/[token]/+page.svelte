@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolveEnroll, enroll } from '#lib/api/routes.js';
 	import type { EnrollPageData } from '#lib/api/types.js';
-	import { statusLabels } from '#lib/enrollment.js';
+	import { freePlaces, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -14,6 +14,12 @@
 	let success = $state(false);
 
 	const token = $derived((page.params as Record<string, string>).token);
+	const tripFree = $derived(
+		data?.kind === 'trip' ? freePlaces(data.trip.max_crew, data.accepted_count) : null
+	);
+	const cruiseTripAccepted = $derived(
+		new Map((data?.trip_accepted ?? []).map((t) => [t.trip_id, t.accepted_count]))
+	);
 	const loginHref = $derived(`/login?redirect=${encodeURIComponent(`/enroll/${token}`)}`);
 
 	onMount(async () => {
@@ -95,6 +101,12 @@
 						<span class="text-[var(--text-muted)]">Zaakceptowanych:</span>
 						<span class="font-semibold">{data.accepted_count}</span>
 					</div>
+					{#if tripFree !== null}
+						<div class="rounded-lg bg-gray-50 px-3 py-2" data-testid="free-places">
+							<span class="text-[var(--text-muted)]">Wolne miejsca:</span>
+							<span class="font-semibold">{tripFree}</span>
+						</div>
+					{/if}
 				</div>
 			{:else if data.kind === 'cruise'}
 				<p class="mb-1 text-xs uppercase tracking-wide text-[var(--text-muted)]">Wydarzenie klubu</p>
@@ -122,10 +134,14 @@
 						<p class="mb-2 text-xs uppercase tracking-wide text-[var(--text-muted)]">Planowane jachty</p>
 						<div class="space-y-1">
 							{#each data.trips as t}
+								{@const free = freePlaces(t.max_crew, cruiseTripAccepted.get(t.id) ?? 0)}
 								<div class="rounded-lg bg-gray-50 px-3 py-2 text-sm">
 									<span class="font-medium">{t.name}</span>
 									{#if t.captain_name}
 										<span class="ml-1 text-[var(--text-muted)]">— kpt. {t.captain_name}</span>
+									{/if}
+									{#if free !== null}
+										<span class="ml-1 text-[var(--text-muted)]" data-testid="free-places">· wolne miejsca: {free}</span>
 									{/if}
 								</div>
 							{/each}

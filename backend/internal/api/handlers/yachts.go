@@ -100,6 +100,11 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 				Name:           in.Body.Name,
 				RegistrationNo: nullString(in.Body.RegistrationNo),
 				YachtType:      nullString(in.Body.YachtType),
+				Berths:         nullInt64(in.Body.Berths),
+				LengthM:        nullFloat64(in.Body.LengthM),
+				BuildYear:      nullInt64(in.Body.BuildYear),
+				Engine:         nullString(in.Body.Engine),
+				OwnerName:      nullString(in.Body.OwnerName),
 			})
 		},
 		update: func(ctx context.Context, _ crudScope, in *updateYachtInput) error {
@@ -107,6 +112,11 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 				Name:           in.Body.Name,
 				RegistrationNo: nullString(in.Body.RegistrationNo),
 				YachtType:      nullString(in.Body.YachtType),
+				Berths:         nullInt64(in.Body.Berths),
+				LengthM:        nullFloat64(in.Body.LengthM),
+				BuildYear:      nullInt64(in.Body.BuildYear),
+				Engine:         nullString(in.Body.Engine),
+				OwnerName:      nullString(in.Body.OwnerName),
 				ID:             in.ID,
 			})
 		},

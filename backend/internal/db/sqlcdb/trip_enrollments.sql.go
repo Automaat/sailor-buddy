@@ -11,6 +11,52 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const countAcceptedByCruiseTrip = `-- name: CountAcceptedByCruiseTrip :many
+SELECT t.id AS trip_id,
+    ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted')
+   + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'))::BIGINT AS accepted
+FROM trips t
+WHERE t.cruise_id = $1
+ORDER BY t.id
+`
+
+type CountAcceptedByCruiseTripRow struct {
+	TripID   int64 `json:"trip_id"`
+	Accepted int64 `json:"accepted"`
+}
+
+// Accepted crew per trip of a cruise: direct trip enrollments plus cruise
+// enrollments assigned to the trip.
+//
+//	SELECT t.id AS trip_id,
+//	    ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted')
+//	   + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'))::BIGINT AS accepted
+//	FROM trips t
+//	WHERE t.cruise_id = $1
+//	ORDER BY t.id
+func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error) {
+	rows, err := q.db.QueryContext(ctx, countAcceptedByCruiseTrip, cruiseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountAcceptedByCruiseTripRow
+	for rows.Next() {
+		var i CountAcceptedByCruiseTripRow
+		if err := rows.Scan(&i.TripID, &i.Accepted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countTripEnrollments = `-- name: CountTripEnrollments :one
 SELECT
     COUNT(*) FILTER (WHERE status = 'accepted')::BIGINT AS accepted,

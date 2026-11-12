@@ -74,6 +74,7 @@ type mockQuerier struct {
 	assignCruiseEnrollmentFn       func(ctx context.Context, arg sqlcdb.AssignCruiseEnrollmentToTripParams) error
 	deleteCruiseEnrollmentFn       func(ctx context.Context, id int64) error
 	countCruiseEnrollmentsFn       func(ctx context.Context, cruiseID int64) (sqlcdb.CountCruiseEnrollmentsRow, error)
+	countAcceptedByCruiseTripFn    func(ctx context.Context, cruiseID types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error)
 	getUserCruiseEnrollmentFn      func(ctx context.Context, arg sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error)
 
 	// voyage opinions
@@ -477,6 +478,13 @@ func (m *mockQuerier) DeleteCruiseEnrollment(ctx context.Context, id int64) erro
 		panic("unexpected call to DeleteCruiseEnrollment")
 	}
 	return m.deleteCruiseEnrollmentFn(ctx, id)
+}
+
+func (m *mockQuerier) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+	if m.countAcceptedByCruiseTripFn == nil {
+		panic("unexpected call to CountAcceptedByCruiseTrip")
+	}
+	return m.countAcceptedByCruiseTripFn(ctx, cruiseID)
 }
 
 func (m *mockQuerier) CountCruiseEnrollments(ctx context.Context, cruiseID int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {

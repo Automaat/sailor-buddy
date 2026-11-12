@@ -34,6 +34,16 @@ type Querier interface {
 	//
 	//  UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1
 	ClearTripEnrollToken(ctx context.Context, id int64) error
+	// Accepted crew per trip of a cruise: direct trip enrollments plus cruise
+	// enrollments assigned to the trip.
+	//
+	//  SELECT t.id AS trip_id,
+	//      ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted')
+	//     + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'))::BIGINT AS accepted
+	//  FROM trips t
+	//  WHERE t.cruise_id = $1
+	//  ORDER BY t.id
+	CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error)
 	//CountAdmins
 	//
 	//  SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin'
@@ -155,8 +165,8 @@ type Querier interface {
 	CreateVoyagePort(ctx context.Context, arg CreateVoyagePortParams) (VoyagePort, error)
 	//CreateYacht
 	//
-	//  INSERT INTO yachts (created_by, name, registration_no, yacht_type)
-	//  VALUES ($1, $2, $3, $4) RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at
+	//  INSERT INTO yachts (created_by, name, registration_no, yacht_type, berths, length_m, build_year, engine, owner_name)
+	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name
 	CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error)
 	//DeleteCrewMember
 	//
@@ -333,11 +343,11 @@ type Querier interface {
 	GetVoyagesByYear(ctx context.Context) ([]GetVoyagesByYearRow, error)
 	//GetYacht
 	//
-	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE id = $1
+	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE id = $1
 	GetYacht(ctx context.Context, id int64) (Yacht, error)
 	//GetYachtByName
 	//
-	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts WHERE name = $1
+	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE name = $1
 	GetYachtByName(ctx context.Context, name string) (Yacht, error)
 	//LinkFirebaseUIDByEmail
 	//
@@ -433,7 +443,7 @@ type Querier interface {
 	ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error)
 	//ListYachts
 	//
-	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
 	//RepointCrewAssignmentsToVoyage
 	//
@@ -537,8 +547,9 @@ type Querier interface {
 	UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) error
 	//UpdateYacht
 	//
-	//  UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $4
+	//  UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, berths = $4,
+	//      length_m = $5, build_year = $6, engine = $7, owner_name = $8, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $9
 	UpdateYacht(ctx context.Context, arg UpdateYachtParams) error
 	//UpsertUserByFirebaseUID
 	//

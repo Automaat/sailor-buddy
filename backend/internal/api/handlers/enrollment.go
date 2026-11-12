@@ -142,12 +142,18 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 		slog.Error("list cruise trips", "cruise_id", cruise.ID, "err", tlistErr)
 		childTrips = nil
 	}
+	tripAccepted, taErr := h.q.CountAcceptedByCruiseTrip(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+	if taErr != nil {
+		slog.Error("count accepted per cruise trip", "cruise_id", cruise.ID, "err", taErr)
+		tripAccepted = nil
+	}
 	info := dto.EnrollInfo{
 		Kind:          "cruise",
 		Cruise:        new(dto.EnrollCruiseFromRow(cruise)),
 		Trips:         dto.TripsFromDB(childTrips),
 		AcceptedCount: counts.Accepted,
 		TotalCount:    counts.Total,
+		TripAccepted:  dto.TripAcceptedFromDB(tripAccepted),
 	}
 	if user != nil {
 		if e, err := h.q.GetUserCruiseEnrollment(ctx, sqlcdb.GetUserCruiseEnrollmentParams{CruiseID: cruise.ID, UserID: user.UserID}); err == nil {

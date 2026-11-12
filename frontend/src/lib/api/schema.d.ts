@@ -1100,6 +1100,7 @@ export interface components {
             /** Format: int64 */
             total_count: number;
             trip?: components["schemas"]["EnrollTrip"];
+            trip_accepted?: components["schemas"]["TripAccepted"][] | null;
             trips?: components["schemas"]["Trip"][] | null;
         };
         EnrollTrip: {
@@ -1596,6 +1597,12 @@ export interface components {
             /** Format: int64 */
             yacht_id?: number;
         };
+        TripAccepted: {
+            /** Format: int64 */
+            accepted_count: number;
+            /** Format: int64 */
+            trip_id: number;
+        };
         TripBody: {
             /**
              * Format: uri
@@ -1895,13 +1902,21 @@ export interface components {
              * @example /api/Yacht.json
              */
             readonly $schema?: string;
+            /** Format: int64 */
+            berths?: number;
+            /** Format: int64 */
+            build_year?: number;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
             created_by?: number;
+            engine?: string;
             /** Format: int64 */
             id: number;
+            /** Format: double */
+            length_m?: number;
             name: string;
+            owner_name?: string;
             registration_no?: string;
             /** Format: date-time */
             updated_at: string;
@@ -1914,8 +1929,27 @@ export interface components {
              * @example /api/YachtBody.json
              */
             readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Number of berths
+             */
+            berths?: number;
+            /**
+             * Format: int64
+             * @description Build year
+             */
+            build_year?: number;
+            /** @description Engine, e.g. Volvo Penta D2-55 */
+            engine?: string;
+            /**
+             * Format: double
+             * @description Length overall in metres
+             */
+            length_m?: number;
             /** @description Yacht name */
             name: string;
+            /** @description Charter owner (armator) */
+            owner_name?: string;
             registration_no?: string;
             yacht_type?: string;
         };

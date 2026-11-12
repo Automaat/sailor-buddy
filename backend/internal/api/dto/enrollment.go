@@ -99,6 +99,24 @@ type EnrollInfo struct {
 	Enrollment    *Enrollment   `json:"enrollment,omitempty"`
 	AcceptedCount int64         `json:"accepted_count"`
 	TotalCount    int64         `json:"total_count"`
+	// TripAccepted lists accepted crew per cruise trip (kind=cruise only).
+	TripAccepted []TripAccepted `json:"trip_accepted,omitempty"`
+}
+
+// TripAccepted is the accepted crew count of one cruise trip: direct trip
+// enrollments plus cruise enrollments assigned to it.
+type TripAccepted struct {
+	TripID        int64 `json:"trip_id"`
+	AcceptedCount int64 `json:"accepted_count"`
+}
+
+// TripAcceptedFromDB maps the per-trip accepted counts.
+func TripAcceptedFromDB(rows []sqlcdb.CountAcceptedByCruiseTripRow) []TripAccepted {
+	out := make([]TripAccepted, len(rows))
+	for i, r := range rows {
+		out[i] = TripAccepted{TripID: r.TripID, AcceptedCount: r.Accepted}
+	}
+	return out
 }
 
 // EnrollBody is the request payload for self-enrolling via a share token.

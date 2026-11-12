@@ -29,3 +29,13 @@ WHERE trip_id = $1 AND user_id = $2;
 
 -- name: DeleteTripEnrollmentsForTrip :exec
 DELETE FROM trip_enrollments WHERE trip_id = $1;
+
+-- name: CountAcceptedByCruiseTrip :many
+-- Accepted crew per trip of a cruise: direct trip enrollments plus cruise
+-- enrollments assigned to the trip.
+SELECT t.id AS trip_id,
+    ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted')
+   + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'))::BIGINT AS accepted
+FROM trips t
+WHERE t.cruise_id = $1
+ORDER BY t.id;
