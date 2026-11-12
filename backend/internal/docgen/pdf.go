@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
 
@@ -30,22 +29,15 @@ func GeneratePDF(htmlBytes []byte) ([]byte, error) {
 
 	dataURI := "data:text/html;base64," + base64.StdEncoding.EncodeToString(htmlBytes)
 
-	var pdfBuf []byte
-	if err := chromedp.Run(ctx,
-		chromedp.Navigate(dataURI),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			buf, _, err := page.PrintToPDF().
-				WithPaperWidth(8.27).
-				WithPaperHeight(11.69).
-				WithPrintBackground(true).
-				Do(ctx)
-			if err != nil {
-				return err
-			}
-			pdfBuf = buf
-			return nil
-		}),
-	); err != nil {
+	if err := chromedp.Do(ctx, chromedp.Navigate(dataURI)); err != nil {
+		return nil, err
+	}
+
+	pdfBuf, err := chromedp.Run(ctx, chromedp.PrintToPDF(
+		chromedp.PDFPaper(chromedp.PaperA4),
+		chromedp.PDFPrintBackground(),
+	))
+	if err != nil {
 		return nil, err
 	}
 
