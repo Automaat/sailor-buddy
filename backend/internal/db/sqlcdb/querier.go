@@ -386,8 +386,9 @@ type Querier interface {
 	//  SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series ORDER BY name, id LIMIT $1 OFFSET $2
 	ListCruiseSeries(ctx context.Context, arg ListCruiseSeriesParams) ([]CruiseSeries, error)
 	// Editions of a series newest first, each with the miles and hours summed
-	// over its voyages. An edition without an embark date is still being
-	// planned, so it sorts before every dated one.
+	// over its voyages. An edition without an embark date (NULL, or the empty
+	// string the cruise forms send) is still being planned, so it sorts before
+	// every dated one.
 	//
 	//  SELECT
 	//      c.id,
@@ -403,7 +404,7 @@ type Querier interface {
 	//  LEFT JOIN voyages v ON v.cruise_id = c.id
 	//  WHERE c.series_id = $1
 	//  GROUP BY c.id
-	//  ORDER BY c.embark_date DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
+	//  ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 	ListCruiseSeriesEditions(ctx context.Context, seriesID types.NullInt64) ([]ListCruiseSeriesEditionsRow, error)
 	//ListCruiseTrips
 	//
