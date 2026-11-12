@@ -28,6 +28,9 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
 				return []sqlcdb.Trip{{ID: 1, Name: "Leg"}}, nil
 			},
+			listUserCruiseTripEnrollFn: func(context.Context, sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {
+				return nil, nil
+			},
 			getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 				return sqlcdb.CruiseEnrollment{ID: 4, CruiseID: 7, UserID: 1, Status: "pending"}, nil
 			},
@@ -51,6 +54,9 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 			},
 			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
 				return nil, errors.New("fail")
+			},
+			listUserCruiseTripEnrollFn: func(context.Context, sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {
+				return nil, nil
 			},
 			getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 				return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
@@ -371,7 +377,7 @@ func TestIsUniqueViolation(t *testing.T) {
 }
 
 func TestNewEnrollmentHandler(t *testing.T) {
-	if NewEnrollmentHandler(&mockQuerier{}) == nil {
+	if NewEnrollmentHandler(&mockQuerier{}, nil) == nil {
 		t.Fatal("want non-nil handler")
 	}
 }

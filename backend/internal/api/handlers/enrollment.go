@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -19,11 +21,12 @@ import (
 )
 
 type EnrollmentHandler struct {
-	q sqlcdb.Querier
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewEnrollmentHandler(q sqlcdb.Querier) *EnrollmentHandler {
-	return &EnrollmentHandler{q: q}
+func NewEnrollmentHandler(q sqlcdb.Querier, db *sql.DB) *EnrollmentHandler {
+	return &EnrollmentHandler{q: q, runTx: sqlTxRunner(db)}
 }
 
 type tokenPathParam struct {
@@ -41,6 +44,15 @@ type enrollInfoOutput struct {
 
 type enrollmentOutput struct {
 	Body dto.Enrollment
+}
+
+type enrollLegsInput struct {
+	Token string `path:"token" doc:"Cruise enrollment share token"`
+	Body  dto.EnrollLegsBody
+}
+
+type enrollLegsOutput struct {
+	Body dto.EnrollLegsResponse
 }
 
 type tripEnrollmentsOutput struct {
@@ -66,8 +78,11 @@ type tripEnrollmentParam struct {
 
 // RegisterEnrollmentRoutes wires the share-token enrollment flow and the
 // admin-side trip enrollment management onto the API.
-func RegisterEnrollmentRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewEnrollmentHandler(q)
+func RegisterEnrollmentRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	registerEnrollmentRoutes(api, NewEnrollmentHandler(q, db))
+}
+
+func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 	tag := []string{"Enrollment"}
 
 	huma.Register(api, huma.Operation{
@@ -78,6 +93,14 @@ func RegisterEnrollmentRoutes(api huma.API, q sqlcdb.Querier) {
 		OperationID: "enroll", Method: http.MethodPost, Path: "/enroll/{token}",
 		Summary: "Self-enroll via a share token", Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.enroll)
+	huma.Register(api, huma.Operation{
+		OperationID: "enroll-cruise-legs", Method: http.MethodPost, Path: "/enroll/{token}/legs",
+		Summary: "Self-enroll in one or more legs (trips) of a cruise via its share token",
+		Description: "Creates one pending trip enrollment per picked leg. Legs the caller is already " +
+			"enrolled in are reported as already_enrolled. If any picked trip is not a planned trip " +
+			"of the token's cruise, the request fails with 422 and nothing is written.",
+		Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.enrollLegs)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "generate-trip-enroll-token", Method: http.MethodPost, Path: "/trips/{tripID}/enroll-token",
@@ -154,6 +177,18 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 			info.Enrolled = true
 			info.Enrollment = new(dto.CruiseEnrollmentToDTO(e))
 		}
+		legs, lerr := h.q.ListUserCruiseTripEnrollments(ctx, sqlcdb.ListUserCruiseTripEnrollmentsParams{
+			CruiseID: types.NullInt64{Int64: cruise.ID, Valid: true},
+			UserID:   user.UserID,
+		})
+		if lerr != nil {
+			slog.Error("list user cruise leg enrollments", "cruise_id", cruise.ID, "user_id", user.UserID, "err", lerr)
+			return nil, huma.Error500InternalServerError("failed to get leg enrollments")
+		}
+		if len(legs) > 0 {
+			info.Enrolled = true
+			info.LegEnrollments = dto.TripEnrollmentsToDTO(legs)
+		}
 	}
 	return &enrollInfoOutput{Body: info}, nil
 }
@@ -209,6 +244,93 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 		return nil, huma.Error500InternalServerError("failed to enroll")
 	}
 	return &enrollmentOutput{Body: dto.CruiseEnrollmentToDTO(e)}, nil
+}
+
+// invalidLegsError aborts the leg enrollment transaction when a picked trip is
+// not a planned trip of the cruise.
+type invalidLegsError struct{ msg string }
+
+func (e *invalidLegsError) Error() string { return e.msg }
+
+// enrollLegs enrolls the caller in each picked leg (trip) of the token's
+// cruise. All legs are validated before any write, and the writes share one
+// transaction, so an invalid pick leaves the database untouched.
+func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput) (*enrollLegsOutput, error) {
+	user := middleware.GetUser(ctx)
+	if user == nil {
+		return nil, huma.Error401Unauthorized("authentication required")
+	}
+	cruise, err := h.q.GetCruiseByEnrollToken(ctx, types.NullString{String: in.Token, Valid: true})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("invalid enrollment link")
+		}
+		slog.Error("get cruise by enroll token for leg enroll", "err", err)
+		return nil, huma.Error500InternalServerError("failed to get cruise")
+	}
+
+	if len(in.Body.TripIDs) == 0 {
+		return nil, huma.Error422UnprocessableEntity("pick at least one leg")
+	}
+
+	// Inserts run in ascending trip order so concurrent requests from one
+	// user take the unique-index locks in the same order and cannot deadlock.
+	insertOrder := slices.Clone(in.Body.TripIDs)
+	slices.Sort(insertOrder)
+	byTrip := make(map[int64]dto.EnrollLegResult, len(insertOrder))
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		trips, err := q.LockCruiseTripStatuses(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+		if err != nil {
+			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
+		}
+		status := make(map[int64]sqlcdb.TripStatus, len(trips))
+		for i := range trips {
+			status[trips[i].ID] = trips[i].Status
+		}
+		for _, id := range in.Body.TripIDs {
+			st, ok := status[id]
+			if !ok {
+				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not a leg of this cruise", id)}
+			}
+			if st != sqlcdb.TripStatusPlanned {
+				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not open for enrollment", id)}
+			}
+		}
+
+		for _, id := range insertOrder {
+			e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
+				TripID: id,
+				UserID: user.UserID,
+				Note:   nullString(in.Body.Note),
+			})
+			result := "created"
+			if errors.Is(err, sql.ErrNoRows) {
+				result = "already_enrolled"
+				e, err = q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: id, UserID: user.UserID})
+			}
+			if err != nil {
+				return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
+			}
+			byTrip[id] = dto.EnrollLegResult{
+				TripID:     id,
+				Result:     result,
+				Enrollment: dto.TripEnrollmentToDTO(e),
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		if inv, ok := errors.AsType[*invalidLegsError](txErr); ok {
+			return nil, huma.Error422UnprocessableEntity(inv.msg)
+		}
+		slog.Error("enroll cruise legs", "cruise_id", cruise.ID, "user_id", user.UserID, "err", txErr)
+		return nil, huma.Error500InternalServerError("failed to enroll")
+	}
+	results := make([]dto.EnrollLegResult, 0, len(in.Body.TripIDs))
+	for _, id := range in.Body.TripIDs {
+		results = append(results, byTrip[id])
+	}
+	return &enrollLegsOutput{Body: dto.EnrollLegsResponse{Results: results}}, nil
 }
 
 func (h *EnrollmentHandler) generateToken(ctx context.Context, in *tripIDParam) (*tokenOutput, error) {
