@@ -374,6 +374,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		args: ['/enroll/{token}', { path: { token: 'tok' }, body: { note: 'hello' } }]
 	},
 	{
+		name: 'enrollLegs',
+		run: () => routes.enrollLegs('tok', [3, 4], 'hi'),
+		verb: 'post',
+		args: ['/enroll/{token}/legs', { path: { token: 'tok' }, body: { trip_ids: [3, 4], note: 'hi' } }]
+	},
+	{
 		name: 'importXlsx',
 		run: () => routes.importXlsx(fd),
 		verb: 'upload',

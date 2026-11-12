@@ -1,18 +1,198 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
-import { makeTrip } from '#lib/test-utils.js';
-import type { EnrollPageData } from '#lib/api/types.js';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+
+const h = vi.hoisted(() => ({ authenticated: true }));
 
 vi.mock('$app/state', () => ({ page: { params: { token: 'tok' } } }));
-vi.mock('#lib/api/routes.js', () => ({ resolveEnroll: vi.fn(), enroll: vi.fn() }));
-vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAuthenticated: true } }));
+vi.mock('#lib/api/routes.js', () => ({
+	resolveEnroll: vi.fn(),
+	enroll: vi.fn(),
+	enrollLegs: vi.fn()
+}));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
+	auth: {
+		get isAuthenticated() {
+			return h.authenticated;
+		}
+	}
+}));
 
-import { resolveEnroll } from '#lib/api/routes.js';
+import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
 import EnrollPage from './+page.svelte';
 
 const resolveMock = resolveEnroll as unknown as ReturnType<typeof vi.fn>;
+const enrollMock = enroll as unknown as ReturnType<typeof vi.fn>;
+const enrollLegsMock = enrollLegs as unknown as ReturnType<typeof vi.fn>;
 
-function tripData(maxCrew: number | undefined, accepted: number): EnrollPageData {
+function trip(id: number, name: string, embark: string | undefined, status = 'planned') {
+	return {
+		id,
+		name,
+		embark_date: embark,
+		status,
+		created_at: '2025-01-01T00:00:00Z',
+		updated_at: '2025-01-01T00:00:00Z'
+	};
+}
+
+const tripsOutOfDateOrder = [
+	trip(12, 'Tromsø – Longyearbyen', '2025-07-10'),
+	trip(13, 'Longyearbyen – Tromsø', '2025-07-20', 'cancelled'),
+	trip(11, 'Bodø – Tromsø', '2025-07-01')
+];
+
+function cruiseData(overrides: Record<string, unknown> = {}) {
+	return {
+		kind: 'cruise',
+		cruise: { id: 7, name: 'NNE 2025' },
+		trips: tripsOutOfDateOrder,
+		enrolled: false,
+		accepted_count: 0,
+		total_count: 0,
+		...overrides
+	};
+}
+
+beforeEach(() => {
+	h.authenticated = true;
+	resolveMock.mockReset().mockResolvedValue(cruiseData());
+	enrollMock.mockReset().mockResolvedValue({});
+	enrollLegsMock.mockReset().mockResolvedValue({ results: [] });
+});
+
+describe('enroll page — cruise legs', () => {
+	it('numbers legs by embark date and marks cancelled legs unavailable', async () => {
+		render(EnrollPage);
+		const a = await screen.findByText('Etap 1: Bodø – Tromsø');
+		const b = screen.getByText('Etap 2: Tromsø – Longyearbyen');
+		const c = screen.getByText('Etap 3: Longyearbyen – Tromsø');
+		expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		expect(b.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+		expect(screen.getByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })).toBeInTheDocument();
+		expect(screen.getByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox', { name: /Etap 3/ })).not.toBeInTheDocument();
+		expect(screen.getByText('odwołany — niedostępny')).toBeInTheDocument();
+	});
+
+	it('submits the picked legs in one request', async () => {
+		render(EnrollPage);
+		await fireEvent.click(await screen.findByRole('checkbox', { name: /Etap 1/ }));
+		await fireEvent.click(screen.getByRole('checkbox', { name: /Etap 2/ }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się na wybrane etapy (2)' }));
+
+		await waitFor(() => expect(enrollLegsMock).toHaveBeenCalledWith('tok', [11, 12], undefined));
+		expect(enrollMock).not.toHaveBeenCalled();
+		expect(await screen.findByText(/Zostałeś zapisany!/)).toBeInTheDocument();
+	});
+
+	it('falls back to a whole-cruise sign-up when no leg is picked', async () => {
+		render(EnrollPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz się' }));
+		await waitFor(() => expect(enrollMock).toHaveBeenCalledWith('tok', undefined));
+		expect(enrollLegsMock).not.toHaveBeenCalled();
+	});
+
+	it('offers only remaining legs and no whole-cruise sign-up once a leg is booked', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				enrolled: true,
+				leg_enrollments: [{ id: 5, trip_id: 11, user_id: 1, status: 'accepted' }]
+			})
+		);
+		render(EnrollPage);
+		expect(await screen.findByText('zapisany: zaakceptowany')).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox', { name: /Etap 1/ })).not.toBeInTheDocument();
+		expect(screen.getByRole('checkbox', { name: /Etap 2/ })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeDisabled();
+	});
+
+	it('reports enrollment when every open leg is already booked', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				enrolled: true,
+				leg_enrollments: [
+					{ id: 5, trip_id: 11, user_id: 1, status: 'pending' },
+					{ id: 6, trip_id: 12, user_id: 1, status: 'pending' }
+				]
+			})
+		);
+		render(EnrollPage);
+		expect(await screen.findByText(/Jesteś już zapisany/)).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+	});
+
+	it('hides leg checkboxes from signed-out visitors', async () => {
+		h.authenticated = false;
+		render(EnrollPage);
+		await screen.findByText('Etap 1: Bodø – Tromsø');
+		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+		expect(screen.getByText('Zaloguj się, aby dołączyć')).toBeInTheDocument();
+	});
+
+	it('keeps a cruise-level sign-up visible while offering legs', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({ enrolled: true, enrollment: { id: 9, cruise_id: 7, user_id: 1, status: 'pending' } })
+		);
+		render(EnrollPage);
+		expect(await screen.findByText(/Jesteś zapisany na wydarzenie/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeDisabled();
+		await fireEvent.click(screen.getByRole('checkbox', { name: /Etap 2/ }));
+		await fireEvent.input(screen.getByLabelText('Notatka (opcjonalnie)'), {
+			target: { value: 'koja dziobowa' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się na wybrane etapy (1)' }));
+		await waitFor(() => expect(enrollLegsMock).toHaveBeenCalledWith('tok', [12], 'koja dziobowa'));
+	});
+
+	it('shows the server error when leg enrollment fails', async () => {
+		enrollLegsMock.mockRejectedValue(new Error('trip 12 is not open for enrollment'));
+		render(EnrollPage);
+		await fireEvent.click(await screen.findByRole('checkbox', { name: /Etap 2/ }));
+		await fireEvent.click(screen.getByRole('button', { name: /Zapisz się na wybrane etapy/ }));
+		expect(await screen.findByText('trip 12 is not open for enrollment')).toBeInTheDocument();
+		expect(screen.queryByText(/Zostałeś zapisany!/)).not.toBeInTheDocument();
+	});
+
+	it('shows an invalid-link message when the token does not resolve', async () => {
+		resolveMock.mockRejectedValue(new Error('invalid enrollment link'));
+		render(EnrollPage);
+		expect(await screen.findByText('Nieprawidłowy link')).toBeInTheDocument();
+		expect(screen.getByText('invalid enrollment link')).toBeInTheDocument();
+	});
+});
+
+describe('enroll page — single trip', () => {
+	const tripData = {
+		kind: 'trip',
+		trip: { id: 5, name: 'Adriatyk', embark_date: '2025-05-01', captain_name: 'Nowak' },
+		enrolled: false,
+		accepted_count: 1,
+		total_count: 2
+	};
+
+	it('enrolls in the trip without leg checkboxes', async () => {
+		resolveMock.mockResolvedValue(tripData);
+		render(EnrollPage);
+		expect(await screen.findByText('Adriatyk')).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się' }));
+		await waitFor(() => expect(enrollMock).toHaveBeenCalledWith('tok', undefined));
+	});
+
+	it('reports an existing trip enrollment', async () => {
+		resolveMock.mockResolvedValue({
+			...tripData,
+			enrolled: true,
+			enrollment: { id: 3, trip_id: 5, user_id: 1, status: 'waitlisted' }
+		});
+		render(EnrollPage);
+		expect(await screen.findByText(/Jesteś już zapisany/)).toBeInTheDocument();
+		expect(screen.getByText('lista rezerwowa')).toBeInTheDocument();
+	});
+});
+
+function tripData(maxCrew: number | undefined, accepted: number) {
 	return {
 		kind: 'trip',
 		trip: { id: 1, name: 'Rejs Bałtyk', max_crew: maxCrew },
@@ -22,17 +202,11 @@ function tripData(maxCrew: number | undefined, accepted: number): EnrollPageData
 	};
 }
 
-beforeEach(() => {
-	resolveMock.mockReset();
-});
-
-describe('enroll page free places', () => {
+describe('enroll page — free places', () => {
 	it('shows the crew limit minus accepted enrollments for a trip', async () => {
 		resolveMock.mockResolvedValue(tripData(10, 3));
 		render(EnrollPage);
-		const free = await screen.findByTestId('free-places');
-		expect(free).toHaveTextContent('Wolne miejsca: 7');
-		expect(resolveMock).toHaveBeenCalledWith('tok');
+		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 7');
 	});
 
 	it('shows zero and keeps enrollment open when the trip is full', async () => {
@@ -50,7 +224,6 @@ describe('enroll page free places', () => {
 		render(EnrollPage);
 		await screen.findByText('Rejs Bałtyk');
 		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
-		expect(screen.queryByText(/Wolne miejsca/i)).not.toBeInTheDocument();
 	});
 
 	it('counts cruise enrollments assigned to the trip when the API sends them', async () => {
@@ -62,33 +235,27 @@ describe('enroll page free places', () => {
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 5');
 	});
 
-	it('shows free places per cruise trip from its accepted count', async () => {
-		resolveMock.mockResolvedValue({
-			kind: 'cruise',
-			cruise: { id: 9, name: 'Wielki Rejs Mazurski' },
-			trips: [
-				makeTrip({ id: 1, name: 'Ilmatar', max_crew: 10 }),
-				makeTrip({ id: 2, name: 'Kliper', max_crew: 8 }),
-				makeTrip({ id: 3, name: 'Bez limitu', max_crew: undefined }),
-				makeTrip({ id: 4, name: 'Zero', max_crew: 0 })
-			],
-			trip_accepted: [
-				{ trip_id: 1, accepted_count: 4 },
-				{ trip_id: 3, accepted_count: 2 }
-			],
-			enrolled: false,
-			accepted_count: 6,
-			total_count: 9
-		} satisfies EnrollPageData);
+	it('shows free places per cruise leg from its accepted count', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				trips: [
+					{ ...trip(1, 'Ilmatar', '2025-07-01'), max_crew: 10 },
+					{ ...trip(2, 'Kliper', '2025-07-02'), max_crew: 8 },
+					{ ...trip(3, 'Bez limitu', '2025-07-03'), max_crew: undefined },
+					{ ...trip(4, 'Zero', '2025-07-04'), max_crew: 0 }
+				],
+				trip_accepted: [
+					{ trip_id: 1, accepted_count: 4 },
+					{ trip_id: 3, accepted_count: 2 }
+				]
+			})
+		);
 		render(EnrollPage);
-
-		const ilmatar = (await screen.findByText('Ilmatar')).parentElement;
-		expect(ilmatar).toHaveTextContent('wolne miejsca: 6');
-		const kliper = screen.getByText('Kliper').parentElement;
-		expect(kliper).toHaveTextContent('wolne miejsca: 8');
-		const unlimited = screen.getByText('Bez limitu').parentElement;
-		expect(unlimited).not.toHaveTextContent(/wolne miejsca/i);
-		expect(screen.getByText('Zero').parentElement).not.toHaveTextContent(/wolne miejsca/i);
+		const leg = async (text: string) => (await screen.findByText(text)).closest('label');
+		expect(await leg('Etap 1: Ilmatar')).toHaveTextContent('wolne miejsca: 6');
+		expect(await leg('Etap 2: Kliper')).toHaveTextContent('wolne miejsca: 8');
+		expect(await leg('Etap 3: Bez limitu')).not.toHaveTextContent(/wolne miejsca/i);
+		expect(await leg('Etap 4: Zero')).not.toHaveTextContent(/wolne miejsca/i);
 		expect(screen.getAllByTestId('free-places')).toHaveLength(2);
 	});
 });

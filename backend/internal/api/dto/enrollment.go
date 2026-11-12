@@ -99,6 +99,9 @@ type EnrollInfo struct {
 	Enrollment    *Enrollment   `json:"enrollment,omitempty"`
 	AcceptedCount int64         `json:"accepted_count"`
 	TotalCount    int64         `json:"total_count"`
+	// LegEnrollments lists the caller's per-leg (trip) enrollments for a
+	// cruise, in leg order. Empty for trip tokens.
+	LegEnrollments []Enrollment `json:"leg_enrollments,omitempty"`
 	// TripAccepted lists accepted crew per trip: the token's trip, or each
 	// cruise trip. Free places on the enroll page derive from it.
 	TripAccepted []TripAccepted `json:"trip_accepted,omitempty"`
@@ -123,6 +126,26 @@ func TripAcceptedFromDB(rows []sqlcdb.CountAcceptedByCruiseTripRow) []TripAccept
 // EnrollBody is the request payload for self-enrolling via a share token.
 type EnrollBody struct {
 	Note *string `json:"note,omitempty" doc:"Optional note to the organizer"`
+}
+
+// EnrollLegsBody is the request payload for signing up for one or more legs
+// (trips) of a cruise in one submission.
+type EnrollLegsBody struct {
+	TripIDs []int64 `json:"trip_ids" nullable:"false" minItems:"1" maxItems:"100" uniqueItems:"true" doc:"IDs of the cruise's trips (legs) to enroll in"`
+	Note    *string `json:"note,omitempty" doc:"Optional note to the organizer, copied to every leg enrollment"`
+}
+
+// EnrollLegResult is the outcome of one requested leg: a new pending
+// enrollment, or the user's existing enrollment for that leg.
+type EnrollLegResult struct {
+	TripID     int64      `json:"trip_id"`
+	Result     string     `json:"result" enum:"created,already_enrolled"`
+	Enrollment Enrollment `json:"enrollment"`
+}
+
+// EnrollLegsResponse lists one result per requested leg, in request order.
+type EnrollLegsResponse struct {
+	Results []EnrollLegResult `json:"results"`
 }
 
 // EnrollmentStatusBody updates an enrollment's review status.
@@ -162,6 +185,15 @@ func CruiseEnrollmentToDTO(e sqlcdb.CruiseEnrollment) Enrollment {
 		CreatedAt: timeVal(e.CreatedAt),
 		UpdatedAt: timeVal(e.UpdatedAt),
 	}
+}
+
+// TripEnrollmentsToDTO maps plain trip enrollment rows.
+func TripEnrollmentsToDTO(rows []sqlcdb.TripEnrollment) []Enrollment {
+	out := make([]Enrollment, len(rows))
+	for i := range rows {
+		out[i] = TripEnrollmentToDTO(rows[i])
+	}
+	return out
 }
 
 // TripEnrollmentsFromDB maps the joined trip-enrollment rows.

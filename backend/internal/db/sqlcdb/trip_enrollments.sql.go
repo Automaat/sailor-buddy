@@ -130,6 +130,41 @@ func (q *Queries) CreateTripEnrollment(ctx context.Context, arg CreateTripEnroll
 	return i, err
 }
 
+const createTripEnrollmentIfAbsent = `-- name: CreateTripEnrollmentIfAbsent :one
+INSERT INTO trip_enrollments (trip_id, user_id, note)
+VALUES ($1, $2, $3)
+ON CONFLICT (trip_id, user_id) DO NOTHING
+RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+`
+
+type CreateTripEnrollmentIfAbsentParams struct {
+	TripID int64            `json:"trip_id"`
+	UserID int64            `json:"user_id"`
+	Note   types.NullString `json:"note"`
+}
+
+// Inserts a pending trip enrollment unless the user already has one for the
+// trip; returns no row (sql.ErrNoRows) when the enrollment already exists.
+//
+//	INSERT INTO trip_enrollments (trip_id, user_id, note)
+//	VALUES ($1, $2, $3)
+//	ON CONFLICT (trip_id, user_id) DO NOTHING
+//	RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+func (q *Queries) CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTripEnrollmentIfAbsentParams) (TripEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, createTripEnrollmentIfAbsent, arg.TripID, arg.UserID, arg.Note)
+	var i TripEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.UserID,
+		&i.Note,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteTripEnrollment = `-- name: DeleteTripEnrollment :exec
 DELETE FROM trip_enrollments WHERE id = $1
 `
@@ -232,6 +267,99 @@ func (q *Queries) ListTripEnrollments(ctx context.Context, tripID int64) ([]List
 			&i.UserName,
 			&i.UserEmail,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserCruiseTripEnrollments = `-- name: ListUserCruiseTripEnrollments :many
+SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at
+FROM trip_enrollments te
+JOIN trips t ON t.id = te.trip_id
+WHERE t.cruise_id = $1 AND te.user_id = $2
+ORDER BY t.embark_date ASC, t.id ASC
+`
+
+type ListUserCruiseTripEnrollmentsParams struct {
+	CruiseID types.NullInt64 `json:"cruise_id"`
+	UserID   int64           `json:"user_id"`
+}
+
+// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+//
+//	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at
+//	FROM trip_enrollments te
+//	JOIN trips t ON t.id = te.trip_id
+//	WHERE t.cruise_id = $1 AND te.user_id = $2
+//	ORDER BY t.embark_date ASC, t.id ASC
+func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error) {
+	rows, err := q.db.QueryContext(ctx, listUserCruiseTripEnrollments, arg.CruiseID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TripEnrollment
+	for rows.Next() {
+		var i TripEnrollment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TripID,
+			&i.UserID,
+			&i.Note,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockCruiseTripStatuses = `-- name: LockCruiseTripStatuses :many
+SELECT id, status FROM trips
+WHERE cruise_id = $1
+ORDER BY id
+FOR SHARE
+`
+
+type LockCruiseTripStatusesRow struct {
+	ID     int64      `json:"id"`
+	Status TripStatus `json:"status"`
+}
+
+// Share-locks a cruise's trips for the rest of the transaction, in id order,
+// so a leg cannot be cancelled or removed between validation and insert.
+//
+//	SELECT id, status FROM trips
+//	WHERE cruise_id = $1
+//	ORDER BY id
+//	FOR SHARE
+func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, lockCruiseTripStatuses, cruiseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockCruiseTripStatusesRow
+	for rows.Next() {
+		var i LockCruiseTripStatusesRow
+		if err := rows.Scan(&i.ID, &i.Status); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

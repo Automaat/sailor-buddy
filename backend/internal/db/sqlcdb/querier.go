@@ -140,6 +140,14 @@ type Querier interface {
 	//  INSERT INTO trip_enrollments (trip_id, user_id, note)
 	//  VALUES ($1, $2, $3) RETURNING id, trip_id, user_id, note, status, created_at, updated_at
 	CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error)
+	// Inserts a pending trip enrollment unless the user already has one for the
+	// trip; returns no row (sql.ErrNoRows) when the enrollment already exists.
+	//
+	//  INSERT INTO trip_enrollments (trip_id, user_id, note)
+	//  VALUES ($1, $2, $3)
+	//  ON CONFLICT (trip_id, user_id) DO NOTHING
+	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+	CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTripEnrollmentIfAbsentParams) (TripEnrollment, error)
 	//CreateUser
 	//
 	//  INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
@@ -417,6 +425,14 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
+	// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+	//
+	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at
+	//  FROM trip_enrollments te
+	//  JOIN trips t ON t.id = te.trip_id
+	//  WHERE t.cruise_id = $1 AND te.user_id = $2
+	//  ORDER BY t.embark_date ASC, t.id ASC
+	ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error)
 	//ListUsers
 	//
 	//  SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users ORDER BY role, name, id
@@ -450,6 +466,14 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Share-locks a cruise's trips for the rest of the transaction, in id order,
+	// so a leg cannot be cancelled or removed between validation and insert.
+	//
+	//  SELECT id, status FROM trips
+	//  WHERE cruise_id = $1
+	//  ORDER BY id
+	//  FOR SHARE
+	LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error)
 	//RepointCrewAssignmentsToVoyage
 	//
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL

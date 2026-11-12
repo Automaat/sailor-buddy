@@ -44,3 +44,27 @@ ORDER BY t.id;
 -- Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 SELECT ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted')
       + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'))::BIGINT AS accepted;
+
+-- name: CreateTripEnrollmentIfAbsent :one
+-- Inserts a pending trip enrollment unless the user already has one for the
+-- trip; returns no row (sql.ErrNoRows) when the enrollment already exists.
+INSERT INTO trip_enrollments (trip_id, user_id, note)
+VALUES ($1, $2, $3)
+ON CONFLICT (trip_id, user_id) DO NOTHING
+RETURNING *;
+
+-- name: ListUserCruiseTripEnrollments :many
+-- A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+SELECT te.*
+FROM trip_enrollments te
+JOIN trips t ON t.id = te.trip_id
+WHERE t.cruise_id = $1 AND te.user_id = $2
+ORDER BY t.embark_date ASC, t.id ASC;
+
+-- name: LockCruiseTripStatuses :many
+-- Share-locks a cruise's trips for the rest of the transaction, in id order,
+-- so a leg cannot be cancelled or removed between validation and insert.
+SELECT id, status FROM trips
+WHERE cruise_id = $1
+ORDER BY id
+FOR SHARE;
