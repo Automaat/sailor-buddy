@@ -299,6 +299,50 @@ func (q *Queries) GetTripByEnrollToken(ctx context.Context, enrollToken types.Nu
 	return i, err
 }
 
+const getTripForUpdate = `-- name: GetTripForUpdate :one
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1 FOR UPDATE
+`
+
+// Row-locks the trip for the rest of the transaction. Trip completion takes
+// it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
+// then sees the trip gone instead of deadlocking with the deletes.
+//
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1 FOR UPDATE
+func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) {
+	row := q.db.QueryRowContext(ctx, getTripForUpdate, id)
+	var i Trip
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.CruiseID,
+		&i.Name,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.MaxCrew,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.Status,
+		&i.EnrollToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CaptainUserID,
+		&i.Currency,
+		&i.CostPerPersonNonMember,
+		&i.YachtFund,
+		&i.Deposit,
+	)
+	return i, err
+}
+
 const getTripStatus = `-- name: GetTripStatus :one
 SELECT status FROM trips WHERE id = $1
 `

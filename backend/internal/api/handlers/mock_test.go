@@ -168,6 +168,10 @@ func (m *mockQuerier) GetTrip(ctx context.Context, id int64) (sqlcdb.Trip, error
 	return m.getTripFn(ctx, id)
 }
 
+func (m *mockQuerier) GetTripForUpdate(ctx context.Context, id int64) (sqlcdb.Trip, error) {
+	return m.GetTrip(ctx, id)
+}
+
 func (m *mockQuerier) CreateTrip(ctx context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
 	if m.createTripFn == nil {
 		panic("unexpected call to CreateTrip")

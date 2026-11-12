@@ -12,6 +12,12 @@ INSERT INTO trips (
 -- name: GetTrip :one
 SELECT * FROM trips WHERE id = $1;
 
+-- name: GetTripForUpdate :one
+-- Row-locks the trip for the rest of the transaction. Trip completion takes
+-- it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
+-- then sees the trip gone instead of deadlocking with the deletes.
+SELECT * FROM trips WHERE id = $1 FOR UPDATE;
+
 -- name: ListTrips :many
 SELECT * FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2;
 
