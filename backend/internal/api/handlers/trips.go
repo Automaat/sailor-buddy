@@ -280,7 +280,9 @@ func completeTripTx(ctx context.Context, db *sql.DB, tripID int64, req dto.Compl
 
 	qtx := sqlcdb.New(tx)
 
-	trip, err := qtx.GetTrip(ctx, tripID)
+	// Lock the trip before any write: a concurrent leg enrollment share-locks
+	// it, and taking the lock late would deadlock with that enrollment.
+	trip, err := qtx.GetTripForUpdate(ctx, tripID)
 	if err != nil {
 		return sqlcdb.Voyage{}, err
 	}

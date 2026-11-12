@@ -326,6 +326,12 @@ type Querier interface {
 	//         description, max_crew, captain_name, image_photo_url
 	//  FROM trips WHERE enroll_token = $1
 	GetTripByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetTripByEnrollTokenRow, error)
+	// Row-locks the trip for the rest of the transaction. Trip completion takes
+	// it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
+	// then sees the trip gone instead of deadlocking with the deletes.
+	//
+	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id FROM trips WHERE id = $1 FOR UPDATE
+	GetTripForUpdate(ctx context.Context, id int64) (Trip, error)
 	//GetTripStatus
 	//
 	//  SELECT status FROM trips WHERE id = $1
