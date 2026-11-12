@@ -46,3 +46,38 @@ describe('new cruise page series fields', () => {
 		expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Solo', series_id: undefined, edition: '' }));
 	});
 });
+
+describe('new cruise page logistics fields', () => {
+	it('sends the group chat link, travel notes and minimum age', async () => {
+		render(NewCruisePage);
+		await screen.findByRole('option', { name: 'May I Sail' });
+
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'Sycylia' } });
+		await fireEvent.input(screen.getByLabelText('Link do czatu grupy'), {
+			target: { value: 'https://discord.gg/sycylia' }
+		});
+		await fireEvent.input(screen.getByLabelText('Dojazd'), { target: { value: 'Tanie loty do Katanii' } });
+		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '18' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz wydarzenie' }));
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				group_chat_url: 'https://discord.gg/sycylia',
+				travel_notes: 'Tanie loty do Katanii',
+				min_age: 18
+			})
+		);
+	});
+
+	it('omits min_age when the field is left empty', async () => {
+		render(NewCruisePage);
+		await screen.findByRole('option', { name: 'May I Sail' });
+
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'Solo' } });
+		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '18' } });
+		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz wydarzenie' }));
+
+		expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ min_age: undefined }));
+	});
+});

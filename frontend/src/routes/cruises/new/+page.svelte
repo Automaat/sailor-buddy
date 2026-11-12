@@ -2,8 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
-	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import { cruiseBody, cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
+	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
 
 	let error = $state('');
 	let loading = $state(false);
@@ -26,7 +27,10 @@
 		end_port: '',
 		max_crew: 0,
 		cost_per_person: 0,
-		description: ''
+		description: '',
+		group_chat_url: '',
+		travel_notes: '',
+		min_age: null as number | null
 	});
 
 	async function handleSubmit(e: Event) {
@@ -38,7 +42,7 @@
 		loading = true;
 		error = '';
 		try {
-			const cruise = await createCruise({ ...form, series_id: form.series_id ?? undefined });
+			const cruise = await createCruise(cruiseBody(form));
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć wydarzenia';
@@ -98,6 +102,11 @@
 				<label for="cost_pp" class="mb-1 block text-sm font-medium">Szacowany koszt / osobę</label>
 				<input id="cost_pp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
 			</div>
+			<CruiseLogisticsFields
+				bind:groupChatUrl={form.group_chat_url}
+				bind:travelNotes={form.travel_notes}
+				bind:minAge={form.min_age}
+			/>
 		</div>
 
 		<div>

@@ -120,8 +120,10 @@ type Querier interface {
 	//  INSERT INTO cruises (
 	//      created_by, name, embark_date, disembark_date, countries, start_port, end_port,
 	//      description, image_logo_url, image_photo_url, image_route_url,
-	//      max_crew, cost_per_person, kind, series_id, edition
-	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition
+	//      max_crew, cost_per_person, kind, series_id, edition,
+	//      group_chat_url, travel_notes, min_age
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+	//      $17, $18, $19) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age
 	CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error)
 	//CreateCruiseEnrollment
 	//
@@ -289,12 +291,13 @@ type Querier interface {
 	GetCrewMemberVoyages(ctx context.Context, crewMemberID int64) ([]GetCrewMemberVoyagesRow, error)
 	//GetCruise
 	//
-	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition FROM cruises WHERE id = $1
+	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
 	GetCruise(ctx context.Context, id int64) (Cruise, error)
 	//GetCruiseByEnrollToken
 	//
 	//  SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
-	//         description, image_photo_url, max_crew, cost_per_person
+	//         description, image_photo_url, max_crew, cost_per_person,
+	//         group_chat_url, travel_notes, min_age
 	//  FROM cruises WHERE enroll_token = $1
 	GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error)
 	//GetCruiseSeries
@@ -445,7 +448,7 @@ type Querier interface {
 	ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error)
 	//ListCruises
 	//
-	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
 	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
 	//ListTrainings
 	//
@@ -556,8 +559,9 @@ type Querier interface {
 	//      image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
 	//      max_crew = $11, cost_per_person = $12, kind = $13,
 	//      series_id = $14, edition = $15,
+	//      group_chat_url = $16, travel_notes = $17, min_age = $18,
 	//      updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $16
+	//  WHERE id = $19
 	UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error
 	//UpdateCruiseEnrollmentStatus
 	//

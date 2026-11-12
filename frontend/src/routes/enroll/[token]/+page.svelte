@@ -3,6 +3,7 @@
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
 	import { freePlaces, numberLegs, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
+	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
@@ -162,6 +163,13 @@
 				{#if data.cruise.description}
 					<p class="mb-4 whitespace-pre-wrap text-sm">{data.cruise.description}</p>
 				{/if}
+
+				<CruiseLogistics
+					class="mb-4"
+					groupChatUrl={data.cruise.group_chat_url}
+					travelNotes={data.cruise.travel_notes}
+					minAge={data.cruise.min_age}
+				/>
 
 				{#if legs.length > 0}
 					<fieldset class="mb-4">

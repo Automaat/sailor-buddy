@@ -1058,6 +1058,8 @@ export interface components {
             embark_date?: string;
             end_port?: string;
             enroll_token?: string;
+            /** @description Link to the crew group chat (http or https) */
+            group_chat_url?: string;
             /** Format: int64 */
             id: number;
             image_logo_url?: string;
@@ -1070,6 +1072,11 @@ export interface components {
             kind: "sea" | "inland";
             /** Format: int64 */
             max_crew?: number;
+            /**
+             * Format: int64
+             * @description Minimum crew age, shown as information only
+             */
+            min_age?: number;
             name: string;
             /**
              * Format: int64
@@ -1077,6 +1084,8 @@ export interface components {
              */
             series_id?: number;
             start_port?: string;
+            /** @description How to get there: flights, transport, meeting point */
+            travel_notes?: string;
             /** Format: date-time */
             updated_at: string;
         };
@@ -1096,6 +1105,8 @@ export interface components {
             edition?: string;
             embark_date?: string;
             end_port?: string;
+            /** @description Link to the crew group chat; must be an http or https URL, blank clears it */
+            group_chat_url?: string;
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
@@ -1107,6 +1118,11 @@ export interface components {
             kind: "sea" | "inland";
             /** Format: int64 */
             max_crew?: number;
+            /**
+             * Format: int64
+             * @description Minimum crew age, shown as information only; the app does not check it
+             */
+            min_age?: number;
             /** @description Cruise name */
             name: string;
             /**
@@ -1115,6 +1131,8 @@ export interface components {
              */
             series_id?: number;
             start_port?: string;
+            /** @description How to get there: flights, transport, meeting point; blank clears it */
+            travel_notes?: string;
         };
         CruiseEnrollmentDetail: {
             /** Format: date-time */
@@ -1219,13 +1237,22 @@ export interface components {
             disembark_date?: string;
             embark_date?: string;
             end_port?: string;
+            /** @description Link to the crew group chat; omitted for anonymous callers */
+            group_chat_url?: string;
             /** Format: int64 */
             id: number;
             image_photo_url?: string;
             /** Format: int64 */
             max_crew?: number;
+            /**
+             * Format: int64
+             * @description Minimum crew age, shown as information only
+             */
+            min_age?: number;
             name: string;
             start_port?: string;
+            /** @description How to get there: flights, transport, meeting point */
+            travel_notes?: string;
         };
         EnrollInfo: {
             /**
