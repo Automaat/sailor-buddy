@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -81,7 +82,10 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{Name: "Baltic", Kind: "sea"})
+	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+		Name: "Baltic", Kind: "sea", Currency: "PLN",
+		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)
 	}
@@ -93,6 +97,7 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 		CruiseID: types.NullInt64{Int64: cruise.ID, Valid: true},
 		Name:     "Leg 1",
 		Status:   sqlcdb.TripStatusPlanned,
+		Currency: "PLN",
 	})
 	if err != nil {
 		t.Fatalf("create trip: %v", err)
