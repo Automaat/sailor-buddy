@@ -34,20 +34,26 @@ type Querier interface {
 	//
 	//  UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1
 	ClearTripEnrollToken(ctx context.Context, id int64) error
-	// Accepted crew per trip of a cruise: direct trip enrollments plus cruise
-	// enrollments assigned to the trip.
+	// Accepted crew per trip of a cruise: distinct users with an accepted direct
+	// trip enrollment or an accepted cruise enrollment assigned to the trip.
 	//
 	//  SELECT t.id AS trip_id,
-	//      ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted')
-	//     + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'))::BIGINT AS accepted
+	//      (SELECT COUNT(*) FROM (
+	//          SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
+	//          UNION
+	//          SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'
+	//      ) accepted_users)::BIGINT AS accepted
 	//  FROM trips t
 	//  WHERE t.cruise_id = $1
 	//  ORDER BY t.id
 	CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error)
 	// Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 	//
-	//  SELECT ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted')
-	//        + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'))::BIGINT AS accepted
+	//  SELECT COUNT(*)::BIGINT AS accepted FROM (
+	//      SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
+	//      UNION
+	//      SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'
+	//  ) accepted_users
 	CountAcceptedForTrip(ctx context.Context, tripID int64) (int64, error)
 	//CountAdmins
 	//

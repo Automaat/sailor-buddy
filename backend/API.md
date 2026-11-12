@@ -269,10 +269,11 @@ Assignment body — `crew_member_id` and `role` required:
 `GET /api/enroll/{token}` returns `{"kind": "trip" \| "cruise", ...}` —
 the token may resolve to either. `404 invalid enrollment link` if unknown.
 Both kinds carry `trip_accepted`: `[{trip_id, accepted_count}]` for the
-token's trip or each child trip of the cruise. It counts accepted trip
-enrollments plus accepted cruise enrollments assigned to the trip; the enroll
-page shows free places as `max_crew` minus that count (a `max_crew` of 0 or
-null means no limit).
+token's trip or each child trip of the cruise. It counts distinct users with
+an accepted trip enrollment or an accepted cruise enrollment assigned to the
+trip; the enroll page shows free places as `max_crew` minus that count (a
+`max_crew` of 0 or null means no limit) and hides them when the count is
+missing.
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,

@@ -40,9 +40,13 @@
 	const tripAccepted = $derived(
 		new Map((data?.trip_accepted ?? []).map((t) => [t.trip_id, t.accepted_count]))
 	);
+	function placesLeft(tripId: number, maxCrew: number | null | undefined): number | null {
+		const accepted = tripAccepted.get(tripId);
+		return accepted === undefined ? null : freePlaces(maxCrew, accepted);
+	}
 	const tripFree = $derived(
 		data?.kind === 'trip'
-			? freePlaces(data.trip.max_crew, tripAccepted.get(data.trip.id) ?? data.accepted_count)
+			? placesLeft(data.trip.id, data.trip.max_crew)
 			: null
 	);
 	const loginHref = $derived(`/login?redirect=${encodeURIComponent(`/enroll/${token}`)}`);
@@ -165,7 +169,7 @@
 						<div class="space-y-1">
 							{#each legs as leg (leg.trip.id)}
 								{@const cancelled = leg.trip.status === 'cancelled'}
-								{@const free = freePlaces(leg.trip.max_crew, tripAccepted.get(leg.trip.id) ?? 0)}
+								{@const free = placesLeft(leg.trip.id, leg.trip.max_crew)}
 								<label
 									class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
 									class:opacity-60={cancelled}

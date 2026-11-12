@@ -198,7 +198,8 @@ function tripData(maxCrew: number | undefined, accepted: number) {
 		trip: { id: 1, name: 'Rejs Bałtyk', max_crew: maxCrew },
 		enrolled: false,
 		accepted_count: accepted,
-		total_count: accepted + 2
+		total_count: accepted + 2,
+		trip_accepted: [{ trip_id: 1, accepted_count: accepted }]
 	};
 }
 
@@ -235,6 +236,22 @@ describe('enroll page — free places', () => {
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 5');
 	});
 
+	it('shows nothing for a trip when the accepted count is missing', async () => {
+		resolveMock.mockResolvedValue({ ...tripData(10, 2), trip_accepted: undefined });
+		render(EnrollPage);
+		await screen.findByText('Rejs Bałtyk');
+		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
+	});
+
+	it('shows nothing for cruise legs when accepted counts are missing', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({ trips: [{ ...trip(1, 'Ilmatar', '2025-07-01'), max_crew: 10 }] })
+		);
+		render(EnrollPage);
+		await screen.findByText('Etap 1: Ilmatar');
+		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
+	});
+
 	it('shows free places per cruise leg from its accepted count', async () => {
 		resolveMock.mockResolvedValue(
 			cruiseData({
@@ -246,7 +263,9 @@ describe('enroll page — free places', () => {
 				],
 				trip_accepted: [
 					{ trip_id: 1, accepted_count: 4 },
-					{ trip_id: 3, accepted_count: 2 }
+					{ trip_id: 2, accepted_count: 0 },
+					{ trip_id: 3, accepted_count: 2 },
+					{ trip_id: 4, accepted_count: 0 }
 				]
 			})
 		);
