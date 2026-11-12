@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -65,17 +64,17 @@ func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	huma.Register(api, huma.Operation{
 		OperationID: "add-voyage-port", Method: http.MethodPost,
 		Path:    "/voyages/{voyageID}/ports",
-		Summary: "Add a visited port to a voyage (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Add a visited port to a voyage (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.add)
 	huma.Register(api, huma.Operation{
 		OperationID: "remove-voyage-port", Method: http.MethodDelete,
 		Path:    "/voyages/{voyageID}/ports/{portID}",
-		Summary: "Remove a visited port from a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Remove a visited port from a voyage (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.remove)
 	huma.Register(api, huma.Operation{
 		OperationID: "reorder-voyage-ports", Method: http.MethodPut,
 		Path:    "/voyages/{voyageID}/ports/order",
-		Summary: "Reorder a voyage's visited ports (admin)", Tags: tag,
+		Summary: "Reorder a voyage's visited ports (admin or voyage captain)", Tags: tag,
 	}, h.reorder)
 }
 
@@ -89,15 +88,8 @@ func (h *VoyagePortHandler) list(ctx context.Context, in *voyagePortListInput) (
 }
 
 func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*voyagePortOutput, error) {
-	if err := requireAdmin(ctx); err != nil {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
-	}
-	if _, err := h.q.GetVoyage(ctx, in.VoyageID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("voyage not found")
-		}
-		slog.Error("verify voyage for port", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to verify voyage")
 	}
 	port, err := h.q.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
 		VoyageID:  in.VoyageID,
@@ -114,7 +106,7 @@ func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*v
 }
 
 func (h *VoyagePortHandler) remove(ctx context.Context, in *removeVoyagePortInput) (*noContentOutput, error) {
-	if err := requireAdmin(ctx); err != nil {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
 	if err := h.q.DeleteVoyagePort(ctx, sqlcdb.DeleteVoyagePortParams{
@@ -128,15 +120,8 @@ func (h *VoyagePortHandler) remove(ctx context.Context, in *removeVoyagePortInpu
 }
 
 func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsInput) (*voyagePortListOutput, error) {
-	if err := requireAdmin(ctx); err != nil {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
-	}
-	if _, err := h.q.GetVoyage(ctx, in.VoyageID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("voyage not found")
-		}
-		slog.Error("verify voyage for reorder", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to verify voyage")
 	}
 	current, err := h.q.ListVoyagePorts(ctx, in.VoyageID)
 	if err != nil {

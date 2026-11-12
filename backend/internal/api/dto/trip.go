@@ -19,6 +19,7 @@ type Trip struct {
 	StartPort     *string   `json:"start_port,omitempty"`
 	EndPort       *string   `json:"end_port,omitempty"`
 	CaptainName   *string   `json:"captain_name,omitempty"`
+	CaptainUserID *int64    `json:"captain_user_id,omitempty"`
 	YachtID       *int64    `json:"yacht_id,omitempty"`
 	CostTotal     *float64  `json:"cost_total,omitempty"`
 	CostPerPerson *float64  `json:"cost_per_person,omitempty"`
@@ -40,7 +41,8 @@ type TripBody struct {
 	Countries     *string  `json:"countries,omitempty"`
 	StartPort     *string  `json:"start_port,omitempty"`
 	EndPort       *string  `json:"end_port,omitempty"`
-	CaptainName   *string  `json:"captain_name,omitempty"`
+	CaptainName   *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the user's name when captain_user_id is set"`
+	CaptainUserID *int64   `json:"captain_user_id,omitempty" doc:"User ID of the assigned captain (must be in the captain group)"`
 	YachtID       *int64   `json:"yacht_id,omitempty"`
 	CostTotal     *float64 `json:"cost_total,omitempty"`
 	CostPerPerson *float64 `json:"cost_per_person,omitempty"`
@@ -80,6 +82,7 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 		StartPort:     strPtr(t.StartPort),
 		EndPort:       strPtr(t.EndPort),
 		CaptainName:   strPtr(t.CaptainName),
+		CaptainUserID: intPtr(t.CaptainUserID),
 		YachtID:       intPtr(t.YachtID),
 		CostTotal:     floatPtr(t.CostTotal),
 		CostPerPerson: floatPtr(t.CostPerPerson),

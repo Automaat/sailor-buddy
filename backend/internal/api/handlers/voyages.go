@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -13,10 +16,50 @@ import (
 
 type VoyageHandler struct {
 	*crudHandlers[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
+	q sqlcdb.Querier
 }
 
 func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
-	return &VoyageHandler{crudHandlers: newCRUDHandlers(voyageCRUDConfig(q))}
+	return &VoyageHandler{crudHandlers: newCRUDHandlers(voyageCRUDConfig(q)), q: q}
+}
+
+func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput) (*noContentOutput, error) {
+	voyage, err := getVoyageForCaptain(ctx, h.q, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
+		HoursTotal:   valOrZeroFloat(in.Body.HoursTotal),
+		HoursSail:    valOrZeroFloat(in.Body.HoursSail),
+		HoursEngine:  valOrZeroFloat(in.Body.HoursEngine),
+		HoursOver6bf: valOrZeroFloat(in.Body.HoursOver6bf),
+		Miles:        valOrZeroFloat(in.Body.Miles),
+		Days:         valOrZeroInt(in.Body.Days),
+		TidalWaters:  valOrZeroInt(in.Body.TidalWaters),
+		CaptainNotes: nullString(in.Body.CaptainNotes),
+		ID:           voyage.ID,
+	}); err != nil {
+		slog.Error("update voyage log", "voyage_id", in.ID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update voyage log")
+	}
+	return &noContentOutput{}, nil
+}
+
+// getVoyageForCaptain loads a voyage and authorizes the caller as an admin or
+// its assigned captain.
+func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.Voyage, error) {
+	voyage, err := q.GetVoyage(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
+		}
+		slog.Error("get voyage", "voyage_id", id, "err", err)
+		return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
+	}
+	if err := requireAdminOrCaptain(ctx, voyage.CaptainUserID); err != nil {
+		return sqlcdb.Voyage{}, err
+	}
+	return voyage, nil
 }
 
 type voyageIDParam struct {
@@ -41,8 +84,14 @@ type cruiseVoyagesOutput struct {
 	Body []dto.Voyage
 }
 
+type updateVoyageLogInput struct {
+	ID   int64 `path:"voyageID" doc:"Voyage ID"`
+	Body dto.VoyageLogBody
+}
+
 // RegisterVoyageRoutes wires the club voyage operations onto the API. Reads are
-// open to any member; mutations require an admin.
+// open to any member; mutations require an admin, except the post-cruise log,
+// which the voyage's captain may also write.
 func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewVoyageHandler(q)
 	tag := []string{"Voyages"}
@@ -63,6 +112,10 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 		OperationID: "update-voyage", Method: http.MethodPut, Path: "/voyages/{voyageID}",
 		Summary: "Update a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.update)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-voyage-log", Method: http.MethodPut, Path: "/voyages/{voyageID}/log",
+		Summary: "Log post-cruise statistics and notes (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusNoContent,
+	}, h.updateLog)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-voyage", Method: http.MethodDelete, Path: "/voyages/{voyageID}",
 		Summary: "Delete a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
@@ -96,11 +149,28 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			return q.GetVoyage(ctx, in.ID)
 		},
 		create: func(ctx context.Context, scope crudScope, in *createVoyageInput) (sqlcdb.Voyage, error) {
-			return q.CreateVoyage(ctx, createVoyageParams(scope, in.Body))
+			params := createVoyageParams(scope, in.Body)
+			var err error
+			params.CaptainUserID, params.CaptainName, err = captainAssignment(ctx, q, types.NullInt64{}, in.Body.CaptainUserID, in.Body.CaptainName)
+			if err != nil {
+				return sqlcdb.Voyage{}, err
+			}
+			return q.CreateVoyage(ctx, params)
 		},
 		update: func(ctx context.Context, _ crudScope, in *updateVoyageInput) error {
 			params := updateVoyageParams(in.Body)
 			params.ID = in.ID
+			current, err := q.GetVoyage(ctx, in.ID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return huma.Error404NotFound("voyage not found")
+				}
+				return err
+			}
+			params.CaptainUserID, params.CaptainName, err = captainAssignment(ctx, q, current.CaptainUserID, in.Body.CaptainUserID, in.Body.CaptainName)
+			if err != nil {
+				return err
+			}
 			return q.UpdateVoyage(ctx, params)
 		},
 		delete: func(ctx context.Context, _ crudScope, in *voyageIDParam) error {

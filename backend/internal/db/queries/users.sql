@@ -45,3 +45,9 @@ SELECT * FROM users ORDER BY role, name, id;
 
 -- name: UpdateUserRole :exec
 UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
+
+-- name: UpdateUserCaptain :exec
+UPDATE users SET is_captain = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
+
+-- name: UpdateUserMembership :exec
+UPDATE users SET membership = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;

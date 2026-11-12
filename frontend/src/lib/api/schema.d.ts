@@ -319,6 +319,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/members/{userID}/captain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add or remove a member from the captain group (admin) */
+        put: operations["update-member-captain"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members/{userID}/membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a member's membership status (admin) */
+        put: operations["update-member-membership"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/members/{userID}/role": {
         parameters: {
             query?: never;
@@ -637,6 +671,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voyages/{voyageID}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Log post-cruise statistics and notes (admin or voyage captain) */
+        put: operations["update-voyage-log"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/voyages/{voyageID}/opinions": {
         parameters: {
             query?: never;
@@ -699,7 +750,7 @@ export interface paths {
         /** List a voyage's visited ports */
         get: operations["list-voyage-ports"];
         put?: never;
-        /** Add a visited port to a voyage (admin) */
+        /** Add a visited port to a voyage (admin or voyage captain) */
         post: operations["add-voyage-port"];
         delete?: never;
         options?: never;
@@ -715,7 +766,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Reorder a voyage's visited ports (admin) */
+        /** Reorder a voyage's visited ports (admin or voyage captain) */
         put: operations["reorder-voyage-ports"];
         post?: never;
         delete?: never;
@@ -734,7 +785,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a visited port from a voyage (admin) */
+        /** Remove a visited port from a voyage (admin or voyage captain) */
         delete: operations["remove-voyage-port"];
         options?: never;
         head?: never;
@@ -794,6 +845,16 @@ export interface components {
              * @description Trip ID, or null to unassign
              */
             trip_id?: number;
+        };
+        CaptainBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CaptainBody.json
+             */
+            readonly $schema?: string;
+            /** @description Whether the member belongs to the captain group */
+            is_captain: boolean;
         };
         CompleteTripBody: {
             /**
@@ -1242,6 +1303,9 @@ export interface components {
             email: string;
             /** Format: int64 */
             id: number;
+            is_captain: boolean;
+            /** @enum {string} */
+            membership: "czlonek" | "sympatyk" | "gosc";
             name: string;
             patent_number?: string;
             patent_type?: string;
@@ -1254,10 +1318,26 @@ export interface components {
             email: string;
             /** Format: int64 */
             id: number;
+            is_captain: boolean;
+            /** @enum {string} */
+            membership: "czlonek" | "sympatyk" | "gosc";
             name: string;
             patent_number?: string;
             patent_type?: string;
             role: string;
+        };
+        MembershipBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/MembershipBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description Membership status
+             * @enum {string}
+             */
+            membership: "czlonek" | "sympatyk" | "gosc";
         };
         PageCrewMember: {
             /**
@@ -1482,6 +1562,8 @@ export interface components {
              */
             readonly $schema?: string;
             captain_name?: string;
+            /** Format: int64 */
+            captain_user_id?: number;
             /** Format: double */
             cost_per_person?: number;
             /** Format: double */
@@ -1521,7 +1603,13 @@ export interface components {
              * @example /api/TripBody.json
              */
             readonly $schema?: string;
+            /** @description Free-text captain; replaced by the user's name when captain_user_id is set */
             captain_name?: string;
+            /**
+             * Format: int64
+             * @description User ID of the assigned captain (must be in the captain group)
+             */
+            captain_user_id?: number;
             /** Format: double */
             cost_per_person?: number;
             /** Format: double */
@@ -1594,6 +1682,9 @@ export interface components {
              */
             readonly $schema?: string;
             captain_name?: string;
+            captain_notes?: string;
+            /** Format: int64 */
+            captain_user_id?: number;
             /** Format: double */
             cost_per_person?: number;
             /** Format: double */
@@ -1644,7 +1735,13 @@ export interface components {
              * @example /api/VoyageBody.json
              */
             readonly $schema?: string;
+            /** @description Free-text captain; replaced by the user's name when captain_user_id is set */
             captain_name?: string;
+            /**
+             * Format: int64
+             * @description User ID of the assigned captain (must be in the captain group)
+             */
+            captain_user_id?: number;
             /** Format: double */
             cost_per_person?: number;
             /** Format: double */
@@ -1680,6 +1777,30 @@ export interface components {
             yacht_id?: number;
             /** Format: int64 */
             year?: number;
+        };
+        VoyageLogBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/VoyageLogBody.json
+             */
+            readonly $schema?: string;
+            /** @description Captain's note on the cruise */
+            captain_notes?: string;
+            /** Format: int64 */
+            days?: number;
+            /** Format: double */
+            hours_engine?: number;
+            /** Format: double */
+            hours_over_6bf?: number;
+            /** Format: double */
+            hours_sail?: number;
+            /** Format: double */
+            hours_total?: number;
+            /** Format: double */
+            miles?: number;
+            /** Format: int64 */
+            tidal_waters?: number;
         };
         VoyageOpinion: {
             /**
@@ -2687,6 +2808,74 @@ export interface operations {
             };
         };
     };
+    "update-member-captain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID */
+                userID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptainBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-member-membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User ID */
+                userID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "update-member-role": {
         parameters: {
             query?: never;
@@ -3660,6 +3849,40 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-voyage-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoyageLogBody"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {

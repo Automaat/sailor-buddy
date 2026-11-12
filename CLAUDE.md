@@ -23,7 +23,7 @@ backend/
     auth/firebase.go         # Firebase client + Claims
     config/config.go         # env-based config
     db/db.go                # PostgreSQL connection + migration runner
-    db/migrations/           # SQL migration files (001-012)
+    db/migrations/           # SQL migration files (001-013)
     db/queries/              # sqlc SQL query files
     db/sqlcdb/               # generated sqlc Go code (DO NOT EDIT)
 frontend/
@@ -87,7 +87,13 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - Single club: all sailing data (cruises, trips, voyages, yachts, crew) is
   club-wide and shared. No per-user/per-org scoping.
 - Roles on `users.role` (`admin`|`member`); first registered user becomes
-  admin. Reads open to any member; mutations require admin (`requireAdmin`).
+  admin. Admins are the board (Zarząd) and the Opiekun. Reads open to any
+  member; mutations require admin (`requireAdmin`).
+- Captains: `users.is_captain` (admin-curated captain group; requires
+  `membership = czlonek` and a patent number). The voyage's assigned captain
+  (`captain_user_id`) may write its post-cruise log and ports
+  (`requireAdminOrCaptain`). Captain is not a role — keep it off `users.role`.
+- `users.membership`: `czlonek` | `sympatyk` | `gosc` (club statute).
 - Trainings are the exception — a per-member log scoped by `user_id`.
 - crew_members decoupled from users (crew may not have accounts)
 - Go code must pass `gofumpt` formatting

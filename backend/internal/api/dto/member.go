@@ -13,6 +13,8 @@ type Member struct {
 	Email        string    `json:"email"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
 	Role         string    `json:"role"`
+	IsCaptain    bool      `json:"is_captain"`
+	Membership   string    `json:"membership" enum:"czlonek,sympatyk,gosc"`
 	PatentType   *string   `json:"patent_type,omitempty"`
 	PatentNumber *string   `json:"patent_number,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -23,6 +25,18 @@ type RoleBody struct {
 	Role string `json:"role" enum:"admin,member" doc:"New role"`
 }
 
+// CaptainBody is the request payload for adding or removing a member from
+// the club's captain group.
+type CaptainBody struct {
+	IsCaptain bool `json:"is_captain" doc:"Whether the member belongs to the captain group"`
+}
+
+// MembershipBody is the request payload for changing a member's status:
+// czlonek (AGH student member), sympatyk (non-AGH student), gosc (guest).
+type MembershipBody struct {
+	Membership string `json:"membership" enum:"czlonek,sympatyk,gosc" doc:"Membership status"`
+}
+
 // MemberFromUser maps a stored user row onto the member DTO.
 func MemberFromUser(u sqlcdb.User) Member {
 	return Member{
@@ -31,6 +45,8 @@ func MemberFromUser(u sqlcdb.User) Member {
 		Email:        u.Email,
 		AvatarURL:    strPtr(u.AvatarUrl),
 		Role:         u.Role,
+		IsCaptain:    u.IsCaptain,
+		Membership:   u.Membership,
 		PatentType:   strPtr(u.PatentType),
 		PatentNumber: strPtr(u.PatentNumber),
 		CreatedAt:    timeVal(u.CreatedAt),

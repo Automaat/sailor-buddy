@@ -120,6 +120,7 @@ func TestVoyageHandler_Create(t *testing.T) {
 func TestVoyageHandler_Update(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
+			getVoyageFn:    func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			updateVoyageFn: func(context.Context, sqlcdb.UpdateVoyageParams) error { return nil },
 		}
 		resp := voyageTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/1", map[string]any{"name": "Renamed"})
@@ -137,6 +138,7 @@ func TestVoyageHandler_Update(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
+			getVoyageFn:    func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			updateVoyageFn: func(context.Context, sqlcdb.UpdateVoyageParams) error { return errors.New("fail") },
 		}
 		resp := voyageTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/1", map[string]any{"name": "X"})

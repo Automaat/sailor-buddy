@@ -31,8 +31,8 @@ INSERT INTO voyages (
     captain_name, yacht_id,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
     cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at
+    image_logo_url, image_photo_url, image_route_url, description, captain_user_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes
 `
 
 type CreateVoyageParams struct {
@@ -60,6 +60,7 @@ type CreateVoyageParams struct {
 	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
 	ImageRouteUrl types.NullString  `json:"image_route_url"`
 	Description   types.NullString  `json:"description"`
+	CaptainUserID types.NullInt64   `json:"captain_user_id"`
 }
 
 // CreateVoyage
@@ -69,8 +70,8 @@ type CreateVoyageParams struct {
 //	    captain_name, yacht_id,
 //	    hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
 //	    cost_total, cost_per_person,
-//	    image_logo_url, image_photo_url, image_route_url, description
-//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at
+//	    image_logo_url, image_photo_url, image_route_url, description, captain_user_id
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes
 func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voyage, error) {
 	row := q.db.QueryRowContext(ctx, createVoyage,
 		arg.CreatedBy,
@@ -97,6 +98,7 @@ func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voy
 		arg.ImagePhotoUrl,
 		arg.ImageRouteUrl,
 		arg.Description,
+		arg.CaptainUserID,
 	)
 	var i Voyage
 	err := row.Scan(
@@ -127,6 +129,8 @@ func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voy
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CaptainUserID,
+		&i.CaptainNotes,
 	)
 	return i, err
 }
@@ -188,12 +192,12 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 }
 
 const getVoyage = `-- name: GetVoyage :one
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at FROM voyages WHERE id = $1
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE id = $1
 `
 
 // GetVoyage
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at FROM voyages WHERE id = $1
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE id = $1
 func (q *Queries) GetVoyage(ctx context.Context, id int64) (Voyage, error) {
 	row := q.db.QueryRowContext(ctx, getVoyage, id)
 	var i Voyage
@@ -225,6 +229,8 @@ func (q *Queries) GetVoyage(ctx context.Context, id int64) (Voyage, error) {
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CaptainUserID,
+		&i.CaptainNotes,
 	)
 	return i, err
 }
@@ -286,7 +292,7 @@ func (q *Queries) GetVoyagesByYear(ctx context.Context) ([]GetVoyagesByYearRow, 
 }
 
 const listVoyages = `-- name: ListVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
 `
 
 type ListVoyagesParams struct {
@@ -296,7 +302,7 @@ type ListVoyagesParams struct {
 
 // ListVoyages
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
 func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error) {
 	rows, err := q.db.QueryContext(ctx, listVoyages, arg.Limit, arg.Offset)
 	if err != nil {
@@ -334,6 +340,8 @@ func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voy
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CaptainUserID,
+			&i.CaptainNotes,
 		); err != nil {
 			return nil, err
 		}
@@ -356,9 +364,9 @@ UPDATE voyages SET
     miles = $14, days = $15, tidal_waters = $16,
     cost_total = $17, cost_per_person = $18,
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
-    cruise_id = $23,
+    cruise_id = $23, captain_user_id = $24,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $24
+WHERE id = $25
 `
 
 type UpdateVoyageParams struct {
@@ -385,6 +393,7 @@ type UpdateVoyageParams struct {
 	ImageRouteUrl types.NullString  `json:"image_route_url"`
 	Description   types.NullString  `json:"description"`
 	CruiseID      types.NullInt64   `json:"cruise_id"`
+	CaptainUserID types.NullInt64   `json:"captain_user_id"`
 	ID            int64             `json:"id"`
 }
 
@@ -397,9 +406,9 @@ type UpdateVoyageParams struct {
 //	    miles = $14, days = $15, tidal_waters = $16,
 //	    cost_total = $17, cost_per_person = $18,
 //	    image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
-//	    cruise_id = $23,
+//	    cruise_id = $23, captain_user_id = $24,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $24
+//	WHERE id = $25
 func (q *Queries) UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) error {
 	_, err := q.db.ExecContext(ctx, updateVoyage,
 		arg.Name,
@@ -425,6 +434,49 @@ func (q *Queries) UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) erro
 		arg.ImageRouteUrl,
 		arg.Description,
 		arg.CruiseID,
+		arg.CaptainUserID,
+		arg.ID,
+	)
+	return err
+}
+
+const updateVoyageLog = `-- name: UpdateVoyageLog :exec
+UPDATE voyages SET
+    hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
+    miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $9
+`
+
+type UpdateVoyageLogParams struct {
+	HoursTotal   float64          `json:"hours_total"`
+	HoursSail    float64          `json:"hours_sail"`
+	HoursEngine  float64          `json:"hours_engine"`
+	HoursOver6bf float64          `json:"hours_over_6bf"`
+	Miles        float64          `json:"miles"`
+	Days         int64            `json:"days"`
+	TidalWaters  int64            `json:"tidal_waters"`
+	CaptainNotes types.NullString `json:"captain_notes"`
+	ID           int64            `json:"id"`
+}
+
+// UpdateVoyageLog
+//
+//	UPDATE voyages SET
+//	    hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
+//	    miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
+//	    updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $9
+func (q *Queries) UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) error {
+	_, err := q.db.ExecContext(ctx, updateVoyageLog,
+		arg.HoursTotal,
+		arg.HoursSail,
+		arg.HoursEngine,
+		arg.HoursOver6bf,
+		arg.Miles,
+		arg.Days,
+		arg.TidalWaters,
+		arg.CaptainNotes,
 		arg.ID,
 	)
 	return err

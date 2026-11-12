@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -17,6 +18,8 @@
 			goto(`/voyages/${page.params.id}`);
 		}
 	});
+
+	let legacyCaptainName = $state('');
 
 	let form = $state({
 		name: '',
@@ -32,7 +35,7 @@
 		hours_over_6bf: 0,
 		miles: 0,
 		days: 0,
-		captain_name: '',
+		captain_user_id: 0,
 		yacht_id: 0,
 		tidal_waters: false,
 		cost_total: 0,
@@ -46,6 +49,7 @@
 		try {
 			const [voyage, y] = await Promise.all([getVoyage(id), listYachts()]);
 			yachts = y;
+			legacyCaptainName = voyage.captain_user_id ? '' : (voyage.captain_name ?? '');
 			form = {
 				name: voyage.name,
 				year: voyage.year ?? 0,
@@ -60,7 +64,7 @@
 				hours_over_6bf: voyage.hours_over_6bf,
 				miles: voyage.miles,
 				days: voyage.days,
-				captain_name: voyage.captain_name ?? '',
+				captain_user_id: voyage.captain_user_id ?? 0,
 				yacht_id: voyage.yacht_id ?? 0,
 				tidal_waters: voyage.tidal_waters > 0,
 				cost_total: voyage.cost_total ?? 0,
@@ -82,7 +86,11 @@
 			const payload = {
 				...form,
 				tidal_waters: form.tidal_waters ? 1 : 0,
-				yacht_id: form.yacht_id || undefined
+				yacht_id: form.yacht_id || undefined,
+				// captain_name of a linked captain is the server's snapshot, so only a
+				// legacy free-text name survives clearing the captain.
+				captain_user_id: form.captain_user_id || undefined,
+				captain_name: form.captain_user_id ? undefined : legacyCaptainName || undefined
 			};
 			await updateVoyage(id, payload);
 			goto(`/voyages/${id}`);
@@ -145,7 +153,7 @@
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-					<input id="captain" type="text" bind:value={form.captain_name} class="w-full rounded-lg border px-3 py-2" />
+					<CaptainSelect bind:value={form.captain_user_id} legacyName={legacyCaptainName} />
 				</div>
 			</div>
 

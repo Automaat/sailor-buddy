@@ -104,6 +104,10 @@ export function deleteVoyage(id: number) {
 	return api.del('/voyages/{voyageID}', { path: { voyageID: id } });
 }
 
+export function updateVoyageLog(id: number, body: Schemas['VoyageLogBody']) {
+	return api.put('/voyages/{voyageID}/log', { path: { voyageID: id }, body });
+}
+
 export function listVoyageCrew(id: number) {
 	return api.get('/voyages/{voyageID}/crew', { path: { voyageID: id } });
 }
@@ -293,6 +297,17 @@ export function listMembers() {
 
 export function updateMemberRole(userID: number, role: Schemas['RoleBody']['role']) {
 	return api.put('/members/{userID}/role', { path: { userID }, body: { role } });
+}
+
+export function updateMemberCaptain(userID: number, isCaptain: boolean) {
+	return api.put('/members/{userID}/captain', { path: { userID }, body: { is_captain: isCaptain } });
+}
+
+export function updateMemberMembership(
+	userID: number,
+	membership: Schemas['MembershipBody']['membership']
+) {
+	return api.put('/members/{userID}/membership', { path: { userID }, body: { membership } });
 }
 
 // ---- account, enrollment, import -------------------------------------------

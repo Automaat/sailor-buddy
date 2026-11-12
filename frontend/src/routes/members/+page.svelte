@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
-	import { listMembers, updateMemberRole } from '#lib/api/routes.js';
+	import {
+		listMembers,
+		updateMemberRole,
+		updateMemberCaptain,
+		updateMemberMembership
+	} from '#lib/api/routes.js';
 	import type { Member } from '#lib/api/types.js';
 	import Users from '@lucide/svelte/icons/users';
 
@@ -47,13 +52,58 @@
 			savingId = null;
 		}
 	}
+
+	const membershipLabels: Record<Member['membership'], string> = {
+		czlonek: 'Członek',
+		sympatyk: 'Sympatyk',
+		gosc: 'Gość'
+	};
+
+	// Captains must be club members with a patent number on their account;
+	// the server enforces this, the hint explains a disabled toggle.
+	function captainBlocker(member: Member): string {
+		if (member.is_captain) return '';
+		if (member.membership !== 'czlonek') return 'Kapitanem może być tylko członek klubu';
+		if (!member.patent_number) return 'Brak numeru patentu na koncie';
+		return '';
+	}
+
+	async function setCaptain(member: Member, isCaptain: boolean) {
+		savingId = member.id;
+		error = '';
+		try {
+			await updateMemberCaptain(member.id, isCaptain);
+			members = members.map((m) => (m.id === member.id ? { ...m, is_captain: isCaptain } : m));
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Nie udało się zmienić statusu kapitana';
+			members = [...members];
+		} finally {
+			savingId = null;
+		}
+	}
+
+	async function setMembership(member: Member, membership: Member['membership']) {
+		if (member.membership === membership) return;
+		savingId = member.id;
+		error = '';
+		try {
+			await updateMemberMembership(member.id, membership);
+			members = members.map((m) => (m.id === member.id ? { ...m, membership } : m));
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Nie udało się zmienić statusu członkostwa';
+			members = [...members];
+		} finally {
+			savingId = null;
+		}
+	}
 </script>
 
 <div>
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Członkowie</h1>
 		<p class="mt-1 text-sm text-[var(--text-muted)]">
-			Każdy zalogowany użytkownik dołącza automatycznie. Administratorzy zarządzają danymi klubu.
+			Każdy zalogowany użytkownik dołącza automatycznie. Administratorzy (zarząd i opiekun) zarządzają
+			danymi klubu, a kapitanowie z kadry uzupełniają raporty po swoich rejsach.
 		</p>
 	</div>
 
@@ -76,12 +126,15 @@
 						<th class="p-4">Imię i nazwisko</th>
 						<th class="p-4">E-mail</th>
 						<th class="p-4">Rola</th>
+						<th class="p-4">Członkostwo</th>
+						<th class="p-4">Kadra kapitańska</th>
 						<th class="p-4">Akcje</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each members as member}
 						{@const isLastAdmin = member.role === 'admin' && adminCount <= 1}
+						{@const blocker = captainBlocker(member)}
 						<tr class="border-b border-gray-50">
 							<td class="p-4 font-medium text-[var(--navy)]">{member.name}</td>
 							<td class="p-4 text-[var(--text-muted)]">{member.email}</td>
@@ -91,8 +144,37 @@
 										? 'bg-blue-100 text-blue-700'
 										: 'bg-gray-100 text-gray-600'}"
 								>
-									{member.role === 'admin' ? 'Administrator' : 'Członek'}
+									{member.role === 'admin' ? 'Administrator' : 'Użytkownik'}
 								</span>
+							</td>
+							<td class="p-4">
+								<select
+									aria-label="Członkostwo: {member.name}"
+									value={member.membership}
+									disabled={savingId === member.id}
+									onchange={(e) =>
+										setMembership(member, e.currentTarget.value as Member['membership'])}
+									class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+								>
+									{#each Object.entries(membershipLabels) as [value, label]}
+										<option {value}>{label}</option>
+									{/each}
+								</select>
+							</td>
+							<td class="p-4">
+								<label class="flex items-center gap-2 text-xs" title={blocker}>
+									<input
+										type="checkbox"
+										aria-label="Kapitan: {member.name}"
+										checked={member.is_captain}
+										disabled={savingId === member.id || !!blocker}
+										onchange={(e) => setCaptain(member, e.currentTarget.checked)}
+									/>
+									{member.is_captain ? 'Kapitan' : '—'}
+								</label>
+								{#if blocker}
+									<p class="mt-1 text-[10px] text-[var(--text-muted)]">{blocker}</p>
+								{/if}
 							</td>
 							<td class="p-4">
 								{#if member.role === 'admin'}

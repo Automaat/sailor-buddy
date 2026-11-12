@@ -130,6 +130,10 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	captainID, captainName, err := captainAssignment(ctx, h.q, types.NullInt64{}, in.Body.CaptainUserID, in.Body.CaptainName)
+	if err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 	trip, err := h.q.CreateTrip(ctx, sqlcdb.CreateTripParams{
 		CreatedBy:     types.NullInt64{Int64: user.UserID, Valid: true},
@@ -140,7 +144,8 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		Countries:     nullString(in.Body.Countries),
 		StartPort:     nullString(in.Body.StartPort),
 		EndPort:       nullString(in.Body.EndPort),
-		CaptainName:   nullString(in.Body.CaptainName),
+		CaptainName:   captainName,
+		CaptainUserID: captainID,
 		YachtID:       nullInt64(in.Body.YachtID),
 		CostTotal:     nullFloat64(in.Body.CostTotal),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
@@ -162,6 +167,18 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	current, err := h.q.GetTrip(ctx, in.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("trip not found")
+		}
+		slog.Error("get trip for update", "trip_id", in.ID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update trip")
+	}
+	captainID, captainName, err := captainAssignment(ctx, h.q, current.CaptainUserID, in.Body.CaptainUserID, in.Body.CaptainName)
+	if err != nil {
+		return nil, err
+	}
 	if err := h.q.UpdateTrip(ctx, sqlcdb.UpdateTripParams{
 		Name:          in.Body.Name,
 		EmbarkDate:    nullString(in.Body.EmbarkDate),
@@ -169,7 +186,8 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		Countries:     nullString(in.Body.Countries),
 		StartPort:     nullString(in.Body.StartPort),
 		EndPort:       nullString(in.Body.EndPort),
-		CaptainName:   nullString(in.Body.CaptainName),
+		CaptainName:   captainName,
+		CaptainUserID: captainID,
 		YachtID:       nullInt64(in.Body.YachtID),
 		CostTotal:     nullFloat64(in.Body.CostTotal),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
@@ -312,6 +330,7 @@ func createVoyageFromTrip(ctx context.Context, qtx *sqlcdb.Queries, trip sqlcdb.
 		StartPort:     trip.StartPort,
 		EndPort:       trip.EndPort,
 		CaptainName:   trip.CaptainName,
+		CaptainUserID: trip.CaptainUserID,
 		YachtID:       trip.YachtID,
 		HoursTotal:    valOrZeroFloat(req.HoursTotal),
 		HoursSail:     valOrZeroFloat(req.HoursSail),

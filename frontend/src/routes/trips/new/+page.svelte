@@ -5,6 +5,7 @@
 	import { listCruises, createTrip } from '#lib/api/routes.js';
 	import type { Cruise } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
+	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 
 	let cruises = $state<Cruise[]>([]);
 	let error = $state('');
@@ -31,9 +32,19 @@
 		start_port: '',
 		end_port: '',
 		cruise_id: 0,
+		captain_user_id: 0,
 		cost_per_person: 0,
 		max_crew: 0,
 		description: ''
+	});
+
+	// A captain planning their own trip is preselected, once, so picking
+	// "Brak" afterwards sticks.
+	let captainDefaulted = false;
+	$effect(() => {
+		if (captainDefaulted || !auth.user) return;
+		captainDefaulted = true;
+		if (auth.user.is_captain) form.captain_user_id = auth.user.id;
 	});
 
 	onMount(async () => {
@@ -58,9 +69,7 @@
 		try {
 			const payload = {
 				...form,
-				// The planning user is the captain by default; fall back to the
-				// Firebase display name if the DB user has not loaded yet.
-				captain_name: auth.user?.name ?? auth.firebaseUser?.displayName ?? undefined,
+				captain_user_id: form.captain_user_id || undefined,
 				cruise_id: form.cruise_id || undefined
 			};
 			const trip = await createTrip(payload);
@@ -97,6 +106,10 @@
 					</select>
 				</div>
 			{/if}
+			<div class="col-span-2">
+				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
+				<CaptainSelect bind:value={form.captain_user_id} />
+			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
 				<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />

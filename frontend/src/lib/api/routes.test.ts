@@ -123,6 +123,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		args: ['/voyages/{voyageID}', { path: { voyageID: 5 } }]
 	},
 	{
+		name: 'updateVoyageLog',
+		run: () => routes.updateVoyageLog(5, body),
+		verb: 'put',
+		args: ['/voyages/{voyageID}/log', { path: { voyageID: 5 }, body }]
+	},
+	{
 		name: 'createVoyage',
 		run: () => routes.createVoyage(body),
 		verb: 'post',
@@ -345,6 +351,18 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		run: () => routes.updateMemberRole(7, 'admin'),
 		verb: 'put',
 		args: ['/members/{userID}/role', { path: { userID: 7 }, body: { role: 'admin' } }]
+	},
+	{
+		name: 'updateMemberCaptain',
+		run: () => routes.updateMemberCaptain(7, true),
+		verb: 'put',
+		args: ['/members/{userID}/captain', { path: { userID: 7 }, body: { is_captain: true } }]
+	},
+	{
+		name: 'updateMemberMembership',
+		run: () => routes.updateMemberMembership(7, 'sympatyk'),
+		verb: 'put',
+		args: ['/members/{userID}/membership', { path: { userID: 7 }, body: { membership: 'sympatyk' } }]
 	},
 
 	{ name: 'getMe', run: () => routes.getMe(), verb: 'get', args: ['/auth/me'] },

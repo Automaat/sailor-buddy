@@ -158,7 +158,7 @@ func (q *Queries) GetCrewMemberStats(ctx context.Context, crewMemberID int64) (G
 }
 
 const getCrewMemberTrips = `-- name: GetCrewMemberTrips :many
-SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, ca.role
+SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, ca.role
 FROM crew_assignments ca
 JOIN trips t ON t.id = ca.trip_id
 WHERE ca.crew_member_id = $1
@@ -188,12 +188,13 @@ type GetCrewMemberTripsRow struct {
 	EnrollToken   types.NullString  `json:"enroll_token"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
+	CaptainUserID types.NullInt64   `json:"captain_user_id"`
 	Role          string            `json:"role"`
 }
 
 // GetCrewMemberTrips
 //
-//	SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, ca.role
+//	SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, ca.role
 //	FROM crew_assignments ca
 //	JOIN trips t ON t.id = ca.trip_id
 //	WHERE ca.crew_member_id = $1
@@ -230,6 +231,7 @@ func (q *Queries) GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([
 			&i.EnrollToken,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CaptainUserID,
 			&i.Role,
 		); err != nil {
 			return nil, err
@@ -246,7 +248,7 @@ func (q *Queries) GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([
 }
 
 const getCrewMemberVoyages = `-- name: GetCrewMemberVoyages :many
-SELECT v.id, v.created_by, v.cruise_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, ca.role
+SELECT v.id, v.created_by, v.cruise_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, v.captain_user_id, v.captain_notes, ca.role
 FROM crew_assignments ca
 JOIN voyages v ON v.id = ca.voyage_id
 WHERE ca.crew_member_id = $1
@@ -281,12 +283,14 @@ type GetCrewMemberVoyagesRow struct {
 	Description   types.NullString  `json:"description"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
+	CaptainUserID types.NullInt64   `json:"captain_user_id"`
+	CaptainNotes  types.NullString  `json:"captain_notes"`
 	Role          string            `json:"role"`
 }
 
 // GetCrewMemberVoyages
 //
-//	SELECT v.id, v.created_by, v.cruise_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, ca.role
+//	SELECT v.id, v.created_by, v.cruise_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, v.captain_user_id, v.captain_notes, ca.role
 //	FROM crew_assignments ca
 //	JOIN voyages v ON v.id = ca.voyage_id
 //	WHERE ca.crew_member_id = $1
@@ -328,6 +332,8 @@ func (q *Queries) GetCrewMemberVoyages(ctx context.Context, crewMemberID int64) 
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CaptainUserID,
+			&i.CaptainNotes,
 			&i.Role,
 		); err != nil {
 			return nil, err
