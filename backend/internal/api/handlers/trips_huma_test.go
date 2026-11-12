@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 // tripTestAPI builds a huma test API with the trip routes registered against
@@ -156,5 +158,74 @@ func TestCreateTrip_Huma_MemberForbidden(t *testing.T) {
 		userCtxRole(context.Background(), "member"), "/trips", map[string]any{"name": "X"})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403; body=%s", resp.Code, resp.Body)
+	}
+}
+
+func TestCreateTrip_Huma_MaxCrewFromBerths(t *testing.T) {
+	yachtWithBerths := func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
+		if id != 4 {
+			return sqlcdb.Yacht{}, sql.ErrNoRows
+		}
+		return sqlcdb.Yacht{ID: 4, Name: "Ilmatar", Berths: types.NullInt64{Int64: 10, Valid: true}}, nil
+	}
+	cases := []struct {
+		name    string
+		body    map[string]any
+		yacht   func(context.Context, int64) (sqlcdb.Yacht, error)
+		want    types.NullInt64
+		wantRes int
+	}{
+		{
+			name: "defaults to yacht berths", body: map[string]any{"name": "B", "yacht_id": 4},
+			yacht: yachtWithBerths, want: types.NullInt64{Int64: 10, Valid: true}, wantRes: http.StatusCreated,
+		},
+		{
+			name: "explicit max_crew kept", body: map[string]any{"name": "B", "yacht_id": 4, "max_crew": 6},
+			want: types.NullInt64{Int64: 6, Valid: true}, wantRes: http.StatusCreated,
+		},
+		{
+			name: "yacht without berths leaves limit empty", body: map[string]any{"name": "B", "yacht_id": 4},
+			yacht: func(context.Context, int64) (sqlcdb.Yacht, error) { return sqlcdb.Yacht{ID: 4}, nil },
+			want:  types.NullInt64{}, wantRes: http.StatusCreated,
+		},
+		{
+			name: "zero max_crew means no limit and defaults to berths", body: map[string]any{"name": "B", "yacht_id": 4, "max_crew": 0},
+			yacht: yachtWithBerths, want: types.NullInt64{Int64: 10, Valid: true}, wantRes: http.StatusCreated,
+		},
+		{
+			name: "no yacht leaves limit empty", body: map[string]any{"name": "B"},
+			want: types.NullInt64{}, wantRes: http.StatusCreated,
+		},
+		{
+			name: "unknown yacht", body: map[string]any{"name": "B", "yacht_id": 9},
+			yacht: yachtWithBerths, wantRes: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "yacht lookup error", body: map[string]any{"name": "B", "yacht_id": 4},
+			yacht:   func(context.Context, int64) (sqlcdb.Yacht, error) { return sqlcdb.Yacht{}, errors.New("fail") },
+			wantRes: http.StatusInternalServerError,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got sqlcdb.CreateTripParams
+			m := &mockQuerier{
+				getYachtFn: tc.yacht,
+				createTripFn: func(_ context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
+					got = arg
+					return sqlcdb.Trip{ID: 1, Name: arg.Name, MaxCrew: arg.MaxCrew, Status: sqlcdb.TripStatusPlanned}, nil
+				},
+			}
+			resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", tc.body)
+			if resp.Code != tc.wantRes {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tc.wantRes, resp.Body)
+			}
+			if tc.wantRes != http.StatusCreated {
+				return
+			}
+			if got.MaxCrew != tc.want {
+				t.Fatalf("max_crew = %+v, want %+v", got.MaxCrew, tc.want)
+			}
+		})
 	}
 }

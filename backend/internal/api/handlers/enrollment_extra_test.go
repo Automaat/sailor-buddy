@@ -3,12 +3,14 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -28,6 +30,12 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
 				return []sqlcdb.Trip{{ID: 1, Name: "Leg"}}, nil
 			},
+			countAcceptedByCruiseTripFn: func(_ context.Context, cid types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+				if cid.Int64 != 7 {
+					t.Fatalf("cruise id = %d, want 7", cid.Int64)
+				}
+				return []sqlcdb.CountAcceptedByCruiseTripRow{{TripID: 1, Accepted: 2}}, nil
+			},
 			listUserCruiseTripEnrollFn: func(context.Context, sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {
 				return nil, nil
 			},
@@ -38,6 +46,13 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 		resp := enrollTestAPI(t, m).GetCtx(userCtx(context.Background()), "/enroll/tok")
 		if resp.Code != http.StatusOK {
 			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		var info dto.EnrollInfo
+		if err := json.Unmarshal(resp.Body.Bytes(), &info); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(info.TripAccepted) != 1 || info.TripAccepted[0] != (dto.TripAccepted{TripID: 1, AcceptedCount: 2}) {
+			t.Fatalf("trip_accepted = %+v, want [{1 2}]", info.TripAccepted)
 		}
 	})
 
@@ -53,6 +68,9 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 				return sqlcdb.CountCruiseEnrollmentsRow{}, nil
 			},
 			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+				return nil, errors.New("fail")
+			},
+			countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
 				return nil, errors.New("fail")
 			},
 			listUserCruiseTripEnrollFn: func(context.Context, sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {

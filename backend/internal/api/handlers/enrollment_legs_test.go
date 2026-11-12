@@ -50,6 +50,9 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 			}
 			return trips, nil
 		},
+		countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+			return nil, nil
+		},
 		getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
 		},
