@@ -16,6 +16,7 @@
 	import type { Cruise, CruiseSeries, Trip, Voyage, CruiseEnrollment } from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import NotFound from '#lib/components/NotFound.svelte';
+	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { statusLabels } from '#lib/enrollment.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -171,6 +172,17 @@
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Opis</h2>
 				<p class="whitespace-pre-wrap text-sm">{cruise.description}</p>
+			</div>
+		{/if}
+
+		{#if cruise.travel_notes || cruise.min_age != null || cruise.group_chat_url}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Informacje dla załogi</h2>
+				<CruiseLogistics
+					groupChatUrl={cruise.group_chat_url}
+					travelNotes={cruise.travel_notes}
+					minAge={cruise.min_age}
+				/>
 			</div>
 		{/if}
 

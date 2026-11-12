@@ -278,3 +278,42 @@ describe('enroll page — free places', () => {
 		expect(screen.getAllByTestId('free-places')).toHaveLength(2);
 	});
 });
+
+describe('enroll page — cruise logistics', () => {
+	it('shows travel notes, minimum age and the group chat link', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				cruise: {
+					id: 7,
+					name: 'NNE 2025',
+					travel_notes: 'Tanie loty do Katanii',
+					min_age: 18,
+					group_chat_url: 'https://discord.gg/nne'
+				}
+			})
+		);
+		render(EnrollPage);
+
+		expect(await screen.findByText('Tanie loty do Katanii')).toBeInTheDocument();
+		expect(screen.getByText('18+')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Czat grupy' })).toHaveAttribute('href', 'https://discord.gg/nne');
+	});
+
+	it('shows no logistics when none are set', async () => {
+		render(EnrollPage);
+
+		await screen.findByText('Etap 1: Bodø – Tromsø');
+		expect(screen.queryByTestId('cruise-logistics')).not.toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
+	});
+
+	it('does not link a group chat URL that is not http or https', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({ cruise: { id: 7, name: 'NNE 2025', group_chat_url: 'javascript:alert(1)' } })
+		);
+		render(EnrollPage);
+
+		await screen.findByText('Etap 1: Bodø – Tromsø');
+		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
+	});
+});

@@ -101,6 +101,9 @@ type Cruise struct {
 	Kind          string            `json:"kind"`
 	SeriesID      types.NullInt64   `json:"series_id"`
 	Edition       types.NullString  `json:"edition"`
+	GroupChatUrl  types.NullString  `json:"group_chat_url"`
+	TravelNotes   types.NullString  `json:"travel_notes"`
+	MinAge        types.NullInt64   `json:"min_age"`
 }
 
 type CruiseEnrollment struct {
