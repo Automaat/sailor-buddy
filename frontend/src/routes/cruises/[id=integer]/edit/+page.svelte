@@ -6,6 +6,8 @@
 	import { onMount } from 'svelte';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
+	import PriceFields from '#lib/components/PriceFields.svelte';
+	import { listText, parseList, priceBody, priceFormFrom } from '#lib/pricing.js';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -22,9 +24,11 @@
 		start_port: '',
 		end_port: '',
 		max_crew: 0,
-		cost_per_person: 0,
 		description: ''
 	});
+	let price = $state(priceFormFrom());
+	let included = $state('');
+	let notIncluded = $state('');
 
 	const id = $derived(Number(page.params.id));
 
@@ -52,9 +56,11 @@
 				start_port: cruise.start_port ?? '',
 				end_port: cruise.end_port ?? '',
 				max_crew: cruise.max_crew ?? 0,
-				cost_per_person: cruise.cost_per_person ?? 0,
 				description: cruise.description ?? ''
 			};
+			price = priceFormFrom(cruise);
+			included = listText(cruise.included);
+			notIncluded = listText(cruise.not_included);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się wczytać';
 		} finally {
@@ -67,7 +73,13 @@
 		saving = true;
 		error = '';
 		try {
-			await updateCruise(id, { ...form, series_id: form.series_id ?? undefined });
+			await updateCruise(id, {
+				...form,
+				...priceBody(price),
+				included: parseList(included),
+				not_included: parseList(notIncluded),
+				series_id: form.series_id ?? undefined
+			});
 			goto(`/cruises/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
@@ -126,10 +138,7 @@
 					<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. liczba uczestników</label>
 					<input id="max_crew" type="number" bind:value={form.max_crew} min="0" class="w-full rounded-lg border px-3 py-2" />
 				</div>
-				<div>
-					<label for="cost_pp" class="mb-1 block text-sm font-medium">Szacowany koszt / osobę</label>
-					<input id="cost_pp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
-				</div>
+				<PriceFields bind:price bind:included bind:notIncluded />
 			</div>
 
 			<div>

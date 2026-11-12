@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 
-const h = vi.hoisted(() => ({ authenticated: true }));
+const h = vi.hoisted(() => ({
+	authenticated: true,
+	membership: 'czlonek' as 'czlonek' | 'sympatyk' | 'gosc' | undefined
+}));
 
 vi.mock('$app/state', () => ({ page: { params: { token: 'tok' } } }));
 vi.mock('#lib/api/routes.js', () => ({
@@ -13,6 +16,9 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: {
 		get isAuthenticated() {
 			return h.authenticated;
+		},
+		get user() {
+			return h.membership ? { membership: h.membership } : null;
 		}
 	}
 }));
@@ -55,6 +61,7 @@ function cruiseData(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
 	h.authenticated = true;
+	h.membership = 'czlonek';
 	resolveMock.mockReset().mockResolvedValue(cruiseData());
 	enrollMock.mockReset().mockResolvedValue({});
 	enrollLegsMock.mockReset().mockResolvedValue({ results: [] });
@@ -276,5 +283,63 @@ describe('enroll page — free places', () => {
 		expect(await leg('Etap 3: Bez limitu')).not.toHaveTextContent(/wolne miejsca/i);
 		expect(await leg('Etap 4: Zero')).not.toHaveTextContent(/wolne miejsca/i);
 		expect(screen.getAllByTestId('free-places')).toHaveLength(2);
+	});
+});
+
+describe('enroll page — prices', () => {
+	const nne = cruiseData({
+		cruise: {
+			id: 7,
+			name: 'NNE 2025',
+			currency: 'PLN',
+			cost_per_person: 1000,
+			cost_per_person_non_member: 1250,
+			yacht_fund: 400,
+			included: ['jacht', 'skipper'],
+			not_included: ['dojazd']
+		}
+	});
+
+	it.each([
+		['czlonek', '1000 PLN'],
+		['sympatyk', '1000 PLN'],
+		['gosc', '1250 PLN']
+	] as const)('shows %s their cruise price and what it covers', async (membership, want) => {
+		h.membership = membership;
+		resolveMock.mockResolvedValue(nne);
+		render(EnrollPage);
+		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
+		expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent('400 PLN');
+		expect(screen.getByTestId('price-included')).toHaveTextContent('skipper');
+		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
+	});
+
+	it('shows both tiers to a signed-out visitor', async () => {
+		h.authenticated = false;
+		h.membership = undefined;
+		resolveMock.mockResolvedValue(nne);
+		render(EnrollPage);
+		expect(await screen.findByText('Goście')).toBeInTheDocument();
+		expect(screen.queryByTestId('your-price')).not.toBeInTheDocument();
+	});
+
+	it('shows a guest the only price of a trip', async () => {
+		h.membership = 'gosc';
+		resolveMock.mockResolvedValue({
+			kind: 'trip',
+			trip: { id: 5, name: 'Adriatyk', currency: 'EUR', cost_per_person: 760, deposit: 200 },
+			enrolled: false,
+			accepted_count: 0,
+			total_count: 0
+		});
+		render(EnrollPage);
+		expect(await screen.findByTestId('your-price')).toHaveTextContent('Twoja cena: 760 EUR');
+		expect(screen.getByText('Kaucja (zwrotna)').nextElementSibling).toHaveTextContent('200 EUR');
+	});
+
+	it('shows no price section for an unpriced cruise', async () => {
+		render(EnrollPage);
+		expect(await screen.findByText('NNE 2025')).toBeInTheDocument();
+		expect(screen.queryByLabelText('Cena')).not.toBeInTheDocument();
 	});
 });

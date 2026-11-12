@@ -171,24 +171,34 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 	if err != nil {
 		return nil, err
 	}
+	included, notIncluded, err := cruisePriceLists(&in.Body)
+	if err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		CreatedBy:     types.NullInt64{Int64: user.UserID, Valid: true},
-		Name:          in.Body.Name,
-		EmbarkDate:    nullString(in.Body.EmbarkDate),
-		DisembarkDate: nullString(in.Body.DisembarkDate),
-		Countries:     nullString(in.Body.Countries),
-		StartPort:     nullString(in.Body.StartPort),
-		EndPort:       nullString(in.Body.EndPort),
-		Description:   nullString(in.Body.Description),
-		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
-		MaxCrew:       nullInt64(in.Body.MaxCrew),
-		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		Kind:          in.Body.Kind,
-		SeriesID:      seriesID,
-		Edition:       nullEdition(in.Body.Edition),
+		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
+		Name:                   in.Body.Name,
+		EmbarkDate:             nullString(in.Body.EmbarkDate),
+		DisembarkDate:          nullString(in.Body.DisembarkDate),
+		Countries:              nullString(in.Body.Countries),
+		StartPort:              nullString(in.Body.StartPort),
+		EndPort:                nullString(in.Body.EndPort),
+		Description:            nullString(in.Body.Description),
+		ImageLogoUrl:           nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
+		MaxCrew:                nullInt64(in.Body.MaxCrew),
+		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
+		Kind:                   in.Body.Kind,
+		SeriesID:               seriesID,
+		Edition:                nullEdition(in.Body.Edition),
+		Currency:               currencyOrDefault(in.Body.Currency),
+		CostPerPersonNonMember: nullFloat64(in.Body.CostPerPersonNonMember),
+		YachtFund:              nullFloat64(in.Body.YachtFund),
+		Deposit:                nullFloat64(in.Body.Deposit),
+		Included:               included,
+		NotIncluded:            notIncluded,
 	})
 	if err != nil {
 		if isForeignKeyViolation(err, cruiseSeriesFKey) {
@@ -208,23 +218,33 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 	if err != nil {
 		return nil, err
 	}
+	included, notIncluded, err := cruisePriceLists(&in.Body)
+	if err != nil {
+		return nil, err
+	}
 	if err := h.q.UpdateCruise(ctx, sqlcdb.UpdateCruiseParams{
-		Name:          in.Body.Name,
-		EmbarkDate:    nullString(in.Body.EmbarkDate),
-		DisembarkDate: nullString(in.Body.DisembarkDate),
-		Countries:     nullString(in.Body.Countries),
-		StartPort:     nullString(in.Body.StartPort),
-		EndPort:       nullString(in.Body.EndPort),
-		Description:   nullString(in.Body.Description),
-		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
-		MaxCrew:       nullInt64(in.Body.MaxCrew),
-		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
-		Kind:          in.Body.Kind,
-		SeriesID:      seriesID,
-		Edition:       nullEdition(in.Body.Edition),
-		ID:            in.ID,
+		Name:                   in.Body.Name,
+		EmbarkDate:             nullString(in.Body.EmbarkDate),
+		DisembarkDate:          nullString(in.Body.DisembarkDate),
+		Countries:              nullString(in.Body.Countries),
+		StartPort:              nullString(in.Body.StartPort),
+		EndPort:                nullString(in.Body.EndPort),
+		Description:            nullString(in.Body.Description),
+		ImageLogoUrl:           nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
+		MaxCrew:                nullInt64(in.Body.MaxCrew),
+		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
+		Kind:                   in.Body.Kind,
+		SeriesID:               seriesID,
+		Edition:                nullEdition(in.Body.Edition),
+		Currency:               currencyOrDefault(in.Body.Currency),
+		CostPerPersonNonMember: nullFloat64(in.Body.CostPerPersonNonMember),
+		YachtFund:              nullFloat64(in.Body.YachtFund),
+		Deposit:                nullFloat64(in.Body.Deposit),
+		Included:               included,
+		NotIncluded:            notIncluded,
+		ID:                     in.ID,
 	}); err != nil {
 		if isForeignKeyViolation(err, cruiseSeriesFKey) {
 			return nil, huma.Error422UnprocessableEntity("series not found")

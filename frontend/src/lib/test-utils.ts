@@ -19,6 +19,7 @@ export function makeTrip(overrides: Partial<Trip> = {}): Trip {
 		id: 1,
 		name: 'Rejs Bałtyk',
 		status: 'planned',
+		currency: 'PLN',
 		embark_date: '2025-06-01',
 		disembark_date: '2025-06-07',
 		created_at: '2026-01-01T00:00:00Z',

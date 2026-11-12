@@ -16,6 +16,8 @@
 	import type { Cruise, CruiseSeries, Trip, Voyage, CruiseEnrollment } from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import NotFound from '#lib/components/NotFound.svelte';
+	import PriceInfo from '#lib/components/PriceInfo.svelte';
+	import { hasPriceInfo } from '#lib/pricing.js';
 	import { statusLabels } from '#lib/enrollment.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -171,6 +173,18 @@
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Opis</h2>
 				<p class="whitespace-pre-wrap text-sm">{cruise.description}</p>
+			</div>
+		{/if}
+
+		{#if hasPriceInfo(cruise, cruise.included, cruise.not_included)}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Cena</h2>
+				<PriceInfo
+					priced={cruise}
+					membership={auth.user?.membership}
+					included={cruise.included}
+					notIncluded={cruise.not_included}
+				/>
 			</div>
 		{/if}
 
