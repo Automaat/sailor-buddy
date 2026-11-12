@@ -78,6 +78,14 @@ type EnrollTrip struct {
 	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
 }
 
+// EnrollLeg is the public summary of one cruise trip (leg) on the enroll
+// page. It omits the trip's own enroll token, creator and total cost: the
+// cruise link is shared publicly and must not reveal per-leg links.
+type EnrollLeg struct {
+	EnrollTrip
+	Status string `json:"status" enum:"planned,cancelled"`
+}
+
 // EnrollCruise is the cruise summary returned when resolving an enrollment token.
 type EnrollCruise struct {
 	ID                     int64    `json:"id"`
@@ -110,7 +118,7 @@ type EnrollInfo struct {
 	Kind          string        `json:"kind" enum:"trip,cruise"`
 	Trip          *EnrollTrip   `json:"trip,omitempty"`
 	Cruise        *EnrollCruise `json:"cruise,omitempty"`
-	Trips         []Trip        `json:"trips,omitempty"`
+	Trips         []EnrollLeg   `json:"trips,omitempty"`
 	Enrolled      bool          `json:"enrolled"`
 	Enrollment    *Enrollment   `json:"enrollment,omitempty"`
 	AcceptedCount int64         `json:"accepted_count"`
@@ -281,6 +289,34 @@ func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow, member bool) Enroll
 	}
 	if member {
 		out.GroupChatUrl = strPtr(c.GroupChatUrl)
+	}
+	return out
+}
+
+// EnrollLegsFromDB maps a cruise's trips to their public leg summaries.
+func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
+	out := make([]EnrollLeg, len(ts))
+	for i := range ts {
+		t := ts[i]
+		var leg EnrollLeg
+		leg.ID = t.ID
+		leg.Name = t.Name
+		leg.Status = string(t.Status)
+		leg.EmbarkDate = strPtr(t.EmbarkDate)
+		leg.DisembarkDate = strPtr(t.DisembarkDate)
+		leg.Countries = strPtr(t.Countries)
+		leg.StartPort = strPtr(t.StartPort)
+		leg.EndPort = strPtr(t.EndPort)
+		leg.Description = strPtr(t.Description)
+		leg.MaxCrew = intPtr(t.MaxCrew)
+		leg.CaptainName = strPtr(t.CaptainName)
+		leg.ImagePhotoUrl = strPtr(t.ImagePhotoUrl)
+		leg.CostPerPerson = floatPtr(t.CostPerPerson)
+		leg.Currency = t.Currency
+		leg.CostPerPersonNonMember = floatPtr(t.CostPerPersonNonMember)
+		leg.YachtFund = floatPtr(t.YachtFund)
+		leg.Deposit = floatPtr(t.Deposit)
+		out[i] = leg
 	}
 	return out
 }
