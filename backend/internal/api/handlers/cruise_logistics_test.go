@@ -146,6 +146,9 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 		"https://chat.example.123abc/g",
 		"https://0x7g.example.com/g",
 		"http://1.0x/g",
+		"https://１２７.0.0.1/g",
+		"https://my_chat.example.com/g",
+		"https://żagle.pl/czat",
 	}
 	for _, link := range validLinks {
 		t.Run("create accepts "+link, func(t *testing.T) {
@@ -189,6 +192,9 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 		"https://1.0xg.5/g",
 		"https://example.0x1g.1/g",
 		"https://1.2.3.4.5./g",
+		"https://192.168.1.９９９/crew",
+		"https://1.2.3.4。5/crew",
+		"https://１.２.３.４.５/crew",
 	}
 	for _, link := range invalidLinks {
 		t.Run("create rejects "+link, func(t *testing.T) {

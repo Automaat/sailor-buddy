@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	"golang.org/x/net/idna"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
@@ -449,7 +450,7 @@ func groupChatURL(s *string) (types.NullString, error) {
 	}
 	u, err := url.Parse(v.String)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || !validPort(u.Port()) ||
-		invalidNumericHost(u.Hostname()) {
+		invalidNumericHost(browserHost(u.Hostname())) {
 		return types.NullString{}, huma.Error422UnprocessableEntity("group_chat_url must be an http or https URL")
 	}
 	return v, nil
@@ -463,6 +464,27 @@ func validPort(p string) bool {
 	}
 	n, err := strconv.Atoi(p)
 	return err == nil && n >= 1 && n <= 65535
+}
+
+// whatwgIDNA approximates the WHATWG "domain to ASCII" profile: UTS46
+// mapping without STD3, hyphen or DNS-length checks.
+var whatwgIDNA = idna.New(
+	idna.MapForLookup(),
+	idna.Transitional(false),
+	idna.StrictDomainName(false),
+	idna.CheckHyphens(false),
+	idna.VerifyDNSLength(false),
+)
+
+// browserHost maps host the way a browser does before its IPv4 check, so
+// full-width digits or U+3002 dots read as ASCII. When mapping fails the
+// host is returned as is; IDNA errors are not grounds for rejection here.
+func browserHost(host string) string {
+	mapped, err := whatwgIDNA.ToASCII(host)
+	if err != nil {
+		return host
+	}
+	return mapped
 }
 
 // invalidNumericHost reports whether host is one the WHATWG URL parser
