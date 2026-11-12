@@ -3,6 +3,7 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
 
 	let error = $state('');
 	let loading = $state(false);
@@ -16,6 +17,8 @@
 	let form = $state({
 		name: '',
 		kind: 'sea' as CruiseKind,
+		series_id: null as number | null,
+		edition: '',
 		embark_date: '',
 		disembark_date: '',
 		countries: '',
@@ -35,7 +38,7 @@
 		loading = true;
 		error = '';
 		try {
-			const cruise = await createCruise(form);
+			const cruise = await createCruise({ ...form, series_id: form.series_id ?? undefined });
 			goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć wydarzenia';
@@ -66,6 +69,7 @@
 					{/each}
 				</select>
 			</div>
+			<CruiseSeriesFields bind:seriesId={form.series_id} bind:edition={form.edition} />
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
 				<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />

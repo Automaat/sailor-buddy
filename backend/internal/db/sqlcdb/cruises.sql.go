@@ -41,8 +41,8 @@ const createCruise = `-- name: CreateCruise :one
 INSERT INTO cruises (
     created_by, name, embark_date, disembark_date, countries, start_port, end_port,
     description, image_logo_url, image_photo_url, image_route_url,
-    max_crew, cost_per_person, kind
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind
+    max_crew, cost_per_person, kind, series_id, edition
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition
 `
 
 type CreateCruiseParams struct {
@@ -60,6 +60,8 @@ type CreateCruiseParams struct {
 	MaxCrew       types.NullInt64   `json:"max_crew"`
 	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
 	Kind          string            `json:"kind"`
+	SeriesID      types.NullInt64   `json:"series_id"`
+	Edition       types.NullString  `json:"edition"`
 }
 
 // CreateCruise
@@ -67,8 +69,8 @@ type CreateCruiseParams struct {
 //	INSERT INTO cruises (
 //	    created_by, name, embark_date, disembark_date, countries, start_port, end_port,
 //	    description, image_logo_url, image_photo_url, image_route_url,
-//	    max_crew, cost_per_person, kind
-//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind
+//	    max_crew, cost_per_person, kind, series_id, edition
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, createCruise,
 		arg.CreatedBy,
@@ -85,6 +87,8 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		arg.MaxCrew,
 		arg.CostPerPerson,
 		arg.Kind,
+		arg.SeriesID,
+		arg.Edition,
 	)
 	var i Cruise
 	err := row.Scan(
@@ -106,6 +110,8 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.SeriesID,
+		&i.Edition,
 	)
 	return i, err
 }
@@ -123,12 +129,12 @@ func (q *Queries) DeleteCruise(ctx context.Context, id int64) error {
 }
 
 const getCruise = `-- name: GetCruise :one
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind FROM cruises WHERE id = $1
+SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition FROM cruises WHERE id = $1
 `
 
 // GetCruise
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind FROM cruises WHERE id = $1
+//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition FROM cruises WHERE id = $1
 func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, getCruise, id)
 	var i Cruise
@@ -151,6 +157,8 @@ func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Kind,
+		&i.SeriesID,
+		&i.Edition,
 	)
 	return i, err
 }
@@ -314,7 +322,7 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt6
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
+SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
 `
 
 type ListCruisesParams struct {
@@ -324,7 +332,7 @@ type ListCruisesParams struct {
 
 // ListCruises
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
+//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
 func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error) {
 	rows, err := q.db.QueryContext(ctx, listCruises, arg.Limit, arg.Offset)
 	if err != nil {
@@ -353,6 +361,8 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Kind,
+			&i.SeriesID,
+			&i.Edition,
 		); err != nil {
 			return nil, err
 		}
@@ -390,8 +400,9 @@ UPDATE cruises SET
     start_port = $5, end_port = $6, description = $7,
     image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
     max_crew = $11, cost_per_person = $12, kind = $13,
+    series_id = $14, edition = $15,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $14
+WHERE id = $16
 `
 
 type UpdateCruiseParams struct {
@@ -408,6 +419,8 @@ type UpdateCruiseParams struct {
 	MaxCrew       types.NullInt64   `json:"max_crew"`
 	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
 	Kind          string            `json:"kind"`
+	SeriesID      types.NullInt64   `json:"series_id"`
+	Edition       types.NullString  `json:"edition"`
 	ID            int64             `json:"id"`
 }
 
@@ -418,8 +431,9 @@ type UpdateCruiseParams struct {
 //	    start_port = $5, end_port = $6, description = $7,
 //	    image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
 //	    max_crew = $11, cost_per_person = $12, kind = $13,
+//	    series_id = $14, edition = $15,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $14
+//	WHERE id = $16
 func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error {
 	_, err := q.db.ExecContext(ctx, updateCruise,
 		arg.Name,
@@ -435,6 +449,8 @@ func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) erro
 		arg.MaxCrew,
 		arg.CostPerPerson,
 		arg.Kind,
+		arg.SeriesID,
+		arg.Edition,
 		arg.ID,
 	)
 	return err

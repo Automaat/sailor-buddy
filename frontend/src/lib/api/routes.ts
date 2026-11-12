@@ -219,6 +219,32 @@ export function deleteTraining(id: number) {
 	return api.del('/trainings/{trainingID}', { path: { trainingID: id } });
 }
 
+// ---- cruise series ---------------------------------------------------------
+
+export function listSeries(): Promise<Schemas['CruiseSeries'][]> {
+	return api.list('/series');
+}
+
+export function getSeries(id: number): Promise<Schemas['CruiseSeries'] | null> {
+	return api.get('/series/{seriesID}', { path: { seriesID: id } });
+}
+
+export function createSeries(body: Schemas['CruiseSeriesBody']) {
+	return api.post('/series', { body });
+}
+
+export function updateSeries(id: number, body: Schemas['CruiseSeriesBody']) {
+	return api.put('/series/{seriesID}', { path: { seriesID: id }, body });
+}
+
+export function deleteSeries(id: number) {
+	return api.del('/series/{seriesID}', { path: { seriesID: id } });
+}
+
+export function listSeriesEditions(id: number) {
+	return api.get('/series/{seriesID}/editions', { path: { seriesID: id } });
+}
+
 // ---- cruises ----------------------------------------------------------------
 
 export function listCruises(): Promise<Schemas['Cruise'][]> {

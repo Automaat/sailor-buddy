@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -13,6 +14,8 @@
 	let form = $state({
 		name: '',
 		kind: 'sea' as CruiseKind,
+		series_id: null as number | null,
+		edition: '',
 		embark_date: '',
 		disembark_date: '',
 		countries: '',
@@ -41,6 +44,8 @@
 			form = {
 				name: cruise.name,
 				kind: cruise.kind,
+				series_id: cruise.series_id ?? null,
+				edition: cruise.edition ?? '',
 				embark_date: cruise.embark_date ?? '',
 				disembark_date: cruise.disembark_date ?? '',
 				countries: cruise.countries ?? '',
@@ -62,7 +67,7 @@
 		saving = true;
 		error = '';
 		try {
-			await updateCruise(id, form);
+			await updateCruise(id, { ...form, series_id: form.series_id ?? undefined });
 			goto(`/cruises/${id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
@@ -96,6 +101,7 @@
 						{/each}
 					</select>
 				</div>
+				<CruiseSeriesFields bind:seriesId={form.series_id} bind:edition={form.edition} />
 				<div>
 					<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
 					<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />

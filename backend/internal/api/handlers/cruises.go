@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -166,6 +167,10 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	seriesID, err := h.resolveSeries(ctx, in.Body.SeriesID)
+	if err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
 		CreatedBy:     types.NullInt64{Int64: user.UserID, Valid: true},
@@ -182,8 +187,13 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 		MaxCrew:       nullInt64(in.Body.MaxCrew),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
 		Kind:          in.Body.Kind,
+		SeriesID:      seriesID,
+		Edition:       nullEdition(in.Body.Edition),
 	})
 	if err != nil {
+		if isForeignKeyViolation(err, cruiseSeriesFKey) {
+			return nil, huma.Error422UnprocessableEntity("series not found")
+		}
 		slog.Error("create cruise", "name", in.Body.Name, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create cruise")
 	}
@@ -192,6 +202,10 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 
 func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noContentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	seriesID, err := h.resolveSeries(ctx, in.Body.SeriesID)
+	if err != nil {
 		return nil, err
 	}
 	if err := h.q.UpdateCruise(ctx, sqlcdb.UpdateCruiseParams{
@@ -208,8 +222,13 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 		MaxCrew:       nullInt64(in.Body.MaxCrew),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
 		Kind:          in.Body.Kind,
+		SeriesID:      seriesID,
+		Edition:       nullEdition(in.Body.Edition),
 		ID:            in.ID,
 	}); err != nil {
+		if isForeignKeyViolation(err, cruiseSeriesFKey) {
+			return nil, huma.Error422UnprocessableEntity("series not found")
+		}
 		slog.Error("update cruise", "cruise_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update cruise")
 	}
@@ -347,4 +366,35 @@ func (h *CruiseHandler) verifyCruise(ctx context.Context, cruiseID int64) error 
 		return huma.Error500InternalServerError("failed to verify cruise")
 	}
 	return nil
+}
+
+// cruiseSeriesFKey is the PostgreSQL name of the cruises.series_id foreign key.
+const cruiseSeriesFKey = "cruises_series_id_fkey"
+
+// resolveSeries checks that an optional series exists. A missing series is a
+// client error (422), not a server failure.
+func (h *CruiseHandler) resolveSeries(ctx context.Context, id *int64) (types.NullInt64, error) {
+	if id == nil {
+		return types.NullInt64{}, nil
+	}
+	if _, err := h.q.GetCruiseSeries(ctx, *id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return types.NullInt64{}, huma.Error422UnprocessableEntity("series not found")
+		}
+		slog.Error("verify series", "series_id", *id, "err", err)
+		return types.NullInt64{}, huma.Error500InternalServerError("failed to verify series")
+	}
+	return types.NullInt64{Int64: *id, Valid: true}, nil
+}
+
+// nullEdition stores a blank edition label as null.
+func nullEdition(s *string) types.NullString {
+	if s == nil {
+		return types.NullString{}
+	}
+	v := strings.TrimSpace(*s)
+	if v == "" {
+		return types.NullString{}
+	}
+	return types.NullString{String: v, Valid: true}
 }

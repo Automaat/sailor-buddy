@@ -12,6 +12,8 @@ type Cruise struct {
 	CreatedBy     *int64    `json:"created_by,omitempty"`
 	Name          string    `json:"name"`
 	Kind          string    `json:"kind" enum:"sea,inland" doc:"Cruise kind: sea (morski) or inland (śródlądowy)"`
+	SeriesID      *int64    `json:"series_id,omitempty" doc:"Series this cruise is an edition of"`
+	Edition       *string   `json:"edition,omitempty" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
 	EmbarkDate    *string   `json:"embark_date,omitempty"`
 	DisembarkDate *string   `json:"disembark_date,omitempty"`
 	Countries     *string   `json:"countries,omitempty"`
@@ -32,6 +34,8 @@ type Cruise struct {
 type CruiseBody struct {
 	Name          string   `json:"name" minLength:"1" doc:"Cruise name"`
 	Kind          string   `json:"kind,omitempty" enum:"sea,inland" default:"sea" doc:"Cruise kind: sea (morski) or inland (śródlądowy)"`
+	SeriesID      *int64   `json:"series_id,omitempty" doc:"Series this cruise is an edition of; omit or null for none"`
+	Edition       *string  `json:"edition,omitempty" maxLength:"50" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
 	EmbarkDate    *string  `json:"embark_date,omitempty"`
 	DisembarkDate *string  `json:"disembark_date,omitempty"`
 	Countries     *string  `json:"countries,omitempty"`
@@ -52,6 +56,8 @@ func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 		CreatedBy:     intPtr(c.CreatedBy),
 		Name:          c.Name,
 		Kind:          c.Kind,
+		SeriesID:      intPtr(c.SeriesID),
+		Edition:       strPtr(c.Edition),
 		EmbarkDate:    strPtr(c.EmbarkDate),
 		DisembarkDate: strPtr(c.DisembarkDate),
 		Countries:     strPtr(c.Countries),

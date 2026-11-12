@@ -134,7 +134,7 @@ func TestMigrate_FreshSchema(t *testing.T) {
 		"users", "refresh_tokens", "yachts", "crew_members", "trainings",
 		"trips", "voyages", "cruises", "crew_assignments",
 		"trip_enrollments", "cruise_enrollments", "voyage_opinions",
-		"voyage_ports",
+		"voyage_ports", "cruise_series",
 	} {
 		assertTableExists(t, conn, table)
 	}
@@ -145,6 +145,7 @@ func TestMigrate_FreshSchema(t *testing.T) {
 		"idx_trips_cruise_id",
 		"idx_voyages_cruise_id",
 		"voyage_ports_voyage_id_idx",
+		"idx_cruises_series_id",
 	} {
 		assertIndexExists(t, conn, index)
 	}

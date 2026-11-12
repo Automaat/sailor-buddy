@@ -83,6 +83,15 @@ type mockQuerier struct {
 	getVoyageOpinionFn         func(ctx context.Context, id int64) (sqlcdb.VoyageOpinion, error)
 	deleteVoyageOpinionFn      func(ctx context.Context, id int64) error
 
+	// cruise series
+	listCruiseSeriesFn         func(ctx context.Context, arg sqlcdb.ListCruiseSeriesParams) ([]sqlcdb.CruiseSeries, error)
+	countCruiseSeriesFn        func(ctx context.Context) (int64, error)
+	getCruiseSeriesFn          func(ctx context.Context, id int64) (sqlcdb.CruiseSeries, error)
+	createCruiseSeriesFn       func(ctx context.Context, arg sqlcdb.CreateCruiseSeriesParams) (sqlcdb.CruiseSeries, error)
+	updateCruiseSeriesFn       func(ctx context.Context, arg sqlcdb.UpdateCruiseSeriesParams) error
+	deleteCruiseSeriesFn       func(ctx context.Context, id int64) error
+	listCruiseSeriesEditionsFn func(ctx context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error)
+
 	// yachts
 	listYachtsFn     func(ctx context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error)
 	countYachtsFn    func(ctx context.Context) (int64, error)
@@ -853,4 +862,55 @@ func (m *mockQuerier) UpdateVoyageLog(ctx context.Context, arg sqlcdb.UpdateVoya
 		panic("unexpected call to UpdateVoyageLog")
 	}
 	return m.updateVoyageLogFn(ctx, arg)
+}
+
+// --- cruise series ---
+
+func (m *mockQuerier) ListCruiseSeries(ctx context.Context, arg sqlcdb.ListCruiseSeriesParams) ([]sqlcdb.CruiseSeries, error) {
+	if m.listCruiseSeriesFn == nil {
+		panic("unexpected call to ListCruiseSeries")
+	}
+	return m.listCruiseSeriesFn(ctx, arg)
+}
+
+func (m *mockQuerier) CountCruiseSeries(ctx context.Context) (int64, error) {
+	if m.countCruiseSeriesFn == nil {
+		panic("unexpected call to CountCruiseSeries")
+	}
+	return m.countCruiseSeriesFn(ctx)
+}
+
+func (m *mockQuerier) GetCruiseSeries(ctx context.Context, id int64) (sqlcdb.CruiseSeries, error) {
+	if m.getCruiseSeriesFn == nil {
+		panic("unexpected call to GetCruiseSeries")
+	}
+	return m.getCruiseSeriesFn(ctx, id)
+}
+
+func (m *mockQuerier) CreateCruiseSeries(ctx context.Context, arg sqlcdb.CreateCruiseSeriesParams) (sqlcdb.CruiseSeries, error) {
+	if m.createCruiseSeriesFn == nil {
+		panic("unexpected call to CreateCruiseSeries")
+	}
+	return m.createCruiseSeriesFn(ctx, arg)
+}
+
+func (m *mockQuerier) UpdateCruiseSeries(ctx context.Context, arg sqlcdb.UpdateCruiseSeriesParams) error {
+	if m.updateCruiseSeriesFn == nil {
+		panic("unexpected call to UpdateCruiseSeries")
+	}
+	return m.updateCruiseSeriesFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteCruiseSeries(ctx context.Context, id int64) error {
+	if m.deleteCruiseSeriesFn == nil {
+		panic("unexpected call to DeleteCruiseSeries")
+	}
+	return m.deleteCruiseSeriesFn(ctx, id)
+}
+
+func (m *mockQuerier) ListCruiseSeriesEditions(ctx context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error) {
+	if m.listCruiseSeriesEditionsFn == nil {
+		panic("unexpected call to ListCruiseSeriesEditions")
+	}
+	return m.listCruiseSeriesEditionsFn(ctx, seriesID)
 }
