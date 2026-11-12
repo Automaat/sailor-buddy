@@ -138,6 +138,11 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 			AcceptedCount: counts.Accepted,
 			TotalCount:    counts.Total,
 		}
+		if accepted, err := h.q.CountAcceptedForTrip(ctx, trip.ID); err == nil {
+			info.TripAccepted = []dto.TripAccepted{{TripID: trip.ID, AcceptedCount: accepted}}
+		} else {
+			slog.Error("count accepted for trip", "trip_id", trip.ID, "err", err)
+		}
 		if user != nil {
 			if e, err := h.q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: trip.ID, UserID: user.UserID}); err == nil {
 				info.Enrolled = true
@@ -165,12 +170,18 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 		slog.Error("list cruise trips", "cruise_id", cruise.ID, "err", tlistErr)
 		childTrips = nil
 	}
+	tripAccepted, taErr := h.q.CountAcceptedByCruiseTrip(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+	if taErr != nil {
+		slog.Error("count accepted per cruise trip", "cruise_id", cruise.ID, "err", taErr)
+		tripAccepted = nil
+	}
 	info := dto.EnrollInfo{
 		Kind:          "cruise",
 		Cruise:        new(dto.EnrollCruiseFromRow(cruise)),
 		Trips:         dto.TripsFromDB(childTrips),
 		AcceptedCount: counts.Accepted,
 		TotalCount:    counts.Total,
+		TripAccepted:  dto.TripAcceptedFromDB(tripAccepted),
 	}
 	if user != nil {
 		if e, err := h.q.GetUserCruiseEnrollment(ctx, sqlcdb.GetUserCruiseEnrollmentParams{CruiseID: cruise.ID, UserID: user.UserID}); err == nil {

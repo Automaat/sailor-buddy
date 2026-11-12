@@ -246,3 +246,114 @@ func TestYachtHandler_Create_MemberForbidden(t *testing.T) {
 		t.Fatalf("got %d, want 403; body=%s", resp.Code, resp.Body)
 	}
 }
+
+func TestYachtHandler_Specs(t *testing.T) {
+	t.Run("create stores specs and get returns them", func(t *testing.T) {
+		var stored sqlcdb.Yacht
+		m := &mockQuerier{
+			createYachtFn: func(_ context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error) {
+				stored = sqlcdb.Yacht{
+					ID: 5, Name: arg.Name, YachtType: arg.YachtType,
+					Berths: arg.Berths, LengthM: arg.LengthM, BuildYear: arg.BuildYear,
+					Engine: arg.Engine, OwnerName: arg.OwnerName,
+				}
+				return stored, nil
+			},
+			getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
+				if id != stored.ID {
+					return sqlcdb.Yacht{}, sql.ErrNoRows
+				}
+				return stored, nil
+			},
+		}
+		api := yachtTestAPI(t, m)
+		resp := api.PostCtx(userCtx(context.Background()), "/yachts", map[string]any{
+			"name": "Ilmatar", "yacht_type": "Gib'Sea 43", "berths": 10, "length_m": 12.8,
+			"build_year": 2002, "engine": "Volvo Penta D2-55", "owner_name": "Szkoła Żeglarska Kliper",
+		})
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("create: got %d, want 201; body=%s", resp.Code, resp.Body)
+		}
+		resp = api.GetCtx(userCtx(context.Background()), "/yachts/5")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("get: got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		var y dto.Yacht
+		if err := json.Unmarshal(resp.Body.Bytes(), &y); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if y.Berths == nil || *y.Berths != 10 ||
+			y.LengthM == nil || *y.LengthM != 12.8 ||
+			y.BuildYear == nil || *y.BuildYear != 2002 ||
+			y.Engine == nil || *y.Engine != "Volvo Penta D2-55" ||
+			y.OwnerName == nil || *y.OwnerName != "Szkoła Żeglarska Kliper" {
+			t.Fatalf("specs not returned: %+v", y)
+		}
+	})
+
+	t.Run("update passes specs", func(t *testing.T) {
+		var got sqlcdb.UpdateYachtParams
+		m := &mockQuerier{
+			updateYachtFn: func(_ context.Context, arg sqlcdb.UpdateYachtParams) error {
+				got = arg
+				return nil
+			},
+		}
+		resp := yachtTestAPI(t, m).PutCtx(userCtx(context.Background()), "/yachts/3", map[string]any{
+			"name": "Ilmatar", "berths": 8, "length_m": 11.5,
+		})
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
+		}
+		if got.ID != 3 || got.Berths.Int64 != 8 || !got.Berths.Valid || got.LengthM.Float64 != 11.5 || got.BuildYear.Valid {
+			t.Fatalf("unexpected update params: %+v", got)
+		}
+	})
+
+	t.Run("specs are optional", func(t *testing.T) {
+		var got sqlcdb.CreateYachtParams
+		m := &mockQuerier{
+			createYachtFn: func(_ context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error) {
+				got = arg
+				return sqlcdb.Yacht{ID: 1, Name: arg.Name}, nil
+			},
+		}
+		resp := yachtTestAPI(t, m).PostCtx(userCtx(context.Background()), "/yachts", map[string]any{"name": "Oceanis"})
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+		}
+		if got.Berths.Valid || got.LengthM.Valid || got.BuildYear.Valid || got.Engine.Valid || got.OwnerName.Valid {
+			t.Fatalf("absent specs must be NULL: %+v", got)
+		}
+		var y map[string]any
+		if err := json.Unmarshal(resp.Body.Bytes(), &y); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		for _, k := range []string{"berths", "length_m", "build_year", "engine", "owner_name"} {
+			if _, ok := y[k]; ok {
+				t.Fatalf("%s must be omitted when unset: %s", k, resp.Body)
+			}
+		}
+	})
+
+	t.Run("rejects invalid specs", func(t *testing.T) {
+		cases := map[string]map[string]any{
+			"zero berths":     {"name": "X", "berths": 0},
+			"negative berths": {"name": "X", "berths": -2},
+			"negative length": {"name": "X", "length_m": -1.5},
+			"zero length":     {"name": "X", "length_m": 0},
+		}
+		for name, body := range cases {
+			for _, method := range []string{http.MethodPost, http.MethodPut} {
+				path := "/yachts"
+				if method == http.MethodPut {
+					path = "/yachts/1"
+				}
+				resp := yachtTestAPI(t, &mockQuerier{}).DoCtx(userCtx(context.Background()), method, path, body)
+				if resp.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("%s %s: got %d, want 422; body=%s", method, name, resp.Code, resp.Body)
+				}
+			}
+		}
+	})
+}

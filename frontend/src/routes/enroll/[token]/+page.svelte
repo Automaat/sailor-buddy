@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
-	import { numberLegs, statusLabels } from '#lib/enrollment.js';
+	import { freePlaces, numberLegs, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -37,6 +37,18 @@
 	);
 
 	const token = $derived((page.params as Record<string, string>).token);
+	const tripAccepted = $derived(
+		new Map((data?.trip_accepted ?? []).map((t) => [t.trip_id, t.accepted_count]))
+	);
+	function placesLeft(tripId: number, maxCrew: number | null | undefined): number | null {
+		const accepted = tripAccepted.get(tripId);
+		return accepted === undefined ? null : freePlaces(maxCrew, accepted);
+	}
+	const tripFree = $derived(
+		data?.kind === 'trip'
+			? placesLeft(data.trip.id, data.trip.max_crew)
+			: null
+	);
 	const loginHref = $derived(`/login?redirect=${encodeURIComponent(`/enroll/${token}`)}`);
 
 	onMount(async () => {
@@ -123,6 +135,12 @@
 						<span class="text-[var(--text-muted)]">Zaakceptowanych:</span>
 						<span class="font-semibold">{data.accepted_count}</span>
 					</div>
+					{#if tripFree !== null}
+						<div class="rounded-lg bg-gray-50 px-3 py-2" data-testid="free-places">
+							<span class="text-[var(--text-muted)]">Wolne miejsca:</span>
+							<span class="font-semibold">{tripFree}</span>
+						</div>
+					{/if}
 				</div>
 			{:else if data.kind === 'cruise'}
 				<p class="mb-1 text-xs uppercase tracking-wide text-[var(--text-muted)]">Wydarzenie klubu</p>
@@ -151,6 +169,7 @@
 						<div class="space-y-1">
 							{#each legs as leg (leg.trip.id)}
 								{@const cancelled = leg.trip.status === 'cancelled'}
+								{@const free = placesLeft(leg.trip.id, leg.trip.max_crew)}
 								<label
 									class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
 									class:opacity-60={cancelled}
@@ -176,6 +195,9 @@
 										{/if}
 										{#if leg.trip.captain_name}
 											<span class="block text-xs text-[var(--text-muted)]">kpt. {leg.trip.captain_name}</span>
+										{/if}
+										{#if free !== null && !cancelled}
+											<span class="block text-xs text-[var(--text-muted)]" data-testid="free-places">wolne miejsca: {free}</span>
 										{/if}
 									</span>
 									{#if cancelled}

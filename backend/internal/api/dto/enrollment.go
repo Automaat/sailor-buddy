@@ -91,17 +91,36 @@ type EnrollCruise struct {
 // EnrollInfo is the resolved target of an enrollment share token. kind selects
 // which of trip / cruise is populated.
 type EnrollInfo struct {
-	Kind       string        `json:"kind" enum:"trip,cruise"`
-	Trip       *EnrollTrip   `json:"trip,omitempty"`
-	Cruise     *EnrollCruise `json:"cruise,omitempty"`
-	Trips      []Trip        `json:"trips,omitempty"`
-	Enrolled   bool          `json:"enrolled"`
-	Enrollment *Enrollment   `json:"enrollment,omitempty"`
+	Kind          string        `json:"kind" enum:"trip,cruise"`
+	Trip          *EnrollTrip   `json:"trip,omitempty"`
+	Cruise        *EnrollCruise `json:"cruise,omitempty"`
+	Trips         []Trip        `json:"trips,omitempty"`
+	Enrolled      bool          `json:"enrolled"`
+	Enrollment    *Enrollment   `json:"enrollment,omitempty"`
+	AcceptedCount int64         `json:"accepted_count"`
+	TotalCount    int64         `json:"total_count"`
 	// LegEnrollments lists the caller's per-leg (trip) enrollments for a
 	// cruise, in leg order. Empty for trip tokens.
 	LegEnrollments []Enrollment `json:"leg_enrollments,omitempty"`
-	AcceptedCount  int64        `json:"accepted_count"`
-	TotalCount     int64        `json:"total_count"`
+	// TripAccepted lists accepted crew per trip: the token's trip, or each
+	// cruise trip. Free places on the enroll page derive from it.
+	TripAccepted []TripAccepted `json:"trip_accepted,omitempty"`
+}
+
+// TripAccepted is the accepted crew count of one cruise trip: direct trip
+// enrollments plus cruise enrollments assigned to it.
+type TripAccepted struct {
+	TripID        int64 `json:"trip_id"`
+	AcceptedCount int64 `json:"accepted_count"`
+}
+
+// TripAcceptedFromDB maps the per-trip accepted counts.
+func TripAcceptedFromDB(rows []sqlcdb.CountAcceptedByCruiseTripRow) []TripAccepted {
+	out := make([]TripAccepted, len(rows))
+	for i, r := range rows {
+		out[i] = TripAccepted{TripID: r.TripID, AcceptedCount: r.Accepted}
+	}
+	return out
 }
 
 // EnrollBody is the request payload for self-enrolling via a share token.

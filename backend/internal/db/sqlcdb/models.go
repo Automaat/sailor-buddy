@@ -248,11 +248,16 @@ type VoyagePort struct {
 }
 
 type Yacht struct {
-	ID             int64            `json:"id"`
-	CreatedBy      types.NullInt64  `json:"created_by"`
-	Name           string           `json:"name"`
-	RegistrationNo types.NullString `json:"registration_no"`
-	YachtType      types.NullString `json:"yacht_type"`
-	CreatedAt      types.NullTime   `json:"created_at"`
-	UpdatedAt      types.NullTime   `json:"updated_at"`
+	ID             int64             `json:"id"`
+	CreatedBy      types.NullInt64   `json:"created_by"`
+	Name           string            `json:"name"`
+	RegistrationNo types.NullString  `json:"registration_no"`
+	YachtType      types.NullString  `json:"yacht_type"`
+	CreatedAt      types.NullTime    `json:"created_at"`
+	UpdatedAt      types.NullTime    `json:"updated_at"`
+	Berths         types.NullInt64   `json:"berths"`
+	LengthM        types.NullFloat64 `json:"length_m"`
+	BuildYear      types.NullInt64   `json:"build_year"`
+	Engine         types.NullString  `json:"engine"`
+	OwnerName      types.NullString  `json:"owner_name"`
 }

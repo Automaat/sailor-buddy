@@ -7,7 +7,17 @@
 	let yachts = $state<Yacht[]>([]);
 	let loading = $state(true);
 	let showForm = $state(false);
-	let form = $state({ name: '', registration_no: '', yacht_type: '' });
+	const emptyForm = () => ({
+		name: '',
+		registration_no: '',
+		yacht_type: '',
+		berths: null as number | null,
+		length_m: null as number | null,
+		build_year: null as number | null,
+		engine: '',
+		owner_name: ''
+	});
+	let form = $state(emptyForm());
 	let saving = $state(false);
 
 	async function load() {
@@ -29,15 +39,36 @@
 		e.preventDefault();
 		saving = true;
 		try {
-			const yacht = await createYacht(form);
+			const yacht = await createYacht({
+				name: form.name,
+				registration_no: form.registration_no || undefined,
+				yacht_type: form.yacht_type || undefined,
+				berths: form.berths ?? undefined,
+				length_m: form.length_m ?? undefined,
+				build_year: form.build_year ?? undefined,
+				engine: form.engine || undefined,
+				owner_name: form.owner_name || undefined
+			});
 			yachts = [...yachts, yacht];
-			form = { name: '', registration_no: '', yacht_type: '' };
+			form = emptyForm();
 			showForm = false;
 		} catch (err) {
 			console.error('Failed to add yacht:', err);
 		} finally {
 			saving = false;
 		}
+	}
+
+	function yachtSpecs(y: Yacht): string {
+		return [
+			y.length_m != null ? `${y.length_m} m` : null,
+			y.berths != null ? `${y.berths} koi` : null,
+			y.build_year != null ? `rok ${y.build_year}` : null,
+			y.engine,
+			y.owner_name ? `armator: ${y.owner_name}` : null
+		]
+			.filter(Boolean)
+			.join(' · ');
 	}
 
 	async function handleDelete(id: number) {
@@ -72,6 +103,26 @@
 					<label for="type" class="mb-1 block text-sm font-medium">Typ</label>
 					<input id="type" type="text" bind:value={form.yacht_type} class="w-full rounded-lg border px-3 py-2" />
 				</div>
+				<div>
+					<label for="berths" class="mb-1 block text-sm font-medium">Koje</label>
+					<input id="berths" type="number" min="1" step="1" bind:value={form.berths} class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div>
+					<label for="length" class="mb-1 block text-sm font-medium">Długość (m)</label>
+					<input id="length" type="number" min="0.1" step="0.1" bind:value={form.length_m} class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div>
+					<label for="build_year" class="mb-1 block text-sm font-medium">Rok budowy</label>
+					<input id="build_year" type="number" min="1800" max="2100" step="1" bind:value={form.build_year} class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div>
+					<label for="engine" class="mb-1 block text-sm font-medium">Silnik</label>
+					<input id="engine" type="text" bind:value={form.engine} class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div>
+					<label for="owner" class="mb-1 block text-sm font-medium">Armator</label>
+					<input id="owner" type="text" bind:value={form.owner_name} class="w-full rounded-lg border px-3 py-2" />
+				</div>
 			</div>
 			<button type="submit" disabled={saving} class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 				{saving ? 'Dodawanie...' : 'Dodaj'}
@@ -94,6 +145,9 @@
 						<span class="font-semibold text-[var(--navy)]">{yacht.name}</span>
 						{#if yacht.yacht_type}
 							<span class="ml-2 text-sm text-[var(--text-muted)]">{yacht.yacht_type}</span>
+						{/if}
+						{#if yachtSpecs(yacht)}
+							<div class="text-sm text-[var(--text-muted)]">{yachtSpecs(yacht)}</div>
 						{/if}
 					</div>
 					<div class="flex items-center gap-4">
