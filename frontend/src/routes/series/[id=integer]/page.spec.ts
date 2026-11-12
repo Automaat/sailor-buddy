@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { CruiseSeries, CruiseSeriesEdition } from '#lib/api/types.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -14,9 +14,15 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: false, user: { id: 2, role: 'member' } }
 }));
 
+import { goto } from '$app/navigation';
 import { ApiError } from '#lib/api/client.js';
-import { getSeries, listSeriesEditions } from '#lib/api/routes.js';
+import { getSeries, listSeriesEditions, updateSeries, deleteSeries } from '#lib/api/routes.js';
+import { auth } from '#lib/stores/auth.svelte.js';
 import SeriesDetailPage from './+page.svelte';
+
+const mockUpdate = updateSeries as unknown as ReturnType<typeof vi.fn>;
+const mockDelete = deleteSeries as unknown as ReturnType<typeof vi.fn>;
+const mockAuth = auth as unknown as { isAdmin: boolean };
 
 const mockGet = getSeries as unknown as ReturnType<typeof vi.fn>;
 const mockEditions = listSeriesEditions as unknown as ReturnType<typeof vi.fn>;
@@ -42,6 +48,10 @@ function makeEdition(overrides: Partial<CruiseSeriesEdition> = {}): CruiseSeries
 }
 
 beforeEach(() => {
+	mockAuth.isAdmin = false;
+	mockUpdate.mockReset().mockResolvedValue(undefined);
+	mockDelete.mockReset().mockResolvedValue(undefined);
+	vi.mocked(goto).mockReset();
 	mockGet.mockReset().mockResolvedValue(series);
 	mockEditions.mockReset().mockResolvedValue([]);
 	vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -87,5 +97,57 @@ describe('series detail page', () => {
 		mockGet.mockRejectedValue(new ApiError(404, 'series not found'));
 		render(SeriesDetailPage);
 		expect(await screen.findByText('Nie znaleziono serii')).toBeInTheDocument();
+	});
+
+	it('shows a load error for other failures', async () => {
+		mockGet.mockRejectedValue(new Error('network'));
+		render(SeriesDetailPage);
+		expect(await screen.findByText('Nie udało się wczytać serii')).toBeInTheDocument();
+	});
+
+	it('lets an admin rename the series and clear its description', async () => {
+		mockAuth.isAdmin = true;
+		render(SeriesDetailPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+
+		expect(screen.getByLabelText('Opis')).toHaveValue('Od 2018');
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'MIS' } });
+		await fireEvent.input(screen.getByLabelText('Opis'), { target: { value: '' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(mockUpdate).toHaveBeenCalledWith(4, { name: 'MIS', description: undefined });
+		expect(await screen.findByRole('heading', { name: 'MIS' })).toBeInTheDocument();
+		expect(screen.queryByText('Od 2018')).not.toBeInTheDocument();
+	});
+
+	it('keeps the form open with the error when saving fails', async () => {
+		mockAuth.isAdmin = true;
+		mockUpdate.mockRejectedValue(new Error('name taken'));
+		render(SeriesDetailPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(await screen.findByText('name taken')).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Anuluj' }));
+		expect(screen.getByRole('heading', { name: 'May I Sail' })).toBeInTheDocument();
+	});
+
+	it('deletes the series after confirmation', async () => {
+		mockAuth.isAdmin = true;
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(SeriesDetailPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		expect(confirmSpy).toHaveBeenCalled();
+		await vi.waitFor(() => expect(goto).toHaveBeenCalledWith('/series'));
+		expect(mockDelete).toHaveBeenCalledWith(4);
+	});
+
+	it('keeps the series when deletion is not confirmed', async () => {
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(false);
+		render(SeriesDetailPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		expect(mockDelete).not.toHaveBeenCalled();
 	});
 });

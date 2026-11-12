@@ -521,3 +521,67 @@ func TestEnrollCruiseFromRow(t *testing.T) {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }
+
+func TestCruiseFromDB_Series(t *testing.T) {
+	got := CruiseFromDB(sqlcdb.Cruise{ID: 1, Name: "MIS", SeriesID: nint(3), Edition: nstr("2026/27")})
+	if got.SeriesID == nil || *got.SeriesID != 3 || got.Edition == nil || *got.Edition != "2026/27" {
+		t.Fatalf("series=%v edition=%v", got.SeriesID, got.Edition)
+	}
+	bare := CruiseFromDB(sqlcdb.Cruise{ID: 2, Name: "Solo"})
+	if bare.SeriesID != nil || bare.Edition != nil {
+		t.Fatalf("want nil series fields, got %+v", bare)
+	}
+}
+
+func TestCruiseSeriesFromDB(t *testing.T) {
+	got := CruiseSeriesFromDB(sqlcdb.CruiseSeries{
+		ID: 4, CreatedBy: nint(1), Name: "May I Sail", Description: nstr("Od 2018"),
+		CreatedAt: ntime(), UpdatedAt: ntime(),
+	})
+	if got.ID != 4 || got.Name != "May I Sail" || got.CreatedBy == nil || *got.CreatedBy != 1 {
+		t.Fatalf("unexpected: %+v", got)
+	}
+	if got.Description == nil || *got.Description != "Od 2018" || !got.CreatedAt.Equal(testTime) {
+		t.Fatalf("unexpected: %+v", got)
+	}
+	if bare := CruiseSeriesFromDB(sqlcdb.CruiseSeries{ID: 5, Name: "X"}); bare.Description != nil || bare.CreatedBy != nil {
+		t.Fatalf("want nil optionals, got %+v", bare)
+	}
+
+	list := CruiseSeriesListFromDB([]sqlcdb.CruiseSeries{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}})
+	if len(list) != 2 || list[1].Name != "B" {
+		t.Fatalf("unexpected list: %+v", list)
+	}
+	if CruiseSeriesListFromDB(nil) == nil {
+		t.Fatalf("want non-nil slice")
+	}
+}
+
+func TestCruiseSeriesEditionsFromDB(t *testing.T) {
+	out := CruiseSeriesEditionsFromDB([]sqlcdb.ListCruiseSeriesEditionsRow{
+		{
+			ID: 10, Name: "MIS 2025", Edition: nstr("2025"), Kind: "inland",
+			EmbarkDate: nstr("2025-05-01"), DisembarkDate: nstr("2025-05-08"),
+			VoyageCount: 2, TotalMiles: 200.5, TotalHours: 40,
+		},
+		{ID: 11, Name: "MIS planned", Kind: "sea"},
+	})
+	if len(out) != 2 {
+		t.Fatalf("got %d editions", len(out))
+	}
+	e := out[0]
+	if e.CruiseID != 10 || e.Name != "MIS 2025" || e.Kind != "inland" || e.VoyageCount != 2 ||
+		e.TotalMiles != 200.5 || e.TotalHours != 40 {
+		t.Fatalf("unexpected: %+v", e)
+	}
+	if e.Edition == nil || *e.Edition != "2025" || e.EmbarkDate == nil || *e.EmbarkDate != "2025-05-01" ||
+		e.DisembarkDate == nil || *e.DisembarkDate != "2025-05-08" {
+		t.Fatalf("unexpected optionals: %+v", e)
+	}
+	if p := out[1]; p.Edition != nil || p.EmbarkDate != nil || p.DisembarkDate != nil {
+		t.Fatalf("want nil optionals, got %+v", p)
+	}
+	if CruiseSeriesEditionsFromDB(nil) == nil {
+		t.Fatalf("want non-nil slice")
+	}
+}

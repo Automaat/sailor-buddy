@@ -416,3 +416,70 @@ func TestCruiseHandler_Series(t *testing.T) {
 		}
 	})
 }
+
+func TestSeriesHandler_DBErrors(t *testing.T) {
+	boom := errors.New("boom")
+	admin := userCtx(context.Background())
+	failingGet := func(context.Context, int64) (sqlcdb.CruiseSeries, error) { return sqlcdb.CruiseSeries{}, boom }
+	knownSeries := func(_ context.Context, id int64) (sqlcdb.CruiseSeries, error) {
+		return sqlcdb.CruiseSeries{ID: id}, nil
+	}
+	cases := []struct {
+		name string
+		m    *mockQuerier
+		do   func(api humatest.TestAPI) *httptest.ResponseRecorder
+	}{
+		{
+			name: "list",
+			m: &mockQuerier{listCruiseSeriesFn: func(context.Context, sqlcdb.ListCruiseSeriesParams) ([]sqlcdb.CruiseSeries, error) {
+				return nil, boom
+			}},
+			do: func(api humatest.TestAPI) *httptest.ResponseRecorder { return api.GetCtx(admin, "/series") },
+		},
+		{
+			name: "get",
+			m:    &mockQuerier{getCruiseSeriesFn: failingGet},
+			do:   func(api humatest.TestAPI) *httptest.ResponseRecorder { return api.GetCtx(admin, "/series/1") },
+		},
+		{
+			name: "create",
+			m: &mockQuerier{createCruiseSeriesFn: func(context.Context, sqlcdb.CreateCruiseSeriesParams) (sqlcdb.CruiseSeries, error) {
+				return sqlcdb.CruiseSeries{}, boom
+			}},
+			do: func(api humatest.TestAPI) *httptest.ResponseRecorder {
+				return api.PostCtx(admin, "/series", map[string]any{"name": "X"})
+			},
+		},
+		{
+			name: "update",
+			m: &mockQuerier{
+				getCruiseSeriesFn:    knownSeries,
+				updateCruiseSeriesFn: func(context.Context, sqlcdb.UpdateCruiseSeriesParams) error { return boom },
+			},
+			do: func(api humatest.TestAPI) *httptest.ResponseRecorder {
+				return api.PutCtx(admin, "/series/1", map[string]any{"name": "X"})
+			},
+		},
+		{
+			name: "delete",
+			m: &mockQuerier{
+				getCruiseSeriesFn:    knownSeries,
+				deleteCruiseSeriesFn: func(context.Context, int64) error { return boom },
+			},
+			do: func(api humatest.TestAPI) *httptest.ResponseRecorder { return api.DeleteCtx(admin, "/series/1") },
+		},
+		{
+			name: "editions series lookup",
+			m:    &mockQuerier{getCruiseSeriesFn: failingGet},
+			do:   func(api humatest.TestAPI) *httptest.ResponseRecorder { return api.GetCtx(admin, "/series/1/editions") },
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := tc.do(seriesTestAPI(t, tc.m))
+			if resp.Code != http.StatusInternalServerError {
+				t.Fatalf("got %d, want 500; body=%s", resp.Code, resp.Body)
+			}
+		})
+	}
+}

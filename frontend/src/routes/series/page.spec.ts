@@ -65,4 +65,23 @@ describe('series page', () => {
 		await screen.findByText('Brak serii');
 		expect(screen.queryByRole('button', { name: '+ Dodaj serię' })).not.toBeInTheDocument();
 	});
+
+	it('shows the error and keeps the form when creating fails', async () => {
+		mockCreate.mockRejectedValue(new Error('boom'));
+		render(SeriesPage);
+		await screen.findByText('Brak serii');
+		await fireEvent.click(screen.getByRole('button', { name: '+ Dodaj serię' }));
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'X' } });
+		await fireEvent.input(screen.getByLabelText('Opis'), { target: { value: 'Opis serii' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
+
+		expect(mockCreate).toHaveBeenCalledWith({ name: 'X', description: 'Opis serii' });
+		expect(await screen.findByText('boom')).toBeInTheDocument();
+	});
+
+	it('shows the empty state when loading fails', async () => {
+		mockList.mockRejectedValue(new Error('down'));
+		render(SeriesPage);
+		expect(await screen.findByText('Brak serii')).toBeInTheDocument();
+	});
 });

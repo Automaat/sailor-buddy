@@ -265,6 +265,33 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		args: ['/trainings/{trainingID}', { path: { trainingID: 5 } }]
 	},
 
+	{ name: 'listSeries', run: () => routes.listSeries(), verb: 'list', args: ['/series'] },
+	{
+		name: 'getSeries',
+		run: () => routes.getSeries(4),
+		verb: 'get',
+		args: ['/series/{seriesID}', { path: { seriesID: 4 } }]
+	},
+	{ name: 'createSeries', run: () => routes.createSeries(body), verb: 'post', args: ['/series', { body }] },
+	{
+		name: 'updateSeries',
+		run: () => routes.updateSeries(4, body),
+		verb: 'put',
+		args: ['/series/{seriesID}', { path: { seriesID: 4 }, body }]
+	},
+	{
+		name: 'deleteSeries',
+		run: () => routes.deleteSeries(4),
+		verb: 'del',
+		args: ['/series/{seriesID}', { path: { seriesID: 4 } }]
+	},
+	{
+		name: 'listSeriesEditions',
+		run: () => routes.listSeriesEditions(4),
+		verb: 'get',
+		args: ['/series/{seriesID}/editions', { path: { seriesID: 4 } }]
+	},
+
 	{ name: 'listCruises', run: () => routes.listCruises(), verb: 'list', args: ['/cruises'] },
 	{
 		name: 'getCruise',
