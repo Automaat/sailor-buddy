@@ -17,6 +17,7 @@
 	import { ApiError } from '#lib/api/client.js';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
+	import { isHttpUrl } from '#lib/cruise.js';
 	import { statusLabels } from '#lib/enrollment.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -175,7 +176,7 @@
 			</div>
 		{/if}
 
-		{#if cruise.travel_notes || cruise.min_age != null || cruise.group_chat_url}
+		{#if cruise.travel_notes || cruise.min_age != null || (cruise.group_chat_url && isHttpUrl(cruise.group_chat_url))}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Informacje dla załogi</h2>
 				<CruiseLogistics

@@ -121,11 +121,11 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 			},
 		}
 		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises",
-			map[string]any{"name": "X", "group_chat_url": " HTTP://chat.example.com/g/1 "})
+			map[string]any{"name": "X", "group_chat_url": " HTTP://chat.example.com:8443/g/1 "})
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
-		if stored != (types.NullString{String: "HTTP://chat.example.com/g/1", Valid: true}) {
+		if stored != (types.NullString{String: "HTTP://chat.example.com:8443/g/1", Valid: true}) {
 			t.Fatalf("stored = %+v", stored)
 		}
 	})
@@ -138,6 +138,9 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 		"https://",
 		"//example.com/chat",
 		"http://exa mple.com",
+		"https://chat.example.com:99999/g",
+		"https://chat.example.com:0/g",
+		"https://:443/g",
 	}
 	for _, link := range invalidLinks {
 		t.Run("create rejects "+link, func(t *testing.T) {

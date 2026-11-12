@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -427,8 +428,18 @@ func groupChatURL(s *string) (types.NullString, error) {
 		return v, nil
 	}
 	u, err := url.Parse(v.String)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || !validPort(u.Port()) {
 		return types.NullString{}, huma.Error422UnprocessableEntity("group_chat_url must be an http or https URL")
 	}
 	return v, nil
+}
+
+// validPort accepts an absent port or one in 1-65535; url.Parse does not
+// check the range, while browsers reject such links.
+func validPort(p string) bool {
+	if p == "" {
+		return true
+	}
+	n, err := strconv.Atoi(p)
+	return err == nil && n >= 1 && n <= 65535
 }
