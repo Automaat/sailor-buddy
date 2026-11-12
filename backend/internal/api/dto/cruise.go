@@ -11,6 +11,7 @@ type Cruise struct {
 	ID            int64     `json:"id"`
 	CreatedBy     *int64    `json:"created_by,omitempty"`
 	Name          string    `json:"name"`
+	Kind          string    `json:"kind" enum:"sea,inland" doc:"Cruise kind: sea (morski) or inland (śródlądowy)"`
 	EmbarkDate    *string   `json:"embark_date,omitempty"`
 	DisembarkDate *string   `json:"disembark_date,omitempty"`
 	Countries     *string   `json:"countries,omitempty"`
@@ -30,6 +31,7 @@ type Cruise struct {
 // CruiseBody is the create/update request payload for a cruise.
 type CruiseBody struct {
 	Name          string   `json:"name" minLength:"1" doc:"Cruise name"`
+	Kind          string   `json:"kind,omitempty" enum:"sea,inland" default:"sea" doc:"Cruise kind: sea (morski) or inland (śródlądowy)"`
 	EmbarkDate    *string  `json:"embark_date,omitempty"`
 	DisembarkDate *string  `json:"disembark_date,omitempty"`
 	Countries     *string  `json:"countries,omitempty"`
@@ -49,6 +51,7 @@ func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 		ID:            c.ID,
 		CreatedBy:     intPtr(c.CreatedBy),
 		Name:          c.Name,
+		Kind:          c.Kind,
 		EmbarkDate:    strPtr(c.EmbarkDate),
 		DisembarkDate: strPtr(c.DisembarkDate),
 		Countries:     strPtr(c.Countries),

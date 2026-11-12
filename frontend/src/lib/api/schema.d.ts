@@ -987,6 +987,11 @@ export interface components {
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
+            /**
+             * @description Cruise kind: sea (morski) or inland (śródlądowy)
+             * @enum {string}
+             */
+            kind: "sea" | "inland";
             /** Format: int64 */
             max_crew?: number;
             name: string;
@@ -1011,6 +1016,12 @@ export interface components {
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
+            /**
+             * @description Cruise kind: sea (morski) or inland (śródlądowy)
+             * @default sea
+             * @enum {string}
+             */
+            kind: "sea" | "inland";
             /** Format: int64 */
             max_crew?: number;
             /** @description Cruise name */

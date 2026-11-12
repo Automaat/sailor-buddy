@@ -320,6 +320,10 @@ Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 A **cruise** is a club event that groups child trips and voyages (one per
 yacht) and accepts cruise-level enrollments.
 
+Each cruise has a `kind`: `sea` (rejs morski) or `inland` (rejs
+śródlądowy). Create and update default it to `sea` when omitted; any other
+value is rejected with 422.
+
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/cruises` | member | List cruises | 200 |
