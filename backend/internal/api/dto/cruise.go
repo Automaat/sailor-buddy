@@ -26,6 +26,9 @@ type Cruise struct {
 	MaxCrew       *int64    `json:"max_crew,omitempty"`
 	CostPerPerson *float64  `json:"cost_per_person,omitempty"`
 	EnrollToken   *string   `json:"enroll_token,omitempty"`
+	GroupChatUrl  *string   `json:"group_chat_url,omitempty" doc:"Link to the crew group chat (http or https)"`
+	TravelNotes   *string   `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
+	MinAge        *int64    `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -47,6 +50,9 @@ type CruiseBody struct {
 	ImageRouteUrl *string  `json:"image_route_url,omitempty"`
 	MaxCrew       *int64   `json:"max_crew,omitempty"`
 	CostPerPerson *float64 `json:"cost_per_person,omitempty"`
+	GroupChatUrl  *string  `json:"group_chat_url,omitempty" maxLength:"2000" doc:"Link to the crew group chat; must be an http or https URL, blank clears it"`
+	TravelNotes   *string  `json:"travel_notes,omitempty" maxLength:"5000" doc:"How to get there: flights, transport, meeting point; blank clears it"`
+	MinAge        *int64   `json:"min_age,omitempty" minimum:"0" maximum:"99" doc:"Minimum crew age, shown as information only; the app does not check it"`
 }
 
 // CruiseFromDB maps a database row to the API model.
@@ -70,6 +76,9 @@ func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 		MaxCrew:       intPtr(c.MaxCrew),
 		CostPerPerson: floatPtr(c.CostPerPerson),
 		EnrollToken:   strPtr(c.EnrollToken),
+		GroupChatUrl:  strPtr(c.GroupChatUrl),
+		TravelNotes:   strPtr(c.TravelNotes),
+		MinAge:        intPtr(c.MinAge),
 		CreatedAt:     timeVal(c.CreatedAt),
 		UpdatedAt:     timeVal(c.UpdatedAt),
 	}
