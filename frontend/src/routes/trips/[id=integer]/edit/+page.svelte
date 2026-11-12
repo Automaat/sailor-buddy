@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { getTrip, updateTrip, listYachts } from '#lib/api/routes.js';
-	import type { Yacht } from '#lib/api/types.js';
+	import { getTrip, updateTrip, listYachts, listCruises } from '#lib/api/routes.js';
+	import type { Cruise, Trip, Yacht } from '#lib/api/types.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -13,6 +13,10 @@
 	let loading = $state(true);
 	let saving = $state(false);
 	let yachts = $state<Yacht[]>([]);
+	let cruises = $state<Cruise[]>([]);
+	// PUT replaces every field, so values the form does not edit are sent back
+	// unchanged; otherwise saving would clear them.
+	let images = $state<Pick<Trip, 'image_logo_url' | 'image_photo_url' | 'image_route_url'>>({});
 
 	// Editing trips is an admin task; redirect regular members away.
 	$effect(() => {
@@ -30,6 +34,7 @@
 		countries: '',
 		start_port: '',
 		end_port: '',
+		cruise_id: 0,
 		captain_user_id: 0,
 		yacht_id: 0,
 		cost_total: 0,
@@ -42,8 +47,14 @@
 
 	onMount(async () => {
 		try {
-			const [trip, y] = await Promise.all([getTrip(id), listYachts()]);
+			const [trip, y, c] = await Promise.all([getTrip(id), listYachts(), listCruises().catch(() => [])]);
 			yachts = y;
+			cruises = c;
+			images = {
+				image_logo_url: trip.image_logo_url,
+				image_photo_url: trip.image_photo_url,
+				image_route_url: trip.image_route_url
+			};
 			legacyCaptainName = trip.captain_user_id ? '' : (trip.captain_name ?? '');
 			form = {
 				name: trip.name,
@@ -52,6 +63,7 @@
 				countries: trip.countries ?? '',
 				start_port: trip.start_port ?? '',
 				end_port: trip.end_port ?? '',
+				cruise_id: trip.cruise_id ?? 0,
 				captain_user_id: trip.captain_user_id ?? 0,
 				yacht_id: trip.yacht_id ?? 0,
 				cost_total: trip.cost_total ?? 0,
@@ -73,7 +85,9 @@
 		try {
 			const payload = {
 				...form,
+				...images,
 				...priceBody(price),
+				cruise_id: form.cruise_id || undefined,
 				yacht_id: form.yacht_id || undefined,
 				// captain_name of a linked captain is the server's snapshot, so only a
 				// legacy free-text name survives clearing the captain.
@@ -106,6 +120,20 @@
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 				</div>
+				{#if cruises.length > 0 || form.cruise_id}
+					<div class="col-span-2">
+						<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu</label>
+						<select id="cruise" bind:value={form.cruise_id} class="w-full rounded-lg border px-3 py-2">
+							<option value={0}>— samodzielny rejs —</option>
+							{#if form.cruise_id && !cruises.some((c) => c.id === form.cruise_id)}
+								<option value={form.cruise_id}>Wydarzenie #{form.cruise_id}</option>
+							{/if}
+							{#each cruises as cruise}
+								<option value={cruise.id}>{cruise.name}</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
 				<div>
 					<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
 					<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
