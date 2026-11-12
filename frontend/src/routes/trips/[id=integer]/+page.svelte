@@ -244,10 +244,10 @@
 						<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
 							Kopiuj link
 						</button>
-						<a href="/trips/{id}/enrollments" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-							Zarządzaj zapisami
-						</a>
 					{/if}
+					<a href="/trips/{id}/enrollments" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+						Zarządzaj zapisami
+					</a>
 				</div>
 			</div>
 		{/if}

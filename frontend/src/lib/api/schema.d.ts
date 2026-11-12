@@ -251,6 +251,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/enroll/{token}/legs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Self-enroll in one or more legs (trips) of a cruise via its share token
+         * @description Creates one pending trip enrollment per picked leg. Legs the caller is already enrolled in are reported as already_enrolled. If any picked trip is not a planned trip of the token's cruise, the request fails with 422 and nothing is written.
+         */
+        post: operations["enroll-cruise-legs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geocode": {
         parameters: {
             query?: never;
@@ -1108,10 +1128,39 @@ export interface components {
             enrollment?: components["schemas"]["Enrollment"];
             /** @enum {string} */
             kind: "trip" | "cruise";
+            leg_enrollments?: components["schemas"]["Enrollment"][] | null;
             /** Format: int64 */
             total_count: number;
             trip?: components["schemas"]["EnrollTrip"];
             trips?: components["schemas"]["Trip"][] | null;
+        };
+        EnrollLegResult: {
+            enrollment: components["schemas"]["Enrollment"];
+            /** @enum {string} */
+            result: "created" | "already_enrolled";
+            /** Format: int64 */
+            trip_id: number;
+        };
+        EnrollLegsBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/EnrollLegsBody.json
+             */
+            readonly $schema?: string;
+            /** @description Optional note to the organizer, copied to every leg enrollment */
+            note?: string;
+            /** @description IDs of the cruise's trips (legs) to enroll in */
+            trip_ids: number[];
+        };
+        EnrollLegsResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/EnrollLegsResponse.json
+             */
+            readonly $schema?: string;
+            results: components["schemas"]["EnrollLegResult"][] | null;
         };
         EnrollTrip: {
             captain_name?: string;
@@ -2673,6 +2722,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "enroll-cruise-legs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise enrollment share token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollLegsBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollLegsResponse"];
                 };
             };
             /** @description Error */

@@ -479,6 +479,12 @@ components:
             - trip
             - cruise
           type: string
+        leg_enrollments:
+          items:
+            $ref: "#/components/schemas/Enrollment"
+          type:
+            - array
+            - "null"
         total_count:
           format: int64
           type: integer
@@ -495,6 +501,68 @@ components:
         - enrolled
         - accepted_count
         - total_count
+      type: object
+    EnrollLegResult:
+      additionalProperties: false
+      properties:
+        enrollment:
+          $ref: "#/components/schemas/Enrollment"
+        result:
+          enum:
+            - created
+            - already_enrolled
+          type: string
+        trip_id:
+          format: int64
+          type: integer
+      required:
+        - trip_id
+        - result
+        - enrollment
+      type: object
+    EnrollLegsBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/EnrollLegsBody.json
+          format: uri
+          readOnly: true
+          type: string
+        note:
+          description: Optional note to the organizer, copied to every leg enrollment
+          type: string
+        trip_ids:
+          description: IDs of the cruise's trips (legs) to enroll in
+          items:
+            format: int64
+            type: integer
+          maxItems: 100
+          minItems: 1
+          type: array
+          uniqueItems: true
+      required:
+        - trip_ids
+      type: object
+    EnrollLegsResponse:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/EnrollLegsResponse.json
+          format: uri
+          readOnly: true
+          type: string
+        results:
+          items:
+            $ref: "#/components/schemas/EnrollLegResult"
+          type:
+            - array
+            - "null"
+      required:
+        - results
       type: object
     EnrollTrip:
       additionalProperties: false
@@ -2547,6 +2615,40 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Self-enroll via a share token
+      tags:
+        - Enrollment
+  /enroll/{token}/legs:
+    post:
+      description: Creates one pending trip enrollment per picked leg. Legs the caller is already enrolled in are reported as already_enrolled. If any picked trip is not a planned trip of the token's cruise, the request fails with 422 and nothing is written.
+      operationId: enroll-cruise-legs
+      parameters:
+        - description: Cruise enrollment share token
+          in: path
+          name: token
+          required: true
+          schema:
+            description: Cruise enrollment share token
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollLegsBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollLegsResponse"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Self-enroll in one or more legs (trips) of a cruise via its share token
       tags:
         - Enrollment
   /geocode:

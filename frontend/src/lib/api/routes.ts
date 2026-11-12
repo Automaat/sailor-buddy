@@ -337,6 +337,10 @@ export function enroll(token: string, note: string | undefined) {
 	return api.post('/enroll/{token}', { path: { token }, body: { note } });
 }
 
+export function enrollLegs(token: string, tripIDs: number[], note: string | undefined) {
+	return api.post('/enroll/{token}/legs', { path: { token }, body: { trip_ids: tripIDs, note } });
+}
+
 export function importXlsx(formData: FormData) {
 	return api.upload('/import/xlsx', formData);
 }
