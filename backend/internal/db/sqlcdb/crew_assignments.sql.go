@@ -158,7 +158,7 @@ func (q *Queries) GetCrewMemberStats(ctx context.Context, crewMemberID int64) (G
 }
 
 const getCrewMemberTrips = `-- name: GetCrewMemberTrips :many
-SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, ca.role
+SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit, ca.role
 FROM crew_assignments ca
 JOIN trips t ON t.id = ca.trip_id
 WHERE ca.crew_member_id = $1
@@ -166,35 +166,39 @@ ORDER BY t.embark_date ASC
 `
 
 type GetCrewMemberTripsRow struct {
-	ID            int64             `json:"id"`
-	CreatedBy     types.NullInt64   `json:"created_by"`
-	CruiseID      types.NullInt64   `json:"cruise_id"`
-	Name          string            `json:"name"`
-	EmbarkDate    types.NullString  `json:"embark_date"`
-	DisembarkDate types.NullString  `json:"disembark_date"`
-	Countries     types.NullString  `json:"countries"`
-	StartPort     types.NullString  `json:"start_port"`
-	EndPort       types.NullString  `json:"end_port"`
-	CaptainName   types.NullString  `json:"captain_name"`
-	YachtID       types.NullInt64   `json:"yacht_id"`
-	CostTotal     types.NullFloat64 `json:"cost_total"`
-	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
-	MaxCrew       types.NullInt64   `json:"max_crew"`
-	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl types.NullString  `json:"image_route_url"`
-	Description   types.NullString  `json:"description"`
-	Status        TripStatus        `json:"status"`
-	EnrollToken   types.NullString  `json:"enroll_token"`
-	CreatedAt     types.NullTime    `json:"created_at"`
-	UpdatedAt     types.NullTime    `json:"updated_at"`
-	CaptainUserID types.NullInt64   `json:"captain_user_id"`
-	Role          string            `json:"role"`
+	ID                     int64             `json:"id"`
+	CreatedBy              types.NullInt64   `json:"created_by"`
+	CruiseID               types.NullInt64   `json:"cruise_id"`
+	Name                   string            `json:"name"`
+	EmbarkDate             types.NullString  `json:"embark_date"`
+	DisembarkDate          types.NullString  `json:"disembark_date"`
+	Countries              types.NullString  `json:"countries"`
+	StartPort              types.NullString  `json:"start_port"`
+	EndPort                types.NullString  `json:"end_port"`
+	CaptainName            types.NullString  `json:"captain_name"`
+	YachtID                types.NullInt64   `json:"yacht_id"`
+	CostTotal              types.NullFloat64 `json:"cost_total"`
+	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
+	MaxCrew                types.NullInt64   `json:"max_crew"`
+	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl          types.NullString  `json:"image_route_url"`
+	Description            types.NullString  `json:"description"`
+	Status                 TripStatus        `json:"status"`
+	EnrollToken            types.NullString  `json:"enroll_token"`
+	CreatedAt              types.NullTime    `json:"created_at"`
+	UpdatedAt              types.NullTime    `json:"updated_at"`
+	CaptainUserID          types.NullInt64   `json:"captain_user_id"`
+	Currency               string            `json:"currency"`
+	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
+	YachtFund              types.NullFloat64 `json:"yacht_fund"`
+	Deposit                types.NullFloat64 `json:"deposit"`
+	Role                   string            `json:"role"`
 }
 
 // GetCrewMemberTrips
 //
-//	SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, ca.role
+//	SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit, ca.role
 //	FROM crew_assignments ca
 //	JOIN trips t ON t.id = ca.trip_id
 //	WHERE ca.crew_member_id = $1
@@ -232,6 +236,10 @@ func (q *Queries) GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CaptainUserID,
+			&i.Currency,
+			&i.CostPerPersonNonMember,
+			&i.YachtFund,
+			&i.Deposit,
 			&i.Role,
 		); err != nil {
 			return nil, err

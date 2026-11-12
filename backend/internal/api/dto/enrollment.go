@@ -60,34 +60,45 @@ func CruiseEnrollmentsFromDB(rows []sqlcdb.ListCruiseEnrollmentsRow) []CruiseEnr
 
 // EnrollTrip is the trip summary returned when resolving an enrollment token.
 type EnrollTrip struct {
-	ID            int64   `json:"id"`
-	Name          string  `json:"name"`
-	EmbarkDate    *string `json:"embark_date,omitempty"`
-	DisembarkDate *string `json:"disembark_date,omitempty"`
-	Countries     *string `json:"countries,omitempty"`
-	StartPort     *string `json:"start_port,omitempty"`
-	EndPort       *string `json:"end_port,omitempty"`
-	Description   *string `json:"description,omitempty"`
-	MaxCrew       *int64  `json:"max_crew,omitempty"`
-	CaptainName   *string `json:"captain_name,omitempty"`
-	ImagePhotoUrl *string `json:"image_photo_url,omitempty"`
+	ID                     int64    `json:"id"`
+	Name                   string   `json:"name"`
+	EmbarkDate             *string  `json:"embark_date,omitempty"`
+	DisembarkDate          *string  `json:"disembark_date,omitempty"`
+	Countries              *string  `json:"countries,omitempty"`
+	StartPort              *string  `json:"start_port,omitempty"`
+	EndPort                *string  `json:"end_port,omitempty"`
+	Description            *string  `json:"description,omitempty"`
+	MaxCrew                *int64   `json:"max_crew,omitempty"`
+	CaptainName            *string  `json:"captain_name,omitempty"`
+	ImagePhotoUrl          *string  `json:"image_photo_url,omitempty"`
+	CostPerPerson          *float64 `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
+	Currency               string   `json:"currency" enum:"PLN,EUR"`
+	CostPerPersonNonMember *float64 `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
+	YachtFund              *float64 `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person"`
+	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
 }
 
 // EnrollCruise is the cruise summary returned when resolving an enrollment token.
 type EnrollCruise struct {
-	ID            int64    `json:"id"`
-	Name          string   `json:"name"`
-	EmbarkDate    *string  `json:"embark_date,omitempty"`
-	DisembarkDate *string  `json:"disembark_date,omitempty"`
-	Countries     *string  `json:"countries,omitempty"`
-	StartPort     *string  `json:"start_port,omitempty"`
-	EndPort       *string  `json:"end_port,omitempty"`
-	Description   *string  `json:"description,omitempty"`
-	ImagePhotoUrl *string  `json:"image_photo_url,omitempty"`
-	MaxCrew       *int64   `json:"max_crew,omitempty"`
-	CostPerPerson *float64 `json:"cost_per_person,omitempty"`
-	TravelNotes   *string  `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
-	MinAge        *int64   `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
+	ID                     int64    `json:"id"`
+	Name                   string   `json:"name"`
+	EmbarkDate             *string  `json:"embark_date,omitempty"`
+	DisembarkDate          *string  `json:"disembark_date,omitempty"`
+	Countries              *string  `json:"countries,omitempty"`
+	StartPort              *string  `json:"start_port,omitempty"`
+	EndPort                *string  `json:"end_port,omitempty"`
+	Description            *string  `json:"description,omitempty"`
+	ImagePhotoUrl          *string  `json:"image_photo_url,omitempty"`
+	MaxCrew                *int64   `json:"max_crew,omitempty"`
+	CostPerPerson          *float64 `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
+	Currency               string   `json:"currency" enum:"PLN,EUR"`
+	CostPerPersonNonMember *float64 `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
+	YachtFund              *float64 `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person"`
+	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
+	Included               []string `json:"included" doc:"What the price covers"`
+	NotIncluded            []string `json:"not_included" doc:"What the price does not cover"`
+	TravelNotes            *string  `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
+	MinAge                 *int64   `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
 	// GroupChatUrl is returned only to a logged-in caller; the enroll preview
 	// is public and the chat link is for members.
 	GroupChatUrl *string `json:"group_chat_url,omitempty" doc:"Link to the crew group chat; omitted for anonymous callers"`
@@ -225,17 +236,22 @@ func TripEnrollmentsFromDB(rows []sqlcdb.ListTripEnrollmentsRow) []TripEnrollmen
 // EnrollTripFromRow maps the token-resolved trip row.
 func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 	return EnrollTrip{
-		ID:            t.ID,
-		Name:          t.Name,
-		EmbarkDate:    strPtr(t.EmbarkDate),
-		DisembarkDate: strPtr(t.DisembarkDate),
-		Countries:     strPtr(t.Countries),
-		StartPort:     strPtr(t.StartPort),
-		EndPort:       strPtr(t.EndPort),
-		Description:   strPtr(t.Description),
-		MaxCrew:       intPtr(t.MaxCrew),
-		CaptainName:   strPtr(t.CaptainName),
-		ImagePhotoUrl: strPtr(t.ImagePhotoUrl),
+		ID:                     t.ID,
+		Name:                   t.Name,
+		EmbarkDate:             strPtr(t.EmbarkDate),
+		DisembarkDate:          strPtr(t.DisembarkDate),
+		Countries:              strPtr(t.Countries),
+		StartPort:              strPtr(t.StartPort),
+		EndPort:                strPtr(t.EndPort),
+		Description:            strPtr(t.Description),
+		MaxCrew:                intPtr(t.MaxCrew),
+		CaptainName:            strPtr(t.CaptainName),
+		ImagePhotoUrl:          strPtr(t.ImagePhotoUrl),
+		CostPerPerson:          floatPtr(t.CostPerPerson),
+		Currency:               t.Currency,
+		CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
+		YachtFund:              floatPtr(t.YachtFund),
+		Deposit:                floatPtr(t.Deposit),
 	}
 }
 
@@ -243,19 +259,25 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 // is included only for a logged-in caller (member).
 func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow, member bool) EnrollCruise {
 	out := EnrollCruise{
-		ID:            c.ID,
-		Name:          c.Name,
-		EmbarkDate:    strPtr(c.EmbarkDate),
-		DisembarkDate: strPtr(c.DisembarkDate),
-		Countries:     strPtr(c.Countries),
-		StartPort:     strPtr(c.StartPort),
-		EndPort:       strPtr(c.EndPort),
-		Description:   strPtr(c.Description),
-		ImagePhotoUrl: strPtr(c.ImagePhotoUrl),
-		MaxCrew:       intPtr(c.MaxCrew),
-		CostPerPerson: floatPtr(c.CostPerPerson),
-		TravelNotes:   strPtr(c.TravelNotes),
-		MinAge:        intPtr(c.MinAge),
+		ID:                     c.ID,
+		Name:                   c.Name,
+		EmbarkDate:             strPtr(c.EmbarkDate),
+		DisembarkDate:          strPtr(c.DisembarkDate),
+		Countries:              strPtr(c.Countries),
+		StartPort:              strPtr(c.StartPort),
+		EndPort:                strPtr(c.EndPort),
+		Description:            strPtr(c.Description),
+		ImagePhotoUrl:          strPtr(c.ImagePhotoUrl),
+		MaxCrew:                intPtr(c.MaxCrew),
+		CostPerPerson:          floatPtr(c.CostPerPerson),
+		Currency:               c.Currency,
+		CostPerPersonNonMember: floatPtr(c.CostPerPersonNonMember),
+		YachtFund:              floatPtr(c.YachtFund),
+		Deposit:                floatPtr(c.Deposit),
+		Included:               priceList(c.Included),
+		NotIncluded:            priceList(c.NotIncluded),
+		TravelNotes:            strPtr(c.TravelNotes),
+		MinAge:                 intPtr(c.MinAge),
 	}
 	if member {
 		out.GroupChatUrl = strPtr(c.GroupChatUrl)

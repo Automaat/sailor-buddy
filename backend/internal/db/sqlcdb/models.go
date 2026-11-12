@@ -6,6 +6,7 @@ package sqlcdb
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -81,29 +82,35 @@ type CrewMember struct {
 }
 
 type Cruise struct {
-	ID            int64             `json:"id"`
-	CreatedBy     types.NullInt64   `json:"created_by"`
-	Name          string            `json:"name"`
-	EmbarkDate    types.NullString  `json:"embark_date"`
-	DisembarkDate types.NullString  `json:"disembark_date"`
-	Countries     types.NullString  `json:"countries"`
-	StartPort     types.NullString  `json:"start_port"`
-	EndPort       types.NullString  `json:"end_port"`
-	Description   types.NullString  `json:"description"`
-	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl types.NullString  `json:"image_route_url"`
-	MaxCrew       types.NullInt64   `json:"max_crew"`
-	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
-	EnrollToken   types.NullString  `json:"enroll_token"`
-	CreatedAt     types.NullTime    `json:"created_at"`
-	UpdatedAt     types.NullTime    `json:"updated_at"`
-	Kind          string            `json:"kind"`
-	SeriesID      types.NullInt64   `json:"series_id"`
-	Edition       types.NullString  `json:"edition"`
-	GroupChatUrl  types.NullString  `json:"group_chat_url"`
-	TravelNotes   types.NullString  `json:"travel_notes"`
-	MinAge        types.NullInt64   `json:"min_age"`
+	ID                     int64             `json:"id"`
+	CreatedBy              types.NullInt64   `json:"created_by"`
+	Name                   string            `json:"name"`
+	EmbarkDate             types.NullString  `json:"embark_date"`
+	DisembarkDate          types.NullString  `json:"disembark_date"`
+	Countries              types.NullString  `json:"countries"`
+	StartPort              types.NullString  `json:"start_port"`
+	EndPort                types.NullString  `json:"end_port"`
+	Description            types.NullString  `json:"description"`
+	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl          types.NullString  `json:"image_route_url"`
+	MaxCrew                types.NullInt64   `json:"max_crew"`
+	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
+	EnrollToken            types.NullString  `json:"enroll_token"`
+	CreatedAt              types.NullTime    `json:"created_at"`
+	UpdatedAt              types.NullTime    `json:"updated_at"`
+	Kind                   string            `json:"kind"`
+	SeriesID               types.NullInt64   `json:"series_id"`
+	Edition                types.NullString  `json:"edition"`
+	Currency               string            `json:"currency"`
+	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
+	YachtFund              types.NullFloat64 `json:"yacht_fund"`
+	Deposit                types.NullFloat64 `json:"deposit"`
+	Included               json.RawMessage   `json:"included"`
+	NotIncluded            json.RawMessage   `json:"not_included"`
+	GroupChatUrl           types.NullString  `json:"group_chat_url"`
+	TravelNotes            types.NullString  `json:"travel_notes"`
+	MinAge                 types.NullInt64   `json:"min_age"`
 }
 
 type CruiseEnrollment struct {
@@ -148,29 +155,33 @@ type Training struct {
 }
 
 type Trip struct {
-	ID            int64             `json:"id"`
-	CreatedBy     types.NullInt64   `json:"created_by"`
-	CruiseID      types.NullInt64   `json:"cruise_id"`
-	Name          string            `json:"name"`
-	EmbarkDate    types.NullString  `json:"embark_date"`
-	DisembarkDate types.NullString  `json:"disembark_date"`
-	Countries     types.NullString  `json:"countries"`
-	StartPort     types.NullString  `json:"start_port"`
-	EndPort       types.NullString  `json:"end_port"`
-	CaptainName   types.NullString  `json:"captain_name"`
-	YachtID       types.NullInt64   `json:"yacht_id"`
-	CostTotal     types.NullFloat64 `json:"cost_total"`
-	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
-	MaxCrew       types.NullInt64   `json:"max_crew"`
-	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl types.NullString  `json:"image_route_url"`
-	Description   types.NullString  `json:"description"`
-	Status        TripStatus        `json:"status"`
-	EnrollToken   types.NullString  `json:"enroll_token"`
-	CreatedAt     types.NullTime    `json:"created_at"`
-	UpdatedAt     types.NullTime    `json:"updated_at"`
-	CaptainUserID types.NullInt64   `json:"captain_user_id"`
+	ID                     int64             `json:"id"`
+	CreatedBy              types.NullInt64   `json:"created_by"`
+	CruiseID               types.NullInt64   `json:"cruise_id"`
+	Name                   string            `json:"name"`
+	EmbarkDate             types.NullString  `json:"embark_date"`
+	DisembarkDate          types.NullString  `json:"disembark_date"`
+	Countries              types.NullString  `json:"countries"`
+	StartPort              types.NullString  `json:"start_port"`
+	EndPort                types.NullString  `json:"end_port"`
+	CaptainName            types.NullString  `json:"captain_name"`
+	YachtID                types.NullInt64   `json:"yacht_id"`
+	CostTotal              types.NullFloat64 `json:"cost_total"`
+	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
+	MaxCrew                types.NullInt64   `json:"max_crew"`
+	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl          types.NullString  `json:"image_route_url"`
+	Description            types.NullString  `json:"description"`
+	Status                 TripStatus        `json:"status"`
+	EnrollToken            types.NullString  `json:"enroll_token"`
+	CreatedAt              types.NullTime    `json:"created_at"`
+	UpdatedAt              types.NullTime    `json:"updated_at"`
+	CaptainUserID          types.NullInt64   `json:"captain_user_id"`
+	Currency               string            `json:"currency"`
+	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
+	YachtFund              types.NullFloat64 `json:"yacht_fund"`
+	Deposit                types.NullFloat64 `json:"deposit"`
 }
 
 type TripEnrollment struct {

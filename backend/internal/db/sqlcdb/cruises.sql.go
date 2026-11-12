@@ -7,6 +7,7 @@ package sqlcdb
 
 import (
 	"context"
+	"encoding/json"
 
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -42,31 +43,40 @@ INSERT INTO cruises (
     created_by, name, embark_date, disembark_date, countries, start_port, end_port,
     description, image_logo_url, image_photo_url, image_route_url,
     max_crew, cost_per_person, kind, series_id, edition,
+    currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
     group_chat_url, travel_notes, min_age
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-    $17, $18, $19) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+    $17, $18, $19, $20, $21, $22, $23, $24, $25
+) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age
 `
 
 type CreateCruiseParams struct {
-	CreatedBy     types.NullInt64   `json:"created_by"`
-	Name          string            `json:"name"`
-	EmbarkDate    types.NullString  `json:"embark_date"`
-	DisembarkDate types.NullString  `json:"disembark_date"`
-	Countries     types.NullString  `json:"countries"`
-	StartPort     types.NullString  `json:"start_port"`
-	EndPort       types.NullString  `json:"end_port"`
-	Description   types.NullString  `json:"description"`
-	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl types.NullString  `json:"image_route_url"`
-	MaxCrew       types.NullInt64   `json:"max_crew"`
-	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
-	Kind          string            `json:"kind"`
-	SeriesID      types.NullInt64   `json:"series_id"`
-	Edition       types.NullString  `json:"edition"`
-	GroupChatUrl  types.NullString  `json:"group_chat_url"`
-	TravelNotes   types.NullString  `json:"travel_notes"`
-	MinAge        types.NullInt64   `json:"min_age"`
+	CreatedBy              types.NullInt64   `json:"created_by"`
+	Name                   string            `json:"name"`
+	EmbarkDate             types.NullString  `json:"embark_date"`
+	DisembarkDate          types.NullString  `json:"disembark_date"`
+	Countries              types.NullString  `json:"countries"`
+	StartPort              types.NullString  `json:"start_port"`
+	EndPort                types.NullString  `json:"end_port"`
+	Description            types.NullString  `json:"description"`
+	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl          types.NullString  `json:"image_route_url"`
+	MaxCrew                types.NullInt64   `json:"max_crew"`
+	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
+	Kind                   string            `json:"kind"`
+	SeriesID               types.NullInt64   `json:"series_id"`
+	Edition                types.NullString  `json:"edition"`
+	Currency               string            `json:"currency"`
+	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
+	YachtFund              types.NullFloat64 `json:"yacht_fund"`
+	Deposit                types.NullFloat64 `json:"deposit"`
+	Included               json.RawMessage   `json:"included"`
+	NotIncluded            json.RawMessage   `json:"not_included"`
+	GroupChatUrl           types.NullString  `json:"group_chat_url"`
+	TravelNotes            types.NullString  `json:"travel_notes"`
+	MinAge                 types.NullInt64   `json:"min_age"`
 }
 
 // CreateCruise
@@ -75,9 +85,12 @@ type CreateCruiseParams struct {
 //	    created_by, name, embark_date, disembark_date, countries, start_port, end_port,
 //	    description, image_logo_url, image_photo_url, image_route_url,
 //	    max_crew, cost_per_person, kind, series_id, edition,
+//	    currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
 //	    group_chat_url, travel_notes, min_age
-//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-//	    $17, $18, $19) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age
+//	) VALUES (
+//	    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+//	    $17, $18, $19, $20, $21, $22, $23, $24, $25
+//	) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, createCruise,
 		arg.CreatedBy,
@@ -96,6 +109,12 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		arg.Kind,
 		arg.SeriesID,
 		arg.Edition,
+		arg.Currency,
+		arg.CostPerPersonNonMember,
+		arg.YachtFund,
+		arg.Deposit,
+		arg.Included,
+		arg.NotIncluded,
 		arg.GroupChatUrl,
 		arg.TravelNotes,
 		arg.MinAge,
@@ -122,6 +141,12 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.Kind,
 		&i.SeriesID,
 		&i.Edition,
+		&i.Currency,
+		&i.CostPerPersonNonMember,
+		&i.YachtFund,
+		&i.Deposit,
+		&i.Included,
+		&i.NotIncluded,
 		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
@@ -142,12 +167,12 @@ func (q *Queries) DeleteCruise(ctx context.Context, id int64) error {
 }
 
 const getCruise = `-- name: GetCruise :one
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
+SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
 `
 
 // GetCruise
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
+//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
 func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, getCruise, id)
 	var i Cruise
@@ -172,6 +197,12 @@ func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
 		&i.Kind,
 		&i.SeriesID,
 		&i.Edition,
+		&i.Currency,
+		&i.CostPerPersonNonMember,
+		&i.YachtFund,
+		&i.Deposit,
+		&i.Included,
+		&i.NotIncluded,
 		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
@@ -182,31 +213,39 @@ func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
 const getCruiseByEnrollToken = `-- name: GetCruiseByEnrollToken :one
 SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, image_photo_url, max_crew, cost_per_person,
+       currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
        group_chat_url, travel_notes, min_age
 FROM cruises WHERE enroll_token = $1
 `
 
 type GetCruiseByEnrollTokenRow struct {
-	ID            int64             `json:"id"`
-	Name          string            `json:"name"`
-	EmbarkDate    types.NullString  `json:"embark_date"`
-	DisembarkDate types.NullString  `json:"disembark_date"`
-	Countries     types.NullString  `json:"countries"`
-	StartPort     types.NullString  `json:"start_port"`
-	EndPort       types.NullString  `json:"end_port"`
-	Description   types.NullString  `json:"description"`
-	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
-	MaxCrew       types.NullInt64   `json:"max_crew"`
-	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
-	GroupChatUrl  types.NullString  `json:"group_chat_url"`
-	TravelNotes   types.NullString  `json:"travel_notes"`
-	MinAge        types.NullInt64   `json:"min_age"`
+	ID                     int64             `json:"id"`
+	Name                   string            `json:"name"`
+	EmbarkDate             types.NullString  `json:"embark_date"`
+	DisembarkDate          types.NullString  `json:"disembark_date"`
+	Countries              types.NullString  `json:"countries"`
+	StartPort              types.NullString  `json:"start_port"`
+	EndPort                types.NullString  `json:"end_port"`
+	Description            types.NullString  `json:"description"`
+	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
+	MaxCrew                types.NullInt64   `json:"max_crew"`
+	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
+	Currency               string            `json:"currency"`
+	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
+	YachtFund              types.NullFloat64 `json:"yacht_fund"`
+	Deposit                types.NullFloat64 `json:"deposit"`
+	Included               json.RawMessage   `json:"included"`
+	NotIncluded            json.RawMessage   `json:"not_included"`
+	GroupChatUrl           types.NullString  `json:"group_chat_url"`
+	TravelNotes            types.NullString  `json:"travel_notes"`
+	MinAge                 types.NullInt64   `json:"min_age"`
 }
 
 // GetCruiseByEnrollToken
 //
 //	SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
 //	       description, image_photo_url, max_crew, cost_per_person,
+//	       currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
 //	       group_chat_url, travel_notes, min_age
 //	FROM cruises WHERE enroll_token = $1
 func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error) {
@@ -224,6 +263,12 @@ func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.
 		&i.ImagePhotoUrl,
 		&i.MaxCrew,
 		&i.CostPerPerson,
+		&i.Currency,
+		&i.CostPerPersonNonMember,
+		&i.YachtFund,
+		&i.Deposit,
+		&i.Included,
+		&i.NotIncluded,
 		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
@@ -232,12 +277,12 @@ func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.
 }
 
 const listCruiseTrips = `-- name: ListCruiseTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 `
 
 // ListCruiseTrips
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseTrips, cruiseID)
 	if err != nil {
@@ -271,6 +316,10 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CaptainUserID,
+			&i.Currency,
+			&i.CostPerPersonNonMember,
+			&i.YachtFund,
+			&i.Deposit,
 		); err != nil {
 			return nil, err
 		}
@@ -346,7 +395,7 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt6
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
+SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
 `
 
 type ListCruisesParams struct {
@@ -356,7 +405,7 @@ type ListCruisesParams struct {
 
 // ListCruises
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
+//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
 func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error) {
 	rows, err := q.db.QueryContext(ctx, listCruises, arg.Limit, arg.Offset)
 	if err != nil {
@@ -387,6 +436,12 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 			&i.Kind,
 			&i.SeriesID,
 			&i.Edition,
+			&i.Currency,
+			&i.CostPerPersonNonMember,
+			&i.YachtFund,
+			&i.Deposit,
+			&i.Included,
+			&i.NotIncluded,
 			&i.GroupChatUrl,
 			&i.TravelNotes,
 			&i.MinAge,
@@ -428,31 +483,39 @@ UPDATE cruises SET
     image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
     max_crew = $11, cost_per_person = $12, kind = $13,
     series_id = $14, edition = $15,
-    group_chat_url = $16, travel_notes = $17, min_age = $18,
+    currency = $16, cost_per_person_non_member = $17, yacht_fund = $18,
+    deposit = $19, included = $20, not_included = $21,
+    group_chat_url = $22, travel_notes = $23, min_age = $24,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $19
+WHERE id = $25
 `
 
 type UpdateCruiseParams struct {
-	Name          string            `json:"name"`
-	EmbarkDate    types.NullString  `json:"embark_date"`
-	DisembarkDate types.NullString  `json:"disembark_date"`
-	Countries     types.NullString  `json:"countries"`
-	StartPort     types.NullString  `json:"start_port"`
-	EndPort       types.NullString  `json:"end_port"`
-	Description   types.NullString  `json:"description"`
-	ImageLogoUrl  types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl types.NullString  `json:"image_route_url"`
-	MaxCrew       types.NullInt64   `json:"max_crew"`
-	CostPerPerson types.NullFloat64 `json:"cost_per_person"`
-	Kind          string            `json:"kind"`
-	SeriesID      types.NullInt64   `json:"series_id"`
-	Edition       types.NullString  `json:"edition"`
-	GroupChatUrl  types.NullString  `json:"group_chat_url"`
-	TravelNotes   types.NullString  `json:"travel_notes"`
-	MinAge        types.NullInt64   `json:"min_age"`
-	ID            int64             `json:"id"`
+	Name                   string            `json:"name"`
+	EmbarkDate             types.NullString  `json:"embark_date"`
+	DisembarkDate          types.NullString  `json:"disembark_date"`
+	Countries              types.NullString  `json:"countries"`
+	StartPort              types.NullString  `json:"start_port"`
+	EndPort                types.NullString  `json:"end_port"`
+	Description            types.NullString  `json:"description"`
+	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl          types.NullString  `json:"image_route_url"`
+	MaxCrew                types.NullInt64   `json:"max_crew"`
+	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
+	Kind                   string            `json:"kind"`
+	SeriesID               types.NullInt64   `json:"series_id"`
+	Edition                types.NullString  `json:"edition"`
+	Currency               string            `json:"currency"`
+	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
+	YachtFund              types.NullFloat64 `json:"yacht_fund"`
+	Deposit                types.NullFloat64 `json:"deposit"`
+	Included               json.RawMessage   `json:"included"`
+	NotIncluded            json.RawMessage   `json:"not_included"`
+	GroupChatUrl           types.NullString  `json:"group_chat_url"`
+	TravelNotes            types.NullString  `json:"travel_notes"`
+	MinAge                 types.NullInt64   `json:"min_age"`
+	ID                     int64             `json:"id"`
 }
 
 // UpdateCruise
@@ -463,9 +526,11 @@ type UpdateCruiseParams struct {
 //	    image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
 //	    max_crew = $11, cost_per_person = $12, kind = $13,
 //	    series_id = $14, edition = $15,
-//	    group_chat_url = $16, travel_notes = $17, min_age = $18,
+//	    currency = $16, cost_per_person_non_member = $17, yacht_fund = $18,
+//	    deposit = $19, included = $20, not_included = $21,
+//	    group_chat_url = $22, travel_notes = $23, min_age = $24,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $19
+//	WHERE id = $25
 func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error {
 	_, err := q.db.ExecContext(ctx, updateCruise,
 		arg.Name,
@@ -483,6 +548,12 @@ func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) erro
 		arg.Kind,
 		arg.SeriesID,
 		arg.Edition,
+		arg.Currency,
+		arg.CostPerPersonNonMember,
+		arg.YachtFund,
+		arg.Deposit,
+		arg.Included,
+		arg.NotIncluded,
 		arg.GroupChatUrl,
 		arg.TravelNotes,
 		arg.MinAge,

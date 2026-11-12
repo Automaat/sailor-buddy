@@ -20,6 +20,8 @@
 	import { onMount } from 'svelte';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
 	import NotFound from '#lib/components/NotFound.svelte';
+	import PriceInfo from '#lib/components/PriceInfo.svelte';
+	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
 
 	let trip = $state<Trip | null>(null);
 	let cruise = $state<Cruise | null>(null);
@@ -213,10 +215,17 @@
 						<dd>{trip.max_crew}</dd>
 					{/if}
 					{#if trip.cost_total}
-						<dt class="text-[var(--text-muted)]">Koszt</dt>
-						<dd>{trip.cost_total} ({trip.cost_per_person ?? '?'} /os)</dd>
+						<dt class="text-[var(--text-muted)]">Koszt całkowity</dt>
+						<dd>{formatPrice(trip.cost_total, trip.currency)}</dd>
 					{/if}
 				</dl>
+			</div>
+		{/if}
+
+		{#if hasPriceInfo(trip)}
+			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+				<h2 class="mb-3 font-semibold text-[var(--navy)]">Cena</h2>
+				<PriceInfo priced={trip} membership={auth.user?.membership} />
 			</div>
 		{/if}
 

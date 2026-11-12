@@ -214,6 +214,10 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
   "yacht_id": 3,
   "cost_total": 4200.0,
   "cost_per_person": 600.0,
+  "currency": "PLN",
+  "cost_per_person_non_member": 650.0,
+  "yacht_fund": 300.0,
+  "deposit": 200.0,
   "max_crew": 7,
   "image_logo_url": null,
   "image_photo_url": null,
@@ -231,6 +235,10 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
   "hours_over_6bf": 4, "miles": 320, "days": 7, "tidal_waters": 1
 }
 ```
+
+Prices (see Cruise prices below) work as on a cruise, without the
+`included` / `not_included` lists. Completing a trip copies only `cost_total`
+and `cost_per_person` to the voyage.
 
 On create, an omitted (or 0) `max_crew` defaults to the yacht's `berths` when
 `yacht_id` is set and the yacht records berths (`422 yacht not found` for an
@@ -355,8 +363,29 @@ value is rejected with 422.
 
 Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 `countries`, `start_port`, `end_port`, `description`, `image_*_url`,
-`max_crew`, `cost_per_person`, `series_id`, `edition` (see Cruise series),
-and the logistics fields below.
+`max_crew`, the price fields below, `series_id`, `edition` (see Cruise
+series), and the logistics fields below.
+
+Cruise prices are shown only; nothing tracks payments. All amounts are per
+person, optional and `>= 0`, in `currency` (`PLN` or `EUR`, `PLN` when
+omitted):
+
+- `cost_per_person`: member price, for `czlonek` and `sympatyk`.
+- `cost_per_person_non_member`: non-member price, for `gosc`. When only one
+  of the two prices is set, everyone pays it.
+- `yacht_fund`: estimated yacht fund (kasa jachtowa) for food, fuel and
+  marinas.
+- `deposit`: refundable deposit (kaucja).
+- `included` / `not_included`: string lists of what the price covers, at most
+  30 entries of up to 200 characters each. Entries are trimmed and blank ones
+  dropped. Responses always carry both lists, `[]` when empty.
+
+An unknown currency, a negative amount, more than 30 entries or a longer
+entry is rejected with 422. `PUT` replaces every price field, so omitting
+one clears it. `GET /api/enroll/{token}` returns the same price fields on
+its `trip` and `cruise` summaries; the lists come with the cruise only.
+Cruises and trips priced before migration 018 keep `cost_per_person` as the
+member price in PLN.
 
 Logistics, all optional and returned on every cruise read:
 

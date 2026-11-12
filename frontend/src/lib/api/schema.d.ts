@@ -1044,13 +1044,31 @@ export interface components {
              * @example /api/Cruise.json
              */
             readonly $schema?: string;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
             cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
             countries?: string;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
             created_by?: number;
+            /**
+             * @description Currency of every price on the cruise
+             * @enum {string}
+             */
+            currency: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
             description?: string;
             disembark_date?: string;
             /** @description Edition label within the series, e.g. 2025 or 2026/27 */
@@ -1065,6 +1083,8 @@ export interface components {
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
+            /** @description What the price covers */
+            included: string[] | null;
             /**
              * @description Cruise kind: sea (morski) or inland (śródlądowy)
              * @enum {string}
@@ -1078,6 +1098,8 @@ export interface components {
              */
             min_age?: number;
             name: string;
+            /** @description What the price does not cover */
+            not_included: string[] | null;
             /**
              * Format: int64
              * @description Series this cruise is an edition of
@@ -1088,6 +1110,11 @@ export interface components {
             travel_notes?: string;
             /** Format: date-time */
             updated_at: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
+             */
+            yacht_fund?: number;
         };
         CruiseBody: {
             /**
@@ -1096,9 +1123,27 @@ export interface components {
              * @example /api/CruiseBody.json
              */
             readonly $schema?: string;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
             cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
             countries?: string;
+            /**
+             * @description Currency of every price on the cruise; PLN when omitted
+             * @enum {string}
+             */
+            currency?: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
             description?: string;
             disembark_date?: string;
             /** @description Edition label within the series, e.g. 2025 or 2026/27 */
@@ -1110,6 +1155,8 @@ export interface components {
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
+            /** @description What the price covers; blank entries are dropped, each at most 200 characters */
+            included?: string[] | null;
             /**
              * @description Cruise kind: sea (morski) or inland (śródlądowy)
              * @default sea
@@ -1125,6 +1172,8 @@ export interface components {
             min_age?: number;
             /** @description Cruise name */
             name: string;
+            /** @description What the price does not cover; blank entries are dropped, each at most 200 characters */
+            not_included?: string[] | null;
             /**
              * Format: int64
              * @description Series this cruise is an edition of; omit or null for none
@@ -1133,6 +1182,11 @@ export interface components {
             start_port?: string;
             /** @description How to get there: flights, transport, meeting point; blank clears it */
             travel_notes?: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
+             */
+            yacht_fund?: number;
         };
         CruiseEnrollmentDetail: {
             /** Format: date-time */
@@ -1230,9 +1284,24 @@ export interface components {
             note?: string;
         };
         EnrollCruise: {
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
             cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
             countries?: string;
+            /** @enum {string} */
+            currency: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
             description?: string;
             disembark_date?: string;
             embark_date?: string;
@@ -1242,6 +1311,8 @@ export interface components {
             /** Format: int64 */
             id: number;
             image_photo_url?: string;
+            /** @description What the price covers */
+            included: string[] | null;
             /** Format: int64 */
             max_crew?: number;
             /**
@@ -1250,9 +1321,16 @@ export interface components {
              */
             min_age?: number;
             name: string;
+            /** @description What the price does not cover */
+            not_included: string[] | null;
             start_port?: string;
             /** @description How to get there: flights, transport, meeting point */
             travel_notes?: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person
+             */
+            yacht_fund?: number;
         };
         EnrollInfo: {
             /**
@@ -1305,7 +1383,24 @@ export interface components {
         };
         EnrollTrip: {
             captain_name?: string;
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
+            cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
             countries?: string;
+            /** @enum {string} */
+            currency: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
             description?: string;
             disembark_date?: string;
             embark_date?: string;
@@ -1317,6 +1412,11 @@ export interface components {
             max_crew?: number;
             name: string;
             start_port?: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person
+             */
+            yacht_fund?: number;
         };
         Enrollment: {
             /**
@@ -1791,8 +1891,16 @@ export interface components {
             captain_name?: string;
             /** Format: int64 */
             captain_user_id?: number;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
             cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
             /** Format: double */
             cost_total?: number;
             countries?: string;
@@ -1802,6 +1910,16 @@ export interface components {
             created_by?: number;
             /** Format: int64 */
             cruise_id?: number;
+            /**
+             * @description Currency of every price on the trip
+             * @enum {string}
+             */
+            currency: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
             description?: string;
             disembark_date?: string;
             embark_date?: string;
@@ -1820,6 +1938,11 @@ export interface components {
             status: "planned" | "cancelled";
             /** Format: date-time */
             updated_at: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
+             */
+            yacht_fund?: number;
             /** Format: int64 */
             yacht_id?: number;
         };
@@ -1843,13 +1966,31 @@ export interface components {
              * @description User ID of the assigned captain (must be in the captain group)
              */
             captain_user_id?: number;
-            /** Format: double */
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
             cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
             /** Format: double */
             cost_total?: number;
             countries?: string;
             /** Format: int64 */
             cruise_id?: number;
+            /**
+             * @description Currency of every price on the trip; PLN when omitted
+             * @enum {string}
+             */
+            currency?: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
             description?: string;
             disembark_date?: string;
             embark_date?: string;
@@ -1862,6 +2003,11 @@ export interface components {
             /** @description Trip name */
             name: string;
             start_port?: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
+             */
+            yacht_fund?: number;
             /** Format: int64 */
             yacht_id?: number;
         };
