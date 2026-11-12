@@ -448,7 +448,8 @@ func groupChatURL(s *string) (types.NullString, error) {
 		return v, nil
 	}
 	u, err := url.Parse(v.String)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || !validPort(u.Port()) {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || !validPort(u.Port()) ||
+		invalidNumericHost(u.Hostname()) {
 		return types.NullString{}, huma.Error422UnprocessableEntity("group_chat_url must be an http or https URL")
 	}
 	return v, nil
@@ -462,4 +463,93 @@ func validPort(p string) bool {
 	}
 	n, err := strconv.Atoi(p)
 	return err == nil && n >= 1 && n <= 65535
+}
+
+// invalidNumericHost reports whether host is one the WHATWG URL parser
+// (used by browsers and the frontend's new URL()) rejects because it ends in
+// a number but is not a valid IPv4 address, e.g. "192.168.1.999",
+// "1.2.3.4.5" or "chat.123". url.Parse accepts such hosts. IPv6 literals
+// and non-numeric domains pass through unchanged.
+func invalidNumericHost(host string) bool {
+	if strings.Contains(host, ":") {
+		return false
+	}
+	parts := strings.Split(host, ".")
+	if len(parts) > 1 && parts[len(parts)-1] == "" {
+		parts = parts[:len(parts)-1]
+	}
+	if !endsInNumber(parts[len(parts)-1]) {
+		return false
+	}
+	return !validIPv4(parts)
+}
+
+// endsInNumber mirrors the WHATWG "ends in a number" checker for the last
+// host label: all decimal digits, or a 0x-prefixed hex number.
+func endsInNumber(last string) bool {
+	if last == "" {
+		return false
+	}
+	if allDigits(last) {
+		return true
+	}
+	_, ok := ipv4Number(last)
+	return ok
+}
+
+// validIPv4 mirrors the WHATWG IPv4 parser over host labels with any
+// trailing empty label already removed.
+func validIPv4(parts []string) bool {
+	if len(parts) > 4 {
+		return false
+	}
+	nums := make([]uint64, len(parts))
+	for i, p := range parts {
+		n, ok := ipv4Number(p)
+		if !ok {
+			return false
+		}
+		if i < len(parts)-1 && n > 255 {
+			return false
+		}
+		nums[i] = n
+	}
+	return nums[len(nums)-1] < 1<<(8*(5-len(parts)))
+}
+
+// ipv4Number parses one IPv4 label the WHATWG way: 0x/0X prefix is hex, a
+// leading 0 is octal, otherwise decimal. A bare prefix ("0x") is zero.
+func ipv4Number(s string) (uint64, bool) {
+	if s == "" {
+		return 0, false
+	}
+	base := 10
+	switch {
+	case len(s) >= 2 && (s[:2] == "0x" || s[:2] == "0X"):
+		base, s = 16, s[2:]
+	case len(s) >= 2 && s[0] == '0':
+		base, s = 8, s[1:]
+	}
+	if s == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseUint(s, base, 64)
+	if err != nil {
+		// Out-of-range values are still numbers; they fail the range check.
+		var numErr *strconv.NumError
+		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
+			return 1 << 63, true
+		}
+		return 0, false
+	}
+	return n, true
+}
+
+func allDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
