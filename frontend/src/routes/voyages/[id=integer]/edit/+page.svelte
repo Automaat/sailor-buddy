@@ -19,6 +19,8 @@
 		}
 	});
 
+	let legacyCaptainName = $state('');
+
 	let form = $state({
 		name: '',
 		year: 0,
@@ -33,7 +35,6 @@
 		hours_over_6bf: 0,
 		miles: 0,
 		days: 0,
-		captain_name: '',
 		captain_user_id: 0,
 		yacht_id: 0,
 		tidal_waters: false,
@@ -48,6 +49,7 @@
 		try {
 			const [voyage, y] = await Promise.all([getVoyage(id), listYachts()]);
 			yachts = y;
+			legacyCaptainName = voyage.captain_user_id ? '' : (voyage.captain_name ?? '');
 			form = {
 				name: voyage.name,
 				year: voyage.year ?? 0,
@@ -62,7 +64,6 @@
 				hours_over_6bf: voyage.hours_over_6bf,
 				miles: voyage.miles,
 				days: voyage.days,
-				captain_name: voyage.captain_name ?? '',
 				captain_user_id: voyage.captain_user_id ?? 0,
 				yacht_id: voyage.yacht_id ?? 0,
 				tidal_waters: voyage.tidal_waters > 0,
@@ -86,9 +87,10 @@
 				...form,
 				tidal_waters: form.tidal_waters ? 1 : 0,
 				yacht_id: form.yacht_id || undefined,
-				// The server snapshots the captain's name when one is picked.
+				// captain_name of a linked captain is the server's snapshot, so only a
+				// legacy free-text name survives clearing the captain.
 				captain_user_id: form.captain_user_id || undefined,
-				captain_name: form.captain_user_id ? undefined : form.captain_name || undefined
+				captain_name: form.captain_user_id ? undefined : legacyCaptainName || undefined
 			};
 			await updateVoyage(id, payload);
 			goto(`/voyages/${id}`);
@@ -151,7 +153,7 @@
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-					<CaptainSelect bind:value={form.captain_user_id} legacyName={form.captain_name} />
+					<CaptainSelect bind:value={form.captain_user_id} legacyName={legacyCaptainName} />
 				</div>
 			</div>
 

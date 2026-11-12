@@ -33,7 +33,8 @@ UPDATE voyages v SET captain_user_id = u.id
 FROM unique_names u WHERE v.captain_name = u.name;
 
 UPDATE users SET is_captain = true
-WHERE id IN (
+WHERE patent_number IS NOT NULL AND patent_number <> ''
+  AND id IN (
     SELECT captain_user_id FROM trips WHERE captain_user_id IS NOT NULL
     UNION
     SELECT captain_user_id FROM voyages WHERE captain_user_id IS NOT NULL
