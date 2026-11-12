@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -26,6 +27,7 @@
 		start_port: '',
 		end_port: '',
 		captain_name: '',
+		captain_user_id: 0,
 		yacht_id: 0,
 		cost_total: 0,
 		cost_per_person: 0,
@@ -47,6 +49,7 @@
 				start_port: trip.start_port ?? '',
 				end_port: trip.end_port ?? '',
 				captain_name: trip.captain_name ?? '',
+				captain_user_id: trip.captain_user_id ?? 0,
 				yacht_id: trip.yacht_id ?? 0,
 				cost_total: trip.cost_total ?? 0,
 				cost_per_person: trip.cost_per_person ?? 0,
@@ -65,7 +68,13 @@
 		saving = true;
 		error = '';
 		try {
-			const payload = { ...form, yacht_id: form.yacht_id || undefined };
+			const payload = {
+				...form,
+				yacht_id: form.yacht_id || undefined,
+				// The server snapshots the captain's name when one is picked.
+				captain_user_id: form.captain_user_id || undefined,
+				captain_name: form.captain_user_id ? undefined : form.captain_name || undefined
+			};
 			await updateTrip(id, payload);
 			goto(`/trips/${id}`);
 		} catch (err) {
@@ -103,7 +112,7 @@
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-					<input id="captain" type="text" bind:value={form.captain_name} class="w-full rounded-lg border px-3 py-2" />
+					<CaptainSelect bind:value={form.captain_user_id} legacyName={form.captain_name} />
 				</div>
 				<div>
 					<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>

@@ -15,6 +15,22 @@ components:
           format: int64
           type: integer
       type: object
+    CaptainBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CaptainBody.json
+          format: uri
+          readOnly: true
+          type: string
+        is_captain:
+          description: Whether the member belongs to the captain group
+          type: boolean
+      required:
+        - is_captain
+      type: object
     CompleteTripBody:
       additionalProperties: false
       properties:
@@ -803,6 +819,14 @@ components:
         id:
           format: int64
           type: integer
+        is_captain:
+          type: boolean
+        membership:
+          enum:
+            - czlonek
+            - sympatyk
+            - gosc
+          type: string
         name:
           type: string
         patent_number:
@@ -817,6 +841,8 @@ components:
         - name
         - avatar_url
         - role
+        - is_captain
+        - membership
       type: object
     Member:
       additionalProperties: false
@@ -831,6 +857,14 @@ components:
         id:
           format: int64
           type: integer
+        is_captain:
+          type: boolean
+        membership:
+          enum:
+            - czlonek
+            - sympatyk
+            - gosc
+          type: string
         name:
           type: string
         patent_number:
@@ -844,7 +878,29 @@ components:
         - name
         - email
         - role
+        - is_captain
+        - membership
         - created_at
+      type: object
+    MembershipBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/MembershipBody.json
+          format: uri
+          readOnly: true
+          type: string
+        membership:
+          description: Membership status
+          enum:
+            - czlonek
+            - sympatyk
+            - gosc
+          type: string
+      required:
+        - membership
       type: object
     PageCrewMember:
       additionalProperties: false
@@ -1186,6 +1242,9 @@ components:
           type: string
         captain_name:
           type: string
+        captain_user_id:
+          format: int64
+          type: integer
         cost_per_person:
           format: double
           type: number
@@ -1258,7 +1317,12 @@ components:
           readOnly: true
           type: string
         captain_name:
+          description: Free-text captain; replaced by the user's name when captain_user_id is set
           type: string
+        captain_user_id:
+          description: User ID of the assigned captain (must be in the captain group)
+          format: int64
+          type: integer
         cost_per_person:
           format: double
           type: number
@@ -1385,6 +1449,11 @@ components:
           type: string
         captain_name:
           type: string
+        captain_notes:
+          type: string
+        captain_user_id:
+          format: int64
+          type: integer
         cost_per_person:
           format: double
           type: number
@@ -1477,7 +1546,12 @@ components:
           readOnly: true
           type: string
         captain_name:
+          description: Free-text captain; replaced by the user's name when captain_user_id is set
           type: string
+        captain_user_id:
+          description: User ID of the assigned captain (must be in the captain group)
+          format: int64
+          type: integer
         cost_per_person:
           format: double
           type: number
@@ -1538,6 +1612,48 @@ components:
           type: integer
       required:
         - name
+      type: object
+    VoyageLogBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/VoyageLogBody.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_notes:
+          description: Captain's note on the cruise
+          type: string
+        days:
+          format: int64
+          minimum: 0
+          type: integer
+        hours_engine:
+          format: double
+          minimum: 0
+          type: number
+        hours_over_6bf:
+          format: double
+          minimum: 0
+          type: number
+        hours_sail:
+          format: double
+          minimum: 0
+          type: number
+        hours_total:
+          format: double
+          minimum: 0
+          type: number
+        miles:
+          format: double
+          minimum: 0
+          type: number
+        tidal_waters:
+          format: int64
+          minimum: 0
+          type: integer
       type: object
     VoyageOpinion:
       additionalProperties: false
@@ -2535,6 +2651,66 @@ paths:
       summary: List club members
       tags:
         - Members
+  /members/{userID}/captain:
+    put:
+      operationId: update-member-captain
+      parameters:
+        - description: User ID
+          in: path
+          name: userID
+          required: true
+          schema:
+            description: User ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaptainBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Add or remove a member from the captain group (admin)
+      tags:
+        - Members
+  /members/{userID}/membership:
+    put:
+      operationId: update-member-membership
+      parameters:
+        - description: User ID
+          in: path
+          name: userID
+          required: true
+          schema:
+            description: User ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MembershipBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Change a member's membership status (admin)
+      tags:
+        - Members
   /members/{userID}/role:
     put:
       operationId: update-member-role
@@ -3445,6 +3621,36 @@ paths:
       summary: Remove a crew assignment from a voyage (admin)
       tags:
         - Crew
+  /voyages/{voyageID}/log:
+    put:
+      operationId: update-voyage-log
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoyageLogBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Log post-cruise statistics and notes (admin or voyage captain)
+      tags:
+        - Voyages
   /voyages/{voyageID}/opinions:
     get:
       operationId: list-voyage-opinions
@@ -3648,7 +3854,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Add a visited port to a voyage (admin)
+      summary: Add a visited port to a voyage (admin or voyage captain)
       tags:
         - Voyage ports
   /voyages/{voyageID}/ports/order:
@@ -3686,7 +3892,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Reorder a voyage's visited ports (admin)
+      summary: Reorder a voyage's visited ports (admin or voyage captain)
       tags:
         - Voyage ports
   /voyages/{voyageID}/ports/{portID}:
@@ -3718,7 +3924,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Remove a visited port from a voyage (admin)
+      summary: Remove a visited port from a voyage (admin or voyage captain)
       tags:
         - Voyage ports
   /yachts:

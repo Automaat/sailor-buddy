@@ -34,6 +34,7 @@ type mockQuerier struct {
 	getVoyageFn        func(ctx context.Context, id int64) (sqlcdb.Voyage, error)
 	createVoyageFn     func(ctx context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error)
 	updateVoyageFn     func(ctx context.Context, arg sqlcdb.UpdateVoyageParams) error
+	updateVoyageLogFn  func(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) error
 	deleteVoyageFn     func(ctx context.Context, id int64) error
 	getDashboardFn     func(ctx context.Context) (sqlcdb.GetDashboardStatsRow, error)
 	getVoyagesByYearFn func(ctx context.Context) ([]sqlcdb.GetVoyagesByYearRow, error)
@@ -119,13 +120,15 @@ type mockQuerier struct {
 	clearCruiseEnrollToken func(ctx context.Context, id int64) error
 
 	// users
-	getUserByIDFn      func(ctx context.Context, id int64) (sqlcdb.User, error)
-	updateUserFn       func(ctx context.Context, arg sqlcdb.UpdateUserParams) error
-	updateUserPatentFn func(ctx context.Context, arg sqlcdb.UpdateUserPatentParams) error
-	updateUserRoleFn   func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
-	listUsersFn        func(ctx context.Context) ([]sqlcdb.User, error)
-	countUsersFn       func(ctx context.Context) (int64, error)
-	countAdminsFn      func(ctx context.Context) (int64, error)
+	getUserByIDFn          func(ctx context.Context, id int64) (sqlcdb.User, error)
+	updateUserFn           func(ctx context.Context, arg sqlcdb.UpdateUserParams) error
+	updateUserPatentFn     func(ctx context.Context, arg sqlcdb.UpdateUserPatentParams) error
+	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
+	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
+	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
+	listUsersFn            func(ctx context.Context) ([]sqlcdb.User, error)
+	countUsersFn           func(ctx context.Context) (int64, error)
+	countAdminsFn          func(ctx context.Context) (int64, error)
 }
 
 // --- trips ---
@@ -829,4 +832,25 @@ func userCtxRole(ctx context.Context, role string) context.Context {
 	return context.WithValue(ctx, middleware.UserCtxKey, &auth.Claims{
 		UserID: 1, Email: "test@example.com", Name: "Test User", Role: role,
 	})
+}
+
+func (m *mockQuerier) UpdateUserCaptain(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error {
+	if m.updateUserCaptainFn == nil {
+		panic("unexpected call to UpdateUserCaptain")
+	}
+	return m.updateUserCaptainFn(ctx, arg)
+}
+
+func (m *mockQuerier) UpdateUserMembership(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error {
+	if m.updateUserMembershipFn == nil {
+		panic("unexpected call to UpdateUserMembership")
+	}
+	return m.updateUserMembershipFn(ctx, arg)
+}
+
+func (m *mockQuerier) UpdateVoyageLog(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
+	if m.updateVoyageLogFn == nil {
+		panic("unexpected call to UpdateVoyageLog")
+	}
+	return m.updateVoyageLogFn(ctx, arg)
 }

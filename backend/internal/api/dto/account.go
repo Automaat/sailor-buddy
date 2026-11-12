@@ -9,6 +9,8 @@ type Me struct {
 	Name         string  `json:"name"`
 	AvatarURL    string  `json:"avatar_url"`
 	Role         string  `json:"role"`
+	IsCaptain    bool    `json:"is_captain"`
+	Membership   string  `json:"membership" enum:"czlonek,sympatyk,gosc"`
 	PatentType   *string `json:"patent_type,omitempty"`
 	PatentNumber *string `json:"patent_number,omitempty"`
 }
@@ -21,6 +23,8 @@ func MeFromUser(u sqlcdb.User) Me {
 		Name:         u.Name,
 		AvatarURL:    u.AvatarUrl.String,
 		Role:         u.Role,
+		IsCaptain:    u.IsCaptain,
+		Membership:   u.Membership,
 		PatentType:   strPtr(u.PatentType),
 		PatentNumber: strPtr(u.PatentNumber),
 	}

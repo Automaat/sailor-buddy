@@ -134,8 +134,26 @@ held on the `users.role` column:
 - **Mutations** (`POST`/`PUT`/`DELETE`, plus `complete`/`cancel`/enroll-token)
   on shared club data — require the caller to be an `admin`; a member gets
   `403 admin only`.
+- **Voyage captain** — the user assigned as a voyage's `captain_user_id` may
+  also write that voyage's post-cruise log (`PUT /voyages/{id}/log`) and its
+  visited ports. Other mutations stay admin-only.
 - **Trainings** are the exception: a per-member course/certification log,
   scoped to the caller. Each member manages their own trainings.
+
+Club attributes on `users`, both set by admins and not access roles:
+
+- `is_captain` — membership of the club's captain group. Only users in the
+  group can be assigned as a trip/voyage captain. Joining requires
+  `membership = czlonek` and a `patent_number` on the account (`422`
+  otherwise).
+- `membership` — `czlonek` (AGH student member, default), `sympatyk`
+  (student of another university) or `gosc` (guest). A captain must stay
+  `czlonek`.
+
+Captain assignment: trip/voyage bodies take `captain_user_id`. When set, the
+server checks the captain is eligible (`422` otherwise) and overwrites
+`captain_name` with the user's name. Without it, `captain_name` is kept as
+free text (imported history).
 
 Resources keep a `created_by` audit column (the user who created the row); it
 is never used for access control. `crew_members` are decoupled from `users` —
@@ -154,7 +172,7 @@ require the caller to be an `admin` (marked **admin** below).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/auth/me` | Current user: `{id, email, name, avatar_url, role, patent_type, patent_number}` |
+| GET | `/api/auth/me` | Current user: `{id, email, name, avatar_url, role, is_captain, membership, patent_type, patent_number}` |
 | PUT | `/api/auth/me` | Update the caller's sailing patent |
 | GET | `/api/dashboard` | Club sailing stats + per-year breakdown |
 
@@ -162,8 +180,10 @@ require the caller to be an `admin` (marked **admin** below).
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/members` | member | List club members `{id, name, email, role, ...}` |
+| GET | `/api/members` | member | List club members `{id, name, email, role, is_captain, membership, ...}` |
 | PUT | `/api/members/{userID}/role` | **admin** | Set a member's role, 204 |
+| PUT | `/api/members/{userID}/captain` | **admin** | Add to / remove from the captain group `{ "is_captain": true }`, 204 |
+| PUT | `/api/members/{userID}/membership` | **admin** | Set membership status `{ "membership": "sympatyk" }`, 204 |
 
 Roles: `admin`, `member`. The last `admin` cannot be demoted (`400 cannot
 demote the last admin`). Role body: `{ "role": "admin" }`.
@@ -259,6 +279,7 @@ Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
 | POST | `/api/voyages` | **admin** | Create voyage | 201 |
 | GET | `/api/voyages/{id}` | member | Get voyage | 200 |
 | PUT | `/api/voyages/{id}` | **admin** | Update voyage | 204 |
+| PUT | `/api/voyages/{id}/log` | **admin** or voyage captain | Post-cruise log: hours, miles, days, tidal waters, `captain_notes` | 204 |
 | DELETE | `/api/voyages/{id}` | **admin** | Delete voyage | 204 |
 | GET | `/api/voyages/{voyageID}/crew` | member | List voyage crew | 200 |
 | POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member | 201 |
@@ -273,9 +294,9 @@ Voyage body — `name` required; also accepts `year` and the sailing-log fields
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/voyages/{voyageID}/ports` | member | List visited ports | 200 |
-| POST | `/api/voyages/{voyageID}/ports` | **admin** | Add a port | 201 |
-| DELETE | `/api/voyages/{voyageID}/ports/{portID}` | **admin** | Remove a port | 204 |
-| PUT | `/api/voyages/{voyageID}/ports/order` | **admin** | Reorder ports | 200 |
+| POST | `/api/voyages/{voyageID}/ports` | **admin** or voyage captain | Add a port | 201 |
+| DELETE | `/api/voyages/{voyageID}/ports/{portID}` | **admin** or voyage captain | Remove a port | 204 |
+| PUT | `/api/voyages/{voyageID}/ports/order` | **admin** or voyage captain | Reorder ports | 200 |
 
 ### Voyage opinions (crew documents)
 

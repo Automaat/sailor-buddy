@@ -19,6 +19,8 @@ type Voyage struct {
 	StartPort     *string   `json:"start_port,omitempty"`
 	EndPort       *string   `json:"end_port,omitempty"`
 	CaptainName   *string   `json:"captain_name,omitempty"`
+	CaptainUserID *int64    `json:"captain_user_id,omitempty"`
+	CaptainNotes  *string   `json:"captain_notes,omitempty"`
 	YachtID       *int64    `json:"yacht_id,omitempty"`
 	HoursTotal    float64   `json:"hours_total"`
 	HoursSail     float64   `json:"hours_sail"`
@@ -46,7 +48,8 @@ type VoyageBody struct {
 	Countries     *string  `json:"countries,omitempty"`
 	StartPort     *string  `json:"start_port,omitempty"`
 	EndPort       *string  `json:"end_port,omitempty"`
-	CaptainName   *string  `json:"captain_name,omitempty"`
+	CaptainName   *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the user's name when captain_user_id is set"`
+	CaptainUserID *int64   `json:"captain_user_id,omitempty" doc:"User ID of the assigned captain (must be in the captain group)"`
 	YachtID       *int64   `json:"yacht_id,omitempty"`
 	HoursTotal    *float64 `json:"hours_total,omitempty"`
 	HoursSail     *float64 `json:"hours_sail,omitempty"`
@@ -62,6 +65,20 @@ type VoyageBody struct {
 	ImageRouteUrl *string  `json:"image_route_url,omitempty"`
 	Description   *string  `json:"description,omitempty"`
 	CruiseID      *int64   `json:"cruise_id,omitempty"`
+}
+
+// VoyageLogBody is the post-cruise log a voyage's captain (or an admin)
+// submits: sailing statistics and a free-form note. Ports are logged through
+// the voyage ports endpoints.
+type VoyageLogBody struct {
+	HoursTotal   *float64 `json:"hours_total,omitempty" minimum:"0"`
+	HoursSail    *float64 `json:"hours_sail,omitempty" minimum:"0"`
+	HoursEngine  *float64 `json:"hours_engine,omitempty" minimum:"0"`
+	HoursOver6bf *float64 `json:"hours_over_6bf,omitempty" minimum:"0"`
+	Miles        *float64 `json:"miles,omitempty" minimum:"0"`
+	Days         *int64   `json:"days,omitempty" minimum:"0"`
+	TidalWaters  *int64   `json:"tidal_waters,omitempty" minimum:"0"`
+	CaptainNotes *string  `json:"captain_notes,omitempty" doc:"Captain's note on the cruise"`
 }
 
 // VoyagesFromDB maps a slice of database rows, returning a non-nil slice.
@@ -87,6 +104,8 @@ func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 		StartPort:     strPtr(v.StartPort),
 		EndPort:       strPtr(v.EndPort),
 		CaptainName:   strPtr(v.CaptainName),
+		CaptainUserID: intPtr(v.CaptainUserID),
+		CaptainNotes:  strPtr(v.CaptainNotes),
 		YachtID:       intPtr(v.YachtID),
 		HoursTotal:    v.HoursTotal,
 		HoursSail:     v.HoursSail,

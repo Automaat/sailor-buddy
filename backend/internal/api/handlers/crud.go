@@ -129,6 +129,9 @@ func (h *crudHandlers[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut,
 	}
 	row, err := h.cfg.create(ctx, scope, in)
 	if err != nil {
+		if se, ok := errors.AsType[huma.StatusError](err); ok {
+			return nil, se
+		}
 		logCRUD(h.cfg.createLogMsg, h.cfg.createLogAttrs(scope, in), err)
 		return nil, huma.Error500InternalServerError(h.cfg.createClientMsg)
 	}
@@ -144,6 +147,9 @@ func (h *crudHandlers[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut,
 		return nil, err
 	}
 	if err := h.cfg.update(ctx, scope, in); err != nil {
+		if se, ok := errors.AsType[huma.StatusError](err); ok {
+			return nil, se
+		}
 		logCRUD(h.cfg.updateLogMsg, h.cfg.updateLogAttrs(scope, in), err)
 		return nil, huma.Error500InternalServerError(h.cfg.updateClientMsg)
 	}

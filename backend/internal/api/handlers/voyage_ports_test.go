@@ -211,6 +211,7 @@ func TestVoyagePorts_Reorder_RejectsMismatch(t *testing.T) {
 func TestVoyagePorts_Remove(t *testing.T) {
 	var got sqlcdb.DeleteVoyagePortParams
 	m := &mockQuerier{
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: 5}, nil },
 		deleteVoyagePortFn: func(_ context.Context, arg sqlcdb.DeleteVoyagePortParams) error {
 			got = arg
 			return nil
@@ -226,7 +227,10 @@ func TestVoyagePorts_Remove(t *testing.T) {
 }
 
 func TestVoyagePorts_Add_MemberForbidden(t *testing.T) {
-	resp := voyagePortTestAPI(t, &mockQuerier{}).PostCtx(
+	m := &mockQuerier{
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: 5}, nil },
+	}
+	resp := voyagePortTestAPI(t, m).PostCtx(
 		userCtxRole(context.Background(), "member"), "/voyages/5/ports",
 		map[string]any{"name": "Hvar", "latitude": 43.17, "longitude": 16.44})
 	if resp.Code != http.StatusForbidden {
