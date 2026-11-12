@@ -39,3 +39,8 @@ SELECT t.id AS trip_id,
 FROM trips t
 WHERE t.cruise_id = $1
 ORDER BY t.id;
+
+-- name: CountAcceptedForTrip :one
+-- Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
+SELECT ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted')
+      + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'))::BIGINT AS accepted;

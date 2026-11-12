@@ -57,6 +57,22 @@ func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.
 	return items, nil
 }
 
+const countAcceptedForTrip = `-- name: CountAcceptedForTrip :one
+SELECT ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted')
+      + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'))::BIGINT AS accepted
+`
+
+// Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
+//
+//	SELECT ((SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted')
+//	      + (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'))::BIGINT AS accepted
+func (q *Queries) CountAcceptedForTrip(ctx context.Context, tripID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAcceptedForTrip, tripID)
+	var accepted int64
+	err := row.Scan(&accepted)
+	return accepted, err
+}
+
 const countTripEnrollments = `-- name: CountTripEnrollments :one
 SELECT
     COUNT(*) FILTER (WHERE status = 'accepted')::BIGINT AS accepted,

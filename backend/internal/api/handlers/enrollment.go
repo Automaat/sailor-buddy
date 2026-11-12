@@ -115,6 +115,11 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 			AcceptedCount: counts.Accepted,
 			TotalCount:    counts.Total,
 		}
+		if accepted, err := h.q.CountAcceptedForTrip(ctx, trip.ID); err == nil {
+			info.TripAccepted = []dto.TripAccepted{{TripID: trip.ID, AcceptedCount: accepted}}
+		} else {
+			slog.Error("count accepted for trip", "trip_id", trip.ID, "err", err)
+		}
 		if user != nil {
 			if e, err := h.q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: trip.ID, UserID: user.UserID}); err == nil {
 				info.Enrolled = true

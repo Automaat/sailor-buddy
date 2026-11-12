@@ -99,7 +99,8 @@ type EnrollInfo struct {
 	Enrollment    *Enrollment   `json:"enrollment,omitempty"`
 	AcceptedCount int64         `json:"accepted_count"`
 	TotalCount    int64         `json:"total_count"`
-	// TripAccepted lists accepted crew per cruise trip (kind=cruise only).
+	// TripAccepted lists accepted crew per trip: the token's trip, or each
+	// cruise trip. Free places on the enroll page derive from it.
 	TripAccepted []TripAccepted `json:"trip_accepted,omitempty"`
 }
 

@@ -189,6 +189,10 @@ func TestCreateTrip_Huma_MaxCrewFromBerths(t *testing.T) {
 			want:  types.NullInt64{}, wantRes: http.StatusCreated,
 		},
 		{
+			name: "zero max_crew means no limit and defaults to berths", body: map[string]any{"name": "B", "yacht_id": 4, "max_crew": 0},
+			yacht: yachtWithBerths, want: types.NullInt64{Int64: 10, Valid: true}, wantRes: http.StatusCreated,
+		},
+		{
 			name: "no yacht leaves limit empty", body: map[string]any{"name": "B"},
 			want: types.NullInt64{}, wantRes: http.StatusCreated,
 		},

@@ -232,7 +232,7 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
 }
 ```
 
-On create, an omitted `max_crew` defaults to the yacht's `berths` when
+On create, an omitted (or 0) `max_crew` defaults to the yacht's `berths` when
 `yacht_id` is set and the yacht records berths (`422 yacht not found` for an
 unknown yacht). An explicit `max_crew` is kept.
 
@@ -268,9 +268,11 @@ Assignment body — `crew_member_id` and `role` required:
 
 `GET /api/enroll/{token}` returns `{"kind": "trip" \| "cruise", ...}` —
 the token may resolve to either. `404 invalid enrollment link` if unknown.
-A cruise response also carries `trip_accepted`: `[{trip_id, accepted_count}]`
-per child trip, counting accepted trip enrollments plus accepted cruise
-enrollments assigned to the trip.
+Both kinds carry `trip_accepted`: `[{trip_id, accepted_count}]` for the
+token's trip or each child trip of the cruise. It counts accepted trip
+enrollments plus accepted cruise enrollments assigned to the trip; the enroll
+page shows free places as `max_crew` minus that count (a `max_crew` of 0 or
+null means no limit).
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,

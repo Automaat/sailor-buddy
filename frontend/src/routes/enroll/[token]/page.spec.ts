@@ -42,12 +42,24 @@ describe('enroll page free places', () => {
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
 	});
 
-	it('shows nothing for a trip without a crew limit', async () => {
-		resolveMock.mockResolvedValue(tripData(undefined, 3));
+	it.each([
+		['missing', undefined],
+		['zero, the forms value for no limit', 0]
+	])('shows nothing for a trip whose crew limit is %s', async (_label, maxCrew) => {
+		resolveMock.mockResolvedValue(tripData(maxCrew, 3));
 		render(EnrollPage);
 		await screen.findByText('Rejs Bałtyk');
 		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
 		expect(screen.queryByText(/Wolne miejsca/i)).not.toBeInTheDocument();
+	});
+
+	it('counts cruise enrollments assigned to the trip when the API sends them', async () => {
+		resolveMock.mockResolvedValue({
+			...tripData(10, 2),
+			trip_accepted: [{ trip_id: 1, accepted_count: 5 }]
+		});
+		render(EnrollPage);
+		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 5');
 	});
 
 	it('shows free places per cruise trip from its accepted count', async () => {
@@ -57,7 +69,8 @@ describe('enroll page free places', () => {
 			trips: [
 				makeTrip({ id: 1, name: 'Ilmatar', max_crew: 10 }),
 				makeTrip({ id: 2, name: 'Kliper', max_crew: 8 }),
-				makeTrip({ id: 3, name: 'Bez limitu', max_crew: undefined })
+				makeTrip({ id: 3, name: 'Bez limitu', max_crew: undefined }),
+				makeTrip({ id: 4, name: 'Zero', max_crew: 0 })
 			],
 			trip_accepted: [
 				{ trip_id: 1, accepted_count: 4 },
@@ -75,6 +88,7 @@ describe('enroll page free places', () => {
 		expect(kliper).toHaveTextContent('wolne miejsca: 8');
 		const unlimited = screen.getByText('Bez limitu').parentElement;
 		expect(unlimited).not.toHaveTextContent(/wolne miejsca/i);
+		expect(screen.getByText('Zero').parentElement).not.toHaveTextContent(/wolne miejsca/i);
 		expect(screen.getAllByTestId('free-places')).toHaveLength(2);
 	});
 });

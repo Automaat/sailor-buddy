@@ -168,9 +168,10 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 }
 
 // defaultMaxCrew returns the trip's crew limit: the explicit max_crew when
-// given, otherwise the yacht's berth count when the yacht records one.
+// given, otherwise the yacht's berth count when the yacht records one. A
+// max_crew of 0 means "no limit" in the trip forms, so it also falls back.
 func defaultMaxCrew(ctx context.Context, q sqlcdb.Querier, yachtID, maxCrew *int64) (types.NullInt64, error) {
-	if maxCrew != nil || yachtID == nil {
+	if (maxCrew != nil && *maxCrew != 0) || yachtID == nil {
 		return nullInt64(maxCrew), nil
 	}
 	yacht, err := q.GetYacht(ctx, *yachtID)

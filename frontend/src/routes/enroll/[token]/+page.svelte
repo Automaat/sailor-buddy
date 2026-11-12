@@ -14,11 +14,13 @@
 	let success = $state(false);
 
 	const token = $derived((page.params as Record<string, string>).token);
-	const tripFree = $derived(
-		data?.kind === 'trip' ? freePlaces(data.trip.max_crew, data.accepted_count) : null
-	);
-	const cruiseTripAccepted = $derived(
+	const tripAccepted = $derived(
 		new Map((data?.trip_accepted ?? []).map((t) => [t.trip_id, t.accepted_count]))
+	);
+	const tripFree = $derived(
+		data?.kind === 'trip'
+			? freePlaces(data.trip.max_crew, tripAccepted.get(data.trip.id) ?? data.accepted_count)
+			: null
 	);
 	const loginHref = $derived(`/login?redirect=${encodeURIComponent(`/enroll/${token}`)}`);
 
@@ -134,7 +136,7 @@
 						<p class="mb-2 text-xs uppercase tracking-wide text-[var(--text-muted)]">Planowane jachty</p>
 						<div class="space-y-1">
 							{#each data.trips as t}
-								{@const free = freePlaces(t.max_crew, cruiseTripAccepted.get(t.id) ?? 0)}
+								{@const free = freePlaces(t.max_crew, tripAccepted.get(t.id) ?? 0)}
 								<div class="rounded-lg bg-gray-50 px-3 py-2 text-sm">
 									<span class="font-medium">{t.name}</span>
 									{#if t.captain_name}
