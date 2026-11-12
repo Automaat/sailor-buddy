@@ -98,6 +98,7 @@ type Cruise struct {
 	EnrollToken   types.NullString  `json:"enroll_token"`
 	CreatedAt     types.NullTime    `json:"created_at"`
 	UpdatedAt     types.NullTime    `json:"updated_at"`
+	Kind          string            `json:"kind"`
 }
 
 type CruiseEnrollment struct {

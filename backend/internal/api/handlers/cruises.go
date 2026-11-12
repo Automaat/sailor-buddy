@@ -181,6 +181,7 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
 		MaxCrew:       nullInt64(in.Body.MaxCrew),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
+		Kind:          in.Body.Kind,
 	})
 	if err != nil {
 		slog.Error("create cruise", "name", in.Body.Name, "err", err)
@@ -206,6 +207,7 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
 		MaxCrew:       nullInt64(in.Body.MaxCrew),
 		CostPerPerson: nullFloat64(in.Body.CostPerPerson),
+		Kind:          in.Body.Kind,
 		ID:            in.ID,
 	}); err != nil {
 		slog.Error("update cruise", "cruise_id", in.ID, "err", err)

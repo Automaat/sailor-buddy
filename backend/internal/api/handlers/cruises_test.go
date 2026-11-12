@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"testing"
@@ -429,4 +430,112 @@ func TestNewCruiseHandler(t *testing.T) {
 	if NewCruiseHandler(&mockQuerier{}) == nil {
 		t.Fatal("want non-nil handler")
 	}
+}
+
+func TestCruiseHandler_Kind(t *testing.T) {
+	echoCreate := func(got *string) *mockQuerier {
+		return &mockQuerier{
+			createCruiseFn: func(_ context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
+				*got = arg.Kind
+				return sqlcdb.Cruise{ID: 1, Name: arg.Name, Kind: arg.Kind}, nil
+			},
+		}
+	}
+
+	createCases := []struct {
+		name string
+		body map[string]any
+		want string
+	}{
+		{name: "inland", body: map[string]any{"name": "Mazury", "kind": "inland"}, want: "inland"},
+		{name: "sea", body: map[string]any{"name": "Bałtyk", "kind": "sea"}, want: "sea"},
+		{name: "omitted defaults to sea", body: map[string]any{"name": "Bałtyk"}, want: "sea"},
+	}
+	for _, tc := range createCases {
+		t.Run("create "+tc.name, func(t *testing.T) {
+			var stored string
+			resp := cruiseTestAPI(t, echoCreate(&stored)).PostCtx(userCtx(context.Background()), "/cruises", tc.body)
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+			}
+			if stored != tc.want {
+				t.Errorf("stored kind = %q, want %q", stored, tc.want)
+			}
+			var out struct {
+				Kind string `json:"kind"`
+			}
+			if err := json.Unmarshal(resp.Body.Bytes(), &out); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if out.Kind != tc.want {
+				t.Errorf("response kind = %q, want %q", out.Kind, tc.want)
+			}
+		})
+	}
+
+	invalid := []any{"lake", "", "SEA", 1}
+	for _, kind := range invalid {
+		t.Run("create rejects invalid kind", func(t *testing.T) {
+			resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises",
+				map[string]any{"name": "X", "kind": kind})
+			if resp.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("kind %v: got %d, want 422; body=%s", kind, resp.Code, resp.Body)
+			}
+		})
+		t.Run("update rejects invalid kind", func(t *testing.T) {
+			resp := cruiseTestAPI(t, &mockQuerier{}).PutCtx(userCtx(context.Background()), "/cruises/1",
+				map[string]any{"name": "X", "kind": kind})
+			if resp.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("kind %v: got %d, want 422; body=%s", kind, resp.Code, resp.Body)
+			}
+		})
+	}
+
+	updateCases := []struct {
+		name string
+		body map[string]any
+		want string
+	}{
+		{name: "inland", body: map[string]any{"name": "Mazury", "kind": "inland"}, want: "inland"},
+		{name: "omitted defaults to sea", body: map[string]any{"name": "Bałtyk"}, want: "sea"},
+	}
+	for _, tc := range updateCases {
+		t.Run("update "+tc.name, func(t *testing.T) {
+			var stored string
+			m := &mockQuerier{
+				updateCruiseFn: func(_ context.Context, arg sqlcdb.UpdateCruiseParams) error {
+					stored = arg.Kind
+					return nil
+				},
+			}
+			resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()), "/cruises/1", tc.body)
+			if resp.Code != http.StatusNoContent {
+				t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
+			}
+			if stored != tc.want {
+				t.Errorf("stored kind = %q, want %q", stored, tc.want)
+			}
+		})
+	}
+
+	t.Run("get returns kind", func(t *testing.T) {
+		m := &mockQuerier{
+			getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) {
+				return sqlcdb.Cruise{ID: id, Name: "Mazury", Kind: "inland"}, nil
+			},
+		}
+		resp := cruiseTestAPI(t, m).GetCtx(userCtx(context.Background()), "/cruises/1")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		var out struct {
+			Kind string `json:"kind"`
+		}
+		if err := json.Unmarshal(resp.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if out.Kind != "inland" {
+			t.Errorf("kind = %q, want inland", out.Kind)
+		}
+	})
 }

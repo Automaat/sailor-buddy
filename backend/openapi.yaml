@@ -255,6 +255,12 @@ components:
           type: string
         image_route_url:
           type: string
+        kind:
+          description: "Cruise kind: sea (morski) or inland (śródlądowy)"
+          enum:
+            - sea
+            - inland
+          type: string
         max_crew:
           format: int64
           type: integer
@@ -268,6 +274,7 @@ components:
       required:
         - id
         - name
+        - kind
         - created_at
         - updated_at
       type: object
@@ -299,6 +306,13 @@ components:
         image_photo_url:
           type: string
         image_route_url:
+          type: string
+        kind:
+          default: sea
+          description: "Cruise kind: sea (morski) or inland (śródlądowy)"
+          enum:
+            - sea
+            - inland
           type: string
         max_crew:
           format: int64
