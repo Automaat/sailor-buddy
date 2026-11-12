@@ -3,6 +3,7 @@
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
 	import { freePlaces, numberLegs, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
+	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -124,6 +125,10 @@
 					<p class="mb-4 whitespace-pre-wrap text-sm">{data.trip.description}</p>
 				{/if}
 
+				<div class="mb-4">
+					<PriceInfo priced={data.trip} membership={auth.user?.membership} />
+				</div>
+
 				<div class="mb-6 flex gap-4 text-sm">
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zapisanych:</span>
@@ -164,6 +169,14 @@
 					<p class="mb-4 whitespace-pre-wrap text-sm">{data.cruise.description}</p>
 				{/if}
 
+				<div class="mb-4">
+					<PriceInfo
+						priced={data.cruise}
+						membership={auth.user?.membership}
+						included={data.cruise.included}
+						notIncluded={data.cruise.not_included}
+					/>
+				</div>
 				<CruiseLogistics
 					class="mb-4"
 					groupChatUrl={data.cruise.group_chat_url}

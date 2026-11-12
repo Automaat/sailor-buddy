@@ -6,6 +6,8 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
+	import PriceFields from '#lib/components/PriceFields.svelte';
+	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -31,10 +33,10 @@
 		captain_user_id: 0,
 		yacht_id: 0,
 		cost_total: 0,
-		cost_per_person: 0,
 		max_crew: 0,
 		description: ''
 	});
+	let price = $state(priceFormFrom());
 
 	const id = $derived(Number(page.params.id));
 
@@ -53,10 +55,10 @@
 				captain_user_id: trip.captain_user_id ?? 0,
 				yacht_id: trip.yacht_id ?? 0,
 				cost_total: trip.cost_total ?? 0,
-				cost_per_person: trip.cost_per_person ?? 0,
 				max_crew: trip.max_crew ?? 0,
 				description: trip.description ?? ''
 			};
+			price = priceFormFrom(trip);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się wczytać';
 		} finally {
@@ -71,6 +73,7 @@
 		try {
 			const payload = {
 				...form,
+				...priceBody(price),
 				yacht_id: form.yacht_id || undefined,
 				// captain_name of a linked captain is the server's snapshot, so only a
 				// legacy free-text name survives clearing the captain.
@@ -140,14 +143,11 @@
 
 			<hr />
 			<h3 class="font-semibold text-[var(--navy)]">Koszty i załoga</h3>
-			<div class="grid grid-cols-3 gap-4">
+			<div class="grid grid-cols-2 gap-4">
+				<PriceFields bind:price />
 				<div>
 					<label for="ct" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
 					<input id="ct" type="number" step="0.01" bind:value={form.cost_total} class="w-full rounded-lg border px-3 py-2" />
-				</div>
-				<div>
-					<label for="cp" class="mb-1 block text-sm font-medium">Koszt na osobę</label>
-					<input id="cp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
 				</div>
 				<div>
 					<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. załoga</label>

@@ -226,6 +226,11 @@ components:
           readOnly: true
           type: string
         cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
+          format: double
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
           format: double
           type: number
         countries:
@@ -236,6 +241,16 @@ components:
         created_by:
           format: int64
           type: integer
+        currency:
+          description: Currency of every price on the cruise
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          type: number
         description:
           type: string
         disembark_date:
@@ -261,6 +276,13 @@ components:
           type: string
         image_route_url:
           type: string
+        included:
+          description: What the price covers
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         kind:
           description: "Cruise kind: sea (morski) or inland (śródlądowy)"
           enum:
@@ -276,6 +298,13 @@ components:
           type: integer
         name:
           type: string
+        not_included:
+          description: What the price does not cover
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         series_id:
           description: Series this cruise is an edition of
           format: int64
@@ -288,10 +317,17 @@ components:
         updated_at:
           format: date-time
           type: string
+        yacht_fund:
+          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
+          format: double
+          type: number
       required:
         - id
         - name
         - kind
+        - currency
+        - included
+        - not_included
         - created_at
         - updated_at
       type: object
@@ -306,10 +342,28 @@ components:
           readOnly: true
           type: string
         cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
           format: double
+          minimum: 0
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
+          format: double
+          minimum: 0
           type: number
         countries:
           type: string
+        currency:
+          description: Currency of every price on the cruise; PLN when omitted
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          minimum: 0
+          type: number
         description:
           type: string
         disembark_date:
@@ -332,6 +386,14 @@ components:
           type: string
         image_route_url:
           type: string
+        included:
+          description: What the price covers; blank entries are dropped, each at most 200 characters
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
         kind:
           default: sea
           description: "Cruise kind: sea (morski) or inland (śródlądowy)"
@@ -352,6 +414,14 @@ components:
           description: Cruise name
           minLength: 1
           type: string
+        not_included:
+          description: What the price does not cover; blank entries are dropped, each at most 200 characters
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
         series_id:
           description: Series this cruise is an edition of; omit or null for none
           format: int64
@@ -362,6 +432,11 @@ components:
           description: "How to get there: flights, transport, meeting point; blank clears it"
           maxLength: 5000
           type: string
+        yacht_fund:
+          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
+          format: double
+          minimum: 0
+          type: number
       required:
         - name
       type: object
@@ -553,10 +628,24 @@ components:
       additionalProperties: false
       properties:
         cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
+          format: double
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
           format: double
           type: number
         countries:
           type: string
+        currency:
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          type: number
         description:
           type: string
         disembark_date:
@@ -573,6 +662,13 @@ components:
           type: integer
         image_photo_url:
           type: string
+        included:
+          description: What the price covers
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         max_crew:
           format: int64
           type: integer
@@ -582,14 +678,28 @@ components:
           type: integer
         name:
           type: string
+        not_included:
+          description: What the price does not cover
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         start_port:
           type: string
         travel_notes:
           description: "How to get there: flights, transport, meeting point"
           type: string
+        yacht_fund:
+          description: Estimated yacht fund (kasa jachtowa) per person
+          format: double
+          type: number
       required:
         - id
         - name
+        - currency
+        - included
+        - not_included
       type: object
     EnrollInfo:
       additionalProperties: false
@@ -711,8 +821,25 @@ components:
       properties:
         captain_name:
           type: string
+        cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
+          format: double
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
+          format: double
+          type: number
         countries:
           type: string
+        currency:
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          type: number
         description:
           type: string
         disembark_date:
@@ -733,9 +860,14 @@ components:
           type: string
         start_port:
           type: string
+        yacht_fund:
+          description: Estimated yacht fund (kasa jachtowa) per person
+          format: double
+          type: number
       required:
         - id
         - name
+        - currency
       type: object
     Enrollment:
       additionalProperties: false
@@ -1508,6 +1640,11 @@ components:
           format: int64
           type: integer
         cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
+          format: double
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
           format: double
           type: number
         cost_total:
@@ -1524,6 +1661,16 @@ components:
         cruise_id:
           format: int64
           type: integer
+        currency:
+          description: Currency of every price on the trip
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          type: number
         description:
           type: string
         disembark_date:
@@ -1558,6 +1705,10 @@ components:
         updated_at:
           format: date-time
           type: string
+        yacht_fund:
+          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
+          format: double
+          type: number
         yacht_id:
           format: int64
           type: integer
@@ -1565,6 +1716,7 @@ components:
         - id
         - name
         - status
+        - currency
         - created_at
         - updated_at
       type: object
@@ -1599,7 +1751,14 @@ components:
           format: int64
           type: integer
         cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
           format: double
+          minimum: 0
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
+          format: double
+          minimum: 0
           type: number
         cost_total:
           format: double
@@ -1609,6 +1768,17 @@ components:
         cruise_id:
           format: int64
           type: integer
+        currency:
+          description: Currency of every price on the trip; PLN when omitted
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          minimum: 0
+          type: number
         description:
           type: string
         disembark_date:
@@ -1632,6 +1802,11 @@ components:
           type: string
         start_port:
           type: string
+        yacht_fund:
+          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
+          format: double
+          minimum: 0
+          type: number
         yacht_id:
           format: int64
           type: integer

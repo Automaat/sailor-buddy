@@ -50,17 +50,21 @@ function cruise(overrides: Partial<Cruise> = {}): Cruise {
 		id: 7,
 		name: 'Sycylia 2026',
 		kind: 'sea',
+		currency: 'PLN',
+		included: [],
+		not_included: [],
 		created_at: '2026-01-01T00:00:00Z',
 		updated_at: '2026-01-01T00:00:00Z',
 		...overrides
 	};
 }
 
-const mockAuth = auth as unknown as { isAdmin: boolean };
+const mockAuth = auth as unknown as { isAdmin: boolean; user: Record<string, unknown> };
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	mockAuth.isAdmin = false;
+	mockAuth.user = { id: 2, role: 'member', membership: 'czlonek' };
 	vi.mocked(goto).mockReset();
 	for (const f of [
 		getSeries,
@@ -261,5 +265,34 @@ describe('cruise page load errors', () => {
 		render(CruiseDetailPage);
 
 		expect(await screen.findByText('Nie udało się wczytać wydarzenia')).toBeInTheDocument();
+	});
+});
+
+describe('cruise page price', () => {
+	it.each([
+		['czlonek', '820 PLN'],
+		['sympatyk', '820 PLN'],
+		['gosc', '870 PLN']
+	] as const)('shows %s their price and the included lists', async (membership, want) => {
+		mockAuth.user = { id: 2, role: 'member', membership };
+		mockGet.mockResolvedValue(
+			cruise({
+				cost_per_person: 820,
+				cost_per_person_non_member: 870,
+				included: ['jacht', 'paliwo'],
+				not_included: ['dojazd']
+			})
+		);
+		render(CruiseDetailPage);
+		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
+		expect(screen.getByTestId('price-included')).toHaveTextContent('paliwo');
+		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
+	});
+
+	it('hides the price card for an unpriced cruise', async () => {
+		mockGet.mockResolvedValue(cruise({ cost_per_person: 0 }));
+		render(CruiseDetailPage);
+		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
+		expect(screen.queryByRole('heading', { name: 'Cena' })).not.toBeInTheDocument();
 	});
 });

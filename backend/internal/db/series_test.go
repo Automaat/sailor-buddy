@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -12,6 +13,15 @@ import (
 )
 
 func text(s string) types.NullString { return types.NullString{String: s, Valid: true} }
+
+// unpriced fills the cruise columns that have no usable Go zero value: the
+// currency CHECK and the NOT NULL price lists.
+func unpriced(p sqlcdb.CreateCruiseParams) sqlcdb.CreateCruiseParams {
+	p.Currency = "PLN"
+	p.Included = json.RawMessage("[]")
+	p.NotIncluded = json.RawMessage("[]")
+	return p
+}
 
 // TestCruiseSeries_Editions checks the editions query against a real
 // database: newest edition first with undated (planned) editions on top,
@@ -43,9 +53,9 @@ func TestCruiseSeries_Editions(t *testing.T) {
 		if embark != "" {
 			embarkDate = text(embark)
 		}
-		c, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+		c, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
 			Name: name, EmbarkDate: embarkDate, Kind: "sea", SeriesID: seriesID, Edition: text(edition),
-		})
+		}))
 		if err != nil {
 			t.Fatalf("create cruise %s: %v", name, err)
 		}
@@ -54,9 +64,9 @@ func TestCruiseSeries_Editions(t *testing.T) {
 	older := newCruise("MIS 2024", "2024-05-01", "2024", inSeries)
 	newer := newCruise("MIS 2025", "2025-05-01", "2025", inSeries)
 	planned := newCruise("MIS 2027/28", "", "2027/28", inSeries)
-	formPlanned, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+	formPlanned, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
 		Name: "MIS 2027", EmbarkDate: text(""), Kind: "sea", SeriesID: inSeries, Edition: text("2027"),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create cruise with empty embark date: %v", err)
 	}
@@ -119,9 +129,9 @@ func TestCruiseSeries_DeleteKeepsCruises(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+	cruise, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
 		Name: "NNE 2025", Kind: "sea", SeriesID: types.NullInt64{Int64: series.ID, Valid: true}, Edition: text("2025"),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)
 	}
@@ -136,9 +146,9 @@ func TestCruiseSeries_DeleteKeepsCruises(t *testing.T) {
 		t.Errorf("series_id = %v, want null", after.SeriesID)
 	}
 
-	_, err = q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+	_, err = q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
 		Name: "Ghost", Kind: "sea", SeriesID: types.NullInt64{Int64: series.ID, Valid: true},
-	})
+	}))
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != "23503" || pgErr.ConstraintName != "cruises_series_id_fkey" {
 		t.Fatalf("create with deleted series: err = %v, want FK violation on cruises_series_id_fkey", err)

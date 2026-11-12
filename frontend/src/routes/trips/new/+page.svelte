@@ -6,6 +6,8 @@
 	import type { Cruise } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
+	import PriceFields from '#lib/components/PriceFields.svelte';
+	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 
 	let cruises = $state<Cruise[]>([]);
 	let error = $state('');
@@ -33,10 +35,10 @@
 		end_port: '',
 		cruise_id: 0,
 		captain_user_id: 0,
-		cost_per_person: 0,
 		max_crew: 0,
 		description: ''
 	});
+	let price = $state(priceFormFrom());
 
 	// A captain planning their own trip is preselected, once, so picking
 	// "Brak" afterwards sticks.
@@ -58,6 +60,7 @@
 				if (!form.countries) form.countries = c.countries ?? '';
 				if (!form.start_port) form.start_port = c.start_port ?? '';
 				if (!form.end_port) form.end_port = c.end_port ?? '';
+				price = priceFormFrom(c);
 			}
 		}
 	});
@@ -69,6 +72,7 @@
 		try {
 			const payload = {
 				...form,
+				...priceBody(price),
 				captain_user_id: form.captain_user_id || undefined,
 				cruise_id: form.cruise_id || undefined
 			};
@@ -135,10 +139,7 @@
 		<hr />
 		<h3 class="font-semibold text-[var(--navy)]">Koszty i załoga</h3>
 		<div class="grid grid-cols-2 gap-4">
-			<div>
-				<label for="cost_pp" class="mb-1 block text-sm font-medium">Koszt na osobę</label>
-				<input id="cost_pp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
-			</div>
+			<PriceFields bind:price />
 			<div>
 				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. załoga</label>
 				<input id="max_crew" type="number" bind:value={form.max_crew} class="w-full rounded-lg border px-3 py-2" min="0" placeholder="0 = bez limitu" />
