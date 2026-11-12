@@ -6,10 +6,14 @@ const onAuthStateChanged = vi.hoisted(() => vi.fn());
 const signOut = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('firebase/auth', () => ({ onAuthStateChanged }));
-vi.mock('$lib/firebase', () => ({ firebaseAuth: { signOut } }));
+vi.mock('#lib/firebase.js', () => ({ firebaseAuth: { signOut } }));
 
 import { auth } from './auth.svelte';
-import type { User } from '$lib/api/types';
+import type { User } from '#lib/api/types.js';
+
+// Vitest clears mock history before each test, so snapshot the registration
+// made at import time here.
+const registration = onAuthStateChanged.mock.calls.slice();
 
 const fbUser = { getIdToken: vi.fn().mockResolvedValue('id-token') };
 
@@ -18,13 +22,13 @@ const fbUser = { getIdToken: vi.fn().mockResolvedValue('id-token') };
 // covered as a single ordered walk rather than as isolated cases.
 describe('auth store lifecycle', () => {
 	it('registers a firebase auth-state listener at import', () => {
-		expect(onAuthStateChanged).toHaveBeenCalledTimes(1);
-		expect(typeof onAuthStateChanged.mock.calls[0][1]).toBe('function');
+		expect(registration).toHaveLength(1);
+		expect(typeof registration[0][1]).toBe('function');
 	});
 
 	it('walks sign-in, profile load and sign-out', async () => {
 		// authListener is the callback the store handed to onAuthStateChanged.
-		const authListener = onAuthStateChanged.mock.calls[0][1] as (u: unknown) => void;
+		const authListener = registration[0][1] as (u: unknown) => void;
 
 		// Initial state: loading, unauthenticated, no token.
 		expect(auth.loading).toBe(true);

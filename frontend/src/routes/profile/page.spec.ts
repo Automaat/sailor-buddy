@@ -19,9 +19,9 @@ vi.mock('firebase/auth', () => ({
 	EmailAuthProvider: { credential: vi.fn(() => ({})) }
 }));
 
-vi.mock('$lib/api/routes', () => ({ updateMe: vi.fn() }));
+vi.mock('#lib/api/routes.js', () => ({ updateMe: vi.fn() }));
 
-vi.mock('$lib/stores/auth.svelte', () => ({
+vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: {
 		get user() {
 			return h.store.user;
@@ -36,7 +36,7 @@ vi.mock('$lib/stores/auth.svelte', () => ({
 }));
 
 import { updateProfile } from 'firebase/auth';
-import { updateMe } from '$lib/api/routes';
+import { updateMe } from '#lib/api/routes.js';
 import ProfilePage from './+page.svelte';
 
 const updateMeMock = updateMe as unknown as ReturnType<typeof vi.fn>;

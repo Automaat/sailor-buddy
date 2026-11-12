@@ -5,8 +5,8 @@
 		reauthenticateWithCredential,
 		EmailAuthProvider
 	} from 'firebase/auth';
-	import { auth } from '$lib/stores/auth.svelte';
-	import { updateMe } from '$lib/api/routes';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { updateMe } from '#lib/api/routes.js';
 
 	const fbUser = auth.firebaseUser;
 

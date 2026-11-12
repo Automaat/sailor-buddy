@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { auth } from '$lib/stores/auth.svelte';
-	import { createCruise } from '$lib/api/routes';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { createCruise } from '#lib/api/routes.js';
 
 	let error = $state('');
 	let loading = $state(false);

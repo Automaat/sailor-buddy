@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { makeTrip } from '$lib/test-utils';
+import { makeTrip } from '#lib/test-utils.js';
 
-vi.mock('$lib/api/client', () => ({ api: { list: vi.fn() } }));
-vi.mock('$lib/stores/auth.svelte', () => ({
+vi.mock('#lib/api/client.js', () => ({ api: { list: vi.fn() } }));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
-import { api } from '$lib/api/client';
+import { api } from '#lib/api/client.js';
 import TripsPage from './+page.svelte';
 
 const apiList = api.list as unknown as ReturnType<typeof vi.fn>;

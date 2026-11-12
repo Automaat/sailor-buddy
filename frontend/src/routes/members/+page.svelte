@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
-	import { listMembers, updateMemberRole } from '$lib/api/routes';
-	import type { Member } from '$lib/api/types';
+	import { listMembers, updateMemberRole } from '#lib/api/routes.js';
+	import type { Member } from '#lib/api/types.js';
 	import Users from '@lucide/svelte/icons/users';
 
 	let members = $state<Member[]>([]);

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
-	import { listYachts, createYacht, deleteYacht } from '$lib/api/routes';
-	import type { Yacht } from '$lib/api/types';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { listYachts, createYacht, deleteYacht } from '#lib/api/routes.js';
+	import type { Yacht } from '#lib/api/types.js';
 	import Ship from '@lucide/svelte/icons/ship';
 
 	let yachts = $state<Yacht[]>([]);

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
-	import { getCruise, updateCruise } from '$lib/api/routes';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { getCruise, updateCruise } from '#lib/api/routes.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

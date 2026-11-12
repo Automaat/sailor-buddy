@@ -4,10 +4,10 @@
 		listTripEnrollments,
 		updateTripEnrollmentStatus,
 		deleteTripEnrollment
-	} from '$lib/api/routes';
-	import type { TripEnrollment, Trip } from '$lib/api/types';
-	import { statusLabels } from '$lib/enrollment';
-	import { auth } from '$lib/stores/auth.svelte';
+	} from '#lib/api/routes.js';
+	import type { TripEnrollment, Trip } from '#lib/api/types.js';
+	import { statusLabels } from '#lib/enrollment.js';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

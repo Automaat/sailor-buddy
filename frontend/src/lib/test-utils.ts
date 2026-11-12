@@ -1,5 +1,5 @@
 // Reusable factories and helpers shared across form/component test suites.
-import type { Member, Trip, Voyage } from '$lib/api/types';
+import type { Member, Trip, Voyage } from '#lib/api/types.js';
 
 export function makeMember(overrides: Partial<Member> = {}): Member {
 	return {

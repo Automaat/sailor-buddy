@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { getDashboard } from '$lib/api/routes';
-	import type { DashboardStats } from '$lib/api/types';
+	import { getDashboard } from '#lib/api/routes.js';
+	import type { DashboardStats } from '#lib/api/types.js';
 
 	let stats = $state<DashboardStats | null>(null);
 	let loading = $state(true);

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { auth } from '$lib/stores/auth.svelte';
-	import { getTrip, updateTrip, listYachts } from '$lib/api/routes';
-	import type { Yacht } from '$lib/api/types';
+	import { auth } from '#lib/stores/auth.svelte.js';
+	import { getTrip, updateTrip, listYachts } from '#lib/api/routes.js';
+	import type { Yacht } from '#lib/api/types.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

@@ -1,6 +1,6 @@
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { firebaseAuth } from '$lib/firebase';
-import type { User } from '$lib/api/types';
+import { firebaseAuth } from '#lib/firebase.js';
+import type { User } from '#lib/api/types.js';
 
 function createAuthStore() {
 	let firebaseUser = $state<FirebaseUser | null>(null);

@@ -1,3 +1,4 @@
+import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
@@ -5,7 +6,7 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
 	return {
-		plugins: [sveltekit(), tailwindcss()],
+		plugins: [sveltekit({ adapter: adapter() }), tailwindcss()],
 		// Under vitest, resolve Svelte's client build so components mount in jsdom.
 		resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
 		server: {

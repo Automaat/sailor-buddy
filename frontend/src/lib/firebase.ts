@@ -1,11 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
-import { env } from '$env/dynamic/public';
+import {
+	PUBLIC_FIREBASE_API_KEY,
+	PUBLIC_FIREBASE_AUTH_DOMAIN,
+	PUBLIC_FIREBASE_PROJECT_ID,
+	PUBLIC_FIREBASE_AUTH_EMULATOR_URL
+} from '$app/env/public';
 
 const firebaseConfig = {
-	apiKey: env.PUBLIC_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY || 'fake-api-key',
-	authDomain: env.PUBLIC_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
-	projectId: env.PUBLIC_FIREBASE_PROJECT_ID || import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sailor-buddy-dev'
+	apiKey: PUBLIC_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY || 'fake-api-key',
+	authDomain: PUBLIC_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
+	projectId: PUBLIC_FIREBASE_PROJECT_ID || import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sailor-buddy-dev'
 };
 
 const app = initializeApp(firebaseConfig);
@@ -27,9 +32,9 @@ export function connectEmulator(auth: Auth, url: string): void {
 // Connecting to the emulator is a runtime decision, not a build-time one: the
 // production image is a single artifact run against the local emulator in
 // docker-compose. PUBLIC_FIREBASE_AUTH_EMULATOR_URL is read at runtime via
-// $env/dynamic/public; the import.meta.env paths cover the vite dev server.
+// $app/env/public; the import.meta.env paths cover the vite dev server.
 const emulatorUrl =
-	env.PUBLIC_FIREBASE_AUTH_EMULATOR_URL ||
+	PUBLIC_FIREBASE_AUTH_EMULATOR_URL ||
 	import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL ||
 	(import.meta.env.DEV ? 'http://localhost:9099' : undefined);
 

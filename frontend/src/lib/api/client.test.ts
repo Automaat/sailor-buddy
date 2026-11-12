@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { jsonResponse } from '$lib/test-utils';
+import { jsonResponse } from '#lib/test-utils.js';
 import type { Page } from './types';
 
-vi.mock('$lib/stores/auth.svelte', () => ({
+vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { getIdToken: vi.fn(), logout: vi.fn() }
 }));
 
-import { auth } from '$lib/stores/auth.svelte';
+import { auth } from '#lib/stores/auth.svelte.js';
 import { api } from './client';
 
 const getIdToken = auth.getIdToken as unknown as ReturnType<typeof vi.fn>;

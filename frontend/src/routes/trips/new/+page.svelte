@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { auth } from '$lib/stores/auth.svelte';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
-	import { listCruises, createTrip } from '$lib/api/routes';
-	import type { Cruise } from '$lib/api/types';
+	import { listCruises, createTrip } from '#lib/api/routes.js';
+	import type { Cruise } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
 
 	let cruises = $state<Cruise[]>([]);

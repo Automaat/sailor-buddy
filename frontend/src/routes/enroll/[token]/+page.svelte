@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { resolveEnroll, enroll } from '$lib/api/routes';
-	import type { EnrollPageData } from '$lib/api/types';
-	import { statusLabels } from '$lib/enrollment';
-	import { auth } from '$lib/stores/auth.svelte';
+	import { resolveEnroll, enroll } from '#lib/api/routes.js';
+	import type { EnrollPageData } from '#lib/api/types.js';
+	import { statusLabels } from '#lib/enrollment.js';
+	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 
