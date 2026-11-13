@@ -185,15 +185,22 @@ func upsertDBUser(ctx context.Context, database *sql.DB, user devUser, firebaseU
 		WITH updated AS (
 			UPDATE users SET
 				name = $2,
+				first_name = split_part($2, ' ', 1),
+				last_name = btrim(substr($2, length(split_part($2, ' ', 1)) + 1)),
 				firebase_uid = $3,
 				role = $4,
+				membership = 'czlonek',
+				onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
 				updated_at = CURRENT_TIMESTAMP
 			WHERE email = $1
 			RETURNING id
 		),
 		inserted AS (
-			INSERT INTO users (email, name, password_hash, firebase_uid, role)
-			SELECT $1, $2, '', $3, $4
+			INSERT INTO users (email, name, first_name, last_name, password_hash,
+				firebase_uid, role, membership, onboarded_at)
+			SELECT $1, $2, split_part($2, ' ', 1),
+				btrim(substr($2, length(split_part($2, ' ', 1)) + 1)), '', $3, $4,
+				'czlonek', CURRENT_TIMESTAMP
 			WHERE NOT EXISTS (SELECT 1 FROM updated)
 			RETURNING id
 		)

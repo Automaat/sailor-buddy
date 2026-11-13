@@ -3,6 +3,7 @@
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
 	import { freePlaces, numberLegs, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
+	import { patentSummary } from '#lib/profile.js';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { page } from '$app/state';
@@ -284,6 +285,20 @@
 				</div>
 			{:else}
 				<form onsubmit={handleEnroll} class="space-y-4">
+					{#if auth.user}
+						<div class="rounded-lg bg-gray-50 p-3 text-sm" data-testid="enroll-as">
+							<div class="flex items-start justify-between gap-2">
+								<div>
+									<span class="text-[var(--text-muted)]">Zapisujesz się jako:</span>
+									<span class="block font-medium">{auth.user.name}</span>
+									<span class="block text-xs text-[var(--text-muted)]">
+										{auth.user.phone ?? 'brak telefonu'} · {patentSummary(auth.user.patent_type, auth.user.patent_number)}
+									</span>
+								</div>
+								<a href="/profile" class="text-xs font-medium text-[var(--ocean)] hover:underline">Edytuj</a>
+							</div>
+						</div>
+					{/if}
 					{#if data.enrollment}
 						<p class="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
 							Jesteś zapisany na wydarzenie. Status:

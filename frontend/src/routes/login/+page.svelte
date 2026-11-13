@@ -10,18 +10,15 @@
 		updateProfile
 	} from 'firebase/auth';
 	import { firebaseAuth } from '#lib/firebase.js';
+	import { safeRedirect } from '#lib/redirect.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
 
 	const googleProvider = new GoogleAuthProvider();
 	googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-	// destination resolves the post-login target from ?redirect=, accepting
-	// only same-origin paths so the param can't be used for open redirects.
-	function destination() {
-		const r = page.url.searchParams.get('redirect');
-		if (r && r.startsWith('/') && !r.startsWith('//')) return r;
-		return '/';
-	}
+	// Read once on mount: the auth effect below may navigate away before the
+	// submit handler resumes, and the new URL no longer carries ?redirect=.
+	const target = safeRedirect(page.url.searchParams.get('redirect'));
 
 	let isRegister = $state(false);
 	let email = $state('');
@@ -42,7 +39,7 @@
 			} else {
 				await signInWithEmailAndPassword(firebaseAuth, email, password);
 			}
-			goto(destination());
+			goto(target);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
@@ -55,7 +52,7 @@
 		loading = true;
 		try {
 			await signInWithPopup(firebaseAuth, googleProvider);
-			goto(destination());
+			goto(target);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
@@ -65,7 +62,7 @@
 
 	$effect(() => {
 		if (auth.isAuthenticated) {
-			goto(destination());
+			goto(target);
 		}
 	});
 </script>

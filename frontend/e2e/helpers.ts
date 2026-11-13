@@ -89,7 +89,35 @@ export async function registerViaUI(
 	await page.getByLabel('Email').fill(email);
 	await page.getByLabel('Hasło').fill(password);
 	await page.getByRole('button', { name: 'Zarejestruj' }).first().click();
+	const [firstName, ...rest] = name.split(' ');
+	await completeOnboardingViaUI(page, firstName, rest.join(' ') || firstName);
+}
+
+// completeOnboardingViaUI fills the first-sign-in profile form; the gate then
+// returns to '/'.
+export async function completeOnboardingViaUI(
+	page: Page,
+	firstName: string,
+	lastName: string
+): Promise<void> {
+	await page.waitForURL(/\/onboarding/, { timeout: 10_000 });
+	await page.getByLabel('Imię *').fill(firstName);
+	await page.getByLabel('Nazwisko *').fill(lastName);
+	await page.getByLabel('Telefon').fill('+48 600 100 200');
+	await page.getByLabel('Patent żeglarski').selectOption('zeglarz_jachtowy');
+	await page.getByLabel('Numer patentu').fill('ZJ-E2E');
+	await page.getByRole('button', { name: 'Zapisz i przejdź dalej' }).click();
 	await page.waitForURL('/', { timeout: 10_000 });
+}
+
+// completeOnboarding saves the profile through the API so API-created users
+// skip the onboarding gate on their first UI login.
+export async function completeOnboarding(
+	token: string,
+	firstName: string,
+	lastName: string
+): Promise<void> {
+	await apiRequest(token, 'PUT', '/auth/me', { first_name: firstName, last_name: lastName });
 }
 
 let userCounter = 0;

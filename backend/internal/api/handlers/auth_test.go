@@ -10,6 +10,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 func TestAuthHandler_Me(t *testing.T) {
@@ -47,41 +48,106 @@ func TestAuthHandler_Me(t *testing.T) {
 }
 
 func TestAuthHandler_UpdateMe(t *testing.T) {
-	_, api := humatest.New(t)
-	var saved sqlcdb.UpdateUserPatentParams
-	m := &mockQuerier{
-		updateUserPatentFn: func(_ context.Context, arg sqlcdb.UpdateUserPatentParams) error {
-			saved = arg
-			return nil
+	tests := []struct {
+		name      string
+		body      map[string]any
+		isCaptain bool
+		want      int
+		wantSaved *sqlcdb.UpdateUserProfileParams
+	}{
+		{
+			name: "onboarding with patent",
+			body: map[string]any{
+				"first_name": " Jan ", "last_name": "Kowalski", "phone": "+48 600 100 200",
+				"patent_type": "kapitan_jachtowy", "patent_number": " PL-123 ",
+			},
+			want: http.StatusOK,
+			wantSaved: &sqlcdb.UpdateUserProfileParams{
+				ID: 1, FirstName: "Jan", LastName: "Kowalski",
+				Phone:        types.NullString{String: "+48 600 100 200", Valid: true},
+				PatentType:   types.NullString{String: "kapitan_jachtowy", Valid: true},
+				PatentNumber: types.NullString{String: "PL-123", Valid: true},
+			},
 		},
-		getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
-			return sqlcdb.User{ID: id, Email: "test@example.com", Name: "Test User"}, nil
+		{
+			name: "number without patent type is dropped",
+			body: map[string]any{"first_name": "Jan", "last_name": "Kowalski", "patent_number": "PL-1"},
+			want: http.StatusOK,
+			wantSaved: &sqlcdb.UpdateUserProfileParams{
+				ID: 1, FirstName: "Jan", LastName: "Kowalski",
+			},
+		},
+		{
+			name: "patent type needs a number",
+			body: map[string]any{"first_name": "Jan", "last_name": "Kowalski", "patent_type": "zeglarz_jachtowy", "patent_number": "  "},
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "blank last name",
+			body: map[string]any{"first_name": "Jan", "last_name": "   "},
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "missing first name",
+			body: map[string]any{"last_name": "Kowalski"},
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "invalid phone",
+			body: map[string]any{"first_name": "Jan", "last_name": "Kowalski", "phone": "call me"},
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "unknown patent type",
+			body: map[string]any{"first_name": "Jan", "last_name": "Kowalski", "patent_type": "admiral"},
+			want: http.StatusUnprocessableEntity,
+		},
+		{
+			name:      "captain cannot drop patent",
+			body:      map[string]any{"first_name": "Jan", "last_name": "Kowalski"},
+			isCaptain: true,
+			want:      http.StatusUnprocessableEntity,
 		},
 	}
-	RegisterAuthRoutes(api, m)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, api := humatest.New(t)
+			var saved *sqlcdb.UpdateUserProfileParams
+			m := &mockQuerier{
+				getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
+					return sqlcdb.User{ID: id, IsCaptain: tt.isCaptain}, nil
+				},
+				updateUserProfileFn: func(_ context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error) {
+					saved = &arg
+					return sqlcdb.User{
+						ID: arg.ID, FirstName: arg.FirstName, LastName: arg.LastName,
+						Name:        arg.FirstName + " " + arg.LastName,
+						OnboardedAt: types.NullTime{Valid: true},
+					}, nil
+				},
+			}
+			RegisterAuthRoutes(api, m)
 
-	t.Run("valid patent", func(t *testing.T) {
-		resp := api.PutCtx(userCtx(context.Background()), "/auth/me", map[string]any{
-			"patent_type":   "kapitan_jachtowy",
-			"patent_number": "PL-123",
+			resp := api.PutCtx(userCtx(context.Background()), "/auth/me", tt.body)
+			if resp.Code != tt.want {
+				t.Fatalf("got %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			}
+			if tt.wantSaved == nil {
+				if saved != nil {
+					t.Fatalf("profile saved despite rejection: %+v", saved)
+				}
+				return
+			}
+			if saved == nil || *saved != *tt.wantSaved {
+				t.Fatalf("saved = %+v, want %+v", saved, tt.wantSaved)
+			}
+			var me dto.Me
+			if err := json.Unmarshal(resp.Body.Bytes(), &me); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if !me.Onboarded || me.Name != "Jan Kowalski" {
+				t.Fatalf("me = %+v, want onboarded Jan Kowalski", me)
+			}
 		})
-		if resp.Code != http.StatusOK {
-			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
-		}
-		if saved.ID != 1 {
-			t.Fatalf("saved.ID = %d, want 1", saved.ID)
-		}
-		if saved.PatentType.String != "kapitan_jachtowy" || saved.PatentNumber.String != "PL-123" {
-			t.Fatalf("saved patent params = %+v", saved)
-		}
-	})
-
-	t.Run("rejects unknown patent type", func(t *testing.T) {
-		resp := api.PutCtx(userCtx(context.Background()), "/auth/me", map[string]any{
-			"patent_type": "admiral",
-		})
-		if resp.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
-		}
-	})
+	}
 }

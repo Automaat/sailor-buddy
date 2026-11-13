@@ -23,7 +23,7 @@ backend/
     auth/firebase.go         # Firebase client + Claims
     config/config.go         # env-based config
     db/db.go                # PostgreSQL connection + migration runner
-    db/migrations/           # SQL migration files (001-020)
+    db/migrations/           # SQL migration files (001-021)
     db/queries/              # sqlc SQL query files
     db/sqlcdb/               # generated sqlc Go code (DO NOT EDIT)
 frontend/
@@ -98,6 +98,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   (`captain_user_id`) may write its post-cruise log and ports
   (`requireAdminOrCaptain`). Captain is not a role — keep it off `users.role`.
 - `users.membership`: `czlonek` | `sympatyk` | `gosc` (club statute).
+  Self-registered accounts start as `gosc`; an admin promotes them.
+- Onboarding: `users.onboarded_at` NULL sends a signed-in user to
+  `/onboarding` (layout gate, `src/lib/onboarding.ts`) to fill first/last
+  name, optional phone and patent, then back to the original page. The
+  profile page edits the same fields (`ProfileFields.svelte`).
 - Trainings are the exception — a per-member log scoped by `user_id`.
 - crew_members decoupled from users (crew may not have accounts)
 - Go code must pass `gofumpt` formatting

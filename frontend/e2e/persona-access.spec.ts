@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { createTestUser, registerViaUI, loginViaUI, clearFirebaseUsers, apiRequest } from './helpers';
+import {
+	createTestUser,
+	registerViaUI,
+	loginViaUI,
+	clearFirebaseUsers,
+	apiRequest,
+	completeOnboarding
+} from './helpers';
 
 // Single-club role model. The first account ever provisioned auto-becomes the
 // club admin; every account after is a regular member. This is the source of
@@ -53,8 +60,13 @@ test.describe.serial('Single-club persona matrix', () => {
 
 		const member = await createTestUser(memberEmail, PASSWORD, 'Persona Member');
 		memberToken = member.idToken;
-		const memberMe = (await apiRequest(member.idToken, 'GET', '/auth/me')) as { role: string };
-		expect(memberMe.role).toBe('member');
+		const memberMe = (await apiRequest(member.idToken, 'GET', '/auth/me')) as {
+			role: string;
+			membership: string;
+			onboarded: boolean;
+		};
+		expect(memberMe).toMatchObject({ role: 'member', membership: 'gosc', onboarded: false });
+		await completeOnboarding(member.idToken, 'Persona', 'Member');
 	});
 
 	test('member: no members nav, cruises read-only, mutations 403', async ({ page }) => {

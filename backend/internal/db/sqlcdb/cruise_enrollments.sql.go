@@ -143,6 +143,8 @@ func (q *Queries) GetUserCruiseEnrollment(ctx context.Context, arg GetUserCruise
 const listCruiseEnrollments = `-- name: ListCruiseEnrollments :many
 SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
        u.name AS user_name, u.email AS user_email,
+       u.phone AS user_phone, u.patent_type AS user_patent_type,
+       u.patent_number AS user_patent_number,
        t.name AS trip_name
 FROM cruise_enrollments ce
 JOIN users u ON u.id = ce.user_id
@@ -152,23 +154,28 @@ ORDER BY ce.created_at
 `
 
 type ListCruiseEnrollmentsRow struct {
-	ID        int64            `json:"id"`
-	CruiseID  int64            `json:"cruise_id"`
-	UserID    int64            `json:"user_id"`
-	TripID    types.NullInt64  `json:"trip_id"`
-	Note      types.NullString `json:"note"`
-	Status    string           `json:"status"`
-	CreatedAt types.NullTime   `json:"created_at"`
-	UpdatedAt types.NullTime   `json:"updated_at"`
-	UserName  string           `json:"user_name"`
-	UserEmail string           `json:"user_email"`
-	TripName  types.NullString `json:"trip_name"`
+	ID               int64            `json:"id"`
+	CruiseID         int64            `json:"cruise_id"`
+	UserID           int64            `json:"user_id"`
+	TripID           types.NullInt64  `json:"trip_id"`
+	Note             types.NullString `json:"note"`
+	Status           string           `json:"status"`
+	CreatedAt        types.NullTime   `json:"created_at"`
+	UpdatedAt        types.NullTime   `json:"updated_at"`
+	UserName         string           `json:"user_name"`
+	UserEmail        string           `json:"user_email"`
+	UserPhone        types.NullString `json:"user_phone"`
+	UserPatentType   types.NullString `json:"user_patent_type"`
+	UserPatentNumber types.NullString `json:"user_patent_number"`
+	TripName         types.NullString `json:"trip_name"`
 }
 
 // ListCruiseEnrollments
 //
 //	SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
 //	       u.name AS user_name, u.email AS user_email,
+//	       u.phone AS user_phone, u.patent_type AS user_patent_type,
+//	       u.patent_number AS user_patent_number,
 //	       t.name AS trip_name
 //	FROM cruise_enrollments ce
 //	JOIN users u ON u.id = ce.user_id
@@ -195,6 +202,9 @@ func (q *Queries) ListCruiseEnrollments(ctx context.Context, cruiseID int64) ([]
 			&i.UpdatedAt,
 			&i.UserName,
 			&i.UserEmail,
+			&i.UserPhone,
+			&i.UserPatentType,
+			&i.UserPatentNumber,
 			&i.TripName,
 		); err != nil {
 			return nil, err

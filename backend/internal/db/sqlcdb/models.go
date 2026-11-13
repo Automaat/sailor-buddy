@@ -208,6 +208,10 @@ type User struct {
 	UpdatedAt    types.NullTime   `json:"updated_at"`
 	IsCaptain    bool             `json:"is_captain"`
 	Membership   string           `json:"membership"`
+	FirstName    string           `json:"first_name"`
+	LastName     string           `json:"last_name"`
+	Phone        types.NullString `json:"phone"`
+	OnboardedAt  types.NullTime   `json:"onboarded_at"`
 }
 
 type Voyage struct {

@@ -471,6 +471,12 @@ components:
           type: integer
         user_name:
           type: string
+        user_patent_number:
+          type: string
+        user_patent_type:
+          type: string
+        user_phone:
+          type: string
       required:
         - user_name
         - user_email
@@ -1104,11 +1110,15 @@ components:
           type: string
         email:
           type: string
+        first_name:
+          type: string
         id:
           format: int64
           type: integer
         is_captain:
           type: boolean
+        last_name:
+          type: string
         membership:
           enum:
             - czlonek
@@ -1117,9 +1127,14 @@ components:
           type: string
         name:
           type: string
+        onboarded:
+          description: Whether the user completed the onboarding form
+          type: boolean
         patent_number:
           type: string
         patent_type:
+          type: string
+        phone:
           type: string
         role:
           type: string
@@ -1127,6 +1142,9 @@ components:
         - id
         - email
         - name
+        - first_name
+        - last_name
+        - onboarded
         - avatar_url
         - role
         - is_captain
@@ -1158,6 +1176,8 @@ components:
         patent_number:
           type: string
         patent_type:
+          type: string
+        phone:
           type: string
         role:
           type: string
@@ -1787,15 +1807,25 @@ components:
         - created_at
         - updated_at
       type: object
-    UpdatePatentBody:
+    UpdateProfileBody:
       additionalProperties: false
       properties:
         $schema:
           description: A URL to the JSON Schema for this object.
           examples:
-            - /api/UpdatePatentBody.json
+            - /api/UpdateProfileBody.json
           format: uri
           readOnly: true
+          type: string
+        first_name:
+          description: Given name
+          maxLength: 100
+          minLength: 1
+          type: string
+        last_name:
+          description: Family name
+          maxLength: 100
+          minLength: 1
           type: string
         patent_number:
           description: Patent registration number
@@ -1807,6 +1837,14 @@ components:
             - jachtowy_sternik_morski
             - kapitan_jachtowy
           type: string
+        phone:
+          description: Contact phone number
+          maxLength: 30
+          pattern: ^\+?[0-9 ()-]{6,29}$
+          type: string
+      required:
+        - first_name
+        - last_name
       type: object
     UploadURLOutputBody:
       additionalProperties: false
@@ -2319,7 +2357,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdatePatentBody"
+              $ref: "#/components/schemas/UpdateProfileBody"
         required: true
       responses:
         "200":
@@ -2334,7 +2372,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Update the current user's sailing patent
+      summary: Save the current user's profile and finish onboarding
       tags:
         - Auth
   /crew:

@@ -135,7 +135,7 @@ type mockQuerier struct {
 	// users
 	getUserByIDFn          func(ctx context.Context, id int64) (sqlcdb.User, error)
 	updateUserFn           func(ctx context.Context, arg sqlcdb.UpdateUserParams) error
-	updateUserPatentFn     func(ctx context.Context, arg sqlcdb.UpdateUserPatentParams) error
+	updateUserProfileFn    func(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error)
 	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
@@ -778,11 +778,11 @@ func (m *mockQuerier) UpdateUser(ctx context.Context, arg sqlcdb.UpdateUserParam
 	return m.updateUserFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateUserPatent(ctx context.Context, arg sqlcdb.UpdateUserPatentParams) error {
-	if m.updateUserPatentFn == nil {
-		panic("unexpected call to UpdateUserPatent")
+func (m *mockQuerier) UpdateUserProfile(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error) {
+	if m.updateUserProfileFn == nil {
+		panic("unexpected call to UpdateUserProfile")
 	}
-	return m.updateUserPatentFn(ctx, arg)
+	return m.updateUserProfileFn(ctx, arg)
 }
 
 func (m *mockQuerier) UpdateUserRole(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error {
