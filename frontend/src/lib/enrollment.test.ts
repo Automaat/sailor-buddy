@@ -119,7 +119,7 @@ describe('signUpClosedByDeadline', () => {
 
 describe('signUpDeadlineLabel', () => {
 	it('formats the date the Polish way', () => {
-		expect(signUpDeadlineLabel('2027-05-10')).toBe('Zapisy do 10.05.2027');
+		expect(signUpDeadlineLabel('2027-05-10')).toBe('Zapisy do 10 maj 2027');
 	});
 
 	it('is null without a deadline', () => {

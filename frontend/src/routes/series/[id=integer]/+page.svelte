@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { getSeries, updateSeries, deleteSeries, listSeriesEditions } from '#lib/api/routes.js';
 	import type { CruiseSeries, CruiseSeriesEdition } from '#lib/api/types.js';
@@ -141,7 +142,7 @@
 									<td class="py-2">{cruiseKindLabels[e.kind]}</td>
 									<td class="py-2">
 										{#if e.embark_date}
-											{e.embark_date}{#if e.disembark_date}&nbsp;– {e.disembark_date}{/if}
+											{formatDateRangeWithDays(e.embark_date, e.disembark_date)}
 										{/if}
 									</td>
 									<td class="py-2 text-right">{formatNumber(e.total_miles)}</td>

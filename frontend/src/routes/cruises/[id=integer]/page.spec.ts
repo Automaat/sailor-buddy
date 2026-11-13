@@ -399,7 +399,7 @@ describe('cruise page leg sign-up', () => {
 
 		const a = rowOf('Jacht A');
 		expect(a).toHaveTextContent('kpt. Jan');
-		expect(a).toHaveTextContent('2026-07-01 – 2026-07-08');
+		expect(a).toHaveTextContent('1–8 lip 2026 · 8 dni');
 		expect(a).toHaveTextContent('2890 PLN');
 		expect(within(a).getByTestId('free-places')).toHaveTextContent('wolne 5 z 8');
 		expect(within(rowOf('Jacht B')).queryByTestId('free-places')).not.toBeInTheDocument();
@@ -451,7 +451,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
 		render(CruiseDetailPage);
 		await screen.findByRole('link', { name: 'Jacht A' });
-		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
 		expect(within(rowOf('Jacht B')).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
 	});
 
@@ -462,7 +462,7 @@ describe('cruise page leg sign-up', () => {
 		await screen.findByRole('link', { name: 'Jacht A' });
 		const row = rowOf('Jacht A');
 		expect(within(row).getByText('Zapisy zamknięte')).toBeInTheDocument();
-		expect(within(row).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(row).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
 		expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 	});
 

@@ -429,7 +429,7 @@ describe('enroll page — sign-up deadline', () => {
 	it('shows the deadline and keeps the form open on the deadline day in Warsaw', async () => {
 		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
 		render(EnrollPage);
-		expect(await screen.findByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 10.05.2026');
+		expect(await screen.findByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 10 maj 2026');
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
 	});
 
@@ -474,6 +474,6 @@ describe('enroll page — sign-up deadline', () => {
 		expect(screen.queryByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })).not.toBeInTheDocument();
 		expect(screen.getByText('Zapisy zamknięte')).toBeInTheDocument();
 		const deadlines = screen.getAllByTestId('sign-up-deadline').map((e) => e.textContent?.trim());
-		expect(deadlines).toEqual(['Zapisy do 09.05.2026', 'Zapisy do 10.05.2026']);
+		expect(deadlines).toEqual(['Zapisy do 9 maj 2026', 'Zapisy do 10 maj 2026']);
 	});
 });

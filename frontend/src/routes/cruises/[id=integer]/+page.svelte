@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { patentSummary } from '#lib/profile.js';
 	import {
@@ -285,8 +286,7 @@
 				</p>
 				<p class="mt-1 text-sm text-[var(--text-muted)]">
 					{#if cruise.embark_date}
-						{cruise.embark_date}
-						{#if cruise.disembark_date}– {cruise.disembark_date}{/if}
+						{formatDateRangeWithDays(cruise.embark_date, cruise.disembark_date)}
 					{/if}
 					{#if cruise.max_crew} · max {cruise.max_crew} os.{/if}
 				</p>
@@ -371,7 +371,7 @@
 								<div class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-[var(--text-muted)]">
 									{#if trip.captain_name}<span>kpt. {trip.captain_name}</span>{/if}
 									{#if trip.embark_date}
-										<span>{trip.embark_date} – {trip.disembark_date ?? '?'}</span>
+										<span>{formatDateRangeWithDays(trip.embark_date, trip.disembark_date)}</span>
 									{/if}
 									{#if price !== null}<span>{formatPrice(price, trip.currency)}</span>{/if}
 									{#if places && trip.status !== 'cancelled'}<span data-testid="free-places">{places}</span>{/if}

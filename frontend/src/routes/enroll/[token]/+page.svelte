@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
 	import {
@@ -121,7 +122,7 @@
 				{#if data.trip.embark_date}
 					<div class="mb-4 text-sm">
 						<span class="text-[var(--text-muted)]">Daty:</span>
-						{data.trip.embark_date} – {data.trip.disembark_date ?? '?'}
+						{formatDateRangeWithDays(data.trip.embark_date, data.trip.disembark_date)}
 					</div>
 				{/if}
 
@@ -178,7 +179,7 @@
 				{#if data.cruise.embark_date}
 					<div class="mb-4 text-sm">
 						<span class="text-[var(--text-muted)]">Daty:</span>
-						{data.cruise.embark_date} – {data.cruise.disembark_date ?? '?'}
+						{formatDateRangeWithDays(data.cruise.embark_date, data.cruise.disembark_date)}
 					</div>
 				{/if}
 
@@ -226,7 +227,7 @@
 										<span class="font-medium">Etap {leg.number}: {leg.trip.name}</span>
 										{#if leg.trip.embark_date}
 											<span class="block text-xs text-[var(--text-muted)]">
-												{leg.trip.embark_date} – {leg.trip.disembark_date ?? '?'}
+												{formatDateRangeWithDays(leg.trip.embark_date, leg.trip.disembark_date)}
 												{#if leg.trip.start_port && leg.trip.end_port}
 													· {leg.trip.start_port} → {leg.trip.end_port}
 												{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import {
 		getTrip,
@@ -255,7 +256,7 @@
 				<dl class="grid grid-cols-1 text-sm sm:grid-cols-2 sm:gap-2 max-sm:[&>dd]:mb-2">
 					{#if trip.embark_date}
 						<dt class="text-[var(--text-muted)]">Daty</dt>
-						<dd>{trip.embark_date} – {trip.disembark_date ?? '?'}</dd>
+						<dd>{formatDateRangeWithDays(trip.embark_date, trip.disembark_date)}</dd>
 					{/if}
 					{#if trip.captain_name}
 						<dt class="text-[var(--text-muted)]">Kapitan</dt>
