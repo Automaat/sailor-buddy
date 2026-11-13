@@ -27,6 +27,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
+	import ActionsMenu from '#lib/components/ActionsMenu.svelte';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
@@ -135,7 +136,7 @@
 	}
 
 	async function handleCancel() {
-		if (!confirm('Anulować ten rejs?')) return;
+		if (!confirm('Odwołać ten etap?')) return;
 		completing = true;
 		try {
 			trip = await cancelTrip(id);
@@ -192,18 +193,37 @@
 						>
 							Zrealizuj
 						</button>
-						<button
-							onclick={handleCancel}
-							disabled={completing}
-							class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-						>
-							Anuluj
-						</button>
 					{/if}
 					<a href="/trips/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
-					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-						Usuń
-					</button>
+					<ActionsMenu>
+						{#snippet children(close)}
+							{#if trip?.status === 'planned'}
+								<button
+									type="button"
+									role="menuitem"
+									disabled={completing}
+									onclick={() => {
+										close();
+										handleCancel();
+									}}
+									class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+								>
+									Odwołaj etap
+								</button>
+							{/if}
+							<button
+								type="button"
+								role="menuitem"
+								onclick={() => {
+									close();
+									handleDelete();
+								}}
+								class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+							>
+								Usuń
+							</button>
+						{/snippet}
+					</ActionsMenu>
 				</div>
 			{/if}
 		</div>
