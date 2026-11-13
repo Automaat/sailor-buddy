@@ -56,3 +56,21 @@ SELECT
     COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(days), 0)::BIGINT AS total_days
 FROM voyages GROUP BY year ORDER BY year;
+
+-- name: ListUserSeaTimeVoyages :many
+-- Voyages the user sailed: as the assigned captain or through a crew record
+-- linked to their account. One row per voyage; captain wins on overlap.
+SELECT
+    v.id, v.name, v.year, v.embark_date, v.disembark_date,
+    y.name AS yacht_name,
+    COALESCE(v.captain_user_id = sqlc.arg(user_id)::BIGINT, FALSE)::BOOLEAN AS as_captain,
+    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+FROM voyages v
+LEFT JOIN yachts y ON y.id = v.yacht_id
+WHERE v.captain_user_id = sqlc.arg(user_id)::BIGINT
+   OR EXISTS (
+       SELECT 1 FROM crew_assignments ca
+       JOIN crew_members cm ON cm.id = ca.crew_member_id
+       WHERE ca.voyage_id = v.id AND cm.user_id = sqlc.arg(user_id)::BIGINT
+   )
+ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC;

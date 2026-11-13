@@ -182,7 +182,7 @@ require the caller to be an `admin` (marked **admin** below).
 | GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number}` |
 | PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
 | GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise or trip enrollment, captained leg, or crew-list entry linked to the account or its email |
-| GET | `/api/dashboard` | Club sailing stats + per-year breakdown |
+| GET | `/api/dashboard` | Caller's sea time; club totals for admins |
 
 `PUT /api/auth/me` body — `first_name` and `last_name` required (non-blank);
 optional `phone` (`+48 600 100 200` style), `patent_type` and
@@ -191,6 +191,16 @@ number without a type is dropped. A captain can't clear their patent number
 (`422`). `name` becomes `first_name last_name`, and the first save sets
 `onboarded`. After onboarding, sign-in no longer overwrites `name` with the
 Firebase display name.
+
+`GET /api/dashboard` returns `personal`: the caller's voyages as the
+assigned captain (`captain_user_id`) or on a crew list through a crew
+record linked to their account (`crew_members.user_id`). It has `total`,
+`as_captain` and `as_crew` sums (`voyage_count`, `total_hours`,
+`total_hours_sail`, `total_hours_engine`, `total_miles`, `total_days`),
+`by_year` and a `voyages` list with `role` (`captain`|`crew`). A voyage
+counts once; captain wins when both apply. Crew records without a linked
+account don't count. Admins also get `club` with the club-wide `total` and
+`by_year`; the key is absent for members.
 
 ### Members
 
