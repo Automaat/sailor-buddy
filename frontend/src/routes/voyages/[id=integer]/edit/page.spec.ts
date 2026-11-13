@@ -11,10 +11,10 @@ vi.mock('#lib/api/routes.js', () => ({
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	listCruises: vi.fn(),
-	listMembers: vi.fn()
+	listMembers: vi.fn(), listCrew: vi.fn()
 }));
 
-import { getVoyage, updateVoyage, listYachts, createYacht, listCruises, listMembers } from '#lib/api/routes.js';
+import { getVoyage, updateVoyage, listYachts, createYacht, listCruises, listMembers, listCrew } from '#lib/api/routes.js';
 import EditVoyagePage from './+page.svelte';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
@@ -26,6 +26,7 @@ beforeEach(() => {
 	);
 	fn(listYachts).mockResolvedValue([]);
 	fn(listMembers).mockResolvedValue([]);
+	fn(listCrew).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025' })]);
 	fn(updateVoyage).mockResolvedValue(undefined);
 });

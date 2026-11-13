@@ -3,9 +3,14 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"maps"
 	"net/http"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
@@ -26,17 +31,31 @@ func captainUser(id int64) sqlcdb.User {
 	}
 }
 
+// captainPerson is the person (crew record) 70, linked to account userID
+// when it is non-zero.
+func captainPerson(userID int64) sqlcdb.CrewMember {
+	p := sqlcdb.CrewMember{ID: 70, FullName: "Kpt. Anna"}
+	if userID != 0 {
+		p.UserID = types.NullInt64{Int64: userID, Valid: true}
+	}
+	return p
+}
+
 func TestVoyageLog_Authorization(t *testing.T) {
 	const captainID = 7
+	linked := captainPerson(captainID)
 	tests := []struct {
-		name   string
-		ctx    context.Context
-		voyage error
-		want   int
+		name    string
+		ctx     context.Context
+		voyage  error
+		captain *sqlcdb.CrewMember
+		want    int
 	}{
-		{name: "admin", ctx: callerCtx(1, "admin"), want: http.StatusNoContent},
-		{name: "assigned captain", ctx: callerCtx(captainID, "member"), want: http.StatusNoContent},
-		{name: "other member", ctx: callerCtx(8, "member"), want: http.StatusForbidden},
+		{name: "admin", ctx: callerCtx(1, "admin"), captain: &linked, want: http.StatusNoContent},
+		{name: "captain person linked to the caller", ctx: callerCtx(captainID, "member"), captain: &linked, want: http.StatusNoContent},
+		{name: "other member", ctx: callerCtx(8, "member"), captain: &linked, want: http.StatusForbidden},
+		{name: "captain person without an account", ctx: callerCtx(captainID, "member"), captain: new(captainPerson(0)), want: http.StatusForbidden},
+		{name: "no captain", ctx: callerCtx(captainID, "member"), want: http.StatusForbidden},
 		{name: "missing voyage", ctx: callerCtx(1, "admin"), voyage: sql.ErrNoRows, want: http.StatusNotFound},
 	}
 	for _, tt := range tests {
@@ -47,7 +66,17 @@ func TestVoyageLog_Authorization(t *testing.T) {
 					if tt.voyage != nil {
 						return sqlcdb.Voyage{}, tt.voyage
 					}
-					return sqlcdb.Voyage{ID: id, CaptainUserID: types.NullInt64{Int64: captainID, Valid: true}}, nil
+					v := sqlcdb.Voyage{ID: id}
+					if tt.captain != nil {
+						v.CaptainPersonID = types.NullInt64{Int64: tt.captain.ID, Valid: true}
+					}
+					return v, nil
+				},
+				getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
+					if tt.captain == nil || id != tt.captain.ID {
+						return sqlcdb.CrewMember{}, sql.ErrNoRows
+					}
+					return *tt.captain, nil
 				},
 				updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
 					got = &arg
@@ -73,65 +102,181 @@ func TestVoyageLog_Authorization(t *testing.T) {
 	}
 }
 
-func TestVoyagePorts_AddByAssignedCaptain(t *testing.T) {
-	m := &mockQuerier{
-		getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
-			return sqlcdb.Voyage{ID: id, CaptainUserID: types.NullInt64{Int64: 7, Valid: true}}, nil
-		},
-		createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
-			return sqlcdb.VoyagePort{ID: 1, VoyageID: arg.VoyageID, Name: arg.Name}, nil
-		},
-	}
-	resp := voyagePortTestAPI(t, m).PostCtx(callerCtx(7, "member"), "/voyages/5/ports",
-		map[string]any{"name": "Hel", "latitude": 54.6, "longitude": 18.8})
-	if resp.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
-	}
-}
-
-func TestTripCreate_CaptainAssignment(t *testing.T) {
-	noPatent := captainUser(7)
-	noPatent.PatentNumber = types.NullString{}
-	notCaptain := captainUser(7)
-	notCaptain.IsCaptain = false
-
+func TestVoyagePorts_CaptainRights(t *testing.T) {
 	tests := []struct {
-		name     string
-		user     sqlcdb.User
-		userErr  error
-		want     int
-		wantName string
+		name    string
+		captain sqlcdb.CrewMember
+		want    int
 	}{
-		{name: "eligible captain", user: captainUser(7), want: http.StatusCreated, wantName: "Kpt. Anna"},
-		{name: "not in captain group", user: notCaptain, want: http.StatusUnprocessableEntity},
-		{name: "no patent number", user: noPatent, want: http.StatusUnprocessableEntity},
-		{name: "unknown user", userErr: sql.ErrNoRows, want: http.StatusUnprocessableEntity},
+		{name: "captain person linked to the caller", captain: captainPerson(7), want: http.StatusCreated},
+		{name: "captain person without an account", captain: captainPerson(0), want: http.StatusForbidden},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			created := false
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
+					return sqlcdb.Voyage{ID: id, CaptainPersonID: types.NullInt64{Int64: 70, Valid: true}}, nil
+				},
+				getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) { return tt.captain, nil },
+				createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
+					created = true
+					return sqlcdb.VoyagePort{ID: 1, VoyageID: arg.VoyageID, Name: arg.Name}, nil
+				},
+			}
+			resp := voyagePortTestAPI(t, m).PostCtx(callerCtx(7, "member"), "/voyages/5/ports",
+				map[string]any{"name": "Hel", "latitude": 54.6, "longitude": 18.8})
+			if resp.Code != tt.want {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			}
+			if created != (tt.want == http.StatusCreated) {
+				t.Fatalf("port created = %v, want %v", created, tt.want == http.StatusCreated)
+			}
+		})
+	}
+}
+
+// captainCases covers the captain fields of a leg or voyage body: any person
+// may be chosen and their name is snapshotted; free text is kept without one.
+var captainCases = []struct {
+	name       string
+	body       map[string]any
+	personErr  error
+	want       int
+	wantPerson types.NullInt64
+	wantName   string
+}{
+	{
+		name: "any person, name snapshotted", body: map[string]any{"captain_person_id": 70, "captain_name": "ignored"},
+		want: http.StatusOK, wantPerson: types.NullInt64{Int64: 70, Valid: true}, wantName: "Kpt. Anna",
+	},
+	{name: "unknown person", body: map[string]any{"captain_person_id": 70}, personErr: sql.ErrNoRows, want: http.StatusUnprocessableEntity},
+	{name: "free-text captain", body: map[string]any{"captain_name": "Kpt. Spoza"}, want: http.StatusOK, wantName: "Kpt. Spoza"},
+}
+
+func captainBody(extra map[string]any) map[string]any {
+	body := map[string]any{"cruise_id": 1, "name": "Navigare"}
+	maps.Copy(body, extra)
+	return body
+}
+
+func captainLookup(err error) func(context.Context, int64) (sqlcdb.CrewMember, error) {
+	return func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
+		if err != nil {
+			return sqlcdb.CrewMember{}, err
+		}
+		p := captainPerson(0)
+		p.ID = id
+		return p, nil
+	}
+}
+
+func checkCaptain(t *testing.T, code, want int, written bool, gotPerson types.NullInt64, gotName types.NullString, wantPerson types.NullInt64, wantName string) {
+	t.Helper()
+	if code != want {
+		t.Fatalf("status = %d, want %d", code, want)
+	}
+	if want >= 300 {
+		if written {
+			t.Fatal("written despite rejection")
+		}
+		return
+	}
+	if gotPerson != wantPerson || gotName.String != wantName {
+		t.Fatalf("captain = (%v, %q), want (%v, %q)", gotPerson, gotName.String, wantPerson, wantName)
+	}
+}
+
+func TestTripCaptainPerson(t *testing.T) {
+	for _, tt := range captainCases {
+		t.Run("create "+tt.name, func(t *testing.T) {
 			var got *sqlcdb.CreateTripParams
 			m := &mockQuerier{
-				getUserByIDFn: func(context.Context, int64) (sqlcdb.User, error) { return tt.user, tt.userErr },
+				getCrewMemberFn: captainLookup(tt.personErr),
 				createTripFn: func(_ context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
 					got = &arg
 					return sqlcdb.Trip{ID: 1, Name: arg.Name, Status: sqlcdb.TripStatusPlanned}, nil
 				},
 			}
-			resp := tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", map[string]any{
-				"cruise_id": 1, "name": "Navigare", "captain_user_id": 7, "captain_name": "ignored",
-			})
-			if resp.Code != tt.want {
-				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			resp := tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", captainBody(tt.body))
+			want := tt.want
+			if want == http.StatusOK {
+				want = http.StatusCreated
 			}
-			if tt.want != http.StatusCreated {
-				if got != nil {
-					t.Fatal("trip created despite rejection")
-				}
-				return
+			var p sqlcdb.CreateTripParams
+			if got != nil {
+				p = *got
 			}
-			if got.CaptainUserID.Int64 != 7 || got.CaptainName.String != tt.wantName {
-				t.Fatalf("captain = (%v, %q), want (7, %q)", got.CaptainUserID, got.CaptainName.String, tt.wantName)
+			checkCaptain(t, resp.Code, want, got != nil, p.CaptainPersonID, p.CaptainName, tt.wantPerson, tt.wantName)
+		})
+		t.Run("update "+tt.name, func(t *testing.T) {
+			var got *sqlcdb.UpdateTripParams
+			m := &mockQuerier{
+				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
+					return sqlcdb.Trip{ID: id, CruiseID: 1}, nil
+				},
+				getCrewMemberFn: captainLookup(tt.personErr),
+				updateTripFn: func(_ context.Context, arg sqlcdb.UpdateTripParams) error {
+					got = &arg
+					return nil
+				},
 			}
+			resp := tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3", captainBody(tt.body))
+			want := tt.want
+			if want == http.StatusOK {
+				want = http.StatusNoContent
+			}
+			var p sqlcdb.UpdateTripParams
+			if got != nil {
+				p = *got
+			}
+			checkCaptain(t, resp.Code, want, got != nil, p.CaptainPersonID, p.CaptainName, tt.wantPerson, tt.wantName)
+		})
+	}
+}
+
+func TestVoyageCaptainPerson(t *testing.T) {
+	for _, tt := range captainCases {
+		t.Run("create "+tt.name, func(t *testing.T) {
+			var got *sqlcdb.CreateVoyageParams
+			m := &mockQuerier{
+				getCrewMemberFn: captainLookup(tt.personErr),
+				createVoyageFn: func(_ context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
+					got = &arg
+					return sqlcdb.Voyage{ID: 1, Name: arg.Name}, nil
+				},
+			}
+			resp := voyageTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/voyages", captainBody(tt.body))
+			want := tt.want
+			if want == http.StatusOK {
+				want = http.StatusCreated
+			}
+			var p sqlcdb.CreateVoyageParams
+			if got != nil {
+				p = *got
+			}
+			checkCaptain(t, resp.Code, want, got != nil, p.CaptainPersonID, p.CaptainName, tt.wantPerson, tt.wantName)
+		})
+		t.Run("update "+tt.name, func(t *testing.T) {
+			var got *sqlcdb.UpdateVoyageParams
+			m := &mockQuerier{
+				getVoyageFn:     func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				getCrewMemberFn: captainLookup(tt.personErr),
+				updateVoyageFn: func(_ context.Context, arg sqlcdb.UpdateVoyageParams) error {
+					got = &arg
+					return nil
+				},
+			}
+			resp := voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/3", captainBody(tt.body))
+			want := tt.want
+			if want == http.StatusOK {
+				want = http.StatusNoContent
+			}
+			var p sqlcdb.UpdateVoyageParams
+			if got != nil {
+				p = *got
+			}
+			checkCaptain(t, resp.Code, want, got != nil, p.CaptainPersonID, p.CaptainName, tt.wantPerson, tt.wantName)
 		})
 	}
 }
@@ -208,30 +353,98 @@ func TestMembers_UpdateMembership(t *testing.T) {
 	}
 }
 
-func TestTripUpdate_UnchangedCaptainSkipsEligibility(t *testing.T) {
-	leftCaptainGroup := captainUser(7)
-	leftCaptainGroup.IsCaptain = false
+func TestCompleteTrip_KeepsCaptainPerson(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	q := sqlcdb.New(conn)
+
+	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+		Name: "Bałtyk", Kind: "sea", Currency: "PLN",
+		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+	})
+	if err != nil {
+		t.Fatalf("create cruise: %v", err)
+	}
+	person, err := q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{FullName: "Kpt. Bez Konta"})
+	if err != nil {
+		t.Fatalf("create person: %v", err)
+	}
+	captain := types.NullInt64{Int64: person.ID, Valid: true}
+	trip, err := q.CreateTrip(ctx, sqlcdb.CreateTripParams{
+		CruiseID: cruise.ID, Name: "Leg 1", Status: sqlcdb.TripStatusPlanned, Currency: "PLN",
+		CaptainPersonID: captain, CaptainName: types.NullString{String: person.FullName, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create trip: %v", err)
+	}
+
+	voyage, err := completeTripTx(ctx, conn, trip.ID, dto.CompleteTripBody{})
+	if err != nil {
+		t.Fatalf("complete trip: %v", err)
+	}
+	if voyage.CaptainPersonID != captain || voyage.CaptainName.String != "Kpt. Bez Konta" {
+		t.Fatalf("voyage captain = (%v, %q), want (%v, Kpt. Bez Konta)", voyage.CaptainPersonID, voyage.CaptainName.String, captain)
+	}
+}
+
+func TestCaptainPersonDeletedDuringSave(t *testing.T) {
+	fkErr := func(constraint string) error {
+		return &pgconn.PgError{Code: "23503", ConstraintName: constraint}
+	}
+	body := captainBody(map[string]any{"captain_person_id": 70})
 	tests := []struct {
-		name    string
-		current types.NullInt64
-		want    int
+		name string
+		m    *mockQuerier
+		send func(*mockQuerier) int
 	}{
-		{name: "same captain kept", current: types.NullInt64{Int64: 7, Valid: true}, want: http.StatusNoContent},
-		{name: "newly assigned", current: types.NullInt64{}, want: http.StatusUnprocessableEntity},
+		{
+			name: "trip create",
+			m: &mockQuerier{createTripFn: func(context.Context, sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{}, fkErr("trips_captain_person_id_fkey")
+			}},
+			send: func(m *mockQuerier) int {
+				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", body).Code
+			},
+		},
+		{
+			name: "trip update",
+			m: &mockQuerier{
+				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
+				updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error {
+					return fkErr("trips_captain_person_id_fkey")
+				},
+			},
+			send: func(m *mockQuerier) int {
+				return tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3", body).Code
+			},
+		},
+		{
+			name: "voyage create",
+			m: &mockQuerier{createVoyageFn: func(context.Context, sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{}, fkErr("voyages_captain_person_id_fkey")
+			}},
+			send: func(m *mockQuerier) int {
+				return voyageTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/voyages", body).Code
+			},
+		},
+		{
+			name: "voyage update",
+			m: &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				updateVoyageFn: func(context.Context, sqlcdb.UpdateVoyageParams) error {
+					return fkErr("voyages_captain_person_id_fkey")
+				},
+			},
+			send: func(m *mockQuerier) int {
+				return voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/3", body).Code
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &mockQuerier{
-				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
-					return sqlcdb.Trip{ID: id, CruiseID: 1, CaptainUserID: tt.current}, nil
-				},
-				getUserByIDFn: func(context.Context, int64) (sqlcdb.User, error) { return leftCaptainGroup, nil },
-				updateTripFn:  func(context.Context, sqlcdb.UpdateTripParams) error { return nil },
-			}
-			resp := tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3",
-				map[string]any{"cruise_id": 1, "name": "Navigare", "captain_user_id": 7})
-			if resp.Code != tt.want {
-				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			tt.m.getCrewMemberFn = captainLookup(nil)
+			if got := tt.send(tt.m); got != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422", got)
 			}
 		})
 	}

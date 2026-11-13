@@ -133,7 +133,7 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
 		return nil, err
 	}
-	captainID, captainName, err := captainAssignment(ctx, h.q, types.NullInt64{}, in.Body.CaptainUserID, in.Body.CaptainName)
+	captainID, captainName, err := captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		StartPort:              nullString(in.Body.StartPort),
 		EndPort:                nullString(in.Body.EndPort),
 		CaptainName:            captainName,
-		CaptainUserID:          captainID,
+		CaptainPersonID:        captainID,
 		YachtID:                nullInt64(in.Body.YachtID),
 		CostTotal:              nullFloat64(in.Body.CostTotal),
 		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
@@ -172,6 +172,9 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		SignUpDeadline:         nullString(in.Body.SignUpDeadline),
 	})
 	if err != nil {
+		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
+			return nil, captainPersonNotFound()
+		}
 		slog.Error("create trip", "name", in.Body.Name, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
@@ -243,7 +246,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 			return nil, huma.Error409Conflict("trip has enrollments; remove them before moving it to another cruise")
 		}
 	}
-	captainID, captainName, err := captainAssignment(ctx, h.q, current.CaptainUserID, in.Body.CaptainUserID, in.Body.CaptainName)
+	captainID, captainName, err := captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +258,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		StartPort:              nullString(in.Body.StartPort),
 		EndPort:                nullString(in.Body.EndPort),
 		CaptainName:            captainName,
-		CaptainUserID:          captainID,
+		CaptainPersonID:        captainID,
 		YachtID:                nullInt64(in.Body.YachtID),
 		CostTotal:              nullFloat64(in.Body.CostTotal),
 		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
@@ -272,6 +275,9 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		CruiseID:               in.Body.CruiseID,
 		ID:                     in.ID,
 	}); err != nil {
+		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
+			return nil, captainPersonNotFound()
+		}
 		slog.Error("update trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update trip")
 	}
@@ -316,6 +322,9 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 		if errors.Is(err, errTripCruiseChanged) {
 			return nil, huma.Error409Conflict("trip moved to another cruise; retry")
 		}
+		if errors.Is(err, errTripCaptainChanged) {
+			return nil, huma.Error409Conflict("trip captain changed; retry")
+		}
 		slog.Error("complete trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to complete trip")
 	}
@@ -326,8 +335,12 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 // the cruise lock and the trip lock on every completion attempt.
 var errTripCruiseChanged = errors.New("trip cruise changed during completion")
 
-// completeTripAttempts bounds the retries when the trip's cruise changes
-// between the cruise lock and the trip lock.
+// errTripCaptainChanged reports that the trip's captain person changed
+// between the captain lock and the trip lock on every completion attempt.
+var errTripCaptainChanged = errors.New("trip captain changed during completion")
+
+// completeTripAttempts bounds the retries when the trip's cruise or captain
+// changes between its lock and the trip lock.
 const completeTripAttempts = 3
 
 // completeTripTx wraps the trip → voyage transition: it creates the voyage,
@@ -340,13 +353,15 @@ func completeTripTx(ctx context.Context, db *sql.DB, tripID int64, req dto.Compl
 // completeTripTxWith runs completeTripTx with an optional querier wrapper,
 // which tests use to pause the transaction between statements.
 func completeTripTxWith(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+	var last error
 	for range completeTripAttempts {
 		voyage, err := completeTripOnce(ctx, db, wrap, tripID, req)
-		if !errors.Is(err, errTripCruiseChanged) {
+		if !errors.Is(err, errTripCruiseChanged) && !errors.Is(err, errTripCaptainChanged) {
 			return voyage, err
 		}
+		last = err
 	}
-	return sqlcdb.Voyage{}, errTripCruiseChanged
+	return sqlcdb.Voyage{}, last
 }
 
 func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
@@ -361,23 +376,32 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 		qtx = wrap(qtx)
 	}
 
-	// Lock the cruise, then the trip, before any write. DELETE FROM cruises
-	// takes the same order (cruise, then the trips foreign-key check), and a
-	// concurrent leg enrollment share-locks the trip; any other order
-	// deadlocks with one of them.
+	// Lock the cruise and the captain person, then the trip, before any
+	// write. DELETE FROM cruises takes the same order (cruise, then the trips
+	// foreign-key check), so does deleting the captain person (person, then
+	// its ON DELETE SET NULL on trips), and a concurrent leg enrollment
+	// share-locks the trip; any other order deadlocks with one of them.
 	cruiseID, err := qtx.LockTripCruise(ctx, tripID)
 	locked := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripCruise", Err: err}
 	}
+	captainID, err := qtx.LockTripCaptain(ctx, tripID)
+	captain := types.NullInt64{Int64: captainID, Valid: err == nil}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripCaptain", Err: err}
+	}
 	trip, err := qtx.GetTripForUpdate(ctx, tripID)
 	if err != nil {
 		return sqlcdb.Voyage{}, err
 	}
-	// A trip that moved to a cruise other than the locked one must retry,
-	// since locking the new cruise now would invert the order.
+	// A trip that moved to a cruise or captain other than the locked one
+	// must retry, since locking the new row now would invert the order.
 	if !locked || trip.CruiseID != cruiseID {
 		return sqlcdb.Voyage{}, errTripCruiseChanged
+	}
+	if trip.CaptainPersonID != captain {
+		return sqlcdb.Voyage{}, errTripCaptainChanged
 	}
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return sqlcdb.Voyage{}, sql.ErrNoRows
@@ -438,30 +462,30 @@ func createVoyageFromTrip(ctx context.Context, qtx sqlcdb.Querier, trip sqlcdb.T
 	}
 
 	return qtx.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-		CreatedBy:     trip.CreatedBy,
-		CruiseID:      trip.CruiseID,
-		Name:          trip.Name,
-		Year:          nullInt64(year),
-		EmbarkDate:    trip.EmbarkDate,
-		DisembarkDate: trip.DisembarkDate,
-		Countries:     trip.Countries,
-		StartPort:     trip.StartPort,
-		EndPort:       trip.EndPort,
-		CaptainName:   trip.CaptainName,
-		CaptainUserID: trip.CaptainUserID,
-		YachtID:       trip.YachtID,
-		HoursTotal:    valOrZeroFloat(req.HoursTotal),
-		HoursSail:     valOrZeroFloat(req.HoursSail),
-		HoursEngine:   valOrZeroFloat(req.HoursEngine),
-		HoursOver6bf:  valOrZeroFloat(req.HoursOver6bf),
-		Miles:         valOrZeroFloat(req.Miles),
-		Days:          valOrZeroInt(req.Days),
-		TidalWaters:   valOrZeroInt(req.TidalWaters),
-		CostTotal:     trip.CostTotal,
-		CostPerPerson: trip.CostPerPerson,
-		ImageLogoUrl:  trip.ImageLogoUrl,
-		ImagePhotoUrl: trip.ImagePhotoUrl,
-		ImageRouteUrl: trip.ImageRouteUrl,
-		Description:   trip.Description,
+		CreatedBy:       trip.CreatedBy,
+		CruiseID:        trip.CruiseID,
+		Name:            trip.Name,
+		Year:            nullInt64(year),
+		EmbarkDate:      trip.EmbarkDate,
+		DisembarkDate:   trip.DisembarkDate,
+		Countries:       trip.Countries,
+		StartPort:       trip.StartPort,
+		EndPort:         trip.EndPort,
+		CaptainName:     trip.CaptainName,
+		CaptainPersonID: trip.CaptainPersonID,
+		YachtID:         trip.YachtID,
+		HoursTotal:      valOrZeroFloat(req.HoursTotal),
+		HoursSail:       valOrZeroFloat(req.HoursSail),
+		HoursEngine:     valOrZeroFloat(req.HoursEngine),
+		HoursOver6bf:    valOrZeroFloat(req.HoursOver6bf),
+		Miles:           valOrZeroFloat(req.Miles),
+		Days:            valOrZeroInt(req.Days),
+		TidalWaters:     valOrZeroInt(req.TidalWaters),
+		CostTotal:       trip.CostTotal,
+		CostPerPerson:   trip.CostPerPerson,
+		ImageLogoUrl:    trip.ImageLogoUrl,
+		ImagePhotoUrl:   trip.ImagePhotoUrl,
+		ImageRouteUrl:   trip.ImageRouteUrl,
+		Description:     trip.Description,
 	})
 }

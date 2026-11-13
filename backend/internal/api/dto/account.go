@@ -23,6 +23,7 @@ type Me struct {
 	Membership   string  `json:"membership" enum:"czlonek,sympatyk,gosc"`
 	PatentType   *string `json:"patent_type,omitempty"`
 	PatentNumber *string `json:"patent_number,omitempty"`
+	PersonID     *int64  `json:"person_id,omitempty" doc:"The account's person (crew record); a leg or voyage it captains gives the account captain rights"`
 }
 
 // MeFromUser maps a stored user row onto the profile DTO.

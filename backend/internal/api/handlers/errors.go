@@ -29,3 +29,10 @@ func isForeignKeyViolation(err error, constraint string) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == "23503" && pgErr.ConstraintName == constraint
 }
+
+// isDeadlock reports whether err is a PostgreSQL deadlock abort (40P01): the
+// transaction was chosen as the victim and can be retried.
+func isDeadlock(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == "40P01"
+}

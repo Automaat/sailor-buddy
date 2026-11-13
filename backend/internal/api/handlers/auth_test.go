@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -18,6 +19,9 @@ func TestAuthHandler_Me(t *testing.T) {
 	m := &mockQuerier{
 		getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 			return sqlcdb.User{ID: id, Email: "test@example.com", Name: "Test User", Role: "admin"}, nil
+		},
+		getUserPersonFn: func(_ context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error) {
+			return sqlcdb.CrewMember{ID: 40, UserID: userID}, nil
 		},
 	}
 	registerAuthRoutes(api, authHandlerFor(m))
@@ -36,6 +40,9 @@ func TestAuthHandler_Me(t *testing.T) {
 		}
 		if me.Role != "admin" {
 			t.Fatalf("role = %q, want %q", me.Role, "admin")
+		}
+		if me.PersonID == nil || *me.PersonID != 40 {
+			t.Fatalf("person_id = %v, want 40", me.PersonID)
 		}
 	})
 
@@ -118,6 +125,9 @@ func TestAuthHandler_UpdateMe(t *testing.T) {
 					return sqlcdb.User{ID: id, IsCaptain: tt.isCaptain}, nil
 				},
 				lockUserForUpdateFn: func(_ context.Context, id int64) (int64, error) { return id, nil },
+				getUserPersonFn: func(context.Context, types.NullInt64) (sqlcdb.CrewMember, error) {
+					return sqlcdb.CrewMember{}, sql.ErrNoRows
+				},
 				updateUserProfileFn: func(_ context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error) {
 					saved = &arg
 					return sqlcdb.User{

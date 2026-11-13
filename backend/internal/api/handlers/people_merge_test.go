@@ -139,6 +139,8 @@ func seedMerge(t *testing.T) mergeFixture {
 
 	exec(`INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number) VALUES
 		($1, $3, 'zalogant', NULL), ($1, $4, 'oficer', 'JSM-9'), ($2, $4, 'zalogant', NULL)`, trip1, trip2, kept, dup.ID)
+	exec(`UPDATE trips SET captain_person_id = $1, captain_name = 'Anna Nowak' WHERE id = $2`, dup.ID, trip2)
+	exec(`UPDATE voyages SET captain_person_id = $1, captain_name = 'Anna Nowak' WHERE id = $2`, dup.ID, voyage2)
 	exec(`INSERT INTO crew_assignments (voyage_id, crew_member_id, role) VALUES
 		($1, $3, 'kapitan'), ($1, $4, 'zalogant'), ($2, $4, 'zalogant')`, voyage1, voyage2, kept, dup.ID)
 
@@ -227,7 +229,7 @@ func TestCrewMerge_DB(t *testing.T) {
 		t.Fatalf("decode preview: %v", err)
 	}
 	if preview.TripAssignments != 2 || preview.VoyageAssignments != 2 || preview.SharedAssignments != 2 ||
-		preview.Opinions != 2 || preview.SharedOpinions != 1 {
+		preview.Opinions != 2 || preview.SharedOpinions != 1 || preview.CaptainedTrips != 1 || preview.CaptainedVoyages != 1 {
 		t.Errorf("preview counts = %+v", preview)
 	}
 	if !preview.Person.HasAccount || preview.Duplicate.ID != f.duplicateID {
@@ -283,6 +285,15 @@ func TestCrewMerge_DB(t *testing.T) {
 	slices.Sort(want)
 	if got := f.snapshot(t); !slices.Equal(got, want) {
 		t.Errorf("after merge:\ngot  %q\nwant %q", got, want)
+	}
+	var tripCaptain, voyageCaptain int64
+	if err := f.conn.QueryRowContext(ctx, `SELECT
+		(SELECT captain_person_id FROM trips WHERE id = $1),
+		(SELECT captain_person_id FROM voyages WHERE id = $2)`, f.trip2, f.voyage2).Scan(&tripCaptain, &voyageCaptain); err != nil {
+		t.Fatalf("captains: %v", err)
+	}
+	if tripCaptain != f.keptID || voyageCaptain != f.keptID {
+		t.Errorf("captains = leg %d, voyage %d; want the kept person %d", tripCaptain, voyageCaptain, f.keptID)
 	}
 	accepted := map[int64]bool{}
 	rows, err := f.conn.QueryContext(ctx, "SELECT trip_id, added_by_acceptance FROM crew_assignments WHERE trip_id IS NOT NULL")
@@ -513,9 +524,9 @@ func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
 }
 
 // TestCrewMerge_DBAcceptanceDuringMerge accepts the duplicate's account onto
-// a leg the kept person is on while the merge waits for that leg: accepting
-// adds the duplicate's person to the leg crew, which must not deadlock with
-// the merge's lock on the people.
+// a leg the kept person is on while the merge waits for that leg. Acceptance
+// locks the leg before the person, the merge the other way round; the merge
+// loses the deadlock, retries and both succeed.
 func TestCrewMerge_DBAcceptanceDuringMerge(t *testing.T) {
 	f := seedMerge(t)
 	ctx := context.Background()
@@ -570,5 +581,59 @@ func TestCrewMerge_DBAcceptanceDuringMerge(t *testing.T) {
 	}
 	if !slices.Equal(crew, []int64{f.keptID}) {
 		t.Errorf("leg 3 crew = %v, want only the kept person %d", crew, f.keptID)
+	}
+}
+
+// TestCrewMerge_DBWaitsForCaptainedLegCompletion completes a leg the
+// duplicate captains while the merge runs, in completion's person-then-leg
+// lock order: the merge waits, then moves the new voyage's captain too.
+func TestCrewMerge_DBWaitsForCaptainedLegCompletion(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	completion, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin completion: %v", err)
+	}
+	defer func() { _ = completion.Rollback() }()
+	if _, err := completion.ExecContext(ctx, "SELECT id FROM crew_members WHERE id = $1 FOR KEY SHARE", f.duplicateID); err != nil {
+		t.Fatalf("lock captain: %v", err)
+	}
+	if _, err := completion.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR UPDATE", f.trip2); err != nil {
+		t.Fatalf("lock leg: %v", err)
+	}
+
+	done := make(chan int, 1)
+	api := f.api(t, sqlTxRunner(f.conn))
+	go func() {
+		resp := api.PostCtx(callerCtx(1, "admin"),
+			"/crew/"+strconv.FormatInt(f.keptID, 10)+"/merge", map[string]any{"duplicate_id": f.duplicateID})
+		done <- resp.Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	var voyage int64
+	if err := completion.QueryRowContext(ctx, `INSERT INTO voyages (cruise_id, name, captain_person_id)
+		SELECT cruise_id, 'Leg 2 done', captain_person_id FROM trips WHERE id = $1 RETURNING id`, f.trip2).Scan(&voyage); err != nil {
+		t.Fatalf("create voyage: %v", err)
+	}
+	for _, step := range []string{
+		"UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL WHERE trip_id = $2",
+		"DELETE FROM trips WHERE id = $2 AND $1::BIGINT > 0",
+	} {
+		if _, err := completion.ExecContext(ctx, step, voyage, f.trip2); err != nil {
+			t.Fatalf("%s: %v", step, err)
+		}
+	}
+	if err := completion.Commit(); err != nil {
+		t.Fatalf("commit completion: %v", err)
+	}
+	if code := <-done; code != http.StatusOK {
+		t.Fatalf("merge: got %d, want 200", code)
+	}
+	var captain int64
+	if err := f.conn.QueryRowContext(ctx, "SELECT captain_person_id FROM voyages WHERE id = $1", voyage).Scan(&captain); err != nil {
+		t.Fatalf("voyage captain: %v", err)
+	}
+	if captain != f.keptID {
+		t.Errorf("completed leg's voyage captain = %d, want the kept person %d", captain, f.keptID)
 	}
 }

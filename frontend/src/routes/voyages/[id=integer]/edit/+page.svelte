@@ -39,7 +39,7 @@
 		hours_over_6bf: 0,
 		miles: 0,
 		days: 0,
-		captain_user_id: 0,
+		captain_person_id: 0,
 		yacht_id: 0,
 		tidal_waters: false,
 		cost_total: 0,
@@ -63,7 +63,7 @@
 			]);
 			yachts = y;
 			cruises = c ?? [];
-			legacyCaptainName = voyage.captain_user_id ? '' : (voyage.captain_name ?? '');
+			legacyCaptainName = voyage.captain_person_id ? '' : (voyage.captain_name ?? '');
 			form = {
 				name: voyage.name,
 				year: voyage.year ?? 0,
@@ -79,7 +79,7 @@
 				hours_over_6bf: voyage.hours_over_6bf,
 				miles: voyage.miles,
 				days: voyage.days,
-				captain_user_id: voyage.captain_user_id ?? 0,
+				captain_person_id: voyage.captain_person_id ?? 0,
 				yacht_id: voyage.yacht_id ?? 0,
 				tidal_waters: voyage.tidal_waters > 0,
 				cost_total: voyage.cost_total ?? 0,
@@ -118,8 +118,8 @@
 				voyage_card: form.voyage_card.trim() || undefined,
 				// captain_name of a linked captain is the server's snapshot, so only a
 				// legacy free-text name survives clearing the captain.
-				captain_user_id: form.captain_user_id || undefined,
-				captain_name: form.captain_user_id ? undefined : legacyCaptainName || undefined
+				captain_person_id: form.captain_person_id || undefined,
+				captain_name: form.captain_person_id ? undefined : legacyCaptainName || undefined
 			};
 			await updateVoyage(id, payload);
 			goto(`/voyages/${id}`);
@@ -181,7 +181,7 @@
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-					<CaptainSelect bind:value={form.captain_user_id} legacyName={legacyCaptainName} />
+					<CaptainSelect bind:value={form.captain_person_id} legacyName={legacyCaptainName} />
 				</div>
 			</div>
 

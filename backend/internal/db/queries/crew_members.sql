@@ -83,7 +83,11 @@ SELECT
      WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS opinions,
     (SELECT COUNT(*) FROM voyage_opinions d
      JOIN voyage_opinions k ON k.crew_member_id = sqlc.arg(kept_id)::BIGINT AND k.voyage_id = d.voyage_id
-     WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS shared_opinions;
+     WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS shared_opinions,
+    (SELECT COUNT(*) FROM trips
+     WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS captained_trips,
+    (SELECT COUNT(*) FROM voyages
+     WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS captained_voyages;
 
 -- name: DeleteMergedCrewMember :execrows
 DELETE FROM crew_members WHERE id = $1;
@@ -105,22 +109,35 @@ RETURNING *;
 SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: LockCrewMergeTrips :exec
--- Share-locks every leg either person is on, so completing a leg waits for
--- the merge instead of repointing its crew under it.
+-- Share-locks every leg either person is on or captains, so completing a
+-- leg waits for the merge instead of moving its crew or captain under it.
+-- Taken after the people, in the person-then-leg order of leg completion
+-- and person deletion.
 SELECT t.id FROM trips t
 WHERE t.id IN (
     SELECT ca.trip_id FROM crew_assignments ca
     WHERE ca.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
 )
+   OR t.captain_person_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
 ORDER BY t.id
 FOR SHARE;
 
 -- name: LockCrewMergeVoyages :exec
--- Share-locks every voyage either person is on, for the same reason.
+-- Share-locks every voyage either person is on or captains, for the same
+-- reason.
 SELECT v.id FROM voyages v
 WHERE v.id IN (
     SELECT ca.voyage_id FROM crew_assignments ca
     WHERE ca.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
 )
+   OR v.captain_person_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
 ORDER BY v.id
 FOR SHARE;
+
+-- name: MoveTripCaptain :execrows
+UPDATE trips SET captain_person_id = sqlc.arg(kept_id)::BIGINT, updated_at = CURRENT_TIMESTAMP
+WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT;
+
+-- name: MoveVoyageCaptain :execrows
+UPDATE voyages SET captain_person_id = sqlc.arg(kept_id)::BIGINT, updated_at = CURRENT_TIMESTAMP
+WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT;

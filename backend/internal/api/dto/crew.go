@@ -166,6 +166,8 @@ type PersonMerge struct {
 	SharedAssignments int64      `json:"shared_assignments" doc:"Duplicate's assignments on legs and voyages the kept person is already on; they collapse into the kept person's"`
 	Opinions          int64      `json:"opinions" doc:"Voyage opinions of the duplicate"`
 	SharedOpinions    int64      `json:"shared_opinions" doc:"Duplicate's opinions for voyages the kept person already has one for; the kept person's stays"`
+	CaptainedTrips    int64      `json:"captained_trips" doc:"Legs the duplicate captains"`
+	CaptainedVoyages  int64      `json:"captained_voyages" doc:"Voyages the duplicate captains"`
 }
 
 // PersonMergeFromDB maps merge counts and both people to the API model.
@@ -178,5 +180,7 @@ func PersonMergeFromDB(kept, duplicate sqlcdb.CrewMember, c sqlcdb.CountCrewMerg
 		SharedAssignments: c.SharedAssignments,
 		Opinions:          c.Opinions,
 		SharedOpinions:    c.SharedOpinions,
+		CaptainedTrips:    c.CaptainedTrips,
+		CaptainedVoyages:  c.CaptainedVoyages,
 	}
 }

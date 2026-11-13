@@ -54,7 +54,11 @@ SELECT
      WHERE crew_member_id = $1::BIGINT)::BIGINT AS opinions,
     (SELECT COUNT(*) FROM voyage_opinions d
      JOIN voyage_opinions k ON k.crew_member_id = $2::BIGINT AND k.voyage_id = d.voyage_id
-     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions
+     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions,
+    (SELECT COUNT(*) FROM trips
+     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
+    (SELECT COUNT(*) FROM voyages
+     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
 `
 
 type CountCrewMergeRowsParams struct {
@@ -68,6 +72,8 @@ type CountCrewMergeRowsRow struct {
 	SharedAssignments int64 `json:"shared_assignments"`
 	Opinions          int64 `json:"opinions"`
 	SharedOpinions    int64 `json:"shared_opinions"`
+	CaptainedTrips    int64 `json:"captained_trips"`
+	CaptainedVoyages  int64 `json:"captained_voyages"`
 }
 
 // Counts what merging the duplicate into the kept person moves. A shared
@@ -86,7 +92,11 @@ type CountCrewMergeRowsRow struct {
 //	     WHERE crew_member_id = $1::BIGINT)::BIGINT AS opinions,
 //	    (SELECT COUNT(*) FROM voyage_opinions d
 //	     JOIN voyage_opinions k ON k.crew_member_id = $2::BIGINT AND k.voyage_id = d.voyage_id
-//	     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions
+//	     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions,
+//	    (SELECT COUNT(*) FROM trips
+//	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
+//	    (SELECT COUNT(*) FROM voyages
+//	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
 func (q *Queries) CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRowsParams) (CountCrewMergeRowsRow, error) {
 	row := q.db.QueryRowContext(ctx, countCrewMergeRows, arg.DuplicateID, arg.KeptID)
 	var i CountCrewMergeRowsRow
@@ -96,6 +106,8 @@ func (q *Queries) CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRows
 		&i.SharedAssignments,
 		&i.Opinions,
 		&i.SharedOpinions,
+		&i.CaptainedTrips,
+		&i.CaptainedVoyages,
 	)
 	return i, err
 }
@@ -408,6 +420,7 @@ WHERE t.id IN (
     SELECT ca.trip_id FROM crew_assignments ca
     WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 )
+   OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 ORDER BY t.id
 FOR SHARE
 `
@@ -417,14 +430,17 @@ type LockCrewMergeTripsParams struct {
 	SecondID int64 `json:"second_id"`
 }
 
-// Share-locks every leg either person is on, so completing a leg waits for
-// the merge instead of repointing its crew under it.
+// Share-locks every leg either person is on or captains, so completing a
+// leg waits for the merge instead of moving its crew or captain under it.
+// Taken after the people, in the person-then-leg order of leg completion
+// and person deletion.
 //
 //	SELECT t.id FROM trips t
 //	WHERE t.id IN (
 //	    SELECT ca.trip_id FROM crew_assignments ca
 //	    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 //	)
+//	   OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 //	ORDER BY t.id
 //	FOR SHARE
 func (q *Queries) LockCrewMergeTrips(ctx context.Context, arg LockCrewMergeTripsParams) error {
@@ -438,6 +454,7 @@ WHERE v.id IN (
     SELECT ca.voyage_id FROM crew_assignments ca
     WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 )
+   OR v.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 ORDER BY v.id
 FOR SHARE
 `
@@ -447,13 +464,15 @@ type LockCrewMergeVoyagesParams struct {
 	SecondID int64 `json:"second_id"`
 }
 
-// Share-locks every voyage either person is on, for the same reason.
+// Share-locks every voyage either person is on or captains, for the same
+// reason.
 //
 //	SELECT v.id FROM voyages v
 //	WHERE v.id IN (
 //	    SELECT ca.voyage_id FROM crew_assignments ca
 //	    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 //	)
+//	   OR v.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 //	ORDER BY v.id
 //	FOR SHARE
 func (q *Queries) LockCrewMergeVoyages(ctx context.Context, arg LockCrewMergeVoyagesParams) error {
@@ -476,6 +495,50 @@ func (q *Queries) LockUserForUpdate(ctx context.Context, id int64) (int64, error
 	var id_2 int64
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const moveTripCaptain = `-- name: MoveTripCaptain :execrows
+UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+WHERE captain_person_id = $2::BIGINT
+`
+
+type MoveTripCaptainParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveTripCaptain
+//
+//	UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+//	WHERE captain_person_id = $2::BIGINT
+func (q *Queries) MoveTripCaptain(ctx context.Context, arg MoveTripCaptainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveTripCaptain, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const moveVoyageCaptain = `-- name: MoveVoyageCaptain :execrows
+UPDATE voyages SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+WHERE captain_person_id = $2::BIGINT
+`
+
+type MoveVoyageCaptainParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveVoyageCaptain
+//
+//	UPDATE voyages SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+//	WHERE captain_person_id = $2::BIGINT
+func (q *Queries) MoveVoyageCaptain(ctx context.Context, arg MoveVoyageCaptainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveVoyageCaptain, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateCrewMember = `-- name: UpdateCrewMember :exec

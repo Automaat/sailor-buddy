@@ -141,6 +141,8 @@ type mockQuerier struct {
 	lockUserForUpdateFn           func(ctx context.Context, id int64) (int64, error)
 	lockCrewMergeTripsFn          func(ctx context.Context, arg sqlcdb.LockCrewMergeTripsParams) error
 	lockCrewMergeVoyagesFn        func(ctx context.Context, arg sqlcdb.LockCrewMergeVoyagesParams) error
+	moveTripCaptainFn             func(ctx context.Context, arg sqlcdb.MoveTripCaptainParams) (int64, error)
+	moveVoyageCaptainFn           func(ctx context.Context, arg sqlcdb.MoveVoyageCaptainParams) (int64, error)
 	createCrewMemberFn            func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
 	updateCrewMemberFn            func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
 	deleteCrewMemberFn            func(ctx context.Context, id int64) (int64, error)
@@ -204,6 +206,10 @@ func (m *mockQuerier) GetTripForUpdate(ctx context.Context, id int64) (sqlcdb.Tr
 
 func (m *mockQuerier) LockTripCruise(context.Context, int64) (int64, error) {
 	panic("unexpected call to LockTripCruise")
+}
+
+func (m *mockQuerier) LockTripCaptain(context.Context, int64) (int64, error) {
+	panic("unexpected call to LockTripCaptain")
 }
 
 func (m *mockQuerier) CreateTrip(ctx context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
@@ -1185,4 +1191,18 @@ func (m *mockQuerier) RemoveAcceptedTripCrewAssignment(ctx context.Context, arg 
 		panic("unexpected call to RemoveAcceptedTripCrewAssignment")
 	}
 	return m.removeAcceptedTripCrewAssignmentFn(ctx, arg)
+}
+
+func (m *mockQuerier) MoveTripCaptain(ctx context.Context, arg sqlcdb.MoveTripCaptainParams) (int64, error) {
+	if m.moveTripCaptainFn == nil {
+		panic("unexpected call to MoveTripCaptain")
+	}
+	return m.moveTripCaptainFn(ctx, arg)
+}
+
+func (m *mockQuerier) MoveVoyageCaptain(ctx context.Context, arg sqlcdb.MoveVoyageCaptainParams) (int64, error) {
+	if m.moveVoyageCaptainFn == nil {
+		panic("unexpected call to MoveVoyageCaptain")
+	}
+	return m.moveVoyageCaptainFn(ctx, arg)
 }

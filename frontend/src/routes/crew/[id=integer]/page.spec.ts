@@ -45,6 +45,8 @@ function mergeOf(person: CrewMember, duplicate: CrewMember, counts: Partial<Pers
 		shared_assignments: 0,
 		opinions: 0,
 		shared_opinions: 0,
+		captained_trips: 0,
+		captained_voyages: 0,
 		...counts
 	};
 }
@@ -99,7 +101,8 @@ describe('person page', () => {
 				trip_assignments: 2,
 				voyage_assignments: 5,
 				shared_assignments: 1,
-				opinions: 1
+				opinions: 1,
+				captained_voyages: 2
 			})
 		);
 		mergeMock.mockResolvedValue(mergeOf(kept, historical));
@@ -117,6 +120,7 @@ describe('person page', () => {
 		expect(summary).toHaveTextContent('2 przypisania do etapów');
 		expect(summary).toHaveTextContent('5 przypisań do rejsów');
 		expect(summary).toHaveTextContent('1 opinia');
+		expect(summary).toHaveTextContent('kapitan: 0 etapów, 2 rejsy');
 		expect(summary).toHaveTextContent('Wspólne wpisy obu osób');
 		expect(summary).toHaveTextContent('Inne nazwiska po połączeniu: Ewa Maj, Ewa Kos');
 		expect(mergeMock).not.toHaveBeenCalled();

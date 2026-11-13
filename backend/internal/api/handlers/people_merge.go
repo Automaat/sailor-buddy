@@ -18,6 +18,9 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// mergeAttempts bounds how often a merge chosen as a deadlock victim reruns.
+const mergeAttempts = 3
+
 // Errors returned by PlanPersonMerge and MergePeople.
 var (
 	ErrMergeSamePerson      = errors.New("a person cannot be merged into itself")
@@ -57,8 +60,10 @@ func PlanPersonMerge(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID 
 }
 
 // MergePeople merges the duplicate person into the kept one using q, which
-// must be bound to a transaction the caller commits or rolls back. Crew
-// assignments and voyage opinions move to the kept person; where both people
+// must be bound to a transaction the caller commits or rolls back; a caller
+// should retry it when the transaction fails with a deadlock (40P01). Crew
+// assignments, voyage opinions and leg and voyage captaincies move to the
+// kept person; where both people
 // have one for the same leg, voyage or opinion, the kept person's stays. The
 // duplicate's names join the kept person's other names, empty contact fields
 // are filled from the duplicate, and the duplicate's account link moves over
@@ -105,11 +110,11 @@ func MergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int6
 	return plan, nil
 }
 
-// lockMergePeople locks, in order, the account whose link moves, every leg
-// and voyage either person is on, and both people, and returns both people
-// as locked. Legs come before people because sign-up acceptance locks the leg
-// and then adds the account's person to its crew. The legs are locked again
-// after the people, for crew entries that committed in between.
+// lockMergePeople locks, in order, the account whose link moves, both people
+// and every leg and voyage either person is on or captains, and returns both
+// people as locked. People come before legs, the order leg completion and
+// person deletion use. Sign-up acceptance locks the leg first; when it and a
+// merge deadlock, the handler retries the merge.
 func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) (kept, duplicate sqlcdb.CrewMember, err error) {
 	if keptID == duplicateID {
 		return kept, duplicate, ErrMergeSamePerson
@@ -129,9 +134,6 @@ func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID 
 		if _, err := q.LockUserForUpdate(ctx, seenDuplicate.UserID.Int64); err != nil {
 			return kept, duplicate, &QueryError{Op: "LockUserForUpdate", Err: err}
 		}
-	}
-	if err := lockMergeLegs(ctx, q, keptID, duplicateID); err != nil {
-		return kept, duplicate, err
 	}
 	locked, err := q.LockCrewMembersForMerge(ctx, sqlcdb.LockCrewMembersForMergeParams{
 		FirstID: keptID, SecondID: duplicateID,
@@ -170,9 +172,9 @@ func lockMergeLegs(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 	return nil
 }
 
-// moveMergeRows moves the duplicate's crew assignments and voyage opinions to
-// the kept person, dropping the ones the kept person already has. It returns
-// the files of the dropped opinions.
+// moveMergeRows moves the duplicate's crew assignments, voyage opinions and
+// captaincies to the kept person, dropping the entries the kept person
+// already has. It returns the files of the dropped opinions.
 func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) ([]string, error) {
 	if err := q.MergeSharedCrewAssignments(ctx, sqlcdb.MergeSharedCrewAssignmentsParams{
 		KeptID: keptID, DuplicateID: duplicateID,
@@ -199,6 +201,16 @@ func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 		KeptID: keptID, DuplicateID: duplicateID,
 	}); err != nil {
 		return nil, &QueryError{Op: "MoveVoyageOpinions", Err: err}
+	}
+	if _, err := q.MoveTripCaptain(ctx, sqlcdb.MoveTripCaptainParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "MoveTripCaptain", Err: err}
+	}
+	if _, err := q.MoveVoyageCaptain(ctx, sqlcdb.MoveVoyageCaptainParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "MoveVoyageCaptain", Err: err}
 	}
 	return files, nil
 }
@@ -356,11 +368,19 @@ func (h *CrewHandler) merge(ctx context.Context, in *mergeCrewInput) (*personMer
 		return nil, err
 	}
 	var result PersonMergeResult
-	if err := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		var err error
-		result, err = MergePeople(ctx, q, in.ID, in.Body.DuplicateID)
-		return err
-	}); err != nil {
+	var err error
+	for attempt := 1; ; attempt++ {
+		err = h.runTx(ctx, func(q sqlcdb.Querier) error {
+			var err error
+			result, err = MergePeople(ctx, q, in.ID, in.Body.DuplicateID)
+			return err
+		})
+		if !isDeadlock(err) || attempt == mergeAttempts {
+			break
+		}
+		slog.Warn("merge people deadlocked; retrying", "kept_id", in.ID, "duplicate_id", in.Body.DuplicateID, "attempt", attempt)
+	}
+	if err != nil {
 		return nil, mergeHTTPError(err, in.ID, in.Body.DuplicateID)
 	}
 	for _, path := range result.RemovedOpinionFiles {

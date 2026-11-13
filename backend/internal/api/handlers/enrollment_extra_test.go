@@ -102,7 +102,7 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		StartPort:              types.NullString{String: "Bodø", Valid: true},
 		EndPort:                types.NullString{String: "Tromsø", Valid: true},
 		CaptainName:            types.NullString{String: "Jan Kowalski", Valid: true},
-		CaptainUserID:          types.NullInt64{Int64: 9, Valid: true},
+		CaptainPersonID:        types.NullInt64{Int64: 9, Valid: true},
 		MaxCrew:                types.NullInt64{Int64: 8, Valid: true},
 		CostTotal:              types.NullFloat64{Float64: 20000, Valid: true},
 		CostPerPerson:          types.NullFloat64{Float64: 2500, Valid: true},
@@ -145,7 +145,7 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		t.Fatalf("trips = %d, want 1; body=%s", len(raw.Trips), resp.Body)
 	}
 	got := raw.Trips[0]
-	for _, k := range []string{"enroll_token", "created_by", "cost_total", "captain_user_id"} {
+	for _, k := range []string{"enroll_token", "created_by", "cost_total", "captain_person_id"} {
 		if _, ok := got[k]; ok {
 			t.Errorf("trips[0] exposes %q: %v", k, got[k])
 		}

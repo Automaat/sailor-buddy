@@ -158,6 +158,12 @@
 					<li>{count(preview.trip_assignments, 'przypisanie do etapu', 'przypisania do etapów', 'przypisań do etapów')}</li>
 					<li>{count(preview.voyage_assignments, 'przypisanie do rejsu', 'przypisania do rejsów', 'przypisań do rejsów')}</li>
 					<li>{count(preview.opinions, 'opinia', 'opinie', 'opinii')}</li>
+					{#if preview.captained_trips || preview.captained_voyages}
+						<li>
+							kapitan: {count(preview.captained_trips, 'etap', 'etapy', 'etapów')},
+							{count(preview.captained_voyages, 'rejs', 'rejsy', 'rejsów')}
+						</li>
+					{/if}
 				</ul>
 				{#if preview.shared_assignments || preview.shared_opinions}
 					<p class="mt-2">

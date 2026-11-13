@@ -28,7 +28,7 @@ vi.mock('#lib/api/routes.js', () => ({
 	geocode: vi.fn(() => Promise.resolve([]))
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
-	auth: { isAdmin: false, user: { id: 7, role: 'member' } }
+	auth: { isAdmin: false, user: { id: 7, role: 'member', person_id: 70 } }
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
@@ -43,7 +43,7 @@ import {
 } from '#lib/api/routes.js';
 import VoyagePage from './+page.svelte';
 
-const mockAuth = auth as unknown as { isAdmin: boolean; user: { id: number; role: string } };
+const mockAuth = auth as unknown as { isAdmin: boolean; user: { id: number; role: string; person_id?: number } };
 
 function yacht(overrides: Partial<Yacht> = {}): Yacht {
 	return {
@@ -58,7 +58,7 @@ function yacht(overrides: Partial<Yacht> = {}): Yacht {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockAuth.isAdmin = false;
-	mockAuth.user = { id: 7, role: 'member' };
+	mockAuth.user = { id: 7, role: 'member', person_id: 70 };
 	vi.mocked(listVoyagePorts).mockResolvedValue([]);
 	vi.mocked(listYachts).mockResolvedValue([yacht({ yacht_type: 'Bavaria 46' })]);
 });
@@ -94,7 +94,7 @@ describe('voyage page record', () => {
 	});
 
 	it('lets the captain add a name-only anchorage port', async () => {
-		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_user_id: 7 }));
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
 		vi.mocked(addVoyagePort).mockResolvedValue({
 			id: 9, voyage_id: 5, name: 'Zatoka Puck', anchorage: true, position: 0, created_at: ''
 		});
@@ -110,7 +110,7 @@ describe('voyage page record', () => {
 	});
 
 	it('lets the captain add a charter yacht and log the track and card', async () => {
-		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_user_id: 7 }));
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
 		vi.mocked(addVoyageYacht).mockResolvedValue(yacht({ id: 12, name: 'Selma', yacht_type: 'Hanse 415' }));
 		vi.mocked(updateVoyageLog).mockResolvedValue(undefined as never);
 		render(VoyagePage);
@@ -140,7 +140,7 @@ describe('voyage page record', () => {
 	});
 
 	it('saves the log with the yacht still being added', async () => {
-		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_user_id: 7 }));
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
 		let resolveYacht!: (y: Yacht) => void;
 		vi.mocked(addVoyageYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
 		vi.mocked(updateVoyageLog).mockResolvedValue(undefined as never);
@@ -158,8 +158,11 @@ describe('voyage page record', () => {
 		expect(vi.mocked(updateVoyageLog).mock.calls[0][1]).toMatchObject({ yacht_id: 12 });
 	});
 
-	it('hides the log and port editing from other members', async () => {
-		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_user_id: 9 }));
+	it.each([
+		['another person captains', 9],
+		['the captain person id only matches the account id', 7]
+	])('hides the log and port editing from other members: %s', async (_, captain) => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: captain }));
 		render(VoyagePage);
 
 		await screen.findByText('Odwiedzone porty (0)');

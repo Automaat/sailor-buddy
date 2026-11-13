@@ -67,9 +67,10 @@ SELECT * FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC,
 
 -- name: ListUserCruiseIDs :many
 -- Cruises the user took part in: an accepted cruise or trip enrollment, a
--- captained leg, or a crew-list entry linked to the account, or one without an
--- account that carries its email. Another account's person never matches by
--- email: it keeps the email that account had when the person was created.
+-- leg captained by the account's person, or a crew-list entry linked to the
+-- account, or one without an account that carries its email. Another
+-- account's person never matches by email: it keeps the email that account
+-- had when the person was created.
 WITH me AS (
     SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = sqlc.arg(user_id)
 ),
@@ -84,9 +85,13 @@ UNION
 SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
 WHERE te.user_id = me.me_id AND te.status = 'accepted'
 UNION
-SELECT t.cruise_id FROM trips t, me WHERE t.captain_user_id = me.me_id
+SELECT t.cruise_id FROM trips t
+JOIN crew_members cm ON cm.id = t.captain_person_id, me
+WHERE cm.user_id = me.me_id
 UNION
-SELECT v.cruise_id FROM voyages v, me WHERE v.captain_user_id = me.me_id
+SELECT v.cruise_id FROM voyages v
+JOIN crew_members cm ON cm.id = v.captain_person_id, me
+WHERE cm.user_id = me.me_id
 UNION
 SELECT t.cruise_id FROM crew_assignments ca
 JOIN trips t ON t.id = ca.trip_id
