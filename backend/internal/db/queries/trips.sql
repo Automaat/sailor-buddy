@@ -52,9 +52,6 @@ DELETE FROM trips WHERE id = $1;
 UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND status = 'planned' RETURNING *;
 
--- name: GetTripStatus :one
-SELECT status FROM trips WHERE id = $1;
-
 -- name: SetTripEnrollToken :exec
 UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 

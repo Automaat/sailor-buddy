@@ -416,8 +416,8 @@ or an accepted cruise enrollment assigned to the leg, as `accepted_count`.
   `max_crew` places, or when anyone is already waitlisted on the leg, so a
   newcomer never gets ahead of an earlier sign-up. Otherwise it starts
   `pending`. Pending sign-ups count because they are the queue an admin
-  reviews first; rejected and waitlisted ones hold no place. The one-click and legs paths lock the leg, so concurrent
-  sign-ups count one another; the legacy trip-token path does not.
+  reviews first; rejected and waitlisted ones hold no place. All three
+  paths lock the leg, so concurrent sign-ups count one another.
 - Position: `waitlist_position` (1, 2, ...) orders a leg's waitlisted trip
   enrollments by sign-up time, then id. Payment does not change it.
 - Promotion is manual: when a place frees up (an accepted sign-up is

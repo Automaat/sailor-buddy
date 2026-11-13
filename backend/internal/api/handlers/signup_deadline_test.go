@@ -121,9 +121,14 @@ func TestEnroll_TripToken_Deadline(t *testing.T) {
 			inserts := 0
 			m := &mockQuerier{
 				getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
-					return sqlcdb.GetTripByEnrollTokenRow{ID: 5, SignUpDeadline: types.NullString{String: testDeadline, Valid: true}}, nil
+					return sqlcdb.GetTripByEnrollTokenRow{ID: 5}, nil
 				},
-				getTripStatusFn: func(context.Context, int64) (sqlcdb.TripStatus, error) { return sqlcdb.TripStatusPlanned, nil },
+				lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+					return sqlcdb.LockTripForSignUpRow{
+						ID: id, Status: sqlcdb.TripStatusPlanned, Open: true,
+						SignUpDeadline: types.NullString{String: testDeadline, Valid: true},
+					}, nil
+				},
 				createTripEnrollmentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 					inserts++
 					return sqlcdb.TripEnrollment{ID: 1, TripID: arg.TripID, UserID: arg.UserID, Status: "pending"}, nil

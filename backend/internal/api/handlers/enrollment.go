@@ -239,38 +239,7 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 
 	trip, terr := h.q.GetTripByEnrollToken(ctx, tok)
 	if terr == nil {
-		status, _ := h.q.GetTripStatus(ctx, trip.ID)
-		if status != sqlcdb.TripStatusPlanned {
-			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
-		}
-		if deadlinePassed(trip.SignUpDeadline, h.today()) {
-			return nil, huma.Error422UnprocessableEntity("sign-up closed: the sign-up deadline has passed")
-		}
-		// Unlike the leg sign-up, this legacy share-link path takes no trip
-		// lock, so two concurrent enrollments may both start pending. Accepts
-		// still enforce max_crew under the lock.
-		initial, err := initialSignUpStatus(ctx, h.q, trip.ID, trip.MaxCrew)
-		if err != nil {
-			slog.Error("count taken places for trip enrollment", "trip_id", trip.ID, "err", err)
-			return nil, huma.Error500InternalServerError("failed to enroll")
-		}
-		e, err := h.q.CreateTripEnrollment(ctx, sqlcdb.CreateTripEnrollmentParams{
-			TripID: trip.ID,
-			UserID: user.UserID,
-			Note:   nullString(in.Body.Note),
-			Status: initial,
-		})
-		if err != nil {
-			if isUniqueViolation(err) {
-				return nil, huma.Error409Conflict("already enrolled")
-			}
-			if isForeignKeyViolation(err, tripEnrollmentTripFKey) {
-				return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
-			}
-			slog.Error("create trip enrollment", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
-			return nil, huma.Error500InternalServerError("failed to enroll")
-		}
-		return &enrollmentOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
+		return h.enrollTrip(ctx, trip.ID, user.UserID, nullString(in.Body.Note))
 	}
 	if !errors.Is(terr, sql.ErrNoRows) {
 		slog.Error("get trip by enroll token for enroll", "err", terr)
@@ -287,6 +256,59 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 		return nil, huma.Error500InternalServerError("failed to get cruise")
 	}
 	return nil, huma.Error422UnprocessableEntity("sign up for a leg: pick legs through POST /enroll/{token}/legs")
+}
+
+// errTripNotPlanned aborts a trip-token enrollment when the trip is no longer
+// planned, or was completed into a voyage, by the time its row is locked.
+var errTripNotPlanned = errors.New("trip is not planned")
+
+// enrollTrip creates the caller's enrollment through a trip token. As in
+// signUpForTrip, the trip row is locked first, so the status and deadline
+// checks, the waitlist count and the insert see the same leg state and
+// concurrent enrollments count one another.
+func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID, userID int64, note types.NullString) (*enrollmentOutput, error) {
+	today := h.today()
+	var e sqlcdb.TripEnrollment
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		trip, err := q.LockTripForSignUp(ctx, tripID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errTripNotPlanned
+		}
+		if err != nil {
+			return &QueryError{Op: "LockTripForSignUp", Err: err}
+		}
+		if trip.Status != sqlcdb.TripStatusPlanned {
+			return errTripNotPlanned
+		}
+		if deadlinePassed(trip.SignUpDeadline, today) {
+			return &signUpClosedError{msg: "sign-up closed: the sign-up deadline has passed"}
+		}
+		initial, err := initialSignUpStatus(ctx, q, trip.ID, trip.MaxCrew)
+		if err != nil {
+			return err
+		}
+		e, err = q.CreateTripEnrollment(ctx, sqlcdb.CreateTripEnrollmentParams{
+			TripID: trip.ID,
+			UserID: userID,
+			Note:   note,
+			Status: initial,
+		})
+		return err
+	})
+	if txErr != nil {
+		if errors.Is(txErr, errTripNotPlanned) {
+			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
+		}
+		if closed, ok := errors.AsType[*signUpClosedError](txErr); ok {
+			return nil, huma.Error422UnprocessableEntity(closed.msg)
+		}
+		if isUniqueViolation(txErr) {
+			return nil, huma.Error409Conflict("already enrolled")
+		}
+		slog.Error("enroll via trip token", "trip_id", tripID, "user_id", userID, "err", txErr)
+		return nil, huma.Error500InternalServerError("failed to enroll")
+	}
+	return &enrollmentOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
 }
 
 // invalidLegsError aborts the leg enrollment transaction when a picked trip is
@@ -528,11 +550,6 @@ func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnroll
 	}
 	return &noContentOutput{}, nil
 }
-
-// tripEnrollmentTripFKey is the PostgreSQL name of the trip_enrollments.trip_id
-// foreign key. Its violation means the trip was completed or deleted between
-// the status check and the insert.
-const tripEnrollmentTripFKey = "trip_enrollments_trip_id_fkey"
 
 // isUniqueViolation reports whether err is a PostgreSQL unique-constraint error.
 func isUniqueViolation(err error) bool {
