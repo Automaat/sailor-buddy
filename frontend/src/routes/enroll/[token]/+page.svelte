@@ -30,14 +30,7 @@
 	const pickableLegs = $derived(
 		legs.filter((l) => l.trip.status === 'planned' && !l.enrollment)
 	);
-	// A whole-cruise sign-up (no legs picked) is offered only to callers with
-	// no enrollment of either kind yet.
-	const canEnrollCruise = $derived(
-		data?.kind === 'cruise' && !data.enrollment && (data.leg_enrollments ?? []).length === 0
-	);
-	const showForm = $derived(
-		data?.kind === 'trip' ? !data.enrolled : canEnrollCruise || pickableLegs.length > 0
-	);
+	const showForm = $derived(data?.kind === 'trip' ? !data.enrolled : pickableLegs.length > 0);
 
 	const token = $derived((page.params as Record<string, string>).token);
 	const tripAccepted = $derived(
@@ -69,7 +62,7 @@
 		submitting = true;
 		error = '';
 		try {
-			if (selectedLegs.length > 0) {
+			if (data?.kind === 'cruise') {
 				await enrollLegs(token, selectedLegs, note || undefined);
 			} else {
 				await enroll(token, note || undefined);
@@ -232,11 +225,8 @@
 								</label>
 							{/each}
 						</div>
-						{#if canEnrollCruise}
-							<p class="mt-2 text-xs text-[var(--text-muted)]">
-								Zaznacz etapy, na które chcesz się zapisać. Bez zaznaczenia zgłosisz się na całe
-								wydarzenie, a organizator przydzieli Cię do jachtu.
-							</p>
+						{#if auth.isAuthenticated && showForm && !success}
+							<p class="mt-2 text-xs text-[var(--text-muted)]">Zaznacz etapy, na które chcesz się zapisać.</p>
 						{/if}
 					</fieldset>
 				{/if}
@@ -274,13 +264,13 @@
 			{:else if !auth.isAuthenticated}
 				<div class="rounded-lg bg-gray-50 p-4 text-center">
 					<p class="mb-3 text-sm text-[var(--text-muted)]">
-						Zaloguj się lub załóż konto, aby dołączyć do tego rejsu.
+						Zaloguj się lub załóż konto, aby się zapisać. Wrócisz na tę stronę.
 					</p>
 					<a
 						href={loginHref}
 						class="inline-block rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)]"
 					>
-						Zaloguj się, aby dołączyć
+						Zapisz się
 					</a>
 				</div>
 			{:else}
@@ -317,7 +307,7 @@
 					</div>
 					<button
 						type="submit"
-						disabled={submitting || (!canEnrollCruise && data.kind === 'cruise' && selectedLegs.length === 0)}
+						disabled={submitting || (data.kind === 'cruise' && selectedLegs.length === 0)}
 						class="w-full rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 					>
 						{submitting

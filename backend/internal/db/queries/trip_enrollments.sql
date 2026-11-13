@@ -80,3 +80,38 @@ SELECT (
     (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = sqlc.arg(trip_id)::BIGINT)
     + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = sqlc.arg(trip_id)::BIGINT)
 )::BIGINT AS linked;
+
+-- name: LockTripForSignUp :one
+-- Share-locks one trip for the rest of a sign-up transaction, so the leg
+-- cannot be cancelled, closed, completed or deleted between the open check
+-- and the insert. open is true while the leg's sign-ups are switched on
+-- (it has an enroll token). No row when the trip does not exist.
+SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+FROM trips
+WHERE id = $1
+FOR SHARE;
+
+-- name: UpdateUserTripEnrollmentNote :one
+-- Sets the note on the caller's own sign-up for a trip. No row when the
+-- user has no sign-up for it.
+UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
+WHERE trip_id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: DeletePendingUserTripEnrollment :one
+-- Withdraws the caller's own sign-up for a trip while it is still pending.
+-- No row when the user has no pending sign-up for it.
+DELETE FROM trip_enrollments
+WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+RETURNING id;
+
+-- name: ListCruiseTripEnrollments :many
+-- Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
+-- leg in leg order, then by sign-up time.
+SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+       u.name AS user_name, u.email AS user_email
+FROM trip_enrollments te
+JOIN trips t ON t.id = te.trip_id
+JOIN users u ON u.id = te.user_id
+WHERE t.cruise_id = $1
+ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC;

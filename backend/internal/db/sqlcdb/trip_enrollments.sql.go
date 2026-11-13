@@ -197,6 +197,30 @@ func (q *Queries) CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTr
 	return i, err
 }
 
+const deletePendingUserTripEnrollment = `-- name: DeletePendingUserTripEnrollment :one
+DELETE FROM trip_enrollments
+WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+RETURNING id
+`
+
+type DeletePendingUserTripEnrollmentParams struct {
+	TripID int64 `json:"trip_id"`
+	UserID int64 `json:"user_id"`
+}
+
+// Withdraws the caller's own sign-up for a trip while it is still pending.
+// No row when the user has no pending sign-up for it.
+//
+//	DELETE FROM trip_enrollments
+//	WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+//	RETURNING id
+func (q *Queries) DeletePendingUserTripEnrollment(ctx context.Context, arg DeletePendingUserTripEnrollmentParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deletePendingUserTripEnrollment, arg.TripID, arg.UserID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteTripEnrollment = `-- name: DeleteTripEnrollment :exec
 DELETE FROM trip_enrollments WHERE id = $1
 `
@@ -248,6 +272,71 @@ func (q *Queries) GetUserTripEnrollment(ctx context.Context, arg GetUserTripEnro
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listCruiseTripEnrollments = `-- name: ListCruiseTripEnrollments :many
+SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+       u.name AS user_name, u.email AS user_email
+FROM trip_enrollments te
+JOIN trips t ON t.id = te.trip_id
+JOIN users u ON u.id = te.user_id
+WHERE t.cruise_id = $1
+ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
+`
+
+type ListCruiseTripEnrollmentsRow struct {
+	ID        int64            `json:"id"`
+	TripID    int64            `json:"trip_id"`
+	UserID    int64            `json:"user_id"`
+	Note      types.NullString `json:"note"`
+	Status    string           `json:"status"`
+	CreatedAt types.NullTime   `json:"created_at"`
+	UpdatedAt types.NullTime   `json:"updated_at"`
+	UserName  string           `json:"user_name"`
+	UserEmail string           `json:"user_email"`
+}
+
+// Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
+// leg in leg order, then by sign-up time.
+//
+//	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+//	       u.name AS user_name, u.email AS user_email
+//	FROM trip_enrollments te
+//	JOIN trips t ON t.id = te.trip_id
+//	JOIN users u ON u.id = te.user_id
+//	WHERE t.cruise_id = $1
+//	ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
+func (q *Queries) ListCruiseTripEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseTripEnrollmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseTripEnrollments, cruiseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCruiseTripEnrollmentsRow
+	for rows.Next() {
+		var i ListCruiseTripEnrollmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TripID,
+			&i.UserID,
+			&i.Note,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserName,
+			&i.UserEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listTripEnrollments = `-- name: ListTripEnrollments :many
@@ -405,6 +494,35 @@ func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([
 	return items, nil
 }
 
+const lockTripForSignUp = `-- name: LockTripForSignUp :one
+SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+FROM trips
+WHERE id = $1
+FOR SHARE
+`
+
+type LockTripForSignUpRow struct {
+	ID     int64      `json:"id"`
+	Status TripStatus `json:"status"`
+	Open   bool       `json:"open"`
+}
+
+// Share-locks one trip for the rest of a sign-up transaction, so the leg
+// cannot be cancelled, closed, completed or deleted between the open check
+// and the insert. open is true while the leg's sign-ups are switched on
+// (it has an enroll token). No row when the trip does not exist.
+//
+//	SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+//	FROM trips
+//	WHERE id = $1
+//	FOR SHARE
+func (q *Queries) LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error) {
+	row := q.db.QueryRowContext(ctx, lockTripForSignUp, id)
+	var i LockTripForSignUpRow
+	err := row.Scan(&i.ID, &i.Status, &i.Open)
+	return i, err
+}
+
 const updateTripEnrollmentStatus = `-- name: UpdateTripEnrollmentStatus :exec
 UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
@@ -420,4 +538,37 @@ type UpdateTripEnrollmentStatusParams struct {
 func (q *Queries) UpdateTripEnrollmentStatus(ctx context.Context, arg UpdateTripEnrollmentStatusParams) error {
 	_, err := q.db.ExecContext(ctx, updateTripEnrollmentStatus, arg.Status, arg.ID)
 	return err
+}
+
+const updateUserTripEnrollmentNote = `-- name: UpdateUserTripEnrollmentNote :one
+UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
+WHERE trip_id = $1 AND user_id = $2
+RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+`
+
+type UpdateUserTripEnrollmentNoteParams struct {
+	TripID int64            `json:"trip_id"`
+	UserID int64            `json:"user_id"`
+	Note   types.NullString `json:"note"`
+}
+
+// Sets the note on the caller's own sign-up for a trip. No row when the
+// user has no sign-up for it.
+//
+//	UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
+//	WHERE trip_id = $1 AND user_id = $2
+//	RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+func (q *Queries) UpdateUserTripEnrollmentNote(ctx context.Context, arg UpdateUserTripEnrollmentNoteParams) (TripEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTripEnrollmentNote, arg.TripID, arg.UserID, arg.Note)
+	var i TripEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.UserID,
+		&i.Note,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

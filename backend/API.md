@@ -290,7 +290,8 @@ Assignment body — `crew_member_id` and `role` required:
 | PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204 |
 | DELETE | `/api/trips/{tripID}/enrollments/{id}` | **admin** | Delete enrollment, 204 |
 | GET | `/api/enroll/{token}` | public | Resolve token → trip or cruise |
-| POST | `/api/enroll/{token}` | member | Enroll self, 201 |
+| POST | `/api/enroll/{token}` | member | Enroll self via a trip token, 201; a cruise token returns `422` |
+| POST | `/api/enroll/{token}/legs` | member | Enroll self in picked legs of the token's cruise, 201 |
 
 `GET /api/enroll/{token}` returns `{"kind": "trip" \| "cruise", ...}` —
 the token may resolve to either. `404 invalid enrollment link` if unknown.
@@ -310,7 +311,47 @@ reveals the per-leg links.
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,
-`enrollment closed: trip is not planned`).
+`enrollment closed: trip is not planned`). Sign-ups are per leg: a cruise
+token no longer takes a whole-cruise sign-up, so `POST /api/enroll/{token}`
+with a cruise token returns `422` and writes nothing; legs are picked through
+`POST /api/enroll/{token}/legs`. Existing `cruise_enrollments` rows stay and
+are still managed through the cruise enrollment routes.
+
+### Leg sign-up (one click)
+
+A signed-in user signs up for a leg (trip) of a cruise without a share
+token. A sign-up is a `trip_enrollments` row. Any signed-in account may sign
+up, including `gosc` and users who have not finished onboarding; requests
+without a valid token get `401` from the auth middleware.
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/trips/{tripID}/sign-up` | member | Caller's sign-up state for the leg → `LegSignUp` | 200 |
+| POST | `/api/trips/{tripID}/sign-up` | member | Sign up, no body → `{trip_id, result, enrollment}` | 201 / 200 |
+| PUT | `/api/trips/{tripID}/sign-up/note` | member | Set the note on the caller's sign-up → `Enrollment` | 200 |
+| DELETE | `/api/trips/{tripID}/sign-up` | member | Withdraw the caller's pending sign-up | 204 |
+| GET | `/api/cruises/{cruiseID}/leg-sign-ups` | member | `LegSignUp` for every trip of the cruise | 200 |
+| GET | `/api/cruises/{cruiseID}/trip-enrollments` | **admin** | Every leg sign-up of the cruise with the user, by leg then sign-up time | 200 |
+
+`LegSignUp` is `{trip_id, open, accepted_count, enrollment?}`: `open` is
+true while the leg is `planned` and its sign-ups are switched on (the trip
+has an enroll token, set with `POST /api/trips/{tripID}/enroll-token`);
+`accepted_count` counts the same way as `trip_accepted` above; `enrollment`
+is the caller's own sign-up and is omitted when there is none.
+
+`POST /api/trips/{tripID}/sign-up` creates a `pending` enrollment with no
+note (`201`, `result: "created"`). Signing up again returns the existing
+enrollment (`200`, `result: "already_enrolled"`), whatever its status and
+even after the leg closed. A new sign-up on a leg that is not open returns
+`422` and writes nothing. An unknown trip returns `404`; completing a leg
+turns it into a voyage, so completed legs also return `404`.
+
+The note is added after signing up: `PUT .../sign-up/note` with
+`{ "note": "message" }` (up to 2000 characters, trimmed; blank or omitted
+clears it). `404 not signed up for this leg` without a sign-up.
+
+`DELETE .../sign-up` withdraws only a `pending` sign-up. `404` when the
+caller has none, `409` once an admin has accepted, rejected or waitlisted it.
 
 Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
 
@@ -361,7 +402,9 @@ Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 ### Cruises
 
 A **cruise** is a club event that groups child trips and voyages (one per
-yacht) and accepts cruise-level enrollments.
+yacht). Members sign up per leg (see Leg sign-up); the cruise enroll token
+shares a public preview from which legs are picked. Cruise-level
+enrollments made before that remain listed and managed here.
 
 Each cruise has a `kind`: `sea` (rejs morski) or `inland` (rejs
 śródlądowy). Create and update default it to `sea` when omitted; any other

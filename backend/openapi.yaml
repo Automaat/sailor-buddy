@@ -822,6 +822,13 @@ components:
     EnrollLegResult:
       additionalProperties: false
       properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/EnrollLegResult.json
+          format: uri
+          readOnly: true
+          type: string
         enrollment:
           $ref: "#/components/schemas/Enrollment"
         result:
@@ -1095,6 +1102,34 @@ components:
         - label
         - latitude
         - longitude
+      type: object
+    LegSignUp:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/LegSignUp.json
+          format: uri
+          readOnly: true
+          type: string
+        accepted_count:
+          description: "Accepted crew: direct leg sign-ups plus cruise enrollments assigned to the leg"
+          format: int64
+          type: integer
+        enrollment:
+          $ref: "#/components/schemas/Enrollment"
+          description: The caller's sign-up for this leg; omitted when not signed up
+        open:
+          description: "Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"
+          type: boolean
+        trip_id:
+          format: int64
+          type: integer
+      required:
+        - trip_id
+        - open
+        - accepted_count
       type: object
     Me:
       additionalProperties: false
@@ -1515,6 +1550,21 @@ components:
           type: string
       required:
         - role
+      type: object
+    SignUpNoteBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/SignUpNoteBody.json
+          format: uri
+          readOnly: true
+          type: string
+        note:
+          description: Note to the organizer; omit or send an empty string to clear it
+          maxLength: 2000
+          type: string
       type: object
     TokenOutputBody:
       additionalProperties: false
@@ -2896,6 +2946,72 @@ paths:
       summary: Assign a cruise enrollment to a trip (admin)
       tags:
         - Cruises
+  /cruises/{cruiseID}/leg-sign-ups:
+    get:
+      description: One entry per trip of the cruise, in the cruise trip list order. 404 when the cruise does not exist.
+      operationId: list-cruise-leg-sign-ups
+      parameters:
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/LegSignUp"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get the caller's sign-up state for every leg of a cruise
+      tags:
+        - Sign-up
+  /cruises/{cruiseID}/trip-enrollments:
+    get:
+      description: Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time.
+      operationId: list-cruise-trip-enrollments
+      parameters:
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/TripEnrollmentDetail"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List every leg sign-up of a cruise (admin)
+      tags:
+        - Sign-up
   /cruises/{cruiseID}/trips:
     get:
       operationId: list-cruise-trips
@@ -3007,6 +3123,7 @@ paths:
       tags:
         - Enrollment
     post:
+      description: "Creates a pending enrollment for the token's trip. A cruise token returns 422: sign-ups are per leg, made through enroll-cruise-legs."
       operationId: enroll
       parameters:
         - description: Enrollment share token
@@ -3035,7 +3152,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Self-enroll via a share token
+      summary: Self-enroll via a trip share token
       tags:
         - Enrollment
   /enroll/{token}/legs:
@@ -3996,6 +4113,122 @@ paths:
       summary: Update a trip enrollment's status (admin)
       tags:
         - Enrollment
+  /trips/{tripID}/sign-up:
+    delete:
+      description: Deletes the caller's sign-up while it is pending. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted).
+      operationId: withdraw-trip-sign-up
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Withdraw the caller's pending leg sign-up
+      tags:
+        - Sign-up
+    get:
+      description: Returns whether the leg takes new sign-ups, its accepted crew count and the caller's own sign-up, if any. 404 when the trip does not exist.
+      operationId: get-trip-sign-up
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegSignUp"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get the caller's sign-up state for a leg
+      tags:
+        - Sign-up
+    post:
+      description: "Creates a pending trip enrollment for the caller (201, result created). Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete."
+      operationId: sign-up-for-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrollLegResult"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Sign the caller up for a leg with one click
+      tags:
+        - Sign-up
+  /trips/{tripID}/sign-up/note:
+    put:
+      description: Replaces the note to the organizer on the caller's existing sign-up. An empty or omitted note clears it. 404 when the caller has not signed up for the leg.
+      operationId: update-trip-sign-up-note
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpNoteBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Set the note on the caller's leg sign-up
+      tags:
+        - Sign-up
   /upload/image:
     post:
       operationId: upload-image

@@ -1,7 +1,3 @@
--- name: CreateCruiseEnrollment :one
-INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-VALUES ($1, $2, $3) RETURNING *;
-
 -- name: ListCruiseEnrollments :many
 SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
        u.name AS user_name, u.email AS user_email,

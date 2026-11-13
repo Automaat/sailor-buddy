@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { numberLegs } from './enrollment';
+import { freePlacesLabel, numberLegs } from './enrollment';
 
 describe('numberLegs', () => {
 	it('orders by embark date, undated trips last, ties by id', () => {
@@ -26,5 +26,17 @@ describe('numberLegs', () => {
 		];
 		numberLegs(trips);
 		expect(trips.map((t) => t.id)).toEqual([2, 1]);
+	});
+});
+
+describe('freePlacesLabel', () => {
+	it.each([
+		[8, 3, 'wolne 5 z 8'],
+		[8, 8, 'wolne 0 z 8'],
+		[8, 10, 'wolne 0 z 8'],
+		[0, 0, null],
+		[undefined, 2, null]
+	] as const)('max %s with %s accepted is %s', (max, accepted, want) => {
+		expect(freePlacesLabel(max, accepted)).toBe(want);
 	});
 });

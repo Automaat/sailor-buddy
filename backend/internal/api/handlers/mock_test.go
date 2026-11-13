@@ -69,9 +69,12 @@ type mockQuerier struct {
 	lockCruiseTripStatusesFn       func(ctx context.Context, cruiseID int64) ([]sqlcdb.LockCruiseTripStatusesRow, error)
 	listUserCruiseTripEnrollFn     func(ctx context.Context, arg sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error)
 	deleteTripEnrollmentsForTripFn func(ctx context.Context, tripID int64) error
+	lockTripForSignUpFn            func(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error)
+	updateUserTripEnrollNoteFn     func(ctx context.Context, arg sqlcdb.UpdateUserTripEnrollmentNoteParams) (sqlcdb.TripEnrollment, error)
+	deletePendingUserTripEnrollFn  func(ctx context.Context, arg sqlcdb.DeletePendingUserTripEnrollmentParams) (int64, error)
+	listCruiseTripEnrollmentsFn    func(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseTripEnrollmentsRow, error)
 
 	// cruise enrollments
-	createCruiseEnrollmentFn       func(ctx context.Context, arg sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error)
 	listCruiseEnrollmentsFn        func(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseEnrollmentsRow, error)
 	updateCruiseEnrollmentStatusFn func(ctx context.Context, arg sqlcdb.UpdateCruiseEnrollmentStatusParams) error
 	assignCruiseEnrollmentFn       func(ctx context.Context, arg sqlcdb.AssignCruiseEnrollmentToTripParams) error
@@ -465,13 +468,6 @@ func (m *mockQuerier) DeleteTripEnrollmentsForTrip(ctx context.Context, tripID i
 }
 
 // --- cruise enrollments ---
-
-func (m *mockQuerier) CreateCruiseEnrollment(ctx context.Context, arg sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
-	if m.createCruiseEnrollmentFn == nil {
-		panic("unexpected call to CreateCruiseEnrollment")
-	}
-	return m.createCruiseEnrollmentFn(ctx, arg)
-}
 
 func (m *mockQuerier) ListCruiseEnrollments(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseEnrollmentsRow, error) {
 	if m.listCruiseEnrollmentsFn == nil {
@@ -961,4 +957,32 @@ func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, userID int64) ([]in
 		panic("unexpected call to ListUserCruiseIDs")
 	}
 	return m.listUserCruiseIDsFn(ctx, userID)
+}
+
+func (m *mockQuerier) LockTripForSignUp(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+	if m.lockTripForSignUpFn == nil {
+		panic("unexpected call to LockTripForSignUp")
+	}
+	return m.lockTripForSignUpFn(ctx, id)
+}
+
+func (m *mockQuerier) UpdateUserTripEnrollmentNote(ctx context.Context, arg sqlcdb.UpdateUserTripEnrollmentNoteParams) (sqlcdb.TripEnrollment, error) {
+	if m.updateUserTripEnrollNoteFn == nil {
+		panic("unexpected call to UpdateUserTripEnrollmentNote")
+	}
+	return m.updateUserTripEnrollNoteFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeletePendingUserTripEnrollment(ctx context.Context, arg sqlcdb.DeletePendingUserTripEnrollmentParams) (int64, error) {
+	if m.deletePendingUserTripEnrollFn == nil {
+		panic("unexpected call to DeletePendingUserTripEnrollment")
+	}
+	return m.deletePendingUserTripEnrollFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListCruiseTripEnrollments(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseTripEnrollmentsRow, error) {
+	if m.listCruiseTripEnrollmentsFn == nil {
+		panic("unexpected call to ListCruiseTripEnrollments")
+	}
+	return m.listCruiseTripEnrollmentsFn(ctx, cruiseID)
 }

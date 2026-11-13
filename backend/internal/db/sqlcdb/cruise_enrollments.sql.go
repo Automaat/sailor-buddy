@@ -67,37 +67,6 @@ func (q *Queries) CountCruiseEnrollments(ctx context.Context, cruiseID int64) (C
 	return i, err
 }
 
-const createCruiseEnrollment = `-- name: CreateCruiseEnrollment :one
-INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, created_at, updated_at
-`
-
-type CreateCruiseEnrollmentParams struct {
-	CruiseID int64            `json:"cruise_id"`
-	UserID   int64            `json:"user_id"`
-	Note     types.NullString `json:"note"`
-}
-
-// CreateCruiseEnrollment
-//
-//	INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-//	VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, created_at, updated_at
-func (q *Queries) CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error) {
-	row := q.db.QueryRowContext(ctx, createCruiseEnrollment, arg.CruiseID, arg.UserID, arg.Note)
-	var i CruiseEnrollment
-	err := row.Scan(
-		&i.ID,
-		&i.CruiseID,
-		&i.UserID,
-		&i.TripID,
-		&i.Note,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const deleteCruiseEnrollment = `-- name: DeleteCruiseEnrollment :exec
 DELETE FROM cruise_enrollments WHERE id = $1
 `

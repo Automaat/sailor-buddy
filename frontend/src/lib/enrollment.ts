@@ -16,6 +16,15 @@ export function freePlaces(maxCrew: number | null | undefined, accepted: number)
 	return Math.max(0, maxCrew - accepted);
 }
 
+/**
+ * freePlacesLabel renders a leg's free places as "wolne 5 z 8", or null when
+ * the leg has no crew limit.
+ */
+export function freePlacesLabel(maxCrew: number | null | undefined, accepted: number): string | null {
+	const free = freePlaces(maxCrew, accepted);
+	return free === null ? null : `wolne ${free} z ${maxCrew}`;
+}
+
 interface LegTrip {
 	id: number;
 	embark_date?: string;
