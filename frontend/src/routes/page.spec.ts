@@ -127,7 +127,7 @@ describe('dashboard page', () => {
 
 		const bornholm = within(mine).getByRole('link', { name: /Bornholm/ });
 		expect(bornholm).toHaveAttribute('href', '/voyages/12');
-		expect(bornholm).toHaveTextContent('2025-06-01 – 2025-06-05');
+		expect(bornholm).toHaveTextContent('1–5 cze 2025 · 5 dni');
 		expect(bornholm).toHaveTextContent('Zjawa');
 		expect(bornholm).toHaveTextContent('Załoga · 120 Mm · 30 h');
 		const gotland = within(mine).getByRole('link', { name: /Gotland/ });

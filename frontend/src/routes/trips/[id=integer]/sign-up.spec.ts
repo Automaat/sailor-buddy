@@ -221,7 +221,7 @@ describe('trip page sign-up', () => {
 		);
 		render(TripPage);
 		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
 		expect(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' })).toBeEnabled();
 	});
 
@@ -233,7 +233,7 @@ describe('trip page sign-up', () => {
 		render(TripPage);
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByText('Zapisy zamknięte')).toBeInTheDocument();
-		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
 		expect(within(card).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 	});
 

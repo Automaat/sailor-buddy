@@ -125,6 +125,7 @@ describe('rejsy page', () => {
 		const card = screen.getByText('Bornholm 2026').closest('a');
 		expect(card).toHaveTextContent('Do rozliczenia');
 		expect(card).not.toHaveTextContent('Planowany');
+		expect(card).toHaveTextContent('1–9 sie 2026 · 9 dni');
 	});
 
 	it('lists cancelled cruises only under all', async () => {

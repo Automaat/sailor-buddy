@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import {
 		getVoyage,
 		deleteVoyage,
@@ -277,7 +278,7 @@
 				<dl class="grid grid-cols-1 text-sm sm:grid-cols-2 sm:gap-2 max-sm:[&>dd]:mb-2">
 					{#if voyage.embark_date}
 						<dt class="text-[var(--text-muted)]">Daty</dt>
-						<dd>{voyage.embark_date} – {voyage.disembark_date ?? '?'}</dd>
+						<dd>{formatDateRangeWithDays(voyage.embark_date, voyage.disembark_date)}</dd>
 					{/if}
 					{#if voyage.captain_name}
 						<dt class="text-[var(--text-muted)]">Kapitan</dt>

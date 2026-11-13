@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { getDashboard } from '#lib/api/routes.js';
 	import type { DashboardStats, SeaTime, YearStats } from '#lib/api/types.js';
 
@@ -132,7 +133,7 @@
 										<span class="font-medium text-[var(--navy)]">{v.name}</span>
 										<span class="block text-xs text-[var(--text-muted)]">
 											{#if v.embark_date}
-												{v.embark_date}{#if v.disembark_date}&nbsp;– {v.disembark_date}{/if}
+												{formatDateRangeWithDays(v.embark_date, v.disembark_date)}
 											{:else if v.year}
 												{v.year}
 											{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { listCruises, listMyCruiseIds, listTrips, listVoyages } from '#lib/api/routes.js';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
@@ -213,8 +214,7 @@
 						</div>
 						<div class="mt-1 text-xs text-[var(--text-muted)]">
 							{#if entry.embarkDate}
-								{entry.embarkDate}
-								{#if entry.disembarkDate}– {entry.disembarkDate}{/if}
+								{formatDateRangeWithDays(entry.embarkDate, entry.disembarkDate)}
 							{/if}
 							{#if entry.plannedLegs + entry.completedLegs > 0}
 								· etapy: {entry.completedLegs}/{entry.plannedLegs + entry.completedLegs} zrealizowane

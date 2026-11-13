@@ -65,6 +65,7 @@ describe('trip page status', () => {
 		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
 		expect(screen.queryByText('Planowany')).not.toBeInTheDocument();
 		expect(screen.getByRole('status')).toHaveTextContent('czeka na rozliczenie');
+		expect(screen.getByText('1–9 sie 2026 · 9 dni')).toBeInTheDocument();
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Zrealizuj teraz' }));
 		expect(await screen.findByRole('heading', { name: 'Zrealizuj rejs' })).toBeInTheDocument();

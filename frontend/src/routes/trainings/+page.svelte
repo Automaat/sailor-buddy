@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '#lib/dates.js';
 	import { listTrainings, createTraining, deleteTraining } from '#lib/api/routes.js';
 	import type { Training } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
@@ -97,7 +98,7 @@
 							<span class="ml-2 text-sm text-[var(--text-muted)]">org. {training.organizer}</span>
 						{/if}
 						{#if training.date}
-							<span class="ml-2 text-sm text-[var(--text-muted)]">{training.date}</span>
+							<span class="ml-2 text-sm text-[var(--text-muted)]">{formatDate(training.date)}</span>
 						{/if}
 					</div>
 					<div class="flex items-center gap-4">

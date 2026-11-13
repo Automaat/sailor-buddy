@@ -1,3 +1,5 @@
+import { formatDate } from './dates.js';
+
 export const statusLabels: Record<string, string> = {
 	pending: 'oczekujący',
 	accepted: 'zaakceptowany',
@@ -121,11 +123,9 @@ export function signUpClosedByDeadline(deadline: string | null | undefined, toda
 }
 
 /**
- * signUpDeadlineLabel renders a sign-up deadline as "Zapisy do 10.05.2027",
+ * signUpDeadlineLabel renders a sign-up deadline as "Zapisy do 10 maj 2027",
  * or null when the leg has none.
  */
 export function signUpDeadlineLabel(deadline: string | null | undefined): string | null {
-	if (!deadline) return null;
-	const [y, m, d] = deadline.split('-');
-	return y && m && d ? `Zapisy do ${d}.${m}.${y}` : `Zapisy do ${deadline}`;
+	return deadline ? `Zapisy do ${formatDate(deadline)}` : null;
 }

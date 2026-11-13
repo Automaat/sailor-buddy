@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatTimestampDate } from '#lib/dates.js';
 	import {
 		getTrip,
 		getTripSignUp,
@@ -224,7 +225,7 @@
 							<p class="mt-2 text-sm text-[var(--text-muted)]">{enrollment.note}</p>
 						{/if}
 						<p class="mt-1 text-xs text-[var(--text-muted)]">
-							Zapisano: {new Date(enrollment.created_at).toLocaleDateString('pl-PL')}
+							Zapisano: {formatTimestampDate(enrollment.created_at)}
 						</p>
 					</div>
 				{/each}
