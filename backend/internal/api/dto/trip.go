@@ -10,7 +10,7 @@ import (
 type Trip struct {
 	ID                     int64     `json:"id"`
 	CreatedBy              *int64    `json:"created_by,omitempty"`
-	CruiseID               *int64    `json:"cruise_id,omitempty"`
+	CruiseID               int64     `json:"cruise_id"`
 	Name                   string    `json:"name"`
 	Status                 string    `json:"status" enum:"planned,cancelled"`
 	EmbarkDate             *string   `json:"embark_date,omitempty"`
@@ -59,7 +59,7 @@ type TripBody struct {
 	ImagePhotoUrl          *string  `json:"image_photo_url,omitempty"`
 	ImageRouteUrl          *string  `json:"image_route_url,omitempty"`
 	Description            *string  `json:"description,omitempty"`
-	CruiseID               *int64   `json:"cruise_id,omitempty"`
+	CruiseID               int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this trip is a leg of"`
 }
 
 // CompleteTripBody is the request payload for completing a trip into a voyage.
@@ -81,7 +81,7 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 	return Trip{
 		ID:                     t.ID,
 		CreatedBy:              intPtr(t.CreatedBy),
-		CruiseID:               intPtr(t.CruiseID),
+		CruiseID:               t.CruiseID,
 		Name:                   t.Name,
 		Status:                 string(t.Status),
 		EmbarkDate:             strPtr(t.EmbarkDate),

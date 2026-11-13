@@ -165,12 +165,12 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 		return nil, huma.Error500InternalServerError("failed to get cruise")
 	}
 	counts, _ := h.q.CountCruiseEnrollments(ctx, cruise.ID)
-	childTrips, tlistErr := h.q.ListCruiseTrips(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+	childTrips, tlistErr := h.q.ListCruiseTrips(ctx, cruise.ID)
 	if tlistErr != nil {
 		slog.Error("list cruise trips", "cruise_id", cruise.ID, "err", tlistErr)
 		childTrips = nil
 	}
-	tripAccepted, taErr := h.q.CountAcceptedByCruiseTrip(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+	tripAccepted, taErr := h.q.CountAcceptedByCruiseTrip(ctx, cruise.ID)
 	if taErr != nil {
 		slog.Error("count accepted per cruise trip", "cruise_id", cruise.ID, "err", taErr)
 		tripAccepted = nil
@@ -189,7 +189,7 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 			info.Enrollment = new(dto.CruiseEnrollmentToDTO(e))
 		}
 		legs, lerr := h.q.ListUserCruiseTripEnrollments(ctx, sqlcdb.ListUserCruiseTripEnrollmentsParams{
-			CruiseID: types.NullInt64{Int64: cruise.ID, Valid: true},
+			CruiseID: cruise.ID,
 			UserID:   user.UserID,
 		})
 		if lerr != nil {
@@ -290,7 +290,7 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 	slices.Sort(insertOrder)
 	byTrip := make(map[int64]dto.EnrollLegResult, len(insertOrder))
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		trips, err := q.LockCruiseTripStatuses(ctx, types.NullInt64{Int64: cruise.ID, Valid: true})
+		trips, err := q.LockCruiseTripStatuses(ctx, cruise.ID)
 		if err != nil {
 			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
 		}

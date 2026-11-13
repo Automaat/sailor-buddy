@@ -19,6 +19,9 @@ import (
 // the given mock querier.
 func tripTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
+	if m.getCruiseFn == nil {
+		m.getCruiseFn = func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil }
+	}
 	_, api := humatest.New(t)
 	RegisterTripRoutes(api, m, nil)
 	return api
@@ -84,7 +87,7 @@ func TestUpdateTrip_Huma(t *testing.T) {
 			getTripFn:    func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
 			updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error { return nil },
 		}
-		resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{"name": "Renamed"})
+		resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{"cruise_id": 1, "name": "Renamed"})
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("status = %d, want 204; body=%s", resp.Code, resp.Body)
 		}
@@ -140,7 +143,7 @@ func TestCreateTrip_Huma(t *testing.T) {
 			return sqlcdb.Trip{ID: 1, Name: arg.Name, Status: sqlcdb.TripStatusPlanned}, nil
 		},
 	}
-	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{"name": "Baltic"})
+	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{"cruise_id": 1, "name": "Baltic"})
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
 	}
@@ -155,7 +158,7 @@ func TestCreateTrip_Huma(t *testing.T) {
 
 func TestCreateTrip_Huma_MemberForbidden(t *testing.T) {
 	resp := tripTestAPI(t, &mockQuerier{}).PostCtx(
-		userCtxRole(context.Background(), "member"), "/trips", map[string]any{"name": "X"})
+		userCtxRole(context.Background(), "member"), "/trips", map[string]any{"cruise_id": 1, "name": "X"})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403; body=%s", resp.Code, resp.Body)
 	}
@@ -176,32 +179,32 @@ func TestCreateTrip_Huma_MaxCrewFromBerths(t *testing.T) {
 		wantRes int
 	}{
 		{
-			name: "defaults to yacht berths", body: map[string]any{"name": "B", "yacht_id": 4},
+			name: "defaults to yacht berths", body: map[string]any{"cruise_id": 1, "name": "B", "yacht_id": 4},
 			yacht: yachtWithBerths, want: types.NullInt64{Int64: 10, Valid: true}, wantRes: http.StatusCreated,
 		},
 		{
-			name: "explicit max_crew kept", body: map[string]any{"name": "B", "yacht_id": 4, "max_crew": 6},
+			name: "explicit max_crew kept", body: map[string]any{"cruise_id": 1, "name": "B", "yacht_id": 4, "max_crew": 6},
 			want: types.NullInt64{Int64: 6, Valid: true}, wantRes: http.StatusCreated,
 		},
 		{
-			name: "yacht without berths leaves limit empty", body: map[string]any{"name": "B", "yacht_id": 4},
+			name: "yacht without berths leaves limit empty", body: map[string]any{"cruise_id": 1, "name": "B", "yacht_id": 4},
 			yacht: func(context.Context, int64) (sqlcdb.Yacht, error) { return sqlcdb.Yacht{ID: 4}, nil },
 			want:  types.NullInt64{}, wantRes: http.StatusCreated,
 		},
 		{
-			name: "zero max_crew means no limit and defaults to berths", body: map[string]any{"name": "B", "yacht_id": 4, "max_crew": 0},
+			name: "zero max_crew means no limit and defaults to berths", body: map[string]any{"cruise_id": 1, "name": "B", "yacht_id": 4, "max_crew": 0},
 			yacht: yachtWithBerths, want: types.NullInt64{Int64: 10, Valid: true}, wantRes: http.StatusCreated,
 		},
 		{
-			name: "no yacht leaves limit empty", body: map[string]any{"name": "B"},
+			name: "no yacht leaves limit empty", body: map[string]any{"cruise_id": 1, "name": "B"},
 			want: types.NullInt64{}, wantRes: http.StatusCreated,
 		},
 		{
-			name: "unknown yacht", body: map[string]any{"name": "B", "yacht_id": 9},
+			name: "unknown yacht", body: map[string]any{"cruise_id": 1, "name": "B", "yacht_id": 9},
 			yacht: yachtWithBerths, wantRes: http.StatusUnprocessableEntity,
 		},
 		{
-			name: "yacht lookup error", body: map[string]any{"name": "B", "yacht_id": 4},
+			name: "yacht lookup error", body: map[string]any{"cruise_id": 1, "name": "B", "yacht_id": 4},
 			yacht:   func(context.Context, int64) (sqlcdb.Yacht, error) { return sqlcdb.Yacht{}, errors.New("fail") },
 			wantRes: http.StatusInternalServerError,
 		},

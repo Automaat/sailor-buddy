@@ -1,133 +1,155 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import type { Cruise } from '#lib/api/types.js';
+import { makeCruise, makeTrip, makeVoyage } from '#lib/test-utils.js';
+
+const pageState = vi.hoisted(() => ({ url: new URL('http://localhost/cruises') }));
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+vi.mock('$app/state', () => ({ page: pageState }));
 vi.mock('#lib/api/client.js', () => ({ api: { list: vi.fn() } }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
 import { api } from '#lib/api/client.js';
+import { goto } from '$app/navigation';
 import { auth } from '#lib/stores/auth.svelte.js';
-import CruisesPage from './+page.svelte';
+import RejsyPage from './+page.svelte';
 
 const apiList = api.list as unknown as ReturnType<typeof vi.fn>;
-// auth's flags are getter-only on the real store; the mock is a plain object,
-// so cast to a mutable view to toggle the admin role per test.
+const mockGoto = goto as unknown as ReturnType<typeof vi.fn>;
 const mockAuth = auth as unknown as { isAdmin: boolean };
 
-function makeCruise(overrides: Partial<Cruise> = {}): Cruise {
-	return {
-		id: 1,
-		name: 'Regaty Klubowe',
-		kind: 'sea',
-		currency: 'PLN',
-		included: [],
-		not_included: [],
-		created_at: '2026-01-01T00:00:00Z',
-		updated_at: '2026-01-01T00:00:00Z',
-		...overrides
-	};
+function serve(data: { cruises?: unknown[]; trips?: unknown[]; voyages?: unknown[] }) {
+	apiList.mockImplementation((path: string) => {
+		if (path === '/cruises') return Promise.resolve(data.cruises ?? []);
+		if (path === '/trips') return Promise.resolve(data.trips ?? []);
+		if (path === '/voyages') return Promise.resolve(data.voyages ?? []);
+		return Promise.reject(new Error(`unexpected ${path}`));
+	});
 }
 
 beforeEach(() => {
-	apiList.mockReset().mockResolvedValue([]);
+	apiList.mockReset();
+	mockGoto.mockReset();
+	serve({});
 	vi.spyOn(console, 'error').mockImplementation(() => {});
 	mockAuth.isAdmin = true;
+	pageState.url = new URL('http://localhost/cruises');
 });
 
-describe('cruises page', () => {
-	it('shows a loading message while cruises are being fetched', () => {
+describe('rejsy page', () => {
+	it('shows a loading message while data is being fetched', () => {
 		apiList.mockReturnValue(new Promise(() => {}));
-		render(CruisesPage);
+		render(RejsyPage);
 		expect(screen.getByText('Wczytywanie...')).toBeInTheDocument();
 	});
 
-	it('requests cruises from the club endpoint', async () => {
-		render(CruisesPage);
-		await screen.findByText('Brak wydarzeń');
+	it('loads cruises, trips and voyages', async () => {
+		render(RejsyPage);
+		await screen.findByText('Brak nadchodzących rejsów');
 		expect(apiList).toHaveBeenCalledWith('/cruises');
+		expect(apiList).toHaveBeenCalledWith('/trips');
+		expect(apiList).toHaveBeenCalledWith('/voyages');
 	});
 
-	it('shows the empty state when there are no cruises', async () => {
-		render(CruisesPage);
-		expect(await screen.findByText('Brak wydarzeń')).toBeInTheDocument();
-	});
-
-	it('renders cruise cards and marks open enrollment', async () => {
-		apiList.mockResolvedValue([
-			makeCruise({
-				id: 9,
-				name: 'Regaty Klubowe',
-				start_port: 'Gdynia',
-				end_port: 'Sopot',
-				max_crew: 12,
-				enroll_token: 'abc'
-			})
-		]);
-		render(CruisesPage);
+	it('renders an upcoming cruise card with its legs and open enrollment', async () => {
+		serve({
+			cruises: [makeCruise({ id: 9, name: 'Regaty Klubowe', start_port: 'Gdynia', end_port: 'Sopot', max_crew: 12, enroll_token: 'abc' })],
+			trips: [makeTrip({ id: 1, cruise_id: 9 }), makeTrip({ id: 2, cruise_id: 9 })]
+		});
+		render(RejsyPage);
 
 		const card = (await screen.findByText('Regaty Klubowe')).closest('a');
 		expect(card).toHaveAttribute('href', '/cruises/9');
+		expect(card).toHaveTextContent('Planowany');
+		expect(card).toHaveTextContent('etapy: 0/2 zrealizowane');
 		expect(screen.getByText('max 12 os.')).toBeInTheDocument();
 		expect(screen.getByText('Zapisy otwarte')).toBeInTheDocument();
 	});
 
-	it('shows the create button for an admin', async () => {
-		render(CruisesPage);
-		await screen.findByText('Brak wydarzeń');
+	it('moves a fully sailed cruise to the completed tab with its totals', async () => {
+		serve({
+			cruises: [makeCruise({ id: 3, name: 'NNE 2025', enroll_token: 'old' })],
+			voyages: [makeVoyage({ cruise_id: 3, miles: 310.4, hours_total: 52.6 })]
+		});
+		render(RejsyPage);
+		await screen.findByText('Brak nadchodzących rejsów');
+		expect(screen.queryByText('NNE 2025')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('tab', { name: 'Zrealizowane' }));
+
+		const card = screen.getByText('NNE 2025').closest('a');
+		expect(card).toHaveTextContent('Zrealizowany');
+		expect(card).toHaveTextContent('53h');
+		expect(card).toHaveTextContent('310');
+		expect(card).not.toHaveTextContent('Zapisy otwarte');
+		expect(mockGoto).toHaveBeenCalledWith('/cruises?tab=completed', { replace: true, shallow: true });
+	});
+
+	it('opens on the tab named in the URL', async () => {
+		pageState.url = new URL('http://localhost/cruises?tab=completed');
+		serve({ cruises: [makeCruise({ id: 3, name: 'NNE 2025' })], voyages: [makeVoyage({ cruise_id: 3 })] });
+		render(RejsyPage);
+
+		expect(await screen.findByText('NNE 2025')).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Zrealizowane' })).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('lists cancelled cruises only under all', async () => {
+		serve({ cruises: [makeCruise({ id: 4, name: 'Odwołany' })], trips: [makeTrip({ cruise_id: 4, status: 'cancelled' })] });
+		render(RejsyPage);
+		await screen.findByText('Brak nadchodzących rejsów');
+
+		await fireEvent.click(screen.getByRole('tab', { name: 'Wszystkie' }));
+
+		expect(screen.getByText('Odwołany').closest('a')).toHaveTextContent('Anulowany');
+		expect(mockGoto).toHaveBeenCalledWith('/cruises?tab=all', { replace: true, shallow: true });
+	});
+
+	it('shows the create button for an admin only', async () => {
+		render(RejsyPage);
+		await screen.findByText('Brak nadchodzących rejsów');
 		expect(screen.getByRole('link', { name: '+ Nowe wydarzenie' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Utwórz pierwsze wydarzenie' })).toBeInTheDocument();
 	});
 
 	it('hides the create button for a non-admin member', async () => {
 		mockAuth.isAdmin = false;
-		render(CruisesPage);
-		await screen.findByText('Brak wydarzeń');
+		render(RejsyPage);
+		await screen.findByText('Brak nadchodzących rejsów');
 		expect(screen.queryByRole('link', { name: '+ Nowe wydarzenie' })).not.toBeInTheDocument();
 	});
 
 	it('falls back to the empty state when loading fails', async () => {
 		apiList.mockRejectedValue(new Error('network down'));
-		render(CruisesPage);
-		expect(await screen.findByText('Brak wydarzeń')).toBeInTheDocument();
+		render(RejsyPage);
+		expect(await screen.findByText('Brak nadchodzących rejsów')).toBeInTheDocument();
 		expect(console.error).toHaveBeenCalled();
 	});
 
-	describe('kind', () => {
-		const mixed = () => [
-			makeCruise({ id: 1, name: 'Bałtyk', kind: 'sea' }),
-			makeCruise({ id: 2, name: 'Mazury', kind: 'inland' })
-		];
+	describe('kind filter', () => {
+		const mixed = () =>
+			serve({
+				cruises: [
+					makeCruise({ id: 1, name: 'Bałtyk', kind: 'sea' }),
+					makeCruise({ id: 2, name: 'Mazury', kind: 'inland' })
+				]
+			});
 
 		it('shows the kind on each card', async () => {
-			apiList.mockResolvedValue(mixed());
-			render(CruisesPage);
-
-			const sea = (await screen.findByText('Bałtyk')).closest('a');
-			const inland = screen.getByText('Mazury').closest('a');
-			expect(sea).toHaveTextContent('Morski');
-			expect(inland).toHaveTextContent('Śródlądowy');
-		});
-
-		it('shows all cruises by default', async () => {
-			apiList.mockResolvedValue(mixed());
-			render(CruisesPage);
-
-			await screen.findByText('Bałtyk');
-			expect(screen.getByText('Mazury')).toBeInTheDocument();
-			expect(screen.getByRole('button', { name: 'Wszystkie' })).toHaveAttribute(
-				'aria-pressed',
-				'true'
-			);
+			mixed();
+			render(RejsyPage);
+			expect((await screen.findByText('Bałtyk')).closest('a')).toHaveTextContent('Morski');
+			expect(screen.getByText('Mazury').closest('a')).toHaveTextContent('Śródlądowy');
 		});
 
 		it.each([
 			['Morski', 'Bałtyk', 'Mazury'],
 			['Śródlądowy', 'Mazury', 'Bałtyk']
 		])('filters to %s cruises', async (label, shown, hidden) => {
-			apiList.mockResolvedValue(mixed());
-			render(CruisesPage);
+			mixed();
+			render(RejsyPage);
 			await screen.findByText('Bałtyk');
 
 			const button = screen.getByRole('button', { name: label });
@@ -138,27 +160,14 @@ describe('cruises page', () => {
 			expect(screen.queryByText(hidden)).not.toBeInTheDocument();
 		});
 
-		it('returns to all cruises after filtering', async () => {
-			apiList.mockResolvedValue(mixed());
-			render(CruisesPage);
-			await screen.findByText('Bałtyk');
-
-			await fireEvent.click(screen.getByRole('button', { name: 'Śródlądowy' }));
-			await fireEvent.click(screen.getByRole('button', { name: 'Wszystkie' }));
-
-			expect(screen.getByText('Bałtyk')).toBeInTheDocument();
-			expect(screen.getByText('Mazury')).toBeInTheDocument();
-		});
-
 		it('shows a filtered empty state when no cruise has the selected kind', async () => {
-			apiList.mockResolvedValue([makeCruise({ id: 1, name: 'Bałtyk', kind: 'sea' })]);
-			render(CruisesPage);
+			serve({ cruises: [makeCruise({ id: 1, name: 'Bałtyk', kind: 'sea' })] });
+			render(RejsyPage);
 			await screen.findByText('Bałtyk');
 
 			await fireEvent.click(screen.getByRole('button', { name: 'Śródlądowy' }));
 
-			expect(screen.getByText('Brak wydarzeń tego rodzaju')).toBeInTheDocument();
-			expect(screen.queryByText('Brak wydarzeń')).not.toBeInTheDocument();
+			expect(screen.getByText('Brak rejsów tego rodzaju')).toBeInTheDocument();
 		});
 	});
 });

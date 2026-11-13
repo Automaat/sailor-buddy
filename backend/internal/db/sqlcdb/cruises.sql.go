@@ -283,7 +283,7 @@ SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, 
 // ListCruiseTrips
 //
 //	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
-func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64) ([]Trip, error) {
+func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseTrips, cruiseID)
 	if err != nil {
 		return nil, err
@@ -341,7 +341,7 @@ SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, count
 // ListCruiseVoyages
 //
 //	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
-func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error) {
+func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseVoyages, cruiseID)
 	if err != nil {
 		return nil, err

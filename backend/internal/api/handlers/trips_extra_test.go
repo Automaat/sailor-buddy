@@ -66,7 +66,7 @@ func TestTripHandler_Create_DBError(t *testing.T) {
 			return sqlcdb.Trip{}, errors.New("fail")
 		},
 	}
-	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{"name": "X"})
+	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{"cruise_id": 1, "name": "X"})
 	if resp.Code != http.StatusInternalServerError {
 		t.Fatalf("got %d, want 500", resp.Code)
 	}
@@ -77,7 +77,7 @@ func TestTripHandler_Update_DBError(t *testing.T) {
 		getTripFn:    func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
 		updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error { return errors.New("fail") },
 	}
-	resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{"name": "X"})
+	resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{"cruise_id": 1, "name": "X"})
 	if resp.Code != http.StatusInternalServerError {
 		t.Fatalf("got %d, want 500", resp.Code)
 	}
@@ -85,7 +85,7 @@ func TestTripHandler_Update_DBError(t *testing.T) {
 
 func TestTripHandler_Update_MemberForbidden(t *testing.T) {
 	resp := tripTestAPI(t, &mockQuerier{}).PutCtx(
-		userCtxRole(context.Background(), "member"), "/trips/1", map[string]any{"name": "X"})
+		userCtxRole(context.Background(), "member"), "/trips/1", map[string]any{"cruise_id": 1, "name": "X"})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("got %d, want 403", resp.Code)
 	}

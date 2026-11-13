@@ -101,7 +101,8 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('admin: creates a planned trip', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
-		await page.goto('/trips/new');
+		await page.goto(`/trips/new?cruise_id=${cruiseId}`);
+		await expect(page.getByLabel('Wydarzenie klubu *')).toHaveValue(String(cruiseId));
 		await page.getByLabel('Nazwa rejsu *').fill(tripName);
 		await page.getByLabel('Port wyjścia').fill('Gdańsk');
 		await page.getByLabel('Port docelowy').fill('Visby');
@@ -130,22 +131,27 @@ test.describe.serial('Single-club persona matrix', () => {
 		await expect(page.getByText('120')).toBeVisible();
 	});
 
-	test('voyage appears in the completed list', async ({ page }) => {
+	test('fully sailed cruise appears in the completed tab', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
-		await page.getByRole('link', { name: 'Zrealizowane' }).click();
-		await page.waitForURL('/voyages');
+		await page.getByRole('link', { name: 'Rejsy' }).click();
+		await page.waitForURL('/cruises');
+		await page.getByRole('tab', { name: 'Zrealizowane' }).click();
+		await expect(page.getByText(cruiseName)).toBeVisible();
+
+		await page.getByText(cruiseName).click();
+		await page.waitForURL(`/cruises/${cruiseId}`);
 		await expect(page.getByText(tripName)).toBeVisible();
 	});
 
 	test('member: sees the club data read-only', async ({ page }) => {
 		await loginViaUI(page, memberEmail, PASSWORD);
 
-		await page.goto('/cruises');
+		await page.goto('/cruises?tab=all');
 		await expect(page.getByText(cruiseName)).toBeVisible();
 		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(0);
 
-		await page.goto('/voyages');
+		await page.goto(`/cruises/${cruiseId}`);
 		await expect(page.getByText(tripName)).toBeVisible();
-		await expect(page.getByRole('link', { name: '+ Wpisz rejs' })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: '+ Wpisz zrealizowany' })).toHaveCount(0);
 	});
 });

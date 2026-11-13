@@ -6,6 +6,7 @@
 	import type { Cruise } from '#lib/api/types.js';
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
+	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 
@@ -16,7 +17,7 @@
 	// Planning trips is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/trips');
+			goto('/cruises');
 		}
 	});
 
@@ -49,32 +50,40 @@
 		if (auth.user.is_captain) form.captain_user_id = auth.user.id;
 	});
 
+	function prefillFromCruise(cruiseID: number) {
+		const c = cruises.find((x) => x.id === cruiseID);
+		if (!c) return;
+		if (!form.embark_date) form.embark_date = c.embark_date ?? '';
+		if (!form.disembark_date) form.disembark_date = c.disembark_date ?? '';
+		if (!form.countries) form.countries = c.countries ?? '';
+		if (!form.start_port) form.start_port = c.start_port ?? '';
+		if (!form.end_port) form.end_port = c.end_port ?? '';
+		price = priceFormFrom(c);
+	}
+
 	onMount(async () => {
 		cruises = await listCruises().catch(() => []);
 		if (initialCruiseID) {
 			form.cruise_id = initialCruiseID;
-			const c = cruises.find((x) => x.id === initialCruiseID);
-			if (c) {
-				if (!form.embark_date) form.embark_date = c.embark_date ?? '';
-				if (!form.disembark_date) form.disembark_date = c.disembark_date ?? '';
-				if (!form.countries) form.countries = c.countries ?? '';
-				if (!form.start_port) form.start_port = c.start_port ?? '';
-				if (!form.end_port) form.end_port = c.end_port ?? '';
-				price = priceFormFrom(c);
-			}
+			prefillFromCruise(initialCruiseID);
 		}
 	});
 
+	const cancelHref = $derived(form.cruise_id ? `/cruises/${form.cruise_id}` : '/cruises');
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		if (!form.cruise_id) {
+			error = 'Wybierz wydarzenie, do którego należy rejs';
+			return;
+		}
 		loading = true;
 		error = '';
 		try {
 			const payload = {
 				...form,
 				...priceBody(price),
-				captain_user_id: form.captain_user_id || undefined,
-				cruise_id: form.cruise_id || undefined
+				captain_user_id: form.captain_user_id || undefined
 			};
 			const trip = await createTrip(payload);
 			goto(`/trips/${trip.id}`);
@@ -99,17 +108,10 @@
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 			</div>
-			{#if cruises.length > 0}
-				<div class="col-span-2">
-					<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu</label>
-					<select id="cruise" bind:value={form.cruise_id} class="w-full rounded-lg border px-3 py-2">
-						<option value={0}>— samodzielny rejs —</option>
-						{#each cruises as cruise}
-							<option value={cruise.id}>{cruise.name}</option>
-						{/each}
-					</select>
-				</div>
-			{/if}
+			<div class="col-span-2">
+				<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
+				<CruiseSelect bind:value={form.cruise_id} {cruises} onchange={prefillFromCruise} />
+			</div>
 			<div class="col-span-2">
 				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
 				<CaptainSelect bind:value={form.captain_user_id} />
@@ -155,7 +157,7 @@
 			<button type="submit" disabled={loading} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 				{loading ? 'Tworzenie...' : 'Zaplanuj rejs'}
 			</button>
-			<a href="/trips" class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+			<a href={cancelHref} class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
 		</div>
 	</form>
 </div>

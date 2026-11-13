@@ -149,6 +149,9 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			return q.GetVoyage(ctx, in.ID)
 		},
 		create: func(ctx context.Context, scope crudScope, in *createVoyageInput) (sqlcdb.Voyage, error) {
+			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
+				return sqlcdb.Voyage{}, err
+			}
 			params := createVoyageParams(scope, in.Body)
 			var err error
 			params.CaptainUserID, params.CaptainName, err = captainAssignment(ctx, q, types.NullInt64{}, in.Body.CaptainUserID, in.Body.CaptainName)
@@ -158,6 +161,9 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			return q.CreateVoyage(ctx, params)
 		},
 		update: func(ctx context.Context, _ crudScope, in *updateVoyageInput) error {
+			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
+				return err
+			}
 			params := updateVoyageParams(in.Body)
 			params.ID = in.ID
 			current, err := q.GetVoyage(ctx, in.ID)
@@ -214,7 +220,7 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 func createVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateVoyageParams {
 	return sqlcdb.CreateVoyageParams{
 		CreatedBy:     types.NullInt64{Int64: scope.userID, Valid: true},
-		CruiseID:      nullInt64(body.CruiseID),
+		CruiseID:      body.CruiseID,
 		Name:          body.Name,
 		Year:          nullInt64(body.Year),
 		EmbarkDate:    nullString(body.EmbarkDate),
@@ -264,6 +270,6 @@ func updateVoyageParams(body dto.VoyageBody) sqlcdb.UpdateVoyageParams {
 		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
 		ImageRouteUrl: nullString(body.ImageRouteUrl),
 		Description:   nullString(body.Description),
-		CruiseID:      nullInt64(body.CruiseID),
+		CruiseID:      body.CruiseID,
 	}
 }

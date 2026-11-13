@@ -175,9 +175,9 @@ describe('cruise page admin flows', () => {
 		expect(screen.getByText('Nieznany')).toBeInTheDocument();
 		expect(screen.getByText('Mogę być kukiem')).toBeInTheDocument();
 		expect(screen.getByText('1 / 2 zaakceptowanych')).toBeInTheDocument();
-		expect(screen.getByText('Planowane rejsy (2)')).toBeInTheDocument();
+		expect(screen.getByText('Planowane etapy (2)')).toBeInTheDocument();
 		expect(screen.getByText('Anulowany')).toBeInTheDocument();
-		expect(screen.getByText('Zrealizowane rejsy (1)')).toBeInTheDocument();
+		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
 		expect(screen.getByText('120 Mm · 7 dni')).toBeInTheDocument();
 	});
 
@@ -220,8 +220,35 @@ describe('cruise page admin flows', () => {
 		expect(await screen.findByRole('button', { name: 'Wyłącz zapisy' })).toBeInTheDocument();
 	});
 
+	it('refuses to delete a cruise that still has legs', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(CruiseDetailPage);
+		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
+
+		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('Nie można usunąć wydarzenia, które ma etapy');
+		expect(deleteCruise).not.toHaveBeenCalled();
+	});
+
+	it('shows the server error when deleting fails', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		fn(listCruiseTrips).mockResolvedValue([]);
+		fn(listCruiseVoyages).mockResolvedValue([]);
+		fn(deleteCruise).mockRejectedValue(new Error('cruise still has trips or voyages; delete them first'));
+		render(CruiseDetailPage);
+		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
+
+		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('cruise still has trips or voyages');
+		expect(goto).not.toHaveBeenCalled();
+	});
+
 	it('deletes the cruise after confirmation', async () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		fn(listCruiseTrips).mockResolvedValue([]);
+		fn(listCruiseVoyages).mockResolvedValue([]);
 		render(CruiseDetailPage);
 		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
 

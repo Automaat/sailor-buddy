@@ -40,7 +40,7 @@ type CountAcceptedByCruiseTripRow struct {
 //	FROM trips t
 //	WHERE t.cruise_id = $1
 //	ORDER BY t.id
-func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error) {
+func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID int64) ([]CountAcceptedByCruiseTripRow, error) {
 	rows, err := q.db.QueryContext(ctx, countAcceptedByCruiseTrip, cruiseID)
 	if err != nil {
 		return nil, err
@@ -301,8 +301,8 @@ ORDER BY t.embark_date ASC, t.id ASC
 `
 
 type ListUserCruiseTripEnrollmentsParams struct {
-	CruiseID types.NullInt64 `json:"cruise_id"`
-	UserID   int64           `json:"user_id"`
+	CruiseID int64 `json:"cruise_id"`
+	UserID   int64 `json:"user_id"`
 }
 
 // A user's trip (leg) enrollments across the trips of one cruise, in leg order.
@@ -362,7 +362,7 @@ type LockCruiseTripStatusesRow struct {
 //	WHERE cruise_id = $1
 //	ORDER BY id
 //	FOR SHARE
-func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error) {
+func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error) {
 	rows, err := q.db.QueryContext(ctx, lockCruiseTripStatuses, cruiseID)
 	if err != nil {
 		return nil, err

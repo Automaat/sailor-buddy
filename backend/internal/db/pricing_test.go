@@ -52,7 +52,7 @@ func TestCruisePricing_RoundTrip(t *testing.T) {
 	}
 
 	trip, err := q.CreateTrip(ctx, sqlcdb.CreateTripParams{
-		Name: "WRM", Status: sqlcdb.TripStatusPlanned, Currency: "PLN",
+		CruiseID: cruise.ID, Name: "WRM", Status: sqlcdb.TripStatusPlanned, Currency: "PLN",
 		CostPerPerson: price(820), CostPerPersonNonMember: price(870),
 	})
 	if err != nil {

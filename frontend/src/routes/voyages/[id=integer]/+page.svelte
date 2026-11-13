@@ -137,7 +137,7 @@
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
 		await deleteVoyage(id);
-		goto('/voyages');
+		goto(voyage ? `/cruises/${voyage.cruise_id}` : '/cruises?tab=completed');
 	}
 
 	async function generateOpinion() {
@@ -480,14 +480,14 @@
 	<NotFound
 		title="Nie znaleziono rejsu"
 		message="Ten zrealizowany rejs nie istnieje lub nie masz do niego dostępu."
-		backHref="/voyages"
+		backHref="/cruises?tab=completed"
 		backLabel="Zrealizowane rejsy"
 	/>
 {:else}
 	<NotFound
 		title="Nie udało się wczytać rejsu"
 		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
-		backHref="/voyages"
+		backHref="/cruises?tab=completed"
 		backLabel="Zrealizowane rejsy"
 	/>
 {/if}

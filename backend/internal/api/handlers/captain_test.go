@@ -118,7 +118,7 @@ func TestTripCreate_CaptainAssignment(t *testing.T) {
 				},
 			}
 			resp := tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", map[string]any{
-				"name": "Navigare", "captain_user_id": 7, "captain_name": "ignored",
+				"cruise_id": 1, "name": "Navigare", "captain_user_id": 7, "captain_name": "ignored",
 			})
 			if resp.Code != tt.want {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
@@ -229,7 +229,7 @@ func TestTripUpdate_UnchangedCaptainSkipsEligibility(t *testing.T) {
 				updateTripFn:  func(context.Context, sqlcdb.UpdateTripParams) error { return nil },
 			}
 			resp := tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3",
-				map[string]any{"name": "Navigare", "captain_user_id": 7})
+				map[string]any{"cruise_id": 1, "name": "Navigare", "captain_user_id": 7})
 			if resp.Code != tt.want {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
 			}

@@ -159,6 +159,10 @@ Resources keep a `created_by` audit column (the user who created the row); it
 is never used for access control. `crew_members` are decoupled from `users` —
 crew need not have accounts.
 
+Every trip and voyage is a leg of a club event: `cruise_id` is required on
+trip and voyage bodies (`422 cruise not found` for an unknown id). A cruise
+that still has trips or voyages cannot be deleted (`409`).
+
 Trip lifecycle: a `trip` is `planned`, then either `cancelled` or `completed`.
 Completing a trip atomically converts it into a `voyage` (a logged, finished
 sailing record) and repoints crew assignments.
@@ -193,7 +197,7 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/trips` | member | List trips | 200 |
-| POST | `/api/trips` | **admin** | Create trip | 201 |
+| POST | `/api/trips` | **admin** | Create trip (body needs `cruise_id`) | 201 |
 | GET | `/api/trips/{id}` | member | Get trip | 200 |
 | PUT | `/api/trips/{id}` | **admin** | Update trip | 204 |
 | DELETE | `/api/trips/{id}` | **admin** | Delete trip | 204 |
@@ -301,7 +305,7 @@ Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/voyages` | member | List voyages | 200 |
-| POST | `/api/voyages` | **admin** | Create voyage | 201 |
+| POST | `/api/voyages` | **admin** | Create voyage (body needs `cruise_id`) | 201 |
 | GET | `/api/voyages/{id}` | member | Get voyage | 200 |
 | PUT | `/api/voyages/{id}` | **admin** | Update voyage | 204 |
 | PUT | `/api/voyages/{id}/log` | **admin** or voyage captain | Post-cruise log: hours, miles, days, tidal waters, `captain_notes` | 204 |
@@ -355,7 +359,7 @@ value is rejected with 422.
 | POST | `/api/cruises` | **admin** | Create cruise | 201 |
 | GET | `/api/cruises/{id}` | member | Get cruise | 200 |
 | PUT | `/api/cruises/{id}` | **admin** | Update cruise | 204 |
-| DELETE | `/api/cruises/{id}` | **admin** | Delete cruise | 204 |
+| DELETE | `/api/cruises/{id}` | **admin** | Delete cruise; `409` while it has trips or voyages | 204 |
 | GET | `/api/cruises/{id}/trips` | member | Child trips | 200 |
 | GET | `/api/cruises/{id}/voyages` | member | Child voyages | 200 |
 | POST | `/api/cruises/{id}/enroll-token` | **admin** | Generate token → `{token}` | 200 |

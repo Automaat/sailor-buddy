@@ -27,12 +27,12 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 			countCruiseEnrollmentsFn: func(context.Context, int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
 				return sqlcdb.CountCruiseEnrollmentsRow{Accepted: 1, Total: 3}, nil
 			},
-			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+			listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) {
 				return []sqlcdb.Trip{{ID: 1, Name: "Leg"}}, nil
 			},
-			countAcceptedByCruiseTripFn: func(_ context.Context, cid types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
-				if cid.Int64 != 7 {
-					t.Fatalf("cruise id = %d, want 7", cid.Int64)
+			countAcceptedByCruiseTripFn: func(_ context.Context, cid int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+				if cid != 7 {
+					t.Fatalf("cruise id = %d, want 7", cid)
 				}
 				return []sqlcdb.CountAcceptedByCruiseTripRow{{TripID: 1, Accepted: 2}}, nil
 			},
@@ -67,10 +67,10 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 			countCruiseEnrollmentsFn: func(context.Context, int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
 				return sqlcdb.CountCruiseEnrollmentsRow{}, nil
 			},
-			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+			listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) {
 				return nil, errors.New("fail")
 			},
-			countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+			countAcceptedByCruiseTripFn: func(context.Context, int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
 				return nil, errors.New("fail")
 			},
 			listUserCruiseTripEnrollFn: func(context.Context, sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {
@@ -95,7 +95,7 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		ID:                     1,
 		Name:                   "Bodø – Tromsø",
 		CreatedBy:              types.NullInt64{Int64: 42, Valid: true},
-		CruiseID:               types.NullInt64{Int64: 7, Valid: true},
+		CruiseID:               7,
 		EmbarkDate:             types.NullString{String: "2025-07-01", Valid: true},
 		DisembarkDate:          types.NullString{String: "2025-07-10", Valid: true},
 		StartPort:              types.NullString{String: "Bodø", Valid: true},
@@ -122,10 +122,10 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		countCruiseEnrollmentsFn: func(context.Context, int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
 			return sqlcdb.CountCruiseEnrollmentsRow{}, nil
 		},
-		listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+		listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) {
 			return []sqlcdb.Trip{leg}, nil
 		},
-		countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+		countAcceptedByCruiseTripFn: func(context.Context, int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
 			return nil, nil
 		},
 	}

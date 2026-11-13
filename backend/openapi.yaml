@@ -1646,6 +1646,7 @@ components:
           type: integer
       required:
         - id
+        - cruise_id
         - name
         - status
         - currency
@@ -1698,7 +1699,9 @@ components:
         countries:
           type: string
         cruise_id:
+          description: Club event (cruise) this trip is a leg of
           format: int64
+          minimum: 1
           type: integer
         currency:
           description: Currency of every price on the trip; PLN when omitted
@@ -1744,6 +1747,7 @@ components:
           type: integer
       required:
         - name
+        - cruise_id
       type: object
     TripEnrollmentDetail:
       additionalProperties: false
@@ -1906,6 +1910,7 @@ components:
           type: integer
       required:
         - id
+        - cruise_id
         - name
         - hours_total
         - hours_sail
@@ -1943,7 +1948,9 @@ components:
         countries:
           type: string
         cruise_id:
+          description: Club event (cruise) this voyage was a leg of
           format: int64
+          minimum: 1
           type: integer
         days:
           format: int64
@@ -1994,6 +2001,7 @@ components:
           type: integer
       required:
         - name
+        - cruise_id
       type: object
     VoyageLogBody:
       additionalProperties: false

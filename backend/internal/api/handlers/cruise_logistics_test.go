@@ -288,10 +288,10 @@ func TestEnrollment_GetByToken_CruiseLogistics(t *testing.T) {
 			countCruiseEnrollmentsFn: func(context.Context, int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
 				return sqlcdb.CountCruiseEnrollmentsRow{}, nil
 			},
-			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+			listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) {
 				return nil, nil
 			},
-			countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+			countAcceptedByCruiseTripFn: func(context.Context, int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
 				return nil, nil
 			},
 			listUserCruiseTripEnrollFn: func(context.Context, sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {

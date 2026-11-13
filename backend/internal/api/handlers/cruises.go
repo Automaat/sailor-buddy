@@ -280,6 +280,9 @@ func (h *CruiseHandler) delete(ctx context.Context, in *cruiseIDParam) (*noConte
 		return nil, err
 	}
 	if err := h.q.DeleteCruise(ctx, in.ID); err != nil {
+		if isForeignKeyViolation(err, "trips_cruise_id_fkey") || isForeignKeyViolation(err, "voyages_cruise_id_fkey") {
+			return nil, huma.Error409Conflict("cruise still has trips or voyages; delete them first")
+		}
 		slog.Error("delete cruise", "cruise_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete cruise")
 	}
@@ -325,7 +328,7 @@ func (h *CruiseHandler) listChildTrips(ctx context.Context, in *cruiseIDParam) (
 	if err := h.verifyCruise(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	trips, err := h.q.ListCruiseTrips(ctx, types.NullInt64{Int64: in.ID, Valid: true})
+	trips, err := h.q.ListCruiseTrips(ctx, in.ID)
 	if err != nil {
 		slog.Error("list cruise child trips", "cruise_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
@@ -337,7 +340,7 @@ func (h *CruiseHandler) listChildVoyages(ctx context.Context, in *cruiseIDParam)
 	if err := h.verifyCruise(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	voyages, err := h.q.ListCruiseVoyages(ctx, types.NullInt64{Int64: in.ID, Valid: true})
+	voyages, err := h.q.ListCruiseVoyages(ctx, in.ID)
 	if err != nil {
 		slog.Error("list cruise child voyages", "cruise_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list voyages")

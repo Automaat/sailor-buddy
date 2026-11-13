@@ -195,6 +195,7 @@ func TestTripPricing_CreateStoresAndReturnsPrices(t *testing.T) {
 		},
 	}
 	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{
+		"cruise_id":                  1,
 		"name":                       "WRM 2025",
 		"currency":                   "PLN",
 		"cost_per_person":            820,
@@ -229,7 +230,7 @@ func TestTripPricing_UpdatePassesPricesAndDefaultsCurrency(t *testing.T) {
 		},
 	}
 	resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/4", map[string]any{
-		"name": "NNE leg", "cost_per_person_non_member": 250, "deposit": 0,
+		"cruise_id": 1, "name": "NNE leg", "cost_per_person_non_member": 250, "deposit": 0,
 	})
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204; body=%s", resp.Code, resp.Body)

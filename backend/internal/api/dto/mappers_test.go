@@ -321,7 +321,7 @@ func TestTrainingsFromDB(t *testing.T) {
 
 func TestTripFromDB(t *testing.T) {
 	got := TripFromDB(sqlcdb.Trip{
-		ID: 1, CreatedBy: nint(2), CruiseID: nint(3), Name: "Spring",
+		ID: 1, CreatedBy: nint(2), CruiseID: 3, Name: "Spring",
 		Status: sqlcdb.TripStatus("planned"), YachtID: nint(4),
 		CostTotal: nflt(1000), CostPerPerson: nflt(250), MaxCrew: nint(4),
 		EnrollToken: nstr("tk"), CreatedAt: ntime(), UpdatedAt: ntime(),
@@ -329,7 +329,7 @@ func TestTripFromDB(t *testing.T) {
 	if got.ID != 1 || got.Name != "Spring" || got.Status != "planned" {
 		t.Fatalf("unexpected: %+v", got)
 	}
-	if got.CruiseID == nil || *got.CruiseID != 3 || got.YachtID == nil || *got.YachtID != 4 {
+	if got.CruiseID != 3 || got.YachtID == nil || *got.YachtID != 4 {
 		t.Fatalf("unexpected cruise/yacht id: %+v", got)
 	}
 	if got.CostTotal == nil || *got.CostTotal != 1000 {
@@ -337,7 +337,7 @@ func TestTripFromDB(t *testing.T) {
 	}
 
 	bare := TripFromDB(sqlcdb.Trip{ID: 2, Name: "X", Status: sqlcdb.TripStatus("cancelled")})
-	if bare.CruiseID != nil || bare.YachtID != nil || bare.CostTotal != nil {
+	if bare.YachtID != nil || bare.CostTotal != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 	if bare.Status != "cancelled" {
@@ -357,7 +357,7 @@ func TestTripsFromDB(t *testing.T) {
 
 func TestVoyageFromDB(t *testing.T) {
 	got := VoyageFromDB(sqlcdb.Voyage{
-		ID: 1, CreatedBy: nint(2), CruiseID: nint(3), Name: "Logged",
+		ID: 1, CreatedBy: nint(2), CruiseID: 3, Name: "Logged",
 		Year: nint(2024), YachtID: nint(5),
 		HoursTotal: 100, HoursSail: 60, HoursEngine: 40, HoursOver6bf: 5,
 		Miles: 300, Days: 10, TidalWaters: 1,
@@ -375,7 +375,7 @@ func TestVoyageFromDB(t *testing.T) {
 	}
 
 	bare := VoyageFromDB(sqlcdb.Voyage{ID: 2, Name: "X"})
-	if bare.Year != nil || bare.CruiseID != nil || bare.CostTotal != nil {
+	if bare.Year != nil || bare.CostTotal != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }
