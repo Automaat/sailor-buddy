@@ -173,7 +173,7 @@
 						<button
 							onclick={() => (showCompleteModal = true)}
 							disabled={completing}
-							class="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+							class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 						>
 							Zrealizuj
 						</button>
@@ -194,12 +194,12 @@
 		</div>
 
 		{#if canManageCrew && status === 'overdue'}
-			<div role="status" class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+			<div role="status" class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ocean)]/30 bg-[var(--ocean-tint)] p-4 text-sm text-[var(--navy)]">
 				<p>Rejs się zakończył, ale nadal czeka na rozliczenie. Zrealizuj go, aby wpisać przebieg do dziennika.</p>
 				<button
 					onclick={() => (showCompleteModal = true)}
 					disabled={completing}
-					class="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+					class="shrink-0 rounded-lg bg-[var(--ocean)] px-4 py-2 text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 				>
 					Zrealizuj teraz
 				</button>

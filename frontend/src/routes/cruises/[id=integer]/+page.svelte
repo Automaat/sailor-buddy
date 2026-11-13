@@ -140,10 +140,10 @@
 	}
 
 	const statusColors: Record<string, string> = {
-		pending: 'bg-yellow-100 text-yellow-800',
-		accepted: 'bg-green-100 text-green-800',
-		rejected: 'bg-red-100 text-red-800',
-		waitlisted: 'bg-purple-100 text-purple-800'
+		pending: 'bg-[var(--ocean-tint)] text-[var(--ocean)]',
+		accepted: 'bg-[var(--ocean)] text-white',
+		rejected: 'bg-gray-100 text-gray-600',
+		waitlisted: 'bg-[var(--navy)]/10 text-[var(--navy)]'
 	};
 </script>
 
@@ -262,7 +262,7 @@
 										{statusLabels[enrollment.status] ?? enrollment.status}
 									</span>
 									{#if enrollment.trip_name}
-										<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+										<span class="rounded-full bg-[var(--ocean-tint)] text-[var(--ocean)] px-2 py-0.5 text-xs">
 											{enrollment.trip_name}
 										</span>
 									{/if}
@@ -270,12 +270,12 @@
 								{#if isAdmin}
 									<div class="flex flex-wrap gap-1">
 										{#if enrollment.status !== 'accepted'}
-											<button onclick={() => setEnrollmentStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-100">
+											<button onclick={() => setEnrollmentStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]">
 												Akceptuj
 											</button>
 										{/if}
 										{#if enrollment.status !== 'waitlisted'}
-											<button onclick={() => setEnrollmentStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-100">
+											<button onclick={() => setEnrollmentStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-[var(--navy)] hover:bg-[var(--ocean-tint)]">
 												Rezerwa
 											</button>
 										{/if}
@@ -345,7 +345,7 @@
 								</div>
 								<div class="flex items-center gap-2">
 									{#if isAdmin && status === 'overdue'}
-										<span class="text-xs font-medium text-green-700">Zrealizuj →</span>
+										<span class="text-xs font-medium text-[var(--ocean)]">Zrealizuj →</span>
 									{/if}
 									<span class="rounded-full px-2 py-0.5 text-xs {legStatusBadges[status]}">
 										{legStatusLabels[status]}

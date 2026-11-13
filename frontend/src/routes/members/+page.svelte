@@ -183,7 +183,7 @@
 			</div>
 		{/if}
 		{#if success}
-			<div role="status" class="rounded-lg bg-green-50 p-3 text-sm text-green-700 shadow-lg">
+			<div role="status" class="rounded-lg bg-[var(--ocean-tint)] p-3 text-sm text-[var(--ocean)] shadow-lg">
 				{success}
 			</div>
 		{/if}
@@ -252,7 +252,7 @@
 									{member.name}
 									{#if !member.onboarded}
 										<span
-											class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-normal text-amber-700"
+											class="ml-1 rounded-full bg-[var(--navy)]/10 px-2 py-0.5 text-[10px] font-normal text-[var(--navy)]"
 										>
 											profil niekompletny
 										</span>
@@ -268,7 +268,7 @@
 										onchange={(e) => setRole(member, e.currentTarget.value as Role, e.currentTarget)}
 										class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40 {member.role ===
 										'admin'
-											? 'bg-blue-50 text-blue-700'
+											? 'bg-[var(--ocean-tint)] text-[var(--ocean)]'
 											: ''}"
 									>
 										{#each Object.entries(roleLabels) as [value, label]}

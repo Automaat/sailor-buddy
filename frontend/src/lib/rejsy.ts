@@ -96,8 +96,8 @@ export const legStatusLabels: Record<LegStatus, string> = {
 };
 
 export const legStatusBadges: Record<LegStatus, string> = {
-	planned: 'bg-blue-100 text-blue-700',
-	overdue: 'bg-amber-100 text-amber-800',
+	planned: 'bg-[var(--ocean-tint)] text-[var(--ocean)]',
+	overdue: 'bg-[var(--navy)] text-white',
 	cancelled: 'bg-gray-100 text-gray-500'
 };
 
