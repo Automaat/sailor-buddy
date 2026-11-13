@@ -24,7 +24,7 @@ type Querier interface {
 	//CancelTrip
 	//
 	//  UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit
+	//  WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 	CancelTrip(ctx context.Context, id int64) (Trip, error)
 	//ClearCruiseEnrollToken
 	//
@@ -150,11 +150,11 @@ type Querier interface {
 	//      created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
 	//      captain_name, yacht_id, cost_total, cost_per_person, max_crew,
 	//      image_logo_url, image_photo_url, image_route_url, description, status, captain_user_id,
-	//      currency, cost_per_person_non_member, yacht_fund, deposit
+	//      currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 	//  ) VALUES (
 	//      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-	//      $20, $21, $22, $23
-	//  ) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit
+	//      $20, $21, $22, $23, $24
+	//  ) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 	CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, error)
 	//CreateTripCrewAssignment
 	//
@@ -287,7 +287,7 @@ type Querier interface {
 	GetCrewMemberStats(ctx context.Context, crewMemberID int64) (GetCrewMemberStatsRow, error)
 	//GetCrewMemberTrips
 	//
-	//  SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit, ca.role
+	//  SELECT t.id, t.created_by, t.cruise_id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port, t.captain_name, t.yacht_id, t.cost_total, t.cost_per_person, t.max_crew, t.image_logo_url, t.image_photo_url, t.image_route_url, t.description, t.status, t.enroll_token, t.created_at, t.updated_at, t.captain_user_id, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit, t.sign_up_deadline, ca.role
 	//  FROM crew_assignments ca
 	//  JOIN trips t ON t.id = ca.trip_id
 	//  WHERE ca.crew_member_id = $1
@@ -334,20 +334,21 @@ type Querier interface {
 	GetTraining(ctx context.Context, arg GetTrainingParams) (Training, error)
 	//GetTrip
 	//
-	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1
+	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1
 	GetTrip(ctx context.Context, id int64) (Trip, error)
 	//GetTripByEnrollToken
 	//
 	//  SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
 	//         description, max_crew, captain_name, image_photo_url,
-	//         cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit
+	//         cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit,
+	//         sign_up_deadline
 	//  FROM trips WHERE enroll_token = $1
 	GetTripByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetTripByEnrollTokenRow, error)
 	// Row-locks the trip for the rest of the transaction. Trip completion takes
 	// it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
 	// then sees the trip gone instead of deadlocking with the deletes.
 	//
-	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1 FOR UPDATE
+	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1 FOR UPDATE
 	GetTripForUpdate(ctx context.Context, id int64) (Trip, error)
 	//GetTripStatus
 	//
@@ -479,7 +480,7 @@ type Querier interface {
 	ListCruiseTripEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseTripEnrollmentsRow, error)
 	//ListCruiseTrips
 	//
-	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
+	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 	ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error)
 	//ListCruiseVoyages
 	//
@@ -513,7 +514,7 @@ type Querier interface {
 	ListTripEnrollments(ctx context.Context, tripID int64) ([]ListTripEnrollmentsRow, error)
 	//ListTrips
 	//
-	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
 	// Cruises the user took part in: an accepted cruise or trip enrollment, a
 	// captained leg, or a crew-list entry linked to the account or its email.
@@ -607,7 +608,7 @@ type Querier interface {
 	// Share-locks a cruise's trips for the rest of the transaction, in id order,
 	// so a leg cannot be cancelled or removed between validation and insert.
 	//
-	//  SELECT id, status FROM trips
+	//  SELECT id, status, sign_up_deadline FROM trips
 	//  WHERE cruise_id = $1
 	//  ORDER BY id
 	//  FOR SHARE
@@ -624,9 +625,10 @@ type Querier interface {
 	// Share-locks one trip for the rest of a sign-up transaction, so the leg
 	// cannot be cancelled, closed, completed or deleted between the open check
 	// and the insert. open is true while the leg's sign-ups are switched on
-	// (it has an enroll token). No row when the trip does not exist.
+	// (it has an enroll token); sign_up_deadline is the last day it takes them.
+	// No row when the trip does not exist.
 	//
-	//  SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+	//  SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, sign_up_deadline
 	//  FROM trips
 	//  WHERE id = $1
 	//  FOR SHARE
@@ -693,8 +695,9 @@ type Querier interface {
 	//      image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
 	//      cruise_id = $16, captain_user_id = $17,
 	//      currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
+	//      sign_up_deadline = $22,
 	//      updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $22
+	//  WHERE id = $23
 	UpdateTrip(ctx context.Context, arg UpdateTripParams) error
 	//UpdateTripEnrollmentStatus
 	//

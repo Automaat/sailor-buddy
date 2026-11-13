@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -23,6 +24,8 @@ import (
 type EnrollmentHandler struct {
 	q     sqlcdb.Querier
 	runTx txRunner
+	// now is the clock for sign-up deadlines; nil means time.Now.
+	now func() time.Time
 }
 
 func NewEnrollmentHandler(q sqlcdb.Querier, db *sql.DB) *EnrollmentHandler {
@@ -221,6 +224,9 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 		if status != sqlcdb.TripStatusPlanned {
 			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
 		}
+		if deadlinePassed(trip.SignUpDeadline, h.today()) {
+			return nil, huma.Error422UnprocessableEntity("sign-up closed: the sign-up deadline has passed")
+		}
 		e, err := h.q.CreateTripEnrollment(ctx, sqlcdb.CreateTripEnrollmentParams{
 			TripID: trip.ID,
 			UserID: user.UserID,
@@ -292,17 +298,21 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		if err != nil {
 			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
 		}
-		status := make(map[int64]sqlcdb.TripStatus, len(trips))
+		legs := make(map[int64]sqlcdb.LockCruiseTripStatusesRow, len(trips))
 		for i := range trips {
-			status[trips[i].ID] = trips[i].Status
+			legs[trips[i].ID] = trips[i]
 		}
+		today := h.today()
 		for _, id := range in.Body.TripIDs {
-			st, ok := status[id]
+			leg, ok := legs[id]
 			if !ok {
 				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not a leg of this cruise", id)}
 			}
-			if st != sqlcdb.TripStatusPlanned {
+			if leg.Status != sqlcdb.TripStatusPlanned {
 				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not open for enrollment", id)}
+			}
+			if deadlinePassed(leg.SignUpDeadline, today) {
+				return &invalidLegsError{msg: fmt.Sprintf("trip %d: the sign-up deadline has passed", id)}
 			}
 		}
 

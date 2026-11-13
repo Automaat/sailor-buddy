@@ -49,3 +49,22 @@ export function numberLegs<T extends LegTrip>(trips: readonly T[]): { number: nu
 		})
 		.map((trip, i) => ({ number: i + 1, trip }));
 }
+
+/**
+ * signUpClosedByDeadline is true once the club date today (YYYY-MM-DD,
+ * Europe/Warsaw, see warsawToday) is after the leg's sign-up deadline. The
+ * deadline day itself is still open; a leg without a deadline never closes.
+ */
+export function signUpClosedByDeadline(deadline: string | null | undefined, today: string): boolean {
+	return !!deadline && today > deadline;
+}
+
+/**
+ * signUpDeadlineLabel renders a sign-up deadline as "Zapisy do 10.05.2027",
+ * or null when the leg has none.
+ */
+export function signUpDeadlineLabel(deadline: string | null | undefined): string | null {
+	if (!deadline) return null;
+	const [y, m, d] = deadline.split('-');
+	return y && m && d ? `Zapisy do ${d}.${m}.${y}` : `Zapisy do ${deadline}`;
+}

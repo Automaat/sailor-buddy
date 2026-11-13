@@ -277,12 +277,12 @@ func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.
 }
 
 const listCruiseTrips = `-- name: ListCruiseTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 `
 
 // ListCruiseTrips
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
 func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseTrips, cruiseID)
 	if err != nil {
@@ -320,6 +320,7 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, 
 			&i.CostPerPersonNonMember,
 			&i.YachtFund,
 			&i.Deposit,
+			&i.SignUpDeadline,
 		); err != nil {
 			return nil, err
 		}

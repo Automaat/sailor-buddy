@@ -1457,6 +1457,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -1530,6 +1535,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /**
              * Format: double
@@ -1660,7 +1670,7 @@ export interface components {
             accepted_count: number;
             /** @description The caller's sign-up for this leg; omitted when not signed up */
             enrollment?: components["schemas"]["Enrollment"];
-            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) */
+            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed */
             open: boolean;
             /** Format: int64 */
             trip_id: number;
@@ -2075,6 +2085,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -2147,6 +2162,11 @@ export interface components {
             max_crew?: number;
             /** @description Trip name */
             name: string;
+            /**
+             * Format: date
+             * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /**
              * Format: double

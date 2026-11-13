@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -118,21 +119,55 @@ type signUpClosedError struct{ msg string }
 
 func (e *signUpClosedError) Error() string { return e.msg }
 
+// clubZone is the club's time zone: a sign-up deadline is a calendar date
+// there, open until the end of that day.
+var clubZone = mustLoadLocation("Europe/Warsaw")
+
+func mustLoadLocation(name string) *time.Location {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		panic(err)
+	}
+	return loc
+}
+
+// clubToday is the club's calendar date (YYYY-MM-DD) at now.
+func clubToday(now time.Time) string {
+	return now.In(clubZone).Format(time.DateOnly)
+}
+
+// deadlinePassed reports whether a leg's sign-up deadline (YYYY-MM-DD,
+// inclusive) is before today. A leg without a deadline never passes it.
+func deadlinePassed(deadline types.NullString, today string) bool {
+	return deadline.Valid && deadline.String != "" && today > deadline.String
+}
+
+// today is the club's current calendar date; tests pin h.now.
+func (h *EnrollmentHandler) today() string {
+	if h.now != nil {
+		return clubToday(h.now())
+	}
+	return clubToday(time.Now())
+}
+
 // checkSignUpOpen is the single rule for whether a locked leg takes new
-// sign-ups. Later sign-up rules (deadlines, capacity) belong here.
-func checkSignUpOpen(trip sqlcdb.LockTripForSignUpRow) error {
+// sign-ups on the club date today. Later sign-up rules (capacity) belong here.
+func checkSignUpOpen(trip sqlcdb.LockTripForSignUpRow, today string) error {
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return &signUpClosedError{msg: "sign-up closed: the leg is not planned"}
 	}
 	if !trip.Open {
 		return &signUpClosedError{msg: "sign-up closed: sign-ups for this leg are switched off"}
 	}
+	if deadlinePassed(trip.SignUpDeadline, today) {
+		return &signUpClosedError{msg: "sign-up closed: the sign-up deadline has passed"}
+	}
 	return nil
 }
 
 // legOpen reports the same rule as checkSignUpOpen for an unlocked trip read.
-func legOpen(status sqlcdb.TripStatus, enrollToken types.NullString) bool {
-	return status == sqlcdb.TripStatusPlanned && enrollToken.Valid
+func legOpen(t *sqlcdb.Trip, today string) bool {
+	return t.Status == sqlcdb.TripStatusPlanned && t.EnrollToken.Valid && !deadlinePassed(t.SignUpDeadline, today)
 }
 
 // signUpOf returns the user's sign-up for a leg: their trip enrollment or,
@@ -184,7 +219,7 @@ func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) 
 		slog.Error("count accepted for trip sign-up", "trip_id", trip.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to count accepted crew")
 	}
-	out := dto.LegSignUp{TripID: trip.ID, Open: legOpen(trip.Status, trip.EnrollToken), AcceptedCount: accepted}
+	out := dto.LegSignUp{TripID: trip.ID, Open: legOpen(&trip, h.today()), AcceptedCount: accepted}
 	e, found, err := signUpOf(ctx, h.q, trip.ID, user.UserID)
 	if err != nil {
 		slog.Error("get user leg sign-up", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
@@ -210,6 +245,7 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 		return nil, err
 	}
 	key := sqlcdb.GetUserTripEnrollmentParams{TripID: in.ID, UserID: user.UserID}
+	today := h.today()
 	var out dto.EnrollLegResult
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
 		trip, err := q.LockTripForSignUp(ctx, in.ID)
@@ -224,7 +260,7 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 			out = dto.EnrollLegResult{TripID: trip.ID, Result: "already_enrolled", Enrollment: existing}
 			return nil
 		}
-		if err := checkSignUpOpen(trip); err != nil {
+		if err := checkSignUpOpen(trip, today); err != nil {
 			return err
 		}
 		result := "created"
@@ -373,10 +409,11 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 	for i := range mine {
 		byTrip[mine[i].TripID] = dto.TripEnrollmentToDTO(mine[i])
 	}
+	today := h.today()
 	out := make([]dto.LegSignUp, len(trips))
 	for i := range trips {
 		t := &trips[i]
-		out[i] = dto.LegSignUp{TripID: t.ID, Open: legOpen(t.Status, t.EnrollToken), AcceptedCount: accepted[t.ID]}
+		out[i] = dto.LegSignUp{TripID: t.ID, Open: legOpen(t, today), AcceptedCount: accepted[t.ID]}
 		if e, ok := byTrip[t.ID]; ok {
 			out[i].Enrollment = &e
 		}

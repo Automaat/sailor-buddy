@@ -57,7 +57,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			if !ok {
 				return sqlcdb.LockTripForSignUpRow{}, sql.ErrNoRows
 			}
-			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid}, nil
+			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, SignUpDeadline: t.SignUpDeadline}, nil
 		},
 		getUserTripEnrollmentFn: func(_ context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 			if i, ok := s.find(arg.TripID, arg.UserID); ok {

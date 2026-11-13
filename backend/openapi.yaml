@@ -792,6 +792,10 @@ components:
           type: integer
         name:
           type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
+          type: string
         start_port:
           type: string
         status:
@@ -919,6 +923,10 @@ components:
           format: int64
           type: integer
         name:
+          type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
           type: string
         start_port:
           type: string
@@ -1111,7 +1119,7 @@ components:
           $ref: "#/components/schemas/Enrollment"
           description: The caller's sign-up for this leg; omitted when not signed up
         open:
-          description: "Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"
+          description: "Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed"
           type: boolean
         trip_id:
           format: int64
@@ -1809,6 +1817,10 @@ components:
           type: integer
         name:
           type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
+          type: string
         start_port:
           type: string
         status:
@@ -1916,6 +1928,10 @@ components:
         name:
           description: Trip name
           minLength: 1
+          type: string
+        sign_up_deadline:
+          description: Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
+          format: date
           type: string
         start_port:
           type: string
