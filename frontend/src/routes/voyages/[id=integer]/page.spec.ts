@@ -139,6 +139,25 @@ describe('voyage page record', () => {
 		expect(screen.getByText('Hanse 415 Selma')).toBeInTheDocument();
 	});
 
+	it('saves the log with the yacht still being added', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_user_id: 7 }));
+		let resolveYacht!: (y: Yacht) => void;
+		vi.mocked(addVoyageYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
+		vi.mocked(updateVoyageLog).mockResolvedValue(undefined as never);
+		render(VoyagePage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Uzupełnij po rejsie' }));
+		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz raport' }));
+		expect(updateVoyageLog).not.toHaveBeenCalled();
+
+		resolveYacht(yacht({ id: 12, name: 'Selma' }));
+		await waitFor(() => expect(updateVoyageLog).toHaveBeenCalledTimes(1));
+		expect(vi.mocked(updateVoyageLog).mock.calls[0][1]).toMatchObject({ yacht_id: 12 });
+	});
+
 	it('hides the log and port editing from other members', async () => {
 		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_user_id: 9 }));
 		render(VoyagePage);

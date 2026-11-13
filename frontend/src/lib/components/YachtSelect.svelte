@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { createYacht } from '#lib/api/routes.js';
 	import type { Yacht, YachtBody } from '#lib/api/types.js';
 
@@ -18,6 +19,20 @@
 	let saving = $state(false);
 	let error = $state('');
 	let draft = $state({ yacht_type: '', name: '', registration_no: '' });
+	let select: HTMLSelectElement | undefined = $state();
+	// Bumped when a draft is cancelled or the picker unmounts, so a create that
+	// resolves late cannot select its yacht or close a newer draft.
+	let attempt = 0;
+	// The parent form's submit, held back while a create is pending so the form
+	// is not saved with the previous yacht; replayed once the new yacht is set.
+	let heldSubmit: { submitter: HTMLElement | null } | null = null;
+	let destroyed = false;
+
+	onDestroy(() => {
+		destroyed = true;
+		attempt++;
+		heldSubmit = null;
+	});
 
 	function yachtLabel(y: Yacht) {
 		return y.yacht_type ? `${y.name} (${y.yacht_type})` : y.name;
@@ -29,6 +44,29 @@
 		adding = true;
 	}
 
+	function cancelAdd() {
+		attempt++;
+		heldSubmit = null;
+		saving = false;
+		adding = false;
+	}
+
+	function holdParentSubmitWhileSaving(e: SubmitEvent) {
+		if (!saving || !select?.form || e.target !== select.form) return;
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		heldSubmit = { submitter: e.submitter };
+	}
+
+	function replayHeldSubmit() {
+		const held = heldSubmit;
+		heldSubmit = null;
+		const form = select?.form;
+		if (!held || !form?.isConnected) return;
+		const submitter = held.submitter && form.contains(held.submitter) ? held.submitter : null;
+		form.requestSubmit(submitter);
+	}
+
 	async function save() {
 		if (saving) return;
 		const name = draft.name.trim();
@@ -36,6 +74,7 @@
 			error = 'Podaj nazwę jachtu';
 			return;
 		}
+		const current = ++attempt;
 		saving = true;
 		error = '';
 		try {
@@ -44,13 +83,19 @@
 				yacht_type: draft.yacht_type.trim() || undefined,
 				registration_no: draft.registration_no.trim() || undefined
 			});
-			yachts = [...yachts, yacht];
+			if (destroyed) return;
+			if (!yachts.some((y) => y.id === yacht.id)) yachts = [...yachts, yacht];
+			if (current !== attempt) return;
 			value = yacht.id;
 			adding = false;
+			saving = false;
+			replayHeldSubmit();
 		} catch (err) {
+			if (current !== attempt) return;
+			heldSubmit = null;
 			error = err instanceof Error ? err.message : 'Nie udało się dodać jachtu';
 		} finally {
-			saving = false;
+			if (current === attempt) saving = false;
 		}
 	}
 
@@ -62,7 +107,9 @@
 	}
 </script>
 
-<select {id} bind:value class="w-full rounded-lg border px-3 py-2">
+<svelte:window onsubmitcapture={holdParentSubmitWhileSaving} />
+
+<select {id} bind:this={select} bind:value class="w-full rounded-lg border px-3 py-2">
 	<option value={0}>-- Wybierz --</option>
 	{#each yachts as yacht (yacht.id)}
 		<option value={yacht.id}>{yachtLabel(yacht)}</option>
@@ -91,7 +138,7 @@
 			<button type="button" onclick={save} disabled={saving} class="rounded-lg bg-[var(--ocean)] px-3 py-1 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 				{saving ? 'Dodawanie...' : 'Dodaj jacht'}
 			</button>
-			<button type="button" onclick={() => (adding = false)} class="rounded-lg border px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-gray-50">
+			<button type="button" onclick={cancelAdd} class="rounded-lg border px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-gray-50">
 				Anuluj
 			</button>
 		</div>
