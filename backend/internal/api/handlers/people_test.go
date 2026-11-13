@@ -126,7 +126,7 @@ func TestPeople_DB(t *testing.T) {
 
 	_, api := humatest.New(t)
 	RegisterCrewRoutes(api, q, conn)
-	RegisterAuthRoutes(api, q)
+	RegisterAuthRoutes(api, q, conn)
 	admin := callerCtx(user.ID, "admin")
 
 	resp := api.PutCtx(memberCtx(user.ID), "/auth/me", map[string]any{

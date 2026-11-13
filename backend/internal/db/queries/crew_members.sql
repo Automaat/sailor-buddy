@@ -90,9 +90,36 @@ DELETE FROM crew_members WHERE id = $1;
 
 -- name: UpdateMergedCrewMember :one
 UPDATE crew_members SET
-    user_id = $1, email = $2, patent_number = $3, phone = $4,
-    pzz_license_type = $5, pzz_license_number = $6,
-    emergency_contact_name = $7, emergency_contact_phone = $8,
-    other_names = $9, updated_at = CURRENT_TIMESTAMP
-WHERE id = $10
+    user_id = $1, full_name = $2, email = $3, patent_number = $4, phone = $5,
+    pzz_license_type = $6, pzz_license_number = $7,
+    emergency_contact_name = $8, emergency_contact_phone = $9,
+    other_names = $10, updated_at = CURRENT_TIMESTAMP
+WHERE id = $11
 RETURNING *;
+
+-- name: LockUserForUpdate :one
+-- Serializes a profile save with a merge that moves the account's person
+-- link. Both lock the account first; the save's update then runs on a fresh
+-- snapshot and finds the person the merge kept.
+SELECT id FROM users WHERE id = $1 FOR UPDATE;
+
+-- name: LockCrewMergeTrips :exec
+-- Share-locks every leg either person is on, so completing a leg waits for
+-- the merge instead of repointing its crew under it.
+SELECT t.id FROM trips t
+WHERE t.id IN (
+    SELECT ca.trip_id FROM crew_assignments ca
+    WHERE ca.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
+)
+ORDER BY t.id
+FOR SHARE;
+
+-- name: LockCrewMergeVoyages :exec
+-- Share-locks every voyage either person is on, for the same reason.
+SELECT v.id FROM voyages v
+WHERE v.id IN (
+    SELECT ca.voyage_id FROM crew_assignments ca
+    WHERE ca.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
+)
+ORDER BY v.id
+FOR SHARE;

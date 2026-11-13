@@ -683,9 +683,14 @@ account owner overwrite its person's name, phone and patent number.
 - The duplicate's `full_name` and `other_names` join the kept person's
   `other_names` (repeats and the kept name skipped). Empty contact and
   licence fields are filled from the duplicate.
-- The duplicate's account link moves to the kept person. Both linked to
+- The duplicate's account link moves to the kept person, together with
+  the account person's `full_name` (profile saves overwrite it anyway); the
+  kept person's own name then joins its `other_names`. Both linked to
   different accounts → `409`, nothing changes. `users` rows are never
   merged.
+- The merge locks the moving account, both people and every leg and voyage
+  either is on, so a concurrent profile save, leg completion or new crew
+  assignment waits for it.
 - The same ID twice, or merged `other_names` over the 20 × 200 limit →
   `422`; an unknown person → `404`.
 

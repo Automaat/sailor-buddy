@@ -733,6 +733,27 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR UPDATE
 	LockCrewMembersForMerge(ctx context.Context, arg LockCrewMembersForMergeParams) ([]CrewMember, error)
+	// Share-locks every leg either person is on, so completing a leg waits for
+	// the merge instead of repointing its crew under it.
+	//
+	//  SELECT t.id FROM trips t
+	//  WHERE t.id IN (
+	//      SELECT ca.trip_id FROM crew_assignments ca
+	//      WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  )
+	//  ORDER BY t.id
+	//  FOR SHARE
+	LockCrewMergeTrips(ctx context.Context, arg LockCrewMergeTripsParams) error
+	// Share-locks every voyage either person is on, for the same reason.
+	//
+	//  SELECT v.id FROM voyages v
+	//  WHERE v.id IN (
+	//      SELECT ca.voyage_id FROM crew_assignments ca
+	//      WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  )
+	//  ORDER BY v.id
+	//  FOR SHARE
+	LockCrewMergeVoyages(ctx context.Context, arg LockCrewMergeVoyagesParams) error
 	// Share-locks the cruise for the rest of a share-link sign-up while it still
 	// has the given enroll token, so clearing or regenerating the link waits for
 	// the sign-up to commit and a sign-up after that sees the change. Taken
@@ -792,6 +813,12 @@ type Querier interface {
 	//  WHERE id = $1
 	//  FOR NO KEY UPDATE
 	LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error)
+	// Serializes a profile save with a merge that moves the account's person
+	// link. Both lock the account first; the save's update then runs on a fresh
+	// snapshot and finds the person the merge kept.
+	//
+	//  SELECT id FROM users WHERE id = $1 FOR UPDATE
+	LockUserForUpdate(ctx context.Context, id int64) (int64, error)
 	//MoveCrewAssignments
 	//
 	//  UPDATE crew_assignments SET crew_member_id = $1::BIGINT
@@ -854,11 +881,11 @@ type Querier interface {
 	//UpdateMergedCrewMember
 	//
 	//  UPDATE crew_members SET
-	//      user_id = $1, email = $2, patent_number = $3, phone = $4,
-	//      pzz_license_type = $5, pzz_license_number = $6,
-	//      emergency_contact_name = $7, emergency_contact_phone = $8,
-	//      other_names = $9, updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $10
+	//      user_id = $1, full_name = $2, email = $3, patent_number = $4, phone = $5,
+	//      pzz_license_type = $6, pzz_license_number = $7,
+	//      emergency_contact_name = $8, emergency_contact_phone = $9,
+	//      other_names = $10, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $11
 	//  RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names
 	UpdateMergedCrewMember(ctx context.Context, arg UpdateMergedCrewMemberParams) (CrewMember, error)
 	//UpdateTraining

@@ -23,6 +23,7 @@ var (
 	ErrMergeSamePerson      = errors.New("a person cannot be merged into itself")
 	ErrMergePersonNotFound  = errors.New("person not found")
 	ErrMergeAccountConflict = errors.New("both people are linked to different accounts")
+	ErrMergeChanged         = errors.New("a person's account link changed during the merge")
 	ErrMergeOtherNames      = fmt.Errorf("merged other names exceed %d names of at most %d characters",
 		dto.MaxOtherNames, dto.MaxOtherNameLen)
 )
@@ -59,63 +60,25 @@ func PlanPersonMerge(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID 
 // must be bound to a transaction the caller commits or rolls back. Crew
 // assignments and voyage opinions move to the kept person; where both people
 // have one for the same leg, voyage or opinion, the kept person's stays. The
-// duplicate's name and other names join the kept person's other names, empty
-// contact fields are filled from the duplicate, and the duplicate's account
-// link moves over. Two different accounts fail with ErrMergeAccountConflict.
-// The duplicate is deleted before the kept person is updated, which frees its
-// account link under the unique user_id. users rows are never touched.
+// duplicate's names join the kept person's other names, empty contact fields
+// are filled from the duplicate, and the duplicate's account link moves over
+// together with the account's name, since profile saves overwrite it anyway;
+// the kept person's own name then joins its other names. Two different
+// accounts fail with ErrMergeAccountConflict. The duplicate is deleted
+// before the kept person is updated, which frees its account link under the
+// unique user_id. users rows are never changed.
 func MergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) (PersonMergeResult, error) {
-	if keptID == duplicateID {
-		return PersonMergeResult{}, ErrMergeSamePerson
-	}
-	locked, err := q.LockCrewMembersForMerge(ctx, sqlcdb.LockCrewMembersForMergeParams{
-		FirstID: keptID, SecondID: duplicateID,
-	})
-	if err != nil {
-		return PersonMergeResult{}, &QueryError{Op: "LockCrewMembersForMerge", Err: err}
-	}
-	var kept, duplicate *sqlcdb.CrewMember
-	for i := range locked {
-		switch locked[i].ID {
-		case keptID:
-			kept = &locked[i]
-		case duplicateID:
-			duplicate = &locked[i]
-		}
-	}
-	if kept == nil || duplicate == nil {
-		return PersonMergeResult{}, ErrMergePersonNotFound
-	}
-	plan, err := planMerge(ctx, q, *kept, *duplicate)
+	kept, duplicate, err := lockMergePeople(ctx, q, keptID, duplicateID)
 	if err != nil {
 		return PersonMergeResult{}, err
 	}
-
-	if err := q.FillSharedCrewAssignmentPatents(ctx, sqlcdb.FillSharedCrewAssignmentPatentsParams{
-		KeptID: keptID, DuplicateID: duplicateID,
-	}); err != nil {
-		return PersonMergeResult{}, &QueryError{Op: "FillSharedCrewAssignmentPatents", Err: err}
-	}
-	if _, err := q.DeleteSharedCrewAssignments(ctx, sqlcdb.DeleteSharedCrewAssignmentsParams{
-		KeptID: keptID, DuplicateID: duplicateID,
-	}); err != nil {
-		return PersonMergeResult{}, &QueryError{Op: "DeleteSharedCrewAssignments", Err: err}
-	}
-	if _, err := q.MoveCrewAssignments(ctx, sqlcdb.MoveCrewAssignmentsParams{
-		KeptID: keptID, DuplicateID: duplicateID,
-	}); err != nil {
-		return PersonMergeResult{}, &QueryError{Op: "MoveCrewAssignments", Err: err}
-	}
-	files, err := q.DeleteSharedVoyageOpinions(ctx, sqlcdb.DeleteSharedVoyageOpinionsParams{
-		KeptID: keptID, DuplicateID: duplicateID,
-	})
+	plan, err := planMerge(ctx, q, kept, duplicate)
 	if err != nil {
-		return PersonMergeResult{}, &QueryError{Op: "DeleteSharedVoyageOpinions", Err: err}
+		return PersonMergeResult{}, err
 	}
-	if _, err := q.MoveVoyageOpinions(ctx, sqlcdb.MoveVoyageOpinionsParams{
-		KeptID: keptID, DuplicateID: duplicateID,
-	}); err != nil {
-		return PersonMergeResult{}, &QueryError{Op: "MoveVoyageOpinions", Err: err}
+	files, err := moveMergeRows(ctx, q, keptID, duplicateID)
+	if err != nil {
+		return PersonMergeResult{}, err
 	}
 	if _, err := q.DeleteMergedCrewMember(ctx, duplicateID); err != nil {
 		return PersonMergeResult{}, &QueryError{Op: "DeleteMergedCrewMember", Err: err}
@@ -123,6 +86,7 @@ func MergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int6
 	k := plan.Kept
 	updated, err := q.UpdateMergedCrewMember(ctx, sqlcdb.UpdateMergedCrewMemberParams{
 		UserID:                k.UserID,
+		FullName:              k.FullName,
 		Email:                 k.Email,
 		PatentNumber:          k.PatentNumber,
 		Phone:                 k.Phone,
@@ -139,6 +103,94 @@ func MergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int6
 	plan.Kept = updated
 	plan.RemovedOpinionFiles = files
 	return plan, nil
+}
+
+// lockMergePeople locks, in order, the account whose link moves, both people
+// and every leg and voyage either is on, and returns both people as locked.
+func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) (kept, duplicate sqlcdb.CrewMember, err error) {
+	if keptID == duplicateID {
+		return kept, duplicate, ErrMergeSamePerson
+	}
+	seenKept, err := getMergePerson(ctx, q, keptID)
+	if err != nil {
+		return kept, duplicate, err
+	}
+	seenDuplicate, err := getMergePerson(ctx, q, duplicateID)
+	if err != nil {
+		return kept, duplicate, err
+	}
+	if seenKept.UserID.Valid && seenDuplicate.UserID.Valid {
+		return kept, duplicate, ErrMergeAccountConflict
+	}
+	if seenDuplicate.UserID.Valid {
+		if _, err := q.LockUserForUpdate(ctx, seenDuplicate.UserID.Int64); err != nil {
+			return kept, duplicate, &QueryError{Op: "LockUserForUpdate", Err: err}
+		}
+	}
+	locked, err := q.LockCrewMembersForMerge(ctx, sqlcdb.LockCrewMembersForMergeParams{
+		FirstID: keptID, SecondID: duplicateID,
+	})
+	if err != nil {
+		return kept, duplicate, &QueryError{Op: "LockCrewMembersForMerge", Err: err}
+	}
+	found := 0
+	for i := range locked {
+		switch locked[i].ID {
+		case keptID:
+			kept = locked[i]
+			found++
+		case duplicateID:
+			duplicate = locked[i]
+			found++
+		}
+	}
+	if found != 2 {
+		return kept, duplicate, ErrMergePersonNotFound
+	}
+	if kept.UserID != seenKept.UserID || duplicate.UserID != seenDuplicate.UserID {
+		return kept, duplicate, ErrMergeChanged
+	}
+	legs := sqlcdb.LockCrewMergeTripsParams{FirstID: keptID, SecondID: duplicateID}
+	if err := q.LockCrewMergeTrips(ctx, legs); err != nil {
+		return kept, duplicate, &QueryError{Op: "LockCrewMergeTrips", Err: err}
+	}
+	if err := q.LockCrewMergeVoyages(ctx, sqlcdb.LockCrewMergeVoyagesParams(legs)); err != nil {
+		return kept, duplicate, &QueryError{Op: "LockCrewMergeVoyages", Err: err}
+	}
+	return kept, duplicate, nil
+}
+
+// moveMergeRows moves the duplicate's crew assignments and voyage opinions to
+// the kept person, dropping the ones the kept person already has. It returns
+// the files of the dropped opinions.
+func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) ([]string, error) {
+	if err := q.FillSharedCrewAssignmentPatents(ctx, sqlcdb.FillSharedCrewAssignmentPatentsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "FillSharedCrewAssignmentPatents", Err: err}
+	}
+	if _, err := q.DeleteSharedCrewAssignments(ctx, sqlcdb.DeleteSharedCrewAssignmentsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "DeleteSharedCrewAssignments", Err: err}
+	}
+	if _, err := q.MoveCrewAssignments(ctx, sqlcdb.MoveCrewAssignmentsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "MoveCrewAssignments", Err: err}
+	}
+	files, err := q.DeleteSharedVoyageOpinions(ctx, sqlcdb.DeleteSharedVoyageOpinionsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	})
+	if err != nil {
+		return nil, &QueryError{Op: "DeleteSharedVoyageOpinions", Err: err}
+	}
+	if _, err := q.MoveVoyageOpinions(ctx, sqlcdb.MoveVoyageOpinionsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "MoveVoyageOpinions", Err: err}
+	}
+	return files, nil
 }
 
 func getMergePerson(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.CrewMember, error) {
@@ -158,7 +210,11 @@ func planMerge(ctx context.Context, q sqlcdb.Querier, kept, duplicate sqlcdb.Cre
 	if kept.UserID.Valid && duplicate.UserID.Valid {
 		return PersonMergeResult{}, ErrMergeAccountConflict
 	}
-	names, err := mergeOtherNames(kept, duplicate)
+	fullName := kept.FullName
+	if !kept.UserID.Valid && duplicate.UserID.Valid {
+		fullName = duplicate.FullName
+	}
+	names, err := mergeOtherNames(fullName, kept, duplicate)
 	if err != nil {
 		return PersonMergeResult{}, err
 	}
@@ -169,6 +225,7 @@ func planMerge(ctx context.Context, q sqlcdb.Querier, kept, duplicate sqlcdb.Cre
 		return PersonMergeResult{}, &QueryError{Op: "CountCrewMergeRows", Err: err}
 	}
 	merged := kept
+	merged.FullName = fullName
 	merged.OtherNames = names
 	if !merged.UserID.Valid {
 		merged.UserID = duplicate.UserID
@@ -193,10 +250,10 @@ func orNullString(a, b types.NullString) types.NullString {
 	return a
 }
 
-// mergeOtherNames appends the duplicate's name and other names to the kept
-// person's other names, skipping blanks, repeats and the kept person's own
-// name (case-insensitive).
-func mergeOtherNames(kept, duplicate sqlcdb.CrewMember) (json.RawMessage, error) {
+// mergeOtherNames collects the kept person's other names, both full names
+// and the duplicate's other names, skipping blanks, repeats and the merged
+// person's fullName (case-insensitive).
+func mergeOtherNames(fullName string, kept, duplicate sqlcdb.CrewMember) (json.RawMessage, error) {
 	var keptNames, dupNames []string
 	if err := decodeNames(kept.OtherNames, &keptNames); err != nil {
 		return nil, err
@@ -204,12 +261,12 @@ func mergeOtherNames(kept, duplicate sqlcdb.CrewMember) (json.RawMessage, error)
 	if err := decodeNames(duplicate.OtherNames, &dupNames); err != nil {
 		return nil, err
 	}
-	candidates := make([]string, 0, len(keptNames)+len(dupNames)+1)
+	candidates := make([]string, 0, len(keptNames)+len(dupNames)+2)
 	candidates = append(candidates, keptNames...)
-	candidates = append(candidates, duplicate.FullName)
+	candidates = append(candidates, kept.FullName, duplicate.FullName)
 	candidates = append(candidates, dupNames...)
 
-	seen := map[string]bool{strings.ToLower(strings.TrimSpace(kept.FullName)): true}
+	seen := map[string]bool{strings.ToLower(strings.TrimSpace(fullName)): true}
 	out := make([]string, 0, len(candidates))
 	for _, name := range candidates {
 		name = strings.TrimSpace(name)
@@ -252,6 +309,8 @@ func mergeHTTPError(err error, keptID, duplicateID int64) error {
 		return huma.Error404NotFound("crew member not found")
 	case errors.Is(err, ErrMergeAccountConflict):
 		return huma.Error409Conflict("both people are linked to different accounts and cannot be merged")
+	case errors.Is(err, ErrMergeChanged):
+		return huma.Error409Conflict("a person's account link changed during the merge; try again")
 	}
 	slog.Error("merge people", "kept_id", keptID, "duplicate_id", duplicateID, "err", err)
 	return huma.Error500InternalServerError("failed to merge people")

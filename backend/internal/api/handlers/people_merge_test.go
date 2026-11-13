@@ -58,6 +58,8 @@ func TestCrewMerge_Refusals(t *testing.T) {
 				lockCrewMembersForMergeFn: func(context.Context, sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error) {
 					return c.people, nil
 				},
+				lockCrewMergeTripsFn:   func(context.Context, sqlcdb.LockCrewMergeTripsParams) error { return nil },
+				lockCrewMergeVoyagesFn: func(context.Context, sqlcdb.LockCrewMergeVoyagesParams) error { return nil },
 			}
 			api := crewTestAPI(t, m)
 			admin := callerCtx(1, "admin")
@@ -235,12 +237,15 @@ func TestCrewMerge_DB(t *testing.T) {
 	if err := json.Unmarshal(resp.Body.Bytes(), &merged); err != nil {
 		t.Fatalf("decode merge: %v", err)
 	}
-	wantNames := []string{"anna nowak", "A. Kowalska", "Ania Nowak"}
+	wantNames := []string{"A. Kowalska", "Anna Kowalska", "Ania Nowak"}
 	if !slices.Equal(merged.Person.OtherNames, wantNames) {
 		t.Errorf("other names = %v, want %v", merged.Person.OtherNames, wantNames)
 	}
-	if merged.Person.UserID == nil || *merged.Person.UserID != f.userID || merged.Person.FullName != "Anna Kowalska" {
-		t.Errorf("kept person = %+v, want Anna Kowalska linked to user %d", merged.Person, f.userID)
+	if merged.Person.UserID == nil || *merged.Person.UserID != f.userID || merged.Person.FullName != "Anna Nowak" {
+		t.Errorf("kept person = %+v, want the account's name Anna Nowak linked to user %d", merged.Person, f.userID)
+	}
+	if !slices.Equal(preview.Person.OtherNames, wantNames) || preview.Person.FullName != "Anna Nowak" {
+		t.Errorf("preview person = %+v, want the merged names", preview.Person)
 	}
 	if merged.Person.Phone == nil || *merged.Person.Phone != "+48 600 000 001" ||
 		merged.Person.PatentNumber == nil || *merged.Person.PatentNumber != "JSM-1" {
@@ -265,7 +270,7 @@ func TestCrewMerge_DB(t *testing.T) {
 		"a v" + id(f.voyage2) + " " + k + " zalogant -",
 		"o v" + id(f.voyage1) + " " + k + " " + filepath.Join(dir, "kept.pdf"),
 		"o v" + id(f.voyage2) + " " + k + " " + f.duplicateOnlyOpinionFile,
-		"p " + id(f.keptID) + ` Anna Kowalska ["anna nowak", "A. Kowalska", "Ania Nowak"] ` + id(f.userID) + " +48 600 000 001 JSM-1",
+		"p " + id(f.keptID) + ` Anna Nowak ["A. Kowalska", "Anna Kowalska", "Ania Nowak"] ` + id(f.userID) + " +48 600 000 001 JSM-1",
 	}
 	slices.Sort(want)
 	if got := f.snapshot(t); !slices.Equal(got, want) {
@@ -276,6 +281,18 @@ func TestCrewMerge_DB(t *testing.T) {
 	}
 	if _, err := os.Stat(f.duplicateOnlyOpinionFile); err != nil {
 		t.Errorf("moved opinion file: %v", err)
+	}
+
+	if _, err := q.UpdateUserProfile(ctx, sqlcdb.UpdateUserProfileParams{
+		FirstName: "Anna", LastName: "Nowak-Wiśniewska", ID: f.userID,
+	}); err != nil {
+		t.Fatalf("profile save: %v", err)
+	}
+	found, err := q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
+		Search: types.NullString{String: "anna kowalska", Valid: true}, RowLimit: 10,
+	})
+	if err != nil || len(found) != 1 || found[0].ID != f.keptID || found[0].FullName != "Anna Nowak-Wiśniewska" {
+		t.Errorf("search by the kept person's old name after a profile save = %+v (err %v)", found, err)
 	}
 }
 
@@ -332,5 +349,105 @@ func TestCrewMerge_DBAtomic(t *testing.T) {
 		if _, err := os.Stat(file); err != nil {
 			t.Errorf("opinion file after failed merge: %v", err)
 		}
+	}
+}
+
+// TestCrewMerge_DBWaitsForLegCompletion completes a leg both people are on
+// while the merge runs: the merge waits for it, then collapses the two
+// assignments on the new voyage.
+func TestCrewMerge_DBWaitsForLegCompletion(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	completion, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin completion: %v", err)
+	}
+	defer func() { _ = completion.Rollback() }()
+	var voyage int64
+	for _, step := range []string{
+		"SELECT id FROM trips WHERE id = $1 FOR UPDATE",
+		`INSERT INTO voyages (cruise_id, name) SELECT cruise_id, 'Leg 1 done' FROM trips WHERE id = $1 RETURNING id`,
+	} {
+		if err := completion.QueryRowContext(ctx, step, f.trip1).Scan(&voyage); err != nil {
+			t.Fatalf("%s: %v", step, err)
+		}
+	}
+	if _, err := completion.ExecContext(ctx,
+		"UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL WHERE trip_id = $2", voyage, f.trip1); err != nil {
+		t.Fatalf("repoint crew: %v", err)
+	}
+	if _, err := completion.ExecContext(ctx, "DELETE FROM trips WHERE id = $1", f.trip1); err != nil {
+		t.Fatalf("delete trip: %v", err)
+	}
+
+	done := make(chan int, 1)
+	api := f.api(t, sqlTxRunner(f.conn))
+	go func() {
+		resp := api.PostCtx(callerCtx(1, "admin"),
+			"/crew/"+strconv.FormatInt(f.keptID, 10)+"/merge", map[string]any{"duplicate_id": f.duplicateID})
+		done <- resp.Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	if err := completion.Commit(); err != nil {
+		t.Fatalf("commit completion: %v", err)
+	}
+	if code := <-done; code != http.StatusOK {
+		t.Fatalf("merge: got %d, want 200", code)
+	}
+	var crew []int64
+	rows, err := f.conn.QueryContext(ctx, "SELECT crew_member_id FROM crew_assignments WHERE voyage_id = $1", voyage)
+	if err != nil {
+		t.Fatalf("list crew: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		crew = append(crew, id)
+	}
+	if !slices.Equal(crew, []int64{f.keptID}) {
+		t.Errorf("completed leg crew = %v, want only the kept person %d", crew, f.keptID)
+	}
+}
+
+// TestCrewMerge_DBProfileSaveDuringMerge saves the account owner's profile
+// while the merge moving that account holds its locks: the save waits and
+// then updates the kept person.
+func TestCrewMerge_DBProfileSaveDuringMerge(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	tx, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin merge: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := MergePeople(ctx, sqlcdb.New(tx), f.keptID, f.duplicateID); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+
+	_, api := humatest.New(t)
+	RegisterAuthRoutes(api, sqlcdb.New(f.conn), f.conn)
+	saved := make(chan int, 1)
+	go func() {
+		resp := api.PutCtx(memberCtx(f.userID), "/auth/me", map[string]any{
+			"first_name": "Anna", "last_name": "Zielińska", "phone": "+48 600 000 009",
+		})
+		saved <- resp.Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit merge: %v", err)
+	}
+	if code := <-saved; code != http.StatusOK {
+		t.Fatalf("profile save: got %d, want 200", code)
+	}
+	p, err := sqlcdb.New(f.conn).GetCrewMember(ctx, f.keptID)
+	if err != nil {
+		t.Fatalf("kept person: %v", err)
+	}
+	if p.FullName != "Anna Zielińska" || p.Phone.String != "+48 600 000 009" {
+		t.Errorf("kept person after profile save = %q / %q, want the saved name and phone", p.FullName, p.Phone.String)
 	}
 }
