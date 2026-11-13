@@ -20,7 +20,6 @@ type mockQuerier struct {
 	updateTripFn           func(ctx context.Context, arg sqlcdb.UpdateTripParams) error
 	deleteTripFn           func(ctx context.Context, id int64) error
 	cancelTripFn           func(ctx context.Context, id int64) (sqlcdb.Trip, error)
-	getTripStatusFn        func(ctx context.Context, id int64) (sqlcdb.TripStatus, error)
 	setTripEnrollTokenFn   func(ctx context.Context, arg sqlcdb.SetTripEnrollTokenParams) error
 	clearTripEnrollTokenFn func(ctx context.Context, id int64) error
 	getTripByEnrollFn      func(ctx context.Context, token types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error)
@@ -213,13 +212,6 @@ func (m *mockQuerier) CancelTrip(ctx context.Context, id int64) (sqlcdb.Trip, er
 		panic("unexpected call to CancelTrip")
 	}
 	return m.cancelTripFn(ctx, id)
-}
-
-func (m *mockQuerier) GetTripStatus(ctx context.Context, id int64) (sqlcdb.TripStatus, error) {
-	if m.getTripStatusFn == nil {
-		panic("unexpected call to GetTripStatus")
-	}
-	return m.getTripStatusFn(ctx, id)
 }
 
 func (m *mockQuerier) SetTripEnrollToken(ctx context.Context, arg sqlcdb.SetTripEnrollTokenParams) error {

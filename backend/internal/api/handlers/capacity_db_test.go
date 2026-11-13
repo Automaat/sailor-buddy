@@ -225,3 +225,48 @@ func TestCapacity_CruiseEnrollmentAgainstDatabase(t *testing.T) {
 		t.Fatalf("accepted on the leg = %d (err %v), want 1", accepted, err)
 	}
 }
+
+// TestCapacity_ConcurrentTripTokenEnrollsAgainstDatabase holds the leg's row
+// lock while six members enroll through the trip share link of a two-place
+// leg, then lets them all run: the enrolls serialize on the lock, so exactly
+// two start pending and the rest are waitlisted.
+func TestCapacity_ConcurrentTripTokenEnrollsAgainstDatabase(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	trip, users := capacityLeg(t, conn, 2, 6)
+	_, api := humatest.New(t)
+	registerEnrollmentRoutes(api, &EnrollmentHandler{q: sqlcdb.New(conn), runTx: sqlTxRunner(conn)})
+
+	holder, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = holder.Rollback() }()
+	if _, err := holder.ExecContext(ctx, "SELECT 1 FROM trips WHERE id = $1 FOR NO KEY UPDATE", trip); err != nil {
+		t.Fatalf("hold trip lock: %v", err)
+	}
+
+	codes := make(chan int, len(users))
+	for _, u := range users {
+		go func() {
+			codes <- api.PostCtx(guestCtx(u), "/enroll/leg-tok", map[string]any{}).Code
+		}()
+	}
+	waitForLockWaiters(t, conn, len(users))
+	if err := holder.Commit(); err != nil {
+		t.Fatalf("release trip lock: %v", err)
+	}
+	for range users {
+		if code := <-codes; code != http.StatusCreated {
+			t.Fatalf("enroll: got %d, want 201", code)
+		}
+	}
+	var pending, waitlisted int64
+	if err := conn.QueryRow(`SELECT COUNT(*) FILTER (WHERE status = 'pending'), COUNT(*) FILTER (WHERE status = 'waitlisted')
+		FROM trip_enrollments WHERE trip_id = $1`, trip).Scan(&pending, &waitlisted); err != nil {
+		t.Fatalf("count sign-ups: %v", err)
+	}
+	if pending != 2 || waitlisted != 4 {
+		t.Fatalf("pending = %d, waitlisted = %d; want 2 and 4", pending, waitlisted)
+	}
+}

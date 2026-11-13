@@ -353,20 +353,6 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) 
 	return i, err
 }
 
-const getTripStatus = `-- name: GetTripStatus :one
-SELECT status FROM trips WHERE id = $1
-`
-
-// GetTripStatus
-//
-//	SELECT status FROM trips WHERE id = $1
-func (q *Queries) GetTripStatus(ctx context.Context, id int64) (TripStatus, error) {
-	row := q.db.QueryRowContext(ctx, getTripStatus, id)
-	var status TripStatus
-	err := row.Scan(&status)
-	return status, err
-}
-
 const listTrips = `-- name: ListTrips :many
 SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 `
