@@ -125,7 +125,7 @@ func TestEnroll_TripToken_Deadline(t *testing.T) {
 				},
 				lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
 					return sqlcdb.LockTripForSignUpRow{
-						ID: id, Status: sqlcdb.TripStatusPlanned, Open: true,
+						ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok,
 						SignUpDeadline: types.NullString{String: testDeadline, Valid: true},
 					}, nil
 				},

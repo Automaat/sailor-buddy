@@ -68,6 +68,7 @@ type mockQuerier struct {
 	getUserTripEnrollmentFn        func(ctx context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
 	createTripEnrollmentIfAbsentFn func(ctx context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error)
 	lockCruiseTripStatusesFn       func(ctx context.Context, cruiseID int64) ([]sqlcdb.LockCruiseTripStatusesRow, error)
+	lockCruiseEnrollTokenFn        func(ctx context.Context, arg sqlcdb.LockCruiseEnrollTokenParams) (int64, error)
 	listUserCruiseTripEnrollFn     func(ctx context.Context, arg sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error)
 	deleteTripEnrollmentsForTripFn func(ctx context.Context, tripID int64) error
 	lockTripForSignUpFn            func(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error)
@@ -950,6 +951,13 @@ func (m *mockQuerier) ListUserCruiseTripEnrollments(ctx context.Context, arg sql
 		panic("unexpected call to ListUserCruiseTripEnrollments")
 	}
 	return m.listUserCruiseTripEnrollFn(ctx, arg)
+}
+
+func (m *mockQuerier) LockCruiseEnrollToken(ctx context.Context, arg sqlcdb.LockCruiseEnrollTokenParams) (int64, error) {
+	if m.lockCruiseEnrollTokenFn == nil {
+		panic("unexpected call to LockCruiseEnrollToken")
+	}
+	return m.lockCruiseEnrollTokenFn(ctx, arg)
 }
 
 func (m *mockQuerier) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {

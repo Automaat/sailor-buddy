@@ -239,7 +239,7 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 
 	trip, terr := h.q.GetTripByEnrollToken(ctx, tok)
 	if terr == nil {
-		return h.enrollTrip(ctx, trip.ID, user.UserID, nullString(in.Body.Note))
+		return h.enrollTrip(ctx, trip.ID, in.Token, user.UserID, nullString(in.Body.Note))
 	}
 	if !errors.Is(terr, sql.ErrNoRows) {
 		slog.Error("get trip by enroll token for enroll", "err", terr)
@@ -262,11 +262,17 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 // planned, or was completed into a voyage, by the time its row is locked.
 var errTripNotPlanned = errors.New("trip is not planned")
 
+// errLinkSwitchedOff aborts a share-link sign-up when the link was cleared or
+// regenerated between the token lookup and the lock.
+var errLinkSwitchedOff = errors.New("enrollment link switched off")
+
 // enrollTrip creates the caller's enrollment through a trip token. As in
-// signUpForTrip, the trip row is locked first, so the status and deadline
-// checks, the waitlist count and the insert see the same leg state and
-// concurrent enrollments count one another.
-func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID, userID int64, note types.NullString) (*enrollmentOutput, error) {
+// signUpForTrip, the trip row is locked first, so the status, token and
+// deadline checks, the waitlist count and the insert see the same leg state
+// and concurrent enrollments count one another. The trip must still carry
+// the presented token: an admin who switched the link off or regenerated it
+// after the lookup wins.
+func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID int64, token string, userID int64, note types.NullString) (*enrollmentOutput, error) {
 	today := h.today()
 	var e sqlcdb.TripEnrollment
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
@@ -279,6 +285,9 @@ func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID, userID int64
 		}
 		if trip.Status != sqlcdb.TripStatusPlanned {
 			return errTripNotPlanned
+		}
+		if !trip.EnrollToken.Valid || trip.EnrollToken.String != token {
+			return errLinkSwitchedOff
 		}
 		if deadlinePassed(trip.SignUpDeadline, today) {
 			return &signUpClosedError{msg: "sign-up closed: the sign-up deadline has passed"}
@@ -298,6 +307,9 @@ func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID, userID int64
 	if txErr != nil {
 		if errors.Is(txErr, errTripNotPlanned) {
 			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
+		}
+		if errors.Is(txErr, errLinkSwitchedOff) {
+			return nil, huma.Error409Conflict("enrollment closed: the enrollment link was switched off")
 		}
 		if closed, ok := errors.AsType[*signUpClosedError](txErr); ok {
 			return nil, huma.Error422UnprocessableEntity(closed.msg)
@@ -319,13 +331,17 @@ func (e *invalidLegsError) Error() string { return e.msg }
 
 // enrollLegs enrolls the caller in each picked leg (trip) of the token's
 // cruise. All legs are validated before any write, and the writes share one
-// transaction, so an invalid pick leaves the database untouched.
+// transaction, so an invalid pick leaves the database untouched. The
+// transaction first share-locks the cruise while it still has the presented
+// token, so a link switched off or regenerated after the lookup is an
+// invalid link.
 func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput) (*enrollLegsOutput, error) {
 	user := middleware.GetUser(ctx)
 	if user == nil {
 		return nil, huma.Error401Unauthorized("authentication required")
 	}
-	cruise, err := h.q.GetCruiseByEnrollToken(ctx, types.NullString{String: in.Token, Valid: true})
+	tok := types.NullString{String: in.Token, Valid: true}
+	cruise, err := h.q.GetCruiseByEnrollToken(ctx, tok)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("invalid enrollment link")
@@ -344,6 +360,12 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 	slices.Sort(insertOrder)
 	byTrip := make(map[int64]dto.EnrollLegResult, len(insertOrder))
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if _, err := q.LockCruiseEnrollToken(ctx, sqlcdb.LockCruiseEnrollTokenParams{ID: cruise.ID, EnrollToken: tok}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return errLinkSwitchedOff
+			}
+			return &QueryError{Op: "LockCruiseEnrollToken", Err: err}
+		}
 		trips, err := q.LockCruiseTripStatuses(ctx, cruise.ID)
 		if err != nil {
 			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
@@ -398,6 +420,9 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		return nil
 	})
 	if txErr != nil {
+		if errors.Is(txErr, errLinkSwitchedOff) {
+			return nil, huma.Error404NotFound("invalid enrollment link")
+		}
 		if inv, ok := errors.AsType[*invalidLegsError](txErr); ok {
 			return nil, huma.Error422UnprocessableEntity(inv.msg)
 		}

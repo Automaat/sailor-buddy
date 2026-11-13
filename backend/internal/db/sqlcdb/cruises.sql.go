@@ -541,6 +541,34 @@ func (q *Queries) ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64,
 	return items, nil
 }
 
+const lockCruiseEnrollToken = `-- name: LockCruiseEnrollToken :one
+SELECT id FROM cruises
+WHERE id = $1 AND enroll_token = $2
+FOR SHARE
+`
+
+type LockCruiseEnrollTokenParams struct {
+	ID          int64            `json:"id"`
+	EnrollToken types.NullString `json:"enroll_token"`
+}
+
+// Share-locks the cruise for the rest of a share-link sign-up while it still
+// has the given enroll token, so clearing or regenerating the link waits for
+// the sign-up to commit and a sign-up after that sees the change. Taken
+// before LockCruiseTripStatuses, in the same cruise-then-trips order as
+// DELETE FROM cruises and trip completion. No row when the cruise no longer
+// has that token.
+//
+//	SELECT id FROM cruises
+//	WHERE id = $1 AND enroll_token = $2
+//	FOR SHARE
+func (q *Queries) LockCruiseEnrollToken(ctx context.Context, arg LockCruiseEnrollTokenParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockCruiseEnrollToken, arg.ID, arg.EnrollToken)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const setCruiseEnrollToken = `-- name: SetCruiseEnrollToken :exec
 UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
