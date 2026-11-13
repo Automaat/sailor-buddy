@@ -8,14 +8,26 @@
 		updateMemberMembership
 	} from '#lib/api/routes.js';
 	import type { Member } from '#lib/api/types.js';
+	import { filterCounts, filterMembers, memberFilters, type MemberFilter } from '#lib/members.js';
 	import Users from '@lucide/svelte/icons/users';
+	import Search from '@lucide/svelte/icons/search';
+
+	type Role = 'admin' | 'member';
+	type Notice = { kind: 'success' | 'error'; text: string };
+
+	const NOTICE_MS = 3000;
 
 	let members = $state<Member[]>([]);
 	let loading = $state(true);
-	let error = $state('');
 	let savingId = $state<number | null>(null);
+	let query = $state('');
+	let filter = $state<MemberFilter>('all');
+	let notice = $state<Notice | null>(null);
+	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const adminCount = $derived(members.filter((m) => m.role === 'admin').length);
+	const counts = $derived(filterCounts(members));
+	const visible = $derived(filterMembers(members, query, filter));
 
 	// Managing members is an admin task; redirect regular members away.
 	$effect(() => {
@@ -39,18 +51,65 @@
 		load();
 	});
 
-	async function setRole(member: Member, role: 'admin' | 'member') {
-		if (member.role === role) return;
+	$effect(() => () => clearTimeout(noticeTimer));
+
+	function show(kind: Notice['kind'], text: string) {
+		clearTimeout(noticeTimer);
+		notice = { kind, text };
+		if (kind === 'success') {
+			noticeTimer = setTimeout(() => (notice = null), NOTICE_MS);
+		}
+	}
+
+	function errorText(err: unknown, fallback: string): string {
+		return err instanceof Error && err.message ? err.message : fallback;
+	}
+
+	function patch(id: number, change: Partial<Member>) {
+		members = members.map((m) => (m.id === id ? { ...m, ...change } : m));
+	}
+
+	// save runs one member update, reports the outcome and puts the control
+	// back to the stored value when the update fails or is cancelled.
+	async function save(
+		member: Member,
+		run: () => Promise<unknown>,
+		done: string,
+		failed: string,
+		revert: () => void
+	) {
 		savingId = member.id;
-		error = '';
+		notice = null;
 		try {
-			await updateMemberRole(member.id, role);
-			members = members.map((m) => (m.id === member.id ? { ...m, role } : m));
+			await run();
+			show('success', done);
+			return true;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Nie udało się zmienić roli';
+			revert();
+			show('error', errorText(err, failed));
+			return false;
 		} finally {
 			savingId = null;
 		}
+	}
+
+	const roleLabels: Record<Role, string> = { admin: 'Administrator', member: 'Użytkownik' };
+
+	async function setRole(member: Member, role: Role, el: HTMLSelectElement) {
+		if (member.role === role) return;
+		const revert = () => (el.value = member.role);
+		if (member.role === 'admin' && !confirm(`Odebrać uprawnienia administratora: ${member.name}?`)) {
+			revert();
+			return;
+		}
+		const ok = await save(
+			member,
+			() => updateMemberRole(member.id, role),
+			`Zapisano rolę: ${member.name} — ${roleLabels[role]}`,
+			'Nie udało się zmienić roli',
+			revert
+		);
+		if (ok) patch(member.id, { role });
 	}
 
 	const membershipLabels: Record<Member['membership'], string> = {
@@ -60,41 +119,39 @@
 	};
 
 	// Captains must be club members with a patent number on their account;
-	// the server enforces this, the hint explains a disabled toggle.
+	// the server enforces this, the tooltip explains a missing or disabled toggle.
 	function captainBlocker(member: Member): string {
 		if (member.is_captain) return '';
-		if (member.membership !== 'czlonek') return 'Kapitanem może być tylko członek klubu';
 		if (!member.patent_number) return 'Brak numeru patentu na koncie';
+		if (member.membership !== 'czlonek') return 'Kapitanem może być tylko członek klubu';
 		return '';
 	}
 
-	async function setCaptain(member: Member, isCaptain: boolean) {
-		savingId = member.id;
-		error = '';
-		try {
-			await updateMemberCaptain(member.id, isCaptain);
-			members = members.map((m) => (m.id === member.id ? { ...m, is_captain: isCaptain } : m));
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Nie udało się zmienić statusu kapitana';
-			members = [...members];
-		} finally {
-			savingId = null;
-		}
+	async function setCaptain(member: Member, isCaptain: boolean, el: HTMLInputElement) {
+		const ok = await save(
+			member,
+			() => updateMemberCaptain(member.id, isCaptain),
+			isCaptain ? `Dodano do kadry: ${member.name}` : `Usunięto z kadry: ${member.name}`,
+			'Nie udało się zmienić statusu kapitana',
+			() => (el.checked = member.is_captain)
+		);
+		if (ok) patch(member.id, { is_captain: isCaptain });
 	}
 
-	async function setMembership(member: Member, membership: Member['membership']) {
+	async function setMembership(
+		member: Member,
+		membership: Member['membership'],
+		el: HTMLSelectElement
+	) {
 		if (member.membership === membership) return;
-		savingId = member.id;
-		error = '';
-		try {
-			await updateMemberMembership(member.id, membership);
-			members = members.map((m) => (m.id === member.id ? { ...m, membership } : m));
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Nie udało się zmienić statusu członkostwa';
-			members = [...members];
-		} finally {
-			savingId = null;
-		}
+		const ok = await save(
+			member,
+			() => updateMemberMembership(member.id, membership),
+			`Zapisano członkostwo: ${member.name} — ${membershipLabels[membership]}`,
+			'Nie udało się zmienić statusu członkostwa',
+			() => (el.value = member.membership)
+		);
+		if (ok) patch(member.id, { membership });
 	}
 </script>
 
@@ -107,8 +164,16 @@
 		</p>
 	</div>
 
-	{#if error}
-		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
+	{#if notice}
+		<div
+			role={notice.kind === 'error' ? 'alert' : 'status'}
+			class="fixed right-4 bottom-4 z-50 max-w-sm rounded-lg p-3 text-sm shadow-lg {notice.kind ===
+			'error'
+				? 'bg-red-50 text-red-600'
+				: 'bg-green-50 text-green-700'}"
+		>
+			{notice.text}
+		</div>
 	{/if}
 
 	{#if loading}
@@ -119,87 +184,131 @@
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak członków</p>
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-2xl bg-white shadow-sm">
-			<table class="w-full text-sm">
-				<thead>
-					<tr class="border-b text-left text-[var(--text-muted)]">
-						<th class="p-4">Imię i nazwisko</th>
-						<th class="p-4">E-mail</th>
-						<th class="p-4">Rola</th>
-						<th class="p-4">Członkostwo</th>
-						<th class="p-4">Kadra kapitańska</th>
-						<th class="p-4">Akcje</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each members as member}
-						{@const isLastAdmin = member.role === 'admin' && adminCount <= 1}
-						{@const blocker = captainBlocker(member)}
-						<tr class="border-b border-gray-50">
-							<td class="p-4 font-medium text-[var(--navy)]">{member.name}</td>
-							<td class="p-4 text-[var(--text-muted)]">{member.email}</td>
-							<td class="p-4">
-								<span
-									class="rounded-full px-2 py-0.5 text-xs {member.role === 'admin'
-										? 'bg-blue-100 text-blue-700'
-										: 'bg-gray-100 text-gray-600'}"
-								>
-									{member.role === 'admin' ? 'Administrator' : 'Użytkownik'}
-								</span>
-							</td>
-							<td class="p-4">
-								<select
-									aria-label="Członkostwo: {member.name}"
-									value={member.membership}
-									disabled={savingId === member.id}
-									onchange={(e) =>
-										setMembership(member, e.currentTarget.value as Member['membership'])}
-									class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
-								>
-									{#each Object.entries(membershipLabels) as [value, label]}
-										<option {value}>{label}</option>
-									{/each}
-								</select>
-							</td>
-							<td class="p-4">
-								<label class="flex items-center gap-2 text-xs" title={blocker}>
-									<input
-										type="checkbox"
-										aria-label="Kapitan: {member.name}"
-										checked={member.is_captain}
-										disabled={savingId === member.id || !!blocker}
-										onchange={(e) => setCaptain(member, e.currentTarget.checked)}
-									/>
-									{member.is_captain ? 'Kapitan' : '—'}
-								</label>
-								{#if blocker}
-									<p class="mt-1 text-[10px] text-[var(--text-muted)]">{blocker}</p>
-								{/if}
-							</td>
-							<td class="p-4">
-								{#if member.role === 'admin'}
-									<button
-										onclick={() => setRole(member, 'member')}
-										disabled={savingId === member.id || isLastAdmin}
-										title={isLastAdmin ? 'Klub musi mieć co najmniej jednego administratora' : ''}
-										class="rounded-lg border px-3 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
-									>
-										Odbierz uprawnienia
-									</button>
-								{:else}
-									<button
-										onclick={() => setRole(member, 'admin')}
-										disabled={savingId === member.id}
-										class="rounded-lg border px-3 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
-									>
-										Nadaj uprawnienia admina
-									</button>
-								{/if}
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+		<div class="mb-4 flex flex-col gap-3">
+			<label class="relative block max-w-md">
+				<span class="sr-only">Szukaj członków</span>
+				<Search
+					class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]"
+				/>
+				<input
+					type="search"
+					bind:value={query}
+					placeholder="Szukaj po imieniu, nazwisku lub e-mailu"
+					class="w-full rounded-lg border bg-white py-2 pr-3 pl-9 text-sm"
+				/>
+			</label>
+			<div class="flex flex-wrap gap-2" role="group" aria-label="Filtr członków">
+				{#each memberFilters as f (f.value)}
+					<button
+						type="button"
+						aria-pressed={filter === f.value}
+						onclick={() => (filter = f.value)}
+						class="rounded-full border px-3 py-1 text-sm transition-colors {filter === f.value
+							? 'border-[var(--ocean)] bg-[var(--ocean)] text-white'
+							: 'bg-white text-[var(--text-muted)] hover:bg-gray-50'}"
+					>
+						{f.label} <span class="tabular-nums opacity-80">({counts[f.value]})</span>
+					</button>
+				{/each}
+			</div>
 		</div>
+
+		{#if visible.length === 0}
+			<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
+				<p class="text-lg text-[var(--text-muted)]">Brak osób spełniających kryteria</p>
+			</div>
+		{:else}
+			<div class="overflow-x-auto rounded-2xl bg-white shadow-sm">
+				<table class="w-full text-sm">
+					<thead>
+						<tr class="border-b text-left text-[var(--text-muted)]">
+							<th class="p-4">Imię i nazwisko</th>
+							<th class="p-4">E-mail</th>
+							<th class="p-4">Rola</th>
+							<th class="p-4">Członkostwo</th>
+							<th class="p-4">Kadra kapitańska</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each visible as member (member.id)}
+							{@const isLastAdmin = member.role === 'admin' && adminCount <= 1}
+							{@const blocker = captainBlocker(member)}
+							{@const busy = savingId === member.id}
+							<tr class="border-b border-gray-50">
+								<td class="p-4 font-medium text-[var(--navy)]">
+									{member.name}
+									{#if !member.onboarded}
+										<span
+											class="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-normal text-amber-700"
+										>
+											profil niekompletny
+										</span>
+									{/if}
+								</td>
+								<td class="p-4 text-[var(--text-muted)]">{member.email}</td>
+								<td class="p-4">
+									<select
+										aria-label="Rola: {member.name}"
+										value={member.role}
+										disabled={busy || isLastAdmin}
+										title={isLastAdmin ? 'Klub musi mieć co najmniej jednego administratora' : ''}
+										onchange={(e) => setRole(member, e.currentTarget.value as Role, e.currentTarget)}
+										class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40 {member.role ===
+										'admin'
+											? 'bg-blue-50 text-blue-700'
+											: ''}"
+									>
+										{#each Object.entries(roleLabels) as [value, label]}
+											<option {value}>{label}</option>
+										{/each}
+									</select>
+								</td>
+								<td class="p-4">
+									<select
+										aria-label="Członkostwo: {member.name}"
+										value={member.membership}
+										disabled={busy}
+										onchange={(e) =>
+											setMembership(
+												member,
+												e.currentTarget.value as Member['membership'],
+												e.currentTarget
+											)}
+										class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+									>
+										{#each Object.entries(membershipLabels) as [value, label]}
+											<option {value}>{label}</option>
+										{/each}
+									</select>
+								</td>
+								<td class="p-4">
+									{#if member.patent_number || member.is_captain}
+										<label class="flex items-center gap-2 text-xs" title={blocker}>
+											<input
+												type="checkbox"
+												aria-label="Kapitan: {member.name}"
+												checked={member.is_captain}
+												disabled={busy || !!blocker}
+												onchange={(e) =>
+													setCaptain(member, e.currentTarget.checked, e.currentTarget)}
+											/>
+											{member.is_captain ? 'Kapitan' : 'Nie'}
+										</label>
+									{:else}
+										<span
+											class="cursor-help text-[var(--text-muted)]"
+											title={blocker}
+											aria-label="Kapitan: {member.name} — {blocker}"
+										>
+											—
+										</span>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{/if}
 </div>

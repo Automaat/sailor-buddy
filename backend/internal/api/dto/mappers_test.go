@@ -207,9 +207,12 @@ func TestMemberFromUser(t *testing.T) {
 	u := sqlcdb.User{
 		ID: 1, Name: "Ed", Email: "ed@x", Role: "member",
 		AvatarUrl: nstr("a.png"), PatentType: nstr("zeglarz_jachtowy"),
-		PatentNumber: nstr("Z-1"), CreatedAt: ntime(),
+		PatentNumber: nstr("Z-1"), CreatedAt: ntime(), OnboardedAt: ntime(),
 	}
 	got := MemberFromUser(u)
+	if !got.Onboarded {
+		t.Fatalf("want onboarded when onboarded_at is set")
+	}
 	if got.ID != 1 || got.Name != "Ed" || got.Role != "member" {
 		t.Fatalf("unexpected: %+v", got)
 	}
@@ -221,8 +224,8 @@ func TestMemberFromUser(t *testing.T) {
 	}
 
 	bare := MemberFromUser(sqlcdb.User{ID: 2})
-	if bare.AvatarURL != nil || bare.PatentType != nil {
-		t.Fatalf("want nil optionals, got %+v", bare)
+	if bare.AvatarURL != nil || bare.PatentType != nil || bare.Onboarded {
+		t.Fatalf("want nil optionals and not onboarded, got %+v", bare)
 	}
 }
 
