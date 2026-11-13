@@ -42,6 +42,13 @@ WHERE u.id = $1
   AND NOT EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = u.id)
 ON CONFLICT (user_id) DO NOTHING;
 
+-- name: LockUserPerson :one
+-- Key-share-locks the account's person, so a merge or delete of it waits
+-- for the caller's transaction. No row when the person was deleted, for
+-- example merged away, before the lock was granted.
+SELECT id FROM crew_members WHERE user_id = $1
+FOR KEY SHARE;
+
 -- name: GetCrewMemberByUserID :one
 SELECT * FROM crew_members WHERE user_id = $1;
 

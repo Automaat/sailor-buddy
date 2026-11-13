@@ -13,28 +13,24 @@ import (
 
 const addAcceptedTripCrewAssignment = `-- name: AddAcceptedTripCrewAssignment :exec
 INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
-SELECT $1::BIGINT, cm.id, TRUE
-FROM crew_members cm
-WHERE cm.user_id = $2::BIGINT
+VALUES ($1::BIGINT, $2::BIGINT, TRUE)
 ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
 `
 
 type AddAcceptedTripCrewAssignmentParams struct {
-	TripID int64 `json:"trip_id"`
-	UserID int64 `json:"user_id"`
+	TripID       int64 `json:"trip_id"`
+	CrewMemberID int64 `json:"crew_member_id"`
 }
 
-// Puts a user's person on a trip's crew as a załogant after their sign-up
-// for it was accepted. An existing crew entry for that person is kept as is,
-// so a hand-added entry stays hand-added.
+// Puts an accepted sign-up's person on a trip's crew as a załogant. An
+// existing crew entry for that person is kept as is, so a hand-added entry
+// stays hand-added.
 //
 //	INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
-//	SELECT $1::BIGINT, cm.id, TRUE
-//	FROM crew_members cm
-//	WHERE cm.user_id = $2::BIGINT
+//	VALUES ($1::BIGINT, $2::BIGINT, TRUE)
 //	ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
 func (q *Queries) AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcceptedTripCrewAssignmentParams) error {
-	_, err := q.db.ExecContext(ctx, addAcceptedTripCrewAssignment, arg.TripID, arg.UserID)
+	_, err := q.db.ExecContext(ctx, addAcceptedTripCrewAssignment, arg.TripID, arg.CrewMemberID)
 	return err
 }
 

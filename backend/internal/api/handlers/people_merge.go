@@ -113,8 +113,8 @@ func MergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int6
 // lockMergePeople locks, in order, the account whose link moves, both people
 // and every leg and voyage either person is on or captains, and returns both
 // people as locked. People come before legs, the order leg completion and
-// person deletion use. Sign-up acceptance locks the leg first; when it and a
-// merge deadlock, the handler retries the merge.
+// person deletion use. Sign-up acceptance locks the leg, then the account's
+// person; when it and a merge deadlock, the losing handler retries.
 func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) (kept, duplicate sqlcdb.CrewMember, err error) {
 	if keptID == duplicateID {
 		return kept, duplicate, ErrMergeSamePerson

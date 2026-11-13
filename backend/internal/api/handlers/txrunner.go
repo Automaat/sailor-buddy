@@ -29,3 +29,30 @@ func sqlTxRunner(db *sql.DB) txRunner {
 		return nil
 	}
 }
+
+// deadlockAttempts bounds how often retryDeadlock and onDeadlockRetry run
+// their work.
+const deadlockAttempts = 3
+
+// retryDeadlock wraps run so a transaction PostgreSQL aborted as a deadlock
+// victim (40P01) runs again, up to deadlockAttempts times in all. The
+// rollback drops every lock, so each attempt takes them afresh.
+func retryDeadlock(run txRunner) txRunner {
+	return func(ctx context.Context, fn func(sqlcdb.Querier) error) error {
+		return onDeadlockRetry(func() error { return run(ctx, fn) })
+	}
+}
+
+// onDeadlockRetry runs fn again while it fails as a deadlock victim (40P01),
+// up to deadlockAttempts times in all. fn must be a whole transaction or a
+// single autocommit statement, so a failed attempt leaves nothing behind.
+func onDeadlockRetry(fn func() error) error {
+	var err error
+	for range deadlockAttempts {
+		err = fn()
+		if !isDeadlock(err) {
+			return err
+		}
+	}
+	return err
+}

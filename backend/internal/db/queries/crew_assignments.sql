@@ -63,13 +63,11 @@ UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
 WHERE trip_id = $2;
 
 -- name: AddAcceptedTripCrewAssignment :exec
--- Puts a user's person on a trip's crew as a załogant after their sign-up
--- for it was accepted. An existing crew entry for that person is kept as is,
--- so a hand-added entry stays hand-added.
+-- Puts an accepted sign-up's person on a trip's crew as a załogant. An
+-- existing crew entry for that person is kept as is, so a hand-added entry
+-- stays hand-added.
 INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
-SELECT sqlc.arg(trip_id)::BIGINT, cm.id, TRUE
-FROM crew_members cm
-WHERE cm.user_id = sqlc.arg(user_id)::BIGINT
+VALUES (sqlc.arg(trip_id)::BIGINT, sqlc.arg(crew_member_id)::BIGINT, TRUE)
 ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING;
 
 -- name: RemoveAcceptedTripCrewAssignment :exec

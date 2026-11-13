@@ -384,13 +384,15 @@ var errLegGone = errors.New("leg gone")
 const cruiseEnrollmentTxAttempts = 3
 
 // runCruiseEnrollmentTx runs fn in a transaction and runs it again, in a new
-// transaction, while it fails with errEnrollmentChanged. Rolling back first
-// drops the leg and row locks, so the retry takes them in order again.
+// transaction, while it fails with errEnrollmentChanged or as a deadlock
+// victim, as when a person merge holds the person and waits for the leg.
+// Rolling back first drops the leg and row locks, so the retry takes them in
+// order again.
 func (h *CruiseHandler) runCruiseEnrollmentTx(ctx context.Context, fn func(sqlcdb.Querier) error) error {
 	var err error
 	for range cruiseEnrollmentTxAttempts {
 		err = h.runTx(ctx, fn)
-		if !errors.Is(err, errEnrollmentChanged) {
+		if !errors.Is(err, errEnrollmentChanged) && !isDeadlock(err) {
 			return err
 		}
 	}
@@ -472,6 +474,9 @@ func cruiseEnrollmentTxError(err error) (resp error, ok bool) {
 	}
 	if full, isFull := errors.AsType[*legFullError](err); isFull {
 		return huma.Error409Conflict(full.Error()), true
+	}
+	if errors.Is(err, errPersonChanged) || isDeadlock(err) {
+		return huma.Error409Conflict(errPersonChangedMessage), true
 	}
 	return nil, false
 }

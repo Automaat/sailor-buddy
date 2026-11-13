@@ -151,6 +151,7 @@ type mockQuerier struct {
 
 	// crew entries added by accepted sign-ups
 	addAcceptedTripCrewAssignmentFn    func(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error
+	lockUserPersonFn                   func(ctx context.Context, userID types.NullInt64) (int64, error)
 	removeAcceptedTripCrewAssignmentFn func(ctx context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error
 
 	// cruises
@@ -739,6 +740,13 @@ func (m *mockQuerier) EnsureUserPerson(ctx context.Context, userID int64) error 
 		panic("unexpected call to EnsureUserPerson")
 	}
 	return m.ensureUserPersonFn(ctx, userID)
+}
+
+func (m *mockQuerier) LockUserPerson(ctx context.Context, userID types.NullInt64) (int64, error) {
+	if m.lockUserPersonFn == nil {
+		panic("unexpected call to LockUserPerson")
+	}
+	return m.lockUserPersonFn(ctx, userID)
 }
 
 func (m *mockQuerier) GetCrewMemberByUserID(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error) {
