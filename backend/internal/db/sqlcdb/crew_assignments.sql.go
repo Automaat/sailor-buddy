@@ -83,6 +83,34 @@ func (q *Queries) CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoya
 	return i, err
 }
 
+const deleteSharedCrewAssignments = `-- name: DeleteSharedCrewAssignments :execrows
+DELETE FROM crew_assignments d
+USING crew_assignments k
+WHERE d.crew_member_id = $1::BIGINT
+  AND k.crew_member_id = $2::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+`
+
+type DeleteSharedCrewAssignmentsParams struct {
+	DuplicateID int64 `json:"duplicate_id"`
+	KeptID      int64 `json:"kept_id"`
+}
+
+// DeleteSharedCrewAssignments
+//
+//	DELETE FROM crew_assignments d
+//	USING crew_assignments k
+//	WHERE d.crew_member_id = $1::BIGINT
+//	  AND k.crew_member_id = $2::BIGINT
+//	  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+func (q *Queries) DeleteSharedCrewAssignments(ctx context.Context, arg DeleteSharedCrewAssignmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSharedCrewAssignments, arg.DuplicateID, arg.KeptID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteTripCrewAssignment = `-- name: DeleteTripCrewAssignment :exec
 DELETE FROM crew_assignments WHERE id = $1 AND trip_id = $2
 `
@@ -114,6 +142,34 @@ type DeleteVoyageCrewAssignmentParams struct {
 //	DELETE FROM crew_assignments WHERE id = $1 AND voyage_id = $2
 func (q *Queries) DeleteVoyageCrewAssignment(ctx context.Context, arg DeleteVoyageCrewAssignmentParams) error {
 	_, err := q.db.ExecContext(ctx, deleteVoyageCrewAssignment, arg.ID, arg.VoyageID)
+	return err
+}
+
+const fillSharedCrewAssignmentPatents = `-- name: FillSharedCrewAssignmentPatents :exec
+UPDATE crew_assignments k SET patent_number = d.patent_number
+FROM crew_assignments d
+WHERE k.crew_member_id = $1::BIGINT
+  AND d.crew_member_id = $2::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+  AND k.patent_number IS NULL
+`
+
+type FillSharedCrewAssignmentPatentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// On a leg or voyage both people are on, the kept person's assignment stays;
+// it takes the duplicate's patent number when it has none.
+//
+//	UPDATE crew_assignments k SET patent_number = d.patent_number
+//	FROM crew_assignments d
+//	WHERE k.crew_member_id = $1::BIGINT
+//	  AND d.crew_member_id = $2::BIGINT
+//	  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+//	  AND k.patent_number IS NULL
+func (q *Queries) FillSharedCrewAssignmentPatents(ctx context.Context, arg FillSharedCrewAssignmentPatentsParams) error {
+	_, err := q.db.ExecContext(ctx, fillSharedCrewAssignmentPatents, arg.KeptID, arg.DuplicateID)
 	return err
 }
 
@@ -532,6 +588,28 @@ func (q *Queries) ListVoyageCrewAssignments(ctx context.Context, voyageID types.
 		return nil, err
 	}
 	return items, nil
+}
+
+const moveCrewAssignments = `-- name: MoveCrewAssignments :execrows
+UPDATE crew_assignments SET crew_member_id = $1::BIGINT
+WHERE crew_member_id = $2::BIGINT
+`
+
+type MoveCrewAssignmentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveCrewAssignments
+//
+//	UPDATE crew_assignments SET crew_member_id = $1::BIGINT
+//	WHERE crew_member_id = $2::BIGINT
+func (q *Queries) MoveCrewAssignments(ctx context.Context, arg MoveCrewAssignmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveCrewAssignments, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const repointCrewAssignmentsToVoyage = `-- name: RepointCrewAssignmentsToVoyage :exec

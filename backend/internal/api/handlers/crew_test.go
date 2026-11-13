@@ -16,7 +16,7 @@ import (
 func crewTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterCrewRoutes(api, m)
+	registerCrewRoutes(api, &CrewHandler{q: m, runTx: directTxRunner(m)})
 	return api
 }
 

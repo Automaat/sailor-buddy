@@ -1596,6 +1596,69 @@ components:
       required:
         - payment_status
       type: object
+    PersonMerge:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PersonMerge.json
+          format: uri
+          readOnly: true
+          type: string
+        duplicate:
+          $ref: "#/components/schemas/CrewMember"
+          description: Person removed by the merge
+        opinions:
+          description: Voyage opinions of the duplicate
+          format: int64
+          type: integer
+        person:
+          $ref: "#/components/schemas/CrewMember"
+          description: Kept person after the merge
+        shared_assignments:
+          description: Duplicate's assignments on legs and voyages the kept person is already on; they collapse into the kept person's
+          format: int64
+          type: integer
+        shared_opinions:
+          description: Duplicate's opinions for voyages the kept person already has one for; the kept person's stays
+          format: int64
+          type: integer
+        trip_assignments:
+          description: Leg crew assignments of the duplicate
+          format: int64
+          type: integer
+        voyage_assignments:
+          description: Voyage crew assignments of the duplicate
+          format: int64
+          type: integer
+      required:
+        - person
+        - duplicate
+        - trip_assignments
+        - voyage_assignments
+        - shared_assignments
+        - opinions
+        - shared_opinions
+      type: object
+    PersonMergeBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PersonMergeBody.json
+          format: uri
+          readOnly: true
+          type: string
+        duplicate_id:
+          description: Person merged into the path's person and then removed
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - duplicate_id
+      type: object
     PersonalSeaTime:
       additionalProperties: false
       properties:
@@ -2816,6 +2879,80 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Update a crew member (admin)
+      tags:
+        - Crew
+  /crew/{crewID}/merge:
+    post:
+      description: Moves the duplicate's crew assignments and voyage opinions to this person, adds its names to the other names, fills empty contact fields, moves its account link and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have an opinion for the same voyage, this person's stays. 409 when both are linked to different accounts; 422 when both IDs are the same or the merged other names exceed the limit.
+      operationId: merge-crew-member
+      parameters:
+        - description: Kept person ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Kept person ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonMergeBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonMerge"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Merge a duplicate person into this one (admin)
+      tags:
+        - Crew
+  /crew/{crewID}/merge-preview:
+    get:
+      description: Shows the kept person as it would be after the merge and how many crew assignments and voyage opinions would move. Changes nothing. Fails like the merge itself.
+      operationId: preview-crew-merge
+      parameters:
+        - description: Kept person ID
+          in: path
+          name: crewID
+          required: true
+          schema:
+            description: Kept person ID
+            format: int64
+            type: integer
+        - description: Person that would be merged in and removed
+          explode: false
+          in: query
+          name: duplicate_id
+          required: true
+          schema:
+            description: Person that would be merged in and removed
+            format: int64
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonMerge"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Preview merging a duplicate person into this one (admin)
       tags:
         - Crew
   /cruises:

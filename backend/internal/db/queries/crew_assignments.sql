@@ -61,3 +61,24 @@ WHERE ca.crew_member_id = $1;
 -- name: RepointCrewAssignmentsToVoyage :exec
 UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
 WHERE trip_id = $2;
+
+-- name: FillSharedCrewAssignmentPatents :exec
+-- On a leg or voyage both people are on, the kept person's assignment stays;
+-- it takes the duplicate's patent number when it has none.
+UPDATE crew_assignments k SET patent_number = d.patent_number
+FROM crew_assignments d
+WHERE k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+  AND k.patent_number IS NULL;
+
+-- name: DeleteSharedCrewAssignments :execrows
+DELETE FROM crew_assignments d
+USING crew_assignments k
+WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id);
+
+-- name: MoveCrewAssignments :execrows
+UPDATE crew_assignments SET crew_member_id = sqlc.arg(kept_id)::BIGINT
+WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT;

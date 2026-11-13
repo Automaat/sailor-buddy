@@ -128,11 +128,21 @@ type mockQuerier struct {
 	listCrewMembersFn  func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
 	countCrewMembersFn func(ctx context.Context, search types.NullString) (int64, error)
 	getCrewMemberFn    func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
-	createCrewMemberFn func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
-	updateCrewMemberFn func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
-	deleteCrewMemberFn func(ctx context.Context, id int64) (int64, error)
-	ensureUserPersonFn func(ctx context.Context, userID int64) error
-	getUserPersonFn    func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
+	// person merge
+	lockCrewMembersForMergeFn         func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
+	countCrewMergeRowsFn              func(ctx context.Context, arg sqlcdb.CountCrewMergeRowsParams) (sqlcdb.CountCrewMergeRowsRow, error)
+	fillSharedCrewAssignmentPatentsFn func(ctx context.Context, arg sqlcdb.FillSharedCrewAssignmentPatentsParams) error
+	deleteSharedCrewAssignmentsFn     func(ctx context.Context, arg sqlcdb.DeleteSharedCrewAssignmentsParams) (int64, error)
+	moveCrewAssignmentsFn             func(ctx context.Context, arg sqlcdb.MoveCrewAssignmentsParams) (int64, error)
+	deleteSharedVoyageOpinionsFn      func(ctx context.Context, arg sqlcdb.DeleteSharedVoyageOpinionsParams) ([]string, error)
+	moveVoyageOpinionsFn              func(ctx context.Context, arg sqlcdb.MoveVoyageOpinionsParams) (int64, error)
+	deleteMergedCrewMemberFn          func(ctx context.Context, id int64) (int64, error)
+	updateMergedCrewMemberFn          func(ctx context.Context, arg sqlcdb.UpdateMergedCrewMemberParams) (sqlcdb.CrewMember, error)
+	createCrewMemberFn                func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
+	updateCrewMemberFn                func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
+	deleteCrewMemberFn                func(ctx context.Context, id int64) (int64, error)
+	ensureUserPersonFn                func(ctx context.Context, userID int64) error
+	getUserPersonFn                   func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
 
 	// cruises
 	listCruisesFn          func(ctx context.Context, arg sqlcdb.ListCruisesParams) ([]sqlcdb.Cruise, error)
@@ -1070,4 +1080,67 @@ func (m *mockQuerier) GetWaitlistPosition(ctx context.Context, id int64) (int64,
 		panic("unexpected call to GetWaitlistPosition")
 	}
 	return m.getWaitlistPositionFn(ctx, id)
+}
+
+func (m *mockQuerier) LockCrewMembersForMerge(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error) {
+	if m.lockCrewMembersForMergeFn == nil {
+		panic("unexpected call to LockCrewMembersForMerge")
+	}
+	return m.lockCrewMembersForMergeFn(ctx, arg)
+}
+
+func (m *mockQuerier) CountCrewMergeRows(ctx context.Context, arg sqlcdb.CountCrewMergeRowsParams) (sqlcdb.CountCrewMergeRowsRow, error) {
+	if m.countCrewMergeRowsFn == nil {
+		panic("unexpected call to CountCrewMergeRows")
+	}
+	return m.countCrewMergeRowsFn(ctx, arg)
+}
+
+func (m *mockQuerier) FillSharedCrewAssignmentPatents(ctx context.Context, arg sqlcdb.FillSharedCrewAssignmentPatentsParams) error {
+	if m.fillSharedCrewAssignmentPatentsFn == nil {
+		panic("unexpected call to FillSharedCrewAssignmentPatents")
+	}
+	return m.fillSharedCrewAssignmentPatentsFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteSharedCrewAssignments(ctx context.Context, arg sqlcdb.DeleteSharedCrewAssignmentsParams) (int64, error) {
+	if m.deleteSharedCrewAssignmentsFn == nil {
+		panic("unexpected call to DeleteSharedCrewAssignments")
+	}
+	return m.deleteSharedCrewAssignmentsFn(ctx, arg)
+}
+
+func (m *mockQuerier) MoveCrewAssignments(ctx context.Context, arg sqlcdb.MoveCrewAssignmentsParams) (int64, error) {
+	if m.moveCrewAssignmentsFn == nil {
+		panic("unexpected call to MoveCrewAssignments")
+	}
+	return m.moveCrewAssignmentsFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteSharedVoyageOpinions(ctx context.Context, arg sqlcdb.DeleteSharedVoyageOpinionsParams) ([]string, error) {
+	if m.deleteSharedVoyageOpinionsFn == nil {
+		panic("unexpected call to DeleteSharedVoyageOpinions")
+	}
+	return m.deleteSharedVoyageOpinionsFn(ctx, arg)
+}
+
+func (m *mockQuerier) MoveVoyageOpinions(ctx context.Context, arg sqlcdb.MoveVoyageOpinionsParams) (int64, error) {
+	if m.moveVoyageOpinionsFn == nil {
+		panic("unexpected call to MoveVoyageOpinions")
+	}
+	return m.moveVoyageOpinionsFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteMergedCrewMember(ctx context.Context, id int64) (int64, error) {
+	if m.deleteMergedCrewMemberFn == nil {
+		panic("unexpected call to DeleteMergedCrewMember")
+	}
+	return m.deleteMergedCrewMemberFn(ctx, id)
+}
+
+func (m *mockQuerier) UpdateMergedCrewMember(ctx context.Context, arg sqlcdb.UpdateMergedCrewMemberParams) (sqlcdb.CrewMember, error) {
+	if m.updateMergedCrewMemberFn == nil {
+		panic("unexpected call to UpdateMergedCrewMember")
+	}
+	return m.updateMergedCrewMemberFn(ctx, arg)
 }

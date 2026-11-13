@@ -20,11 +20,12 @@ import (
 )
 
 type CrewHandler struct {
-	q sqlcdb.Querier
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewCrewHandler(q sqlcdb.Querier) *CrewHandler {
-	return &CrewHandler{q: q}
+func NewCrewHandler(q sqlcdb.Querier, db *sql.DB) *CrewHandler {
+	return &CrewHandler{q: q, runTx: sqlTxRunner(db)}
 }
 
 // listCrewInput repeats the pageParams fields: huma does not apply the
@@ -94,8 +95,11 @@ type crewAssignmentListOutput struct {
 
 // RegisterCrewRoutes wires the club crew member and crew assignment operations
 // onto the API. Reads are open to any member; mutations require an admin.
-func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewCrewHandler(q)
+func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	registerCrewRoutes(api, NewCrewHandler(q, db))
+}
+
+func registerCrewRoutes(api huma.API, h *CrewHandler) {
 	crew := []string{"Crew"}
 
 	huma.Register(api, huma.Operation{
@@ -118,6 +122,21 @@ func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier) {
 		OperationID: "delete-crew-member", Method: http.MethodDelete, Path: "/crew/{crewID}",
 		Summary: "Delete a person without an account (admin)", Tags: crew, DefaultStatus: http.StatusNoContent,
 	}, h.delete)
+	huma.Register(api, huma.Operation{
+		OperationID: "preview-crew-merge", Method: http.MethodGet, Path: "/crew/{crewID}/merge-preview",
+		Summary: "Preview merging a duplicate person into this one (admin)", Tags: crew,
+		Description: "Shows the kept person as it would be after the merge and how many crew assignments " +
+			"and voyage opinions would move. Changes nothing. Fails like the merge itself.",
+	}, h.previewMerge)
+	huma.Register(api, huma.Operation{
+		OperationID: "merge-crew-member", Method: http.MethodPost, Path: "/crew/{crewID}/merge",
+		Summary: "Merge a duplicate person into this one (admin)", Tags: crew,
+		Description: "Moves the duplicate's crew assignments and voyage opinions to this person, adds its " +
+			"names to the other names, fills empty contact fields, moves its account link and deletes it, " +
+			"all in one transaction. Where both are on the same leg or voyage, or both have an opinion for " +
+			"the same voyage, this person's stays. 409 when both are linked to different accounts; " +
+			"422 when both IDs are the same or the merged other names exceed the limit.",
+	}, h.merge)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trip-crew", Method: http.MethodGet, Path: "/trips/{tripID}/crew",

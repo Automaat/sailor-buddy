@@ -58,3 +58,41 @@ WHERE id = $10;
 -- kept, so every account keeps exactly one person.
 DELETE FROM crew_members WHERE id = $1 AND user_id IS NULL;
 
+
+-- name: LockCrewMembersForMerge :many
+-- Locks both people in id order, so two merges cannot deadlock and no crew
+-- assignment or opinion can be added for either until the merge ends.
+SELECT * FROM crew_members
+WHERE id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
+ORDER BY id
+FOR UPDATE;
+
+-- name: CountCrewMergeRows :one
+-- Counts what merging the duplicate into the kept person moves. A shared
+-- row is a leg, voyage or voyage opinion both people already have.
+SELECT
+    (SELECT COUNT(*) FROM crew_assignments
+     WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT AND trip_id IS NOT NULL)::BIGINT AS trip_assignments,
+    (SELECT COUNT(*) FROM crew_assignments
+     WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT AND voyage_id IS NOT NULL)::BIGINT AS voyage_assignments,
+    (SELECT COUNT(*) FROM crew_assignments d
+     JOIN crew_assignments k ON k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+      AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+     WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS shared_assignments,
+    (SELECT COUNT(*) FROM voyage_opinions
+     WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS opinions,
+    (SELECT COUNT(*) FROM voyage_opinions d
+     JOIN voyage_opinions k ON k.crew_member_id = sqlc.arg(kept_id)::BIGINT AND k.voyage_id = d.voyage_id
+     WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS shared_opinions;
+
+-- name: DeleteMergedCrewMember :execrows
+DELETE FROM crew_members WHERE id = $1;
+
+-- name: UpdateMergedCrewMember :one
+UPDATE crew_members SET
+    user_id = $1, email = $2, patent_number = $3, phone = $4,
+    pzz_license_type = $5, pzz_license_number = $6,
+    emergency_contact_name = $7, emergency_contact_phone = $8,
+    other_names = $9, updated_at = CURRENT_TIMESTAMP
+WHERE id = $10
+RETURNING *;

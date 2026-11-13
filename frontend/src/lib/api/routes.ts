@@ -252,6 +252,20 @@ export function deleteCrew(id: number) {
 	return api.del('/crew/{crewID}', { path: { crewID: id } });
 }
 
+export function previewCrewMerge(keptID: number, duplicateID: number) {
+	return api.get('/crew/{crewID}/merge-preview', {
+		path: { crewID: keptID },
+		query: { duplicate_id: duplicateID }
+	});
+}
+
+export function mergeCrew(keptID: number, duplicateID: number) {
+	return api.post('/crew/{crewID}/merge', {
+		path: { crewID: keptID },
+		body: { duplicate_id: duplicateID }
+	});
+}
+
 // ---- trainings (per-member) -------------------------------------------------
 
 export function listTrainings() {

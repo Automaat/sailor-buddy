@@ -148,3 +148,35 @@ func VoyageCrewFromDB(rows []sqlcdb.ListVoyageCrewAssignmentsRow) []CrewAssignme
 	}
 	return out
 }
+
+// PersonMergeBody names the duplicate person merged into the path's person.
+type PersonMergeBody struct {
+	DuplicateID int64 `json:"duplicate_id" minimum:"1" doc:"Person merged into the path's person and then removed"`
+}
+
+// PersonMerge describes a merge of a duplicate person into a kept one: the
+// kept person as it is (or would be) afterwards, the removed duplicate, and
+// how many crew assignments and voyage opinions move. A shared assignment or
+// opinion is one both people already had; the kept person's copy stays.
+type PersonMerge struct {
+	Person            CrewMember `json:"person" doc:"Kept person after the merge"`
+	Duplicate         CrewMember `json:"duplicate" doc:"Person removed by the merge"`
+	TripAssignments   int64      `json:"trip_assignments" doc:"Leg crew assignments of the duplicate"`
+	VoyageAssignments int64      `json:"voyage_assignments" doc:"Voyage crew assignments of the duplicate"`
+	SharedAssignments int64      `json:"shared_assignments" doc:"Duplicate's assignments on legs and voyages the kept person is already on; they collapse into the kept person's"`
+	Opinions          int64      `json:"opinions" doc:"Voyage opinions of the duplicate"`
+	SharedOpinions    int64      `json:"shared_opinions" doc:"Duplicate's opinions for voyages the kept person already has one for; the kept person's stays"`
+}
+
+// PersonMergeFromDB maps merge counts and both people to the API model.
+func PersonMergeFromDB(kept, duplicate sqlcdb.CrewMember, c sqlcdb.CountCrewMergeRowsRow) PersonMerge {
+	return PersonMerge{
+		Person:            CrewMemberFromDB(kept),
+		Duplicate:         CrewMemberFromDB(duplicate),
+		TripAssignments:   c.TripAssignments,
+		VoyageAssignments: c.VoyageAssignments,
+		SharedAssignments: c.SharedAssignments,
+		Opinions:          c.Opinions,
+		SharedOpinions:    c.SharedOpinions,
+	}
+}

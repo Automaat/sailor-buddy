@@ -44,6 +44,52 @@ func (q *Queries) CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpini
 	return i, err
 }
 
+const deleteSharedVoyageOpinions = `-- name: DeleteSharedVoyageOpinions :many
+DELETE FROM voyage_opinions d
+USING voyage_opinions k
+WHERE d.crew_member_id = $1::BIGINT
+  AND k.crew_member_id = $2::BIGINT
+  AND k.voyage_id = d.voyage_id
+RETURNING d.file_path
+`
+
+type DeleteSharedVoyageOpinionsParams struct {
+	DuplicateID int64 `json:"duplicate_id"`
+	KeptID      int64 `json:"kept_id"`
+}
+
+// On a voyage both people have an opinion for, the kept person's stays. The
+// returned file paths are removed once the merge commits.
+//
+//	DELETE FROM voyage_opinions d
+//	USING voyage_opinions k
+//	WHERE d.crew_member_id = $1::BIGINT
+//	  AND k.crew_member_id = $2::BIGINT
+//	  AND k.voyage_id = d.voyage_id
+//	RETURNING d.file_path
+func (q *Queries) DeleteSharedVoyageOpinions(ctx context.Context, arg DeleteSharedVoyageOpinionsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, deleteSharedVoyageOpinions, arg.DuplicateID, arg.KeptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var file_path string
+		if err := rows.Scan(&file_path); err != nil {
+			return nil, err
+		}
+		items = append(items, file_path)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteVoyageOpinion = `-- name: DeleteVoyageOpinion :exec
 DELETE FROM voyage_opinions WHERE id = $1
 `
@@ -131,6 +177,28 @@ func (q *Queries) ListVoyageVoyageOpinions(ctx context.Context, voyageID int64) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const moveVoyageOpinions = `-- name: MoveVoyageOpinions :execrows
+UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
+WHERE crew_member_id = $2::BIGINT
+`
+
+type MoveVoyageOpinionsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveVoyageOpinions
+//
+//	UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
+//	WHERE crew_member_id = $2::BIGINT
+func (q *Queries) MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveVoyageOpinions, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const upsertVoyageOpinion = `-- name: UpsertVoyageOpinion :one
