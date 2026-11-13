@@ -449,6 +449,22 @@ describe('cruise page leg sign-up', () => {
 		expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 	});
 
+	it.each([
+		['unpaid', 'Brak wpłaty'],
+		['deposit', 'Zaliczka wpłacona'],
+		['paid', 'Opłacone']
+	] as const)('shows the %s payment status next to the sign-up status', async (payment, label) => {
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
+		fn(listCruiseLegSignUps).mockResolvedValue([
+			signUp(50, { enrollment: pending(50, { status: 'accepted', payment_status: payment }) })
+		]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		const row = rowOf('Jacht A');
+		expect(within(row).getByTestId('sign-up-status')).toHaveTextContent('zaakceptowany');
+		expect(within(row).getByTestId('sign-up-payment')).toHaveTextContent(label);
+	});
+
 	it('shows a cruise-level enrollment assigned to the leg as the status, without withdraw or note', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([

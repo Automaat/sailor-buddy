@@ -304,6 +304,7 @@ Assignment body — `crew_member_id` and `role` required:
 | DELETE | `/api/trips/{tripID}/enroll-token` | **admin** | Clear share token, 204 |
 | GET | `/api/trips/{tripID}/enrollments` | **admin** | List enrollments |
 | PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204 |
+| PUT | `/api/trips/{tripID}/enrollments/{id}/payment-status` | **admin** | Set payment status → `Enrollment`, 200 |
 | DELETE | `/api/trips/{tripID}/enrollments/{id}` | **admin** | Delete enrollment, 204 |
 | GET | `/api/enroll/{token}` | public | Resolve token → trip or cruise |
 | POST | `/api/enroll/{token}` | member | Enroll self via a trip token, 201; a cruise token returns `422` |
@@ -337,6 +338,14 @@ Both token previews carry each trip's `sign_up_deadline`. After it, both
 token sign-ups return `422` and write nothing: `POST /api/enroll/{token}`
 for that trip, and `POST /api/enroll/{token}/legs` when any picked leg is
 past its deadline.
+
+Payment status: every trip enrollment carries `payment_status`, set by hand
+by an admin after checking transfers: `unpaid` (default for a new sign-up),
+`deposit` (first payment received) or `paid` (paid in full). No amounts are
+stored. Body: `{ "payment_status": "deposit" }`. It is independent of
+`status`: changing one leaves the other unchanged. `404 enrollment not
+found` when the trip has no enrollment with that id. Cruise-level
+enrollments omit `payment_status`.
 
 ### Leg sign-up (one click)
 
@@ -372,8 +381,9 @@ The note is added after signing up: `PUT .../sign-up/note` with
 `{ "note": "message" }` (up to 2000 characters, trimmed; blank or omitted
 clears it). `404 not signed up for this leg` without a sign-up.
 
-`DELETE .../sign-up` withdraws only a `pending` sign-up. `404` when the
-caller has none, `409` once an admin has accepted, rejected or waitlisted it.
+`DELETE .../sign-up` withdraws only a `pending` sign-up with no recorded
+payment. `404` when the caller has none, `409` once an admin has accepted,
+rejected or waitlisted it, or set its payment status to `deposit` or `paid`.
 
 A cruise enrollment made before per-leg sign-up and assigned to a leg counts
 as the user's sign-up for that leg: both reads return it as `enrollment`
@@ -460,7 +470,8 @@ Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 `max_crew`, the price fields below, `series_id`, `edition` (see Cruise
 series), and the logistics fields below.
 
-Cruise prices are shown only; nothing tracks payments. All amounts are per
+Cruise prices are shown only; payments are not computed (admins record a
+sign-up's payment status by hand, see Trip enrollment). All amounts are per
 person, optional and `>= 0`, in `currency` (`PLN` or `EUR`, `PLN` when
 omitted):
 

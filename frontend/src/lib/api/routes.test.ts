@@ -109,6 +109,15 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		]
 	},
 	{
+		name: 'updateTripEnrollmentPaymentStatus',
+		run: () => routes.updateTripEnrollmentPaymentStatus(5, 9, 'deposit'),
+		verb: 'put',
+		args: [
+			'/trips/{tripID}/enrollments/{id}/payment-status',
+			{ path: { tripID: 5, id: 9 }, body: { payment_status: 'deposit' } }
+		]
+	},
+	{
 		name: 'deleteTripEnrollment',
 		run: () => routes.deleteTripEnrollment(5, 9),
 		verb: 'del',

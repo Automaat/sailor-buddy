@@ -3,10 +3,17 @@
 		getTrip,
 		listTripEnrollments,
 		updateTripEnrollmentStatus,
+		updateTripEnrollmentPaymentStatus,
 		deleteTripEnrollment
 	} from '#lib/api/routes.js';
 	import type { TripEnrollment, Trip } from '#lib/api/types.js';
-	import { statusLabels } from '#lib/enrollment.js';
+	import {
+		paymentCounts,
+		paymentLabels,
+		paymentStatuses,
+		statusLabels,
+		type PaymentStatus
+	} from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -17,8 +24,13 @@
 	let trip = $state<Trip | null>(null);
 	let enrollments = $state<TripEnrollment[]>([]);
 	let loading = $state(true);
+	let paymentError = $state('');
+	// Enrollment ids with a payment status save in flight; their select is
+	// disabled so two quick changes cannot race.
+	let savingPayment = $state<number[]>([]);
 
 	const id = $derived(Number(page.params.id));
+	const payments = $derived(paymentCounts(enrollments));
 
 	// Managing enrollments is an admin task; redirect regular members away.
 	$effect(() => {
@@ -45,6 +57,25 @@
 			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
 			console.error('Failed to update status:', err);
+		}
+	}
+
+	async function updatePayment(enrollmentId: number, select: HTMLSelectElement) {
+		const paymentStatus = select.value as PaymentStatus;
+		const previous = enrollments.find((e) => e.id === enrollmentId)?.payment_status ?? 'unpaid';
+		paymentError = '';
+		savingPayment = [...savingPayment, enrollmentId];
+		try {
+			const updated = await updateTripEnrollmentPaymentStatus(id, enrollmentId, paymentStatus);
+			enrollments = enrollments.map((e) =>
+				e.id === enrollmentId ? { ...e, payment_status: updated.payment_status ?? paymentStatus } : e
+			);
+		} catch (err) {
+			console.error('Failed to update payment status:', err);
+			select.value = previous;
+			paymentError = 'Nie udało się zapisać statusu płatności';
+		} finally {
+			savingPayment = savingPayment.filter((x) => x !== enrollmentId);
 		}
 	}
 
@@ -87,6 +118,19 @@
 			</a>
 		</div>
 
+		{#if enrollments.length > 0}
+			<div class="mb-4 flex flex-wrap gap-2 text-sm" data-testid="payment-counts">
+				{#each paymentStatuses as ps}
+					<span class="rounded-full bg-white px-3 py-1 shadow-sm" data-testid={`payment-count-${ps}`}>
+						{paymentLabels[ps]}: <strong>{payments[ps]}</strong>
+					</span>
+				{/each}
+			</div>
+		{/if}
+		{#if paymentError}
+			<p role="alert" class="mb-4 text-sm text-red-600">{paymentError}</p>
+		{/if}
+
 		{#if enrollments.length === 0}
 			<div class="rounded-2xl bg-white p-6 text-center text-sm text-[var(--text-muted)] shadow-sm">
 				Brak zapisów.
@@ -103,7 +147,21 @@
 									{statusLabels[enrollment.status] ?? enrollment.status}
 								</span>
 							</div>
-							<div class="flex gap-1">
+							<div class="flex items-center gap-1">
+								<label class="sr-only" for={`payment-${enrollment.id}`}>
+									Płatność: {enrollment.user_name ?? 'Nieznany'}
+								</label>
+								<select
+									id={`payment-${enrollment.id}`}
+									value={enrollment.payment_status ?? 'unpaid'}
+									onchange={(e) => updatePayment(enrollment.id, e.currentTarget)}
+									disabled={savingPayment.includes(enrollment.id)}
+									class="rounded border px-2 py-1 text-xs"
+								>
+									{#each paymentStatuses as ps}
+										<option value={ps}>{paymentLabels[ps]}</option>
+									{/each}
+								</select>
 								{#if enrollment.status !== 'accepted'}
 									<button onclick={() => updateStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]">
 										Akceptuj

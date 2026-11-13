@@ -164,7 +164,7 @@ type Querier interface {
 	//CreateTripEnrollment
 	//
 	//  INSERT INTO trip_enrollments (trip_id, user_id, note)
-	//  VALUES ($1, $2, $3) RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+	//  VALUES ($1, $2, $3) RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
 	CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error)
 	// Inserts a pending trip enrollment unless the user already has one for the
 	// trip; returns no row (sql.ErrNoRows) when the enrollment already exists.
@@ -172,7 +172,7 @@ type Querier interface {
 	//  INSERT INTO trip_enrollments (trip_id, user_id, note)
 	//  VALUES ($1, $2, $3)
 	//  ON CONFLICT (trip_id, user_id) DO NOTHING
-	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
 	CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTripEnrollmentIfAbsentParams) (TripEnrollment, error)
 	//CreateUser
 	//
@@ -223,11 +223,12 @@ type Querier interface {
 	//
 	//  DELETE FROM cruise_series WHERE id = $1
 	DeleteCruiseSeries(ctx context.Context, id int64) error
-	// Withdraws the caller's own sign-up for a trip while it is still pending.
-	// No row when the user has no pending sign-up for it.
+	// Withdraws the caller's own sign-up for a trip while it is still pending
+	// and no payment is recorded on it. No row when the user has no such
+	// sign-up for it.
 	//
 	//  DELETE FROM trip_enrollments
-	//  WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+	//  WHERE trip_id = $1 AND user_id = $2 AND status = 'pending' AND payment_status = 'unpaid'
 	//  RETURNING id
 	DeletePendingUserTripEnrollment(ctx context.Context, arg DeletePendingUserTripEnrollmentParams) (int64, error)
 	//DeleteTraining
@@ -382,7 +383,7 @@ type Querier interface {
 	GetUserCruiseEnrollmentForTrip(ctx context.Context, arg GetUserCruiseEnrollmentForTripParams) (CruiseEnrollment, error)
 	//GetUserTripEnrollment
 	//
-	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at FROM trip_enrollments
+	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
 	//  WHERE trip_id = $1 AND user_id = $2
 	GetUserTripEnrollment(ctx context.Context, arg GetUserTripEnrollmentParams) (TripEnrollment, error)
 	//GetVoyage
@@ -470,7 +471,8 @@ type Querier interface {
 	// Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
 	// leg in leg order, then by sign-up time.
 	//
-	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+	//         te.created_at, te.updated_at,
 	//         u.name AS user_name, u.email AS user_email
 	//  FROM trip_enrollments te
 	//  JOIN trips t ON t.id = te.trip_id
@@ -505,7 +507,8 @@ type Querier interface {
 	ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]ListTripCrewAssignmentsRow, error)
 	//ListTripEnrollments
 	//
-	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+	//         te.created_at, te.updated_at,
 	//         u.name AS user_name, u.email AS user_email
 	//  FROM trip_enrollments te
 	//  JOIN users u ON u.id = te.user_id
@@ -548,7 +551,7 @@ type Querier interface {
 	ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error)
 	// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
 	//
-	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at
+	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
 	//  FROM trip_enrollments te
 	//  JOIN trips t ON t.id = te.trip_id
 	//  WHERE t.cruise_id = $1 AND te.user_id = $2
@@ -699,6 +702,13 @@ type Querier interface {
 	//      updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $23
 	UpdateTrip(ctx context.Context, arg UpdateTripParams) error
+	// Sets the manual payment status of one sign-up of a trip. The review
+	// status is left unchanged. No row when the trip has no such enrollment.
+	//
+	//  UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $2 AND trip_id = $3
+	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+	UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg UpdateTripEnrollmentPaymentStatusParams) (TripEnrollment, error)
 	//UpdateTripEnrollmentStatus
 	//
 	//  UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
@@ -738,7 +748,7 @@ type Querier interface {
 	//
 	//  UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
 	//  WHERE trip_id = $1 AND user_id = $2
-	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
 	UpdateUserTripEnrollmentNote(ctx context.Context, arg UpdateUserTripEnrollmentNoteParams) (TripEnrollment, error)
 	//UpdateVoyage
 	//

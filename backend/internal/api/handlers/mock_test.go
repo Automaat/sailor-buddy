@@ -63,6 +63,7 @@ type mockQuerier struct {
 	createTripEnrollmentFn         func(ctx context.Context, arg sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
 	listTripEnrollmentsFn          func(ctx context.Context, tripID int64) ([]sqlcdb.ListTripEnrollmentsRow, error)
 	updateTripEnrollmentStatusFn   func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentStatusParams) error
+	updateTripEnrollmentPaymentFn  func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error)
 	deleteTripEnrollmentFn         func(ctx context.Context, id int64) error
 	countTripEnrollmentsFn         func(ctx context.Context, tripID int64) (sqlcdb.CountTripEnrollmentsRow, error)
 	getUserTripEnrollmentFn        func(ctx context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
@@ -439,6 +440,13 @@ func (m *mockQuerier) ListTripEnrollments(ctx context.Context, tripID int64) ([]
 		panic("unexpected call to ListTripEnrollments")
 	}
 	return m.listTripEnrollmentsFn(ctx, tripID)
+}
+
+func (m *mockQuerier) UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error) {
+	if m.updateTripEnrollmentPaymentFn == nil {
+		panic("unexpected call to UpdateTripEnrollmentPaymentStatus")
+	}
+	return m.updateTripEnrollmentPaymentFn(ctx, arg)
 }
 
 func (m *mockQuerier) UpdateTripEnrollmentStatus(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentStatusParams) error {

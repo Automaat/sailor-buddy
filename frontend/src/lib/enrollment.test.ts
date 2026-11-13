@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { freePlacesLabel, numberLegs, signUpClosedByDeadline, signUpDeadlineLabel } from './enrollment';
+import { freePlacesLabel, numberLegs, paymentCounts, signUpClosedByDeadline, signUpDeadlineLabel } from './enrollment';
 
 describe('numberLegs', () => {
 	it('orders by embark date, undated trips last, ties by id', () => {
@@ -61,5 +61,23 @@ describe('signUpDeadlineLabel', () => {
 	it('is null without a deadline', () => {
 		expect(signUpDeadlineLabel(undefined)).toBeNull();
 		expect(signUpDeadlineLabel('')).toBeNull();
+	});
+});
+
+describe('paymentCounts', () => {
+	it('counts each payment status, treating a missing one as unpaid', () => {
+		expect(
+			paymentCounts([
+				{ payment_status: 'paid' },
+				{ payment_status: 'deposit' },
+				{ payment_status: 'deposit' },
+				{ payment_status: 'unpaid' },
+				{}
+			])
+		).toEqual({ unpaid: 2, deposit: 2, paid: 1 });
+	});
+
+	it('returns zeros for no sign-ups', () => {
+		expect(paymentCounts([])).toEqual({ unpaid: 0, deposit: 0, paid: 0 });
 	});
 });
