@@ -71,6 +71,12 @@ type tripEnrollmentStatusInput struct {
 	Body   dto.EnrollmentStatusBody
 }
 
+type tripEnrollmentPaymentInput struct {
+	TripID int64 `path:"tripID" doc:"Trip ID"`
+	ID     int64 `path:"id" doc:"Enrollment ID"`
+	Body   dto.PaymentStatusBody
+}
+
 type tripEnrollmentParam struct {
 	TripID int64 `path:"tripID" doc:"Trip ID"`
 	ID     int64 `path:"id" doc:"Enrollment ID"`
@@ -121,6 +127,14 @@ func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 		OperationID: "update-trip-enrollment-status", Method: http.MethodPut, Path: "/trips/{tripID}/enrollments/{id}/status",
 		Summary: "Update a trip enrollment's status (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateStatus)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-trip-enrollment-payment-status", Method: http.MethodPut,
+		Path:    "/trips/{tripID}/enrollments/{id}/payment-status",
+		Summary: "Set a trip enrollment's manual payment status (admin)",
+		Description: "Records whether the sign-up is unpaid, has its first payment (deposit) or is paid " +
+			"in full. The review status is left unchanged. 404 when the trip has no such enrollment.",
+		Tags: tag,
+	}, h.updatePaymentStatus)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-trip-enrollment", Method: http.MethodDelete, Path: "/trips/{tripID}/enrollments/{id}",
 		Summary: "Delete a trip enrollment (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
@@ -407,6 +421,29 @@ func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollment
 		return nil, huma.Error500InternalServerError("failed to update status")
 	}
 	return &noContentOutput{}, nil
+}
+
+// updatePaymentStatus sets the manual payment status of one sign-up of the
+// trip. The update is scoped to the trip, so an enrollment of another trip
+// is a 404.
+func (h *EnrollmentHandler) updatePaymentStatus(ctx context.Context, in *tripEnrollmentPaymentInput) (*enrollmentBodyOutput, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	e, err := h.q.UpdateTripEnrollmentPaymentStatus(ctx, sqlcdb.UpdateTripEnrollmentPaymentStatusParams{
+		PaymentStatus: in.Body.PaymentStatus,
+		ID:            in.ID,
+		TripID:        in.TripID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("enrollment not found")
+		}
+		slog.Error("update trip enrollment payment status", "trip_id", in.TripID, "enrollment_id", in.ID,
+			"payment_status", in.Body.PaymentStatus, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update payment status")
+	}
+	return &enrollmentBodyOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
 }
 
 func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnrollmentParam) (*noContentOutput, error) {

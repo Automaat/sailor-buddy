@@ -83,8 +83,9 @@ func registerSignUpRoutes(api huma.API, h *EnrollmentHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "withdraw-trip-sign-up", Method: http.MethodDelete, Path: "/trips/{tripID}/sign-up",
 		Summary: "Withdraw the caller's pending leg sign-up",
-		Description: "Deletes the caller's sign-up while it is pending. 404 when the caller has not " +
-			"signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted).",
+		Description: "Deletes the caller's sign-up while it is pending and unpaid. 404 when the caller " +
+			"has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted) " +
+			"or recorded a payment on it (deposit or paid).",
 		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.withdrawTripSignUp)
 	huma.Register(api, huma.Operation{
@@ -285,9 +286,10 @@ func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUp
 	return &enrollmentBodyOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
 }
 
-// withdrawTripSignUp deletes the caller's pending sign-up. When nothing was
-// deleted, a follow-up read tells a missing sign-up (404) from one an admin
-// has already reviewed or a cruise-level enrollment (409).
+// withdrawTripSignUp deletes the caller's pending, unpaid sign-up. When
+// nothing was deleted, a follow-up read tells a missing sign-up (404) from
+// one an admin has already reviewed, one with a recorded payment or a
+// cruise-level enrollment (409).
 func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDParam) (*noContentOutput, error) {
 	user, err := signedIn(ctx)
 	if err != nil {
@@ -313,6 +315,8 @@ func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDPa
 		return nil, huma.Error404NotFound("not signed up for this leg")
 	case e.CruiseID != nil:
 		return nil, errCruiseLevelSignUp()
+	case e.Status == "pending" && e.PaymentStatus != "unpaid":
+		return nil, huma.Error409Conflict("a payment is recorded on this sign-up: ask an admin to withdraw it")
 	}
 	return nil, huma.Error409Conflict("only a pending sign-up can be withdrawn")
 }
