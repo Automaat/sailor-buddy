@@ -266,6 +266,51 @@ export function mergeCrew(keptID: number, duplicateID: number) {
 	});
 }
 
+export function linkCrewAccount(personID: number, userID: number) {
+	return api.post('/crew/{crewID}/link', { path: { crewID: personID }, body: { user_id: userID } });
+}
+
+export function unlinkCrewAccount(personID: number) {
+	return api.post('/crew/{crewID}/unlink', { path: { crewID: personID } });
+}
+
+// ---- person link requests ("To ja") -----------------------------------------
+
+export function listPersonClaimCandidates(q: string) {
+	return api.get('/auth/me/person-candidates', { query: { q } });
+}
+
+/** getMyPersonLinkRequest returns the user's latest request, or null. */
+export async function getMyPersonLinkRequest() {
+	const res = await api.get('/auth/me/person-link-request');
+	return res?.request ?? null;
+}
+
+export function createPersonLinkRequest(personID: number) {
+	return api.post('/auth/me/person-link-request', { body: { person_id: personID } });
+}
+
+export function cancelPersonLinkRequest() {
+	return api.del('/auth/me/person-link-request');
+}
+
+export function listPersonLinkRequests() {
+	return api.get('/person-link-requests');
+}
+
+export async function countPersonLinkRequests(): Promise<number> {
+	const res = await api.get('/person-link-requests/pending-count');
+	return res?.count ?? 0;
+}
+
+export function approvePersonLinkRequest(id: number) {
+	return api.post('/person-link-requests/{requestID}/approve', { path: { requestID: id } });
+}
+
+export function rejectPersonLinkRequest(id: number) {
+	return api.post('/person-link-requests/{requestID}/reject', { path: { requestID: id } });
+}
+
 // ---- trainings (per-member) -------------------------------------------------
 
 export function listTrainings() {

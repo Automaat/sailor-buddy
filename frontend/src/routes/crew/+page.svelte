@@ -10,6 +10,7 @@
 		type AccountFilter
 	} from '#lib/people.js';
 	import Users from '@lucide/svelte/icons/users';
+	import PersonLinkRequests from '#lib/components/PersonLinkRequests.svelte';
 
 	let people = $state<CrewMember[]>([]);
 	let loading = $state(true);
@@ -71,6 +72,10 @@
 			</button>
 		{/if}
 	</div>
+
+	{#if auth.isAdmin}
+		<PersonLinkRequests ondecided={load} />
+	{/if}
 
 	{#if showForm && auth.isAdmin}
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { getCrew, updateCrew, deleteCrew } from '#lib/api/routes.js';
+	import { getCrew, updateCrew, deleteCrew, unlinkCrewAccount } from '#lib/api/routes.js';
 	import type { CrewMember, PersonMerge as PersonMergeResult } from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import { parseOtherNames } from '#lib/people.js';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PersonMerge from '#lib/components/PersonMerge.svelte';
+	import PersonAccountLink from '#lib/components/PersonAccountLink.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 
@@ -14,6 +15,7 @@
 	let notFound = $state(false);
 	let editing = $state(false);
 	let merging = $state(false);
+	let linking = $state(false);
 	let merged = $state('');
 	let saving = $state(false);
 	let error = $state('');
@@ -95,6 +97,26 @@
 		}
 	}
 
+	function handleLinked(p: CrewMember) {
+		linking = false;
+		person = p;
+		merged = 'Połączono z kontem.';
+	}
+
+	async function handleUnlink() {
+		if (!person) return;
+		if (!confirm(`Odłączyć konto od osoby ${person.full_name}? Konto dostanie nową osobę bez historii.`)) return;
+		error = '';
+		merged = '';
+		try {
+			person = await unlinkCrewAccount(id);
+			merged = 'Odłączono konto.';
+		} catch (err) {
+			console.error('Failed to unlink account:', err);
+			error = 'Nie udało się odłączyć konta.';
+		}
+	}
+
 	async function handleDelete() {
 		if (!confirm('Usunąć tę osobę?')) return;
 		await deleteCrew(id);
@@ -113,7 +135,7 @@
 					? 'bg-emerald-50 text-emerald-700'
 					: 'bg-gray-100 text-gray-600'}">{person.has_account ? 'ma konto' : 'bez konta'}</span>
 			</div>
-			{#if auth.isAdmin && !editing && !merging}
+			{#if auth.isAdmin && !editing && !merging && !linking}
 				<div class="flex gap-2">
 					<button onclick={() => person && startEdit(person)} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
 						Edytuj
@@ -121,7 +143,14 @@
 					<button onclick={() => ((merging = true), (merged = ''))} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
 						Połącz z…
 					</button>
-					{#if !person.has_account}
+					{#if person.has_account}
+						<button onclick={handleUnlink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+							Odłącz konto
+						</button>
+					{:else}
+						<button onclick={() => ((linking = true), (merged = ''))} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+							Połącz z kontem
+						</button>
 						<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
 							Usuń
 						</button>
@@ -200,6 +229,12 @@
 			</div>
 			{#if merged}
 				<p class="mt-3 text-sm text-emerald-700" role="status">{merged}</p>
+			{/if}
+			{#if error}
+				<p class="mt-3 text-sm text-red-600">{error}</p>
+			{/if}
+			{#if linking}
+				<PersonAccountLink {person} onlinked={handleLinked} oncancel={() => (linking = false)} />
 			{/if}
 			{#if merging}
 				<PersonMerge {person} onmerged={handleMerged} oncancel={() => (merging = false)} />

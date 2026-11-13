@@ -19,7 +19,13 @@ vi.mock('firebase/auth', () => ({
 	EmailAuthProvider: { credential: vi.fn(() => ({})) }
 }));
 
-vi.mock('#lib/api/routes.js', () => ({ updateMe: vi.fn() }));
+vi.mock('#lib/api/routes.js', () => ({
+	updateMe: vi.fn(),
+	getMyPersonLinkRequest: vi.fn(),
+	listPersonClaimCandidates: vi.fn(),
+	createPersonLinkRequest: vi.fn(),
+	cancelPersonLinkRequest: vi.fn()
+}));
 
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: {
@@ -36,10 +42,33 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { updateProfile } from 'firebase/auth';
-import { updateMe } from '#lib/api/routes.js';
+import {
+	updateMe,
+	getMyPersonLinkRequest,
+	listPersonClaimCandidates,
+	createPersonLinkRequest,
+	cancelPersonLinkRequest
+} from '#lib/api/routes.js';
 import ProfilePage from './+page.svelte';
 
 const updateMeMock = updateMe as unknown as ReturnType<typeof vi.fn>;
+const myRequestMock = getMyPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
+const candidatesMock = listPersonClaimCandidates as unknown as ReturnType<typeof vi.fn>;
+const createRequestMock = createPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
+const cancelRequestMock = cancelPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
+
+const pastPerson = { id: 40, full_name: 'Jan Kowalski', other_names: ['J. Kowalski'], email_match: true };
+
+function linkRequest(status: string) {
+	return {
+		id: 7,
+		user_id: 1,
+		person_id: 40,
+		person_name: 'Jan Kowalski',
+		status,
+		created_at: '2026-01-01T00:00:00Z'
+	};
+}
 const updateProfileMock = updateProfile as unknown as ReturnType<typeof vi.fn>;
 
 function seededUser(patentType: string | undefined, patentNumber: string | undefined) {
@@ -58,6 +87,10 @@ function seededUser(patentType: string | undefined, patentNumber: string | undef
 }
 
 beforeEach(() => {
+	myRequestMock.mockReset().mockResolvedValue(null);
+	candidatesMock.mockReset().mockResolvedValue([pastPerson]);
+	createRequestMock.mockReset().mockResolvedValue(linkRequest('pending'));
+	cancelRequestMock.mockReset().mockResolvedValue(undefined);
 	h.fbUser.displayName = 'Jan Kowalski';
 	h.fbUser.photoURL = '';
 	h.fbUser.providerData = [{ providerId: 'password' }];
@@ -141,5 +174,42 @@ describe('profile page', () => {
 		render(ProfilePage);
 		await screen.findByLabelText('Patent żeglarski');
 		expect(screen.queryByText('Zmień hasło')).toBeNull();
+	});
+});
+
+describe('profile person claim', () => {
+	it('shows a pending request and cancels it', async () => {
+		myRequestMock.mockResolvedValue(linkRequest('pending'));
+		render(ProfilePage);
+		expect(await screen.findByText(/czeka na zatwierdzenie/)).toBeTruthy();
+		expect(screen.queryByLabelText('Szukaj osoby')).toBeNull();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Anuluj prośbę' }));
+
+		await waitFor(() => expect(cancelRequestMock).toHaveBeenCalled());
+		expect(await screen.findByLabelText('Szukaj osoby')).toBeTruthy();
+		expect(await screen.findByRole('button', { name: 'To ja: Jan Kowalski' })).toBeTruthy();
+	});
+
+	it('sends a request and shows the conflict message on 409', async () => {
+		const { ApiError } = await import('#lib/api/client.js');
+		createRequestMock.mockRejectedValueOnce(new ApiError(409, 'conflict'));
+		render(ProfilePage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'To ja: Jan Kowalski' }));
+		expect(await screen.findByText(/ma już konto albo masz już oczekującą prośbę/)).toBeTruthy();
+	});
+
+	it('tells the user about a rejected request and lets them try again', async () => {
+		myRequestMock.mockResolvedValue(linkRequest('rejected'));
+		render(ProfilePage);
+		expect(await screen.findByText(/odrzucił prośbę/)).toBeTruthy();
+		expect(await screen.findByRole('button', { name: 'To ja: Jan Kowalski' })).toBeTruthy();
+	});
+
+	it('shows the linked person once approved', async () => {
+		myRequestMock.mockResolvedValue(linkRequest('approved'));
+		render(ProfilePage);
+		expect(await screen.findByText(/Konto połączone z osobą/)).toBeTruthy();
+		expect(screen.queryByRole('button', { name: /To ja/ })).toBeNull();
 	});
 });

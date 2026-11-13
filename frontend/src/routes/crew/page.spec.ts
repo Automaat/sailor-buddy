@@ -4,17 +4,45 @@ import { makePerson } from '#lib/test-utils.js';
 
 vi.mock('#lib/api/routes.js', () => ({
 	listCrew: vi.fn(),
-	createCrew: vi.fn()
+	createCrew: vi.fn(),
+	listPersonLinkRequests: vi.fn(),
+	approvePersonLinkRequest: vi.fn(),
+	rejectPersonLinkRequest: vi.fn(),
+	countPersonLinkRequests: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
-import { listCrew, createCrew } from '#lib/api/routes.js';
+import {
+	listCrew,
+	createCrew,
+	listPersonLinkRequests,
+	approvePersonLinkRequest,
+	rejectPersonLinkRequest
+} from '#lib/api/routes.js';
+import { ApiError } from '#lib/api/client.js';
+import { linkRequests } from '#lib/stores/linkRequests.svelte.js';
 import PeoplePage from './+page.svelte';
 
 const listMock = vi.mocked(listCrew);
 const createMock = vi.mocked(createCrew);
+const requestsMock = vi.mocked(listPersonLinkRequests);
+const approveMock = vi.mocked(approvePersonLinkRequest);
+const rejectMock = vi.mocked(rejectPersonLinkRequest);
+
+function pendingRequest() {
+	return {
+		id: 9,
+		user_id: 5,
+		user_name: 'Ola Nowa',
+		user_email: 'ola@example.dev',
+		person_id: 3,
+		person_name: 'Zofia Łęcka',
+		status: 'pending' as const,
+		created_at: '2026-01-01T00:00:00Z'
+	};
+}
 
 function people() {
 	return [
@@ -43,6 +71,10 @@ async function renderPage() {
 beforeEach(() => {
 	listMock.mockReset().mockResolvedValue(people());
 	createMock.mockReset();
+	requestsMock.mockReset().mockResolvedValue([]);
+	approveMock.mockReset();
+	rejectMock.mockReset();
+	linkRequests.pending = 0;
 });
 
 describe('people page', () => {
@@ -110,5 +142,48 @@ describe('people page', () => {
 			target: { value: 'majowna' }
 		});
 		expect(names()).toEqual(['Ewa Maj']);
+	});
+});
+
+describe('people page "To ja" requests', () => {
+	it('lists pending requests, approves one and refreshes the people and the nav count', async () => {
+		requestsMock.mockResolvedValueOnce([pendingRequest()]).mockResolvedValueOnce([]);
+		approveMock.mockResolvedValue({ ...pendingRequest(), status: 'approved' });
+		await renderPage();
+		const row = await screen.findByTestId('link-request');
+		expect(row.textContent).toContain('Ola Nowa');
+		expect(row.textContent).toContain('Zofia Łęcka');
+		expect(linkRequests.pending).toBe(1);
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Zatwierdź: Ola Nowa → Zofia Łęcka' }));
+
+		await waitFor(() => expect(approveMock).toHaveBeenCalledWith(9));
+		expect(await screen.findByText('Połączono konto Ola Nowa z osobą Zofia Łęcka.')).toBeTruthy();
+		await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+		expect(screen.queryByTestId('link-request')).toBeNull();
+		expect(linkRequests.pending).toBe(0);
+	});
+
+	it('rejects a request', async () => {
+		requestsMock.mockResolvedValueOnce([pendingRequest()]).mockResolvedValueOnce([]);
+		rejectMock.mockResolvedValue({ ...pendingRequest(), status: 'rejected' });
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Odrzuć: Ola Nowa → Zofia Łęcka' }));
+		await waitFor(() => expect(rejectMock).toHaveBeenCalledWith(9));
+		expect(approveMock).not.toHaveBeenCalled();
+	});
+
+	it('explains a stale request', async () => {
+		requestsMock.mockResolvedValue([pendingRequest()]);
+		approveMock.mockRejectedValue(new ApiError(409, 'stale'));
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Zatwierdź: Ola Nowa → Zofia Łęcka' }));
+		expect(await screen.findByText(/Prośba jest nieaktualna/)).toBeTruthy();
+	});
+
+	it('shows nothing when no request waits', async () => {
+		await renderPage();
+		await waitFor(() => expect(requestsMock).toHaveBeenCalled());
+		expect(screen.queryByText('Prośby „To ja”')).toBeNull();
 	});
 });
