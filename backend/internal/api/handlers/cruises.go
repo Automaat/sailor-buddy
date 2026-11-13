@@ -11,9 +11,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/net/idna"
+	"golang.org/x/text/unicode/rangetable"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
@@ -450,7 +453,7 @@ func groupChatURL(s *string) (types.NullString, error) {
 	}
 	u, err := url.Parse(v.String)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || !validPort(u.Port()) ||
-		invalidNumericHost(browserHost(u.Hostname())) {
+		failsDomainToASCII(u.Hostname()) || invalidNumericHost(browserHost(u.Hostname())) {
 		return types.NullString{}, huma.Error422UnprocessableEntity("group_chat_url must be an http or https URL")
 	}
 	return v, nil
@@ -487,6 +490,91 @@ func browserHost(host string) string {
 		return host
 	}
 	return mapped
+}
+
+// joinerIDNA runs only the UTS46 CheckJoiners (CONTEXTJ) rules: no mapping,
+// no code point or bidi validation.
+var joinerIDNA = idna.New(idna.CheckJoiners(true))
+
+// assignedByUnicode13 holds the code points assigned by Unicode 13. A label
+// is rejected for starting with a combining mark only when the mark is in
+// this set: parsers with older mark tables (Node's new URL() among them)
+// accept labels that start with a newer mark such as U+11F00.
+var assignedByUnicode13 = rangetable.Assigned("13.0.0")
+
+// failsDomainToASCII reports whether the WHATWG URL parser (used by browsers
+// and the frontend's new URL()) rejects host in its "domain to ASCII" step,
+// which url.Parse does not run. It checks each UTS46-mapped label for an
+// xn-- label that does not decode to valid non-ASCII text, an unassigned or
+// private-use code point or U+FFFD, a leading combining mark, and ZWNJ/ZWJ outside their
+// CONTEXTJ contexts. An IPv6 literal with a zone ID fails too: url.Parse
+// accepts "[fe80::1%25eth0]", browsers do not.
+//
+// Only these checks reject. A bare idna error is not enough: idna also flags
+// labels a browser accepts.
+func failsDomainToASCII(host string) bool {
+	if strings.Contains(host, ":") {
+		return strings.Contains(host, "%")
+	}
+	for raw := range strings.FieldsFuncSeq(host, isLabelSeparator) {
+		// ToUnicode maps the label and decodes it if it is a valid xn--
+		// label, returning that result even alongside an error.
+		label, _ := whatwgIDNA.ToUnicode(raw)
+		if isACELabel(raw) && !validDecodedACE(label) {
+			// The WHATWG parser rejects it; Node's new URL() skips IDNA for
+			// all-ASCII hosts and accepts it.
+			return true
+		}
+		for i, r := range label {
+			if r == unicode.ReplacementChar || unicode.In(r, unicode.Co, unicode.Cn) {
+				return true
+			}
+			if i == 0 && unicode.Is(unicode.M, r) && unicode.Is(assignedByUnicode13, r) {
+				return true
+			}
+		}
+		// The leading "a" keeps idna's own leading-mark check out of this
+		// one; a non-joining letter does not change any CONTEXTJ result.
+		if strings.ContainsAny(label, "\u200c\u200d") {
+			if _, err := joinerIDNA.ToUnicode("a" + label); err != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isLabelSeparator reports the code points UTS46 maps to a label dot.
+func isLabelSeparator(r rune) bool {
+	return r == '.' || r == '\u3002' || r == '\uff0e' || r == '\uff61'
+}
+
+// isACELabel reports whether raw, once UTS46-mapped, starts with "xn--"
+// (e.g. full-width "ｘｎ--"). The leading "a" stops ToUnicode decoding it.
+func isACELabel(raw string) bool {
+	mapped, _ := whatwgIDNA.ToUnicode("a" + raw)
+	return strings.HasPrefix(mapped, "axn--")
+}
+
+// validDecodedACE reports whether label, the decoded form of an xn--
+// label, is one UTS46 accepts: punycode that decoded (an undecodable label,
+// such as "xn--zz" or "xn--é", stays "xn--..."), to non-ASCII text that
+// UTS46 mapping leaves unchanged (no uppercase Ż from "xn--gha").
+func validDecodedACE(label string) bool {
+	if label == "" || isASCII(label) || strings.HasPrefix(label, "xn--") {
+		return false
+	}
+	remapped, _ := whatwgIDNA.ToUnicode(label)
+	return remapped == label
+}
+
+func isASCII(s string) bool {
+	for i := range len(s) {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 // invalidNumericHost reports whether host is one the WHATWG URL parser
