@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { makeCruise, makeTrip, makeVoyage } from '#lib/test-utils.js';
-import { buildRejsEntries, filterRejsEntries, parseRejsTab } from './rejsy.js';
+import {
+	buildRejsEntries,
+	filterRejsEntries,
+	isMineFilter,
+	onlyMine,
+	parseRejsTab,
+	rejsListUrl
+} from './rejsy.js';
 
 describe('buildRejsEntries', () => {
 	it('lists each cruise once with its legs summarized', () => {
@@ -108,5 +115,39 @@ describe('parseRejsTab', () => {
 		['bogus', 'upcoming']
 	])('maps %s to %s', (input, want) => {
 		expect(parseRejsTab(input)).toBe(want);
+	});
+});
+
+describe('rejsListUrl', () => {
+	it.each([
+		['upcoming', false, '/cruises'],
+		['completed', false, '/cruises?tab=completed'],
+		['upcoming', true, '/cruises?mine=1'],
+		['all', true, '/cruises?tab=all&mine=1']
+	] as const)('%s, mine=%s -> %s', (tab, mine, want) => {
+		expect(rejsListUrl(tab, mine)).toBe(want);
+	});
+});
+
+describe('isMineFilter', () => {
+	it.each([
+		['1', true],
+		['0', false],
+		[null, false],
+		['true', false]
+	])('%j -> %s', (value, want) => {
+		expect(isMineFilter(value)).toBe(want);
+	});
+});
+
+describe('onlyMine', () => {
+	it('keeps only cruises the user took part in', () => {
+		const entries = buildRejsEntries(
+			[makeCruise({ id: 1, name: 'A' }), makeCruise({ id: 2, name: 'B' }), makeCruise({ id: 3, name: 'C' })],
+			[],
+			[]
+		);
+		expect(onlyMine(entries, new Set([1, 3])).map((e) => e.name)).toEqual(['A', 'C']);
+		expect(onlyMine(entries, new Set())).toEqual([]);
 	});
 });

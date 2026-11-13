@@ -342,7 +342,7 @@ func upsertYacht(ctx context.Context, tx *sql.Tx, createdBy int64, name, regNo, 
 }
 
 func seedCrew(ctx context.Context, tx *sql.Tx, createdBy int64) ([]int64, error) {
-	crewIDs := make([]int64, 0, 3)
+	crewIDs := make([]int64, 0, 4)
 	for _, crew := range []struct {
 		name   string
 		email  string
@@ -351,12 +351,13 @@ func seedCrew(ctx context.Context, tx *sql.Tx, createdBy int64) ([]int64, error)
 		{name: "Anna Nowak", email: "anna@example.dev", patent: "JSM-1024"},
 		{name: "Piotr Kowalski", email: "piotr@example.dev", patent: "ISS-2048"},
 		{name: "Ewa Klubowa", email: "ewa@example.dev", patent: "KPT-0001"},
+		{name: "Marek Zaloga", email: "marek.dev@gmail.com"},
 	} {
 		var crewID int64
 		err := tx.QueryRowContext(ctx, `
 			WITH inserted AS (
 				INSERT INTO crew_members (created_by, full_name, email, patent_number)
-				SELECT $1, $2, $3, $4
+				SELECT $1, $2, $3, NULLIF($4, '')
 				WHERE NOT EXISTS (SELECT 1 FROM crew_members WHERE full_name = $2)
 				RETURNING id
 			)

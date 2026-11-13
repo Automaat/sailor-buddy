@@ -1210,6 +1210,27 @@ components:
       required:
         - membership
       type: object
+    MyCruises:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/MyCruises.json
+          format: uri
+          readOnly: true
+          type: string
+        cruise_ids:
+          description: Cruises with the user's accepted enrollment, captained leg or crew-list entry
+          items:
+            format: int64
+            type: integer
+          type:
+            - array
+            - "null"
+      required:
+        - cruise_ids
+      type: object
     PageCrewMember:
       additionalProperties: false
       properties:
@@ -2373,6 +2394,25 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Save the current user's profile and finish onboarding
+      tags:
+        - Auth
+  /auth/me/cruises:
+    get:
+      operationId: list-my-cruises
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyCruises"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Cruises the current user took part in
       tags:
         - Auth
   /crew:

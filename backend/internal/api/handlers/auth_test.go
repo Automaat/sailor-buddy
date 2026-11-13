@@ -151,3 +151,47 @@ func TestAuthHandler_UpdateMe(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthHandler_MyCruises(t *testing.T) {
+	tests := []struct {
+		name string
+		ids  []int64
+		want string
+	}{
+		{name: "participated", ids: []int64{3, 7}, want: "[3,7]"},
+		{name: "none is an empty list", ids: nil, want: "[]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, api := humatest.New(t)
+			var asked int64
+			RegisterAuthRoutes(api, &mockQuerier{
+				listUserCruiseIDsFn: func(_ context.Context, userID int64) ([]int64, error) {
+					asked = userID
+					return tt.ids, nil
+				},
+			})
+			resp := api.GetCtx(userCtx(context.Background()), "/auth/me/cruises")
+			if resp.Code != http.StatusOK {
+				t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+			}
+			var body struct {
+				CruiseIDs json.RawMessage `json:"cruise_ids"`
+			}
+			if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if asked != 1 || string(body.CruiseIDs) != tt.want {
+				t.Fatalf("asked user %d, cruise_ids %s; want user 1, %s", asked, body.CruiseIDs, tt.want)
+			}
+		})
+	}
+
+	t.Run("not authenticated", func(t *testing.T) {
+		_, api := humatest.New(t)
+		RegisterAuthRoutes(api, &mockQuerier{})
+		if resp := api.Get("/auth/me/cruises"); resp.Code != http.StatusUnauthorized {
+			t.Fatalf("got %d, want 401", resp.Code)
+		}
+	})
+}

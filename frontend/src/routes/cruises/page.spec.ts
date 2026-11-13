@@ -6,7 +6,7 @@ const pageState = vi.hoisted(() => ({ url: new URL('http://localhost/cruises') }
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$app/state', () => ({ page: pageState }));
-vi.mock('#lib/api/client.js', () => ({ api: { list: vi.fn() } }));
+vi.mock('#lib/api/client.js', () => ({ api: { list: vi.fn(), get: vi.fn() } }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
@@ -17,10 +17,16 @@ import { auth } from '#lib/stores/auth.svelte.js';
 import RejsyPage from './+page.svelte';
 
 const apiList = api.list as unknown as ReturnType<typeof vi.fn>;
+const apiGet = api.get as unknown as ReturnType<typeof vi.fn>;
 const mockGoto = goto as unknown as ReturnType<typeof vi.fn>;
 const mockAuth = auth as unknown as { isAdmin: boolean };
 
-function serve(data: { cruises?: unknown[]; trips?: unknown[]; voyages?: unknown[] }) {
+function serve(data: { cruises?: unknown[]; trips?: unknown[]; voyages?: unknown[]; mine?: number[] }) {
+	apiGet.mockImplementation((path: string) =>
+		path === '/auth/me/cruises'
+			? Promise.resolve({ cruise_ids: data.mine ?? [] })
+			: Promise.reject(new Error(`unexpected ${path}`))
+	);
 	apiList.mockImplementation((path: string) => {
 		if (path === '/cruises') return Promise.resolve(data.cruises ?? []);
 		if (path === '/trips') return Promise.resolve(data.trips ?? []);
@@ -31,6 +37,7 @@ function serve(data: { cruises?: unknown[]; trips?: unknown[]; voyages?: unknown
 
 beforeEach(() => {
 	apiList.mockReset();
+	apiGet.mockReset();
 	mockGoto.mockReset();
 	serve({});
 	vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -168,6 +175,53 @@ describe('rejsy page', () => {
 			await fireEvent.click(screen.getByRole('button', { name: 'Śródlądowy' }));
 
 			expect(screen.getByText('Brak rejsów tego rodzaju')).toBeInTheDocument();
+		});
+	});
+
+	describe('my cruises filter', () => {
+		const cruises = [
+			makeCruise({ id: 1, name: 'Mój rejs' }),
+			makeCruise({ id: 2, name: 'Cudzy rejs' }),
+			makeCruise({ id: 3, name: 'Mój stary rejs' })
+		];
+		const trips = [makeTrip({ id: 10, cruise_id: 1 }), makeTrip({ id: 11, cruise_id: 2 })];
+		const voyages = [makeVoyage({ id: 20, cruise_id: 3 })];
+
+		it('narrows the list to cruises the user took part in and keeps it in the URL', async () => {
+			serve({ cruises, trips, voyages, mine: [1, 3] });
+			render(RejsyPage);
+			await screen.findByText('Cudzy rejs');
+
+			const toggle = screen.getByRole('button', { name: 'Moje rejsy' });
+			expect(toggle).toHaveAttribute('aria-pressed', 'false');
+			await fireEvent.click(toggle);
+
+			expect(toggle).toHaveAttribute('aria-pressed', 'true');
+			expect(screen.getByText('Mój rejs')).toBeInTheDocument();
+			expect(screen.queryByText('Cudzy rejs')).not.toBeInTheDocument();
+			expect(mockGoto).toHaveBeenCalledWith('/cruises?mine=1', { replace: true, shallow: true });
+
+			await fireEvent.click(screen.getByRole('tab', { name: 'Zrealizowane' }));
+			expect(screen.getByText('Mój stary rejs')).toBeInTheDocument();
+			expect(mockGoto).toHaveBeenLastCalledWith('/cruises?tab=completed&mine=1', { replace: true, shallow: true });
+		});
+
+		it('opens with the filter on from the URL and explains an empty result', async () => {
+			pageState.url = new URL('http://localhost/cruises?mine=1');
+			serve({ cruises, trips, voyages, mine: [] });
+			render(RejsyPage);
+
+			expect(await screen.findByText('Nie masz nadchodzących rejsów')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Moje rejsy' })).toHaveAttribute('aria-pressed', 'true');
+		});
+
+		it('still lists all cruises when loading the user\'s cruises fails', async () => {
+			serve({ cruises, trips, voyages });
+			apiGet.mockRejectedValue(new Error('boom'));
+			render(RejsyPage);
+
+			expect(await screen.findByText('Cudzy rejs')).toBeInTheDocument();
+			expect(screen.getByText('Mój rejs')).toBeInTheDocument();
 		});
 	});
 });

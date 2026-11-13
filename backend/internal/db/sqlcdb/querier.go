@@ -493,6 +493,36 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
+	// Cruises the user took part in: an accepted cruise or trip enrollment, a
+	// captained leg, or a crew-list entry linked to the account or its email.
+	//
+	//  WITH me AS (
+	//      SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
+	//  ),
+	//  my_crew AS (
+	//      SELECT cm.id AS crew_id FROM crew_members cm, me
+	//      WHERE cm.user_id = me.me_id
+	//         OR (cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+	//  )
+	//  SELECT ce.cruise_id FROM cruise_enrollments ce, me
+	//  WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+	//  UNION
+	//  SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
+	//  WHERE te.user_id = me.me_id AND te.status = 'accepted'
+	//  UNION
+	//  SELECT t.cruise_id FROM trips t, me WHERE t.captain_user_id = me.me_id
+	//  UNION
+	//  SELECT v.cruise_id FROM voyages v, me WHERE v.captain_user_id = me.me_id
+	//  UNION
+	//  SELECT t.cruise_id FROM crew_assignments ca
+	//  JOIN trips t ON t.id = ca.trip_id
+	//  JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+	//  UNION
+	//  SELECT v.cruise_id FROM crew_assignments ca
+	//  JOIN voyages v ON v.id = ca.voyage_id
+	//  JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+	//  ORDER BY cruise_id
+	ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error)
 	// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
 	//
 	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at

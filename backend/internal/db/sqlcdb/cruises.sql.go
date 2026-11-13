@@ -459,6 +459,87 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 	return items, nil
 }
 
+const listUserCruiseIDs = `-- name: ListUserCruiseIDs :many
+WITH me AS (
+    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
+),
+my_crew AS (
+    SELECT cm.id AS crew_id FROM crew_members cm, me
+    WHERE cm.user_id = me.me_id
+       OR (cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+)
+SELECT ce.cruise_id FROM cruise_enrollments ce, me
+WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+UNION
+SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
+WHERE te.user_id = me.me_id AND te.status = 'accepted'
+UNION
+SELECT t.cruise_id FROM trips t, me WHERE t.captain_user_id = me.me_id
+UNION
+SELECT v.cruise_id FROM voyages v, me WHERE v.captain_user_id = me.me_id
+UNION
+SELECT t.cruise_id FROM crew_assignments ca
+JOIN trips t ON t.id = ca.trip_id
+JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+UNION
+SELECT v.cruise_id FROM crew_assignments ca
+JOIN voyages v ON v.id = ca.voyage_id
+JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+ORDER BY cruise_id
+`
+
+// Cruises the user took part in: an accepted cruise or trip enrollment, a
+// captained leg, or a crew-list entry linked to the account or its email.
+//
+//	WITH me AS (
+//	    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
+//	),
+//	my_crew AS (
+//	    SELECT cm.id AS crew_id FROM crew_members cm, me
+//	    WHERE cm.user_id = me.me_id
+//	       OR (cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+//	)
+//	SELECT ce.cruise_id FROM cruise_enrollments ce, me
+//	WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+//	UNION
+//	SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
+//	WHERE te.user_id = me.me_id AND te.status = 'accepted'
+//	UNION
+//	SELECT t.cruise_id FROM trips t, me WHERE t.captain_user_id = me.me_id
+//	UNION
+//	SELECT v.cruise_id FROM voyages v, me WHERE v.captain_user_id = me.me_id
+//	UNION
+//	SELECT t.cruise_id FROM crew_assignments ca
+//	JOIN trips t ON t.id = ca.trip_id
+//	JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+//	UNION
+//	SELECT v.cruise_id FROM crew_assignments ca
+//	JOIN voyages v ON v.id = ca.voyage_id
+//	JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+//	ORDER BY cruise_id
+func (q *Queries) ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listUserCruiseIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var cruise_id int64
+		if err := rows.Scan(&cruise_id); err != nil {
+			return nil, err
+		}
+		items = append(items, cruise_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setCruiseEnrollToken = `-- name: SetCruiseEnrollToken :exec
 UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
