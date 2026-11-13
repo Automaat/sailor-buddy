@@ -557,16 +557,31 @@ func ipv4Number(s string) (uint64, bool) {
 	if s == "" {
 		return 0, true
 	}
+	for _, r := range s {
+		if d := digitValue(r); d < 0 || d >= base {
+			return 0, false
+		}
+	}
 	n, err := strconv.ParseUint(s, base, 64)
 	if err != nil {
-		// Out-of-range values are still numbers; they fail the range check.
-		var numErr *strconv.NumError
-		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
-			return 1 << 63, true
-		}
-		return 0, false
+		// Every digit is valid, so the only error is overflow: still a
+		// number, and one that fails the range check.
+		return 1 << 63, true
 	}
 	return n, true
+}
+
+// digitValue returns the value of an ASCII hex digit, or -1.
+func digitValue(r rune) int {
+	switch {
+	case r >= '0' && r <= '9':
+		return int(r - '0')
+	case r >= 'a' && r <= 'f':
+		return int(r-'a') + 10
+	case r >= 'A' && r <= 'F':
+		return int(r-'A') + 10
+	}
+	return -1
 }
 
 func allDigits(s string) bool {
