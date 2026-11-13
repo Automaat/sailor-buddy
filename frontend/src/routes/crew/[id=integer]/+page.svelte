@@ -82,9 +82,12 @@
 		}
 	}
 
-	function handleMerged(result: PersonMergeResult) {
+	function handleMerged(result: PersonMergeResult, keptName: string) {
 		merging = false;
-		merged = `Połączono: ${result.duplicate.full_name} → ${result.person.full_name}.`;
+		merged = `Połączono: ${result.duplicate.full_name} → ${keptName}.`;
+		if (result.person.full_name !== keptName) {
+			merged += ` Imię i nazwisko z konta: ${result.person.full_name}.`;
+		}
 		if (result.person.id === id) {
 			person = result.person;
 		} else {

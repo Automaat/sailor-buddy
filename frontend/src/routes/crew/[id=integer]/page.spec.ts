@@ -170,4 +170,34 @@ describe('person page', () => {
 		expect(screen.getByRole('button', { name: 'Połącz' })).toBeDisabled();
 		expect(previewMock).not.toHaveBeenCalled();
 	});
+
+	it('names the kept record by its own name when it takes over the other account', async () => {
+		const current = makePerson({ id: 4, full_name: 'Zofia Duplikat' });
+		const account = makePerson({ id: 9, full_name: 'Mira Member', has_account: true, user_id: 3 });
+		getMock.mockResolvedValue(current);
+		listMock.mockResolvedValue([current, account]);
+		const renamed = { ...current, full_name: 'Mira Member', other_names: ['Zofia Duplikat'], has_account: true, user_id: 3 };
+		previewMock.mockImplementation(async (keptID) =>
+			keptID === 4 ? mergeOf(renamed, account) : mergeOf(account, current)
+		);
+		mergeMock.mockResolvedValue(mergeOf(renamed, account));
+
+		render(PersonPage);
+		await screen.findByRole('heading', { name: 'Zofia Duplikat' });
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz z…' }));
+		await fireEvent.click(await screen.findByRole('button', { name: /Mira Member/ }));
+		await waitFor(() => expect(previewMock).toHaveBeenCalledWith(9, 4));
+		await fireEvent.click(screen.getByRole('radio', { name: 'Zofia Duplikat' }));
+		await waitFor(() => expect(previewMock).toHaveBeenLastCalledWith(4, 9));
+		const summary = await screen.findByTestId('merge-summary');
+		expect(summary).toHaveTextContent('Zostanie Zofia Duplikat, a Mira Member zostanie usunięta.');
+		expect(summary).toHaveTextContent('Imię i nazwisko po połączeniu (z konta): Mira Member');
+		expect(summary).toHaveTextContent('Konto osoby Mira Member zostanie przypisane do Zofia Duplikat.');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
+		await waitFor(() => expect(mergeMock).toHaveBeenCalledWith(4, 9));
+		expect(await screen.findByRole('status')).toHaveTextContent(
+			'Połączono: Mira Member → Zofia Duplikat. Imię i nazwisko z konta: Mira Member.'
+		);
+	});
 });

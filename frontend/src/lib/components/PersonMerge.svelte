@@ -12,7 +12,7 @@
 		oncancel
 	}: {
 		person: CrewMember;
-		onmerged: (result: PersonMerge) => void;
+		onmerged: (result: PersonMerge, keptName: string) => void;
 		oncancel: () => void;
 	} = $props();
 
@@ -28,6 +28,7 @@
 		people.filter((p) => p.id !== person.id && matchesPerson(p, query)).slice(0, 20)
 	);
 	const bothAccounts = $derived(!!other && other.has_account && person.has_account);
+	const keptName = $derived(keptID === person.id ? person.full_name : (other?.full_name ?? ''));
 
 	onMount(async () => {
 		try {
@@ -81,7 +82,7 @@
 		busy = true;
 		error = '';
 		try {
-			onmerged(await mergeCrew(keptID, duplicateID()));
+			onmerged(await mergeCrew(keptID, duplicateID()), keptName);
 		} catch (err) {
 			error = mergeError(err);
 		} finally {
@@ -146,10 +147,13 @@
 		{:else if preview}
 			<div class="mt-4 rounded-lg bg-gray-50 p-4 text-sm" data-testid="merge-summary">
 				<p>
-					Zostanie <strong>{preview.person.full_name}</strong>, a
+					Zostanie <strong>{keptName}</strong>, a
 					<strong>{preview.duplicate.full_name}</strong> zostanie usunięta.
 				</p>
-				<p class="mt-2 font-medium">Przeniesione do {preview.person.full_name}:</p>
+				{#if preview.person.full_name !== keptName}
+					<p class="mt-2">Imię i nazwisko po połączeniu (z konta): {preview.person.full_name}</p>
+				{/if}
+				<p class="mt-2 font-medium">Przeniesione do {keptName}:</p>
 				<ul class="ml-5 list-disc">
 					<li>{count(preview.trip_assignments, 'przypisanie do etapu', 'przypisania do etapów', 'przypisań do etapów')}</li>
 					<li>{count(preview.voyage_assignments, 'przypisanie do rejsu', 'przypisania do rejsów', 'przypisań do rejsów')}</li>
@@ -157,7 +161,7 @@
 				</ul>
 				{#if preview.shared_assignments || preview.shared_opinions}
 					<p class="mt-2">
-						Wspólne wpisy obu osób (zostają wpisy {preview.person.full_name}):
+						Wspólne wpisy obu osób (zostają wpisy {keptName}):
 						{count(preview.shared_assignments, 'przypisanie', 'przypisania', 'przypisań')},
 						{count(preview.shared_opinions, 'opinia', 'opinie', 'opinii')}.
 					</p>
@@ -166,7 +170,7 @@
 					<p class="mt-2">Inne nazwiska po połączeniu: {preview.person.other_names.join(', ')}</p>
 				{/if}
 				{#if preview.duplicate.has_account}
-					<p class="mt-2">Konto osoby {preview.duplicate.full_name} zostanie przypisane do {preview.person.full_name}.</p>
+					<p class="mt-2">Konto osoby {preview.duplicate.full_name} zostanie przypisane do {keptName}.</p>
 				{/if}
 			</div>
 		{/if}
