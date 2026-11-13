@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { makeCruise, makeTrip } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -26,7 +26,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
-import { getCruise, getTrip, listAssignableCrew, listTripCrew } from '#lib/api/routes.js';
+import { cancelTrip, getCruise, getTrip, listAssignableCrew, listTripCrew } from '#lib/api/routes.js';
 import TripDetailPage from './+page.svelte';
 
 const mockAuth = auth as unknown as { isAdmin: boolean };
@@ -95,5 +95,81 @@ describe('trip page status', () => {
 		expect(await screen.findByText(want)).toBeInTheDocument();
 		expect(screen.queryByText('Do rozliczenia')).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Zrealizuj teraz' })).not.toBeInTheDocument();
+	});
+});
+
+describe('trip page actions', () => {
+	it('keeps Zrealizuj and Edytuj visible and tucks Odwołaj etap and Usuń into a menu', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, status: 'planned' }));
+		render(TripDetailPage);
+
+		expect(await screen.findByRole('button', { name: 'Zrealizuj' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Edytuj' })).toHaveAttribute('href', '/trips/50/edit');
+		expect(screen.queryByRole('menuitem', { name: 'Odwołaj etap' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Anuluj' })).not.toBeInTheDocument();
+
+		const toggle = screen.getByRole('button', { name: 'Więcej akcji' });
+		await fireEvent.click(toggle);
+		expect(toggle).toHaveAttribute('aria-expanded', 'true');
+		const menu = screen.getByRole('menu');
+		expect(within(menu).getAllByRole('menuitem').map((el) => el.textContent?.trim())).toEqual([
+			'Odwołaj etap',
+			'Usuń'
+		]);
+	});
+
+	it('asks for confirmation before cancelling the leg', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, status: 'planned' }));
+		const cancelled = makeTrip({ id: 50, status: 'cancelled' });
+		vi.mocked(cancelTrip).mockResolvedValue(cancelled);
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+		render(TripDetailPage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Odwołaj etap' }));
+		expect(confirmSpy).toHaveBeenCalledWith('Odwołać ten etap?');
+		expect(cancelTrip).not.toHaveBeenCalled();
+		expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Odwołaj etap' }));
+		expect(cancelTrip).toHaveBeenCalledWith(50);
+		expect(await screen.findByText('Anulowany')).toBeInTheDocument();
+		confirmSpy.mockRestore();
+	});
+
+	it('offers only Usuń in the menu once the leg is cancelled', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, status: 'cancelled' }));
+		render(TripDetailPage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Więcej akcji' }));
+		expect(screen.getAllByRole('menuitem').map((el) => el.textContent?.trim())).toEqual(['Usuń']);
+		expect(screen.queryByRole('button', { name: 'Zrealizuj' })).not.toBeInTheDocument();
+	});
+
+	it('closes the menu on Escape and on an outside click', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, status: 'planned' }));
+		render(TripDetailPage);
+
+		const toggle = await screen.findByRole('button', { name: 'Więcej akcji' });
+		await fireEvent.click(toggle);
+		await fireEvent.keyDown(window, { key: 'Escape' });
+		expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+		await fireEvent.click(toggle);
+		await fireEvent.click(document.body);
+		expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+	});
+
+	it('shows no actions menu to a member', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A', status: 'planned' }));
+		render(TripDetailPage);
+
+		expect(await screen.findByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Więcej akcji' })).not.toBeInTheDocument();
 	});
 });

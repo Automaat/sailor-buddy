@@ -343,12 +343,12 @@
 						href="/trips/new?cruise_id={id}"
 						class="rounded-lg bg-[var(--ocean)] px-3 py-1.5 text-sm text-white hover:bg-[var(--ocean-dark)]"
 					>
-						+ Dodaj jacht
+						+ Dodaj etap
 					</a>
 				{/if}
 			</div>
 			{#if trips.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">Brak planowanych etapów. Dodaj jachty, którymi popłyną uczestnicy.</p>
+				<p class="text-sm text-[var(--text-muted)]">Brak etapów</p>
 			{:else}
 				<div class="space-y-2">
 					{#each legs as leg (leg.trip.id)}
