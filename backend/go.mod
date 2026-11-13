@@ -15,7 +15,7 @@ require (
 	github.com/lukasjarosch/go-docx v0.5.0
 	github.com/xuri/excelize/v2 v2.11.1
 	golang.org/x/net v0.62.0
-	google.golang.org/api v0.313.0
+	google.golang.org/api v0.314.0
 )
 
 require (
