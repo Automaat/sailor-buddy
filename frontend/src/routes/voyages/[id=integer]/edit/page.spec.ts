@@ -43,4 +43,22 @@ describe('voyage edit page', () => {
 			image_route_url: '/uploads/route.png'
 		});
 	});
+
+	it('refuses to save without a cruise', async () => {
+		fn(getVoyage).mockResolvedValue(makeVoyage({ id: 5, cruise_id: 0 }));
+		fn(listCruises).mockResolvedValue([]);
+		render(EditVoyagePage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(updateVoyage).not.toHaveBeenCalled();
+	});
+
+	it('shows the server error when saving fails', async () => {
+		fn(updateVoyage).mockRejectedValue(new Error('cruise not found'));
+		render(EditVoyagePage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(await screen.findByText('cruise not found')).toBeInTheDocument();
+	});
 });

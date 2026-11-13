@@ -76,4 +76,22 @@ describe('trip edit page', () => {
 
 		expect(await save()).toMatchObject({ cruise_id: 13 });
 	});
+
+	it('refuses to save without a cruise', async () => {
+		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 0 }));
+		fn(listCruises).mockResolvedValue([]);
+		render(EditTripPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(updateTrip).not.toHaveBeenCalled();
+	});
+
+	it('shows the server error when saving fails', async () => {
+		fn(updateTrip).mockRejectedValue(new Error('cruise not found'));
+		render(EditTripPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(await screen.findByText('cruise not found')).toBeInTheDocument();
+	});
 });
