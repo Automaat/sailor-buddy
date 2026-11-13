@@ -585,9 +585,10 @@ type Querier interface {
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
 	// Cruises the user took part in: an accepted cruise or trip enrollment, a
-	// leg captained by the account's person, or a crew-list entry linked to the account, or one without an
-	// account that carries its email. Another account's person never matches by
-	// email: it keeps the email that account had when the person was created.
+	// leg captained by the account's person, or a crew-list entry linked to the
+	// account, or one without an account that carries its email. Another
+	// account's person never matches by email: it keeps the email that account
+	// had when the person was created.
 	//
 	//  WITH me AS (
 	//      SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
@@ -710,6 +711,15 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR NO KEY UPDATE
 	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
+	// Key-share-locks the trip's captain person. Trip completion takes it before
+	// the trip lock, in the same order as deleting the person (the person, then
+	// the trips ON DELETE SET NULL), so the two cannot deadlock.
+	// No row when the trip has no captain person or either is gone.
+	//
+	//  SELECT cm.id FROM crew_members cm
+	//  WHERE cm.id = (SELECT t.captain_person_id FROM trips t WHERE t.id = $1)
+	//  FOR KEY SHARE OF cm
+	LockTripCaptain(ctx context.Context, id int64) (int64, error)
 	// Key-share-locks the cruise the trip belongs to. Trip completion takes it
 	// before the trip lock, in the same order as DELETE FROM cruises (cruise,
 	// then the trips foreign-key check), so the two cannot deadlock.

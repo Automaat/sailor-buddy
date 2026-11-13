@@ -27,6 +27,15 @@ SELECT c.id FROM cruises c
 WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
 FOR KEY SHARE OF c;
 
+-- name: LockTripCaptain :one
+-- Key-share-locks the trip's captain person. Trip completion takes it before
+-- the trip lock, in the same order as deleting the person (the person, then
+-- the trips ON DELETE SET NULL), so the two cannot deadlock.
+-- No row when the trip has no captain person or either is gone.
+SELECT cm.id FROM crew_members cm
+WHERE cm.id = (SELECT t.captain_person_id FROM trips t WHERE t.id = $1)
+FOR KEY SHARE OF cm;
+
 -- name: ListTrips :many
 SELECT * FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2;
 

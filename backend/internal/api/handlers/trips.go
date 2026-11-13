@@ -316,6 +316,9 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 		if errors.Is(err, errTripCruiseChanged) {
 			return nil, huma.Error409Conflict("trip moved to another cruise; retry")
 		}
+		if errors.Is(err, errTripCaptainChanged) {
+			return nil, huma.Error409Conflict("trip captain changed; retry")
+		}
 		slog.Error("complete trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to complete trip")
 	}
@@ -326,8 +329,12 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 // the cruise lock and the trip lock on every completion attempt.
 var errTripCruiseChanged = errors.New("trip cruise changed during completion")
 
-// completeTripAttempts bounds the retries when the trip's cruise changes
-// between the cruise lock and the trip lock.
+// errTripCaptainChanged reports that the trip's captain person changed
+// between the captain lock and the trip lock on every completion attempt.
+var errTripCaptainChanged = errors.New("trip captain changed during completion")
+
+// completeTripAttempts bounds the retries when the trip's cruise or captain
+// changes between its lock and the trip lock.
 const completeTripAttempts = 3
 
 // completeTripTx wraps the trip → voyage transition: it creates the voyage,
@@ -340,13 +347,15 @@ func completeTripTx(ctx context.Context, db *sql.DB, tripID int64, req dto.Compl
 // completeTripTxWith runs completeTripTx with an optional querier wrapper,
 // which tests use to pause the transaction between statements.
 func completeTripTxWith(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+	var last error
 	for range completeTripAttempts {
 		voyage, err := completeTripOnce(ctx, db, wrap, tripID, req)
-		if !errors.Is(err, errTripCruiseChanged) {
+		if !errors.Is(err, errTripCruiseChanged) && !errors.Is(err, errTripCaptainChanged) {
 			return voyage, err
 		}
+		last = err
 	}
-	return sqlcdb.Voyage{}, errTripCruiseChanged
+	return sqlcdb.Voyage{}, last
 }
 
 func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
@@ -361,23 +370,32 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 		qtx = wrap(qtx)
 	}
 
-	// Lock the cruise, then the trip, before any write. DELETE FROM cruises
-	// takes the same order (cruise, then the trips foreign-key check), and a
-	// concurrent leg enrollment share-locks the trip; any other order
-	// deadlocks with one of them.
+	// Lock the cruise and the captain person, then the trip, before any
+	// write. DELETE FROM cruises takes the same order (cruise, then the trips
+	// foreign-key check), so does deleting the captain person (person, then
+	// its ON DELETE SET NULL on trips), and a concurrent leg enrollment
+	// share-locks the trip; any other order deadlocks with one of them.
 	cruiseID, err := qtx.LockTripCruise(ctx, tripID)
 	locked := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripCruise", Err: err}
 	}
+	captainID, err := qtx.LockTripCaptain(ctx, tripID)
+	captain := types.NullInt64{Int64: captainID, Valid: err == nil}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripCaptain", Err: err}
+	}
 	trip, err := qtx.GetTripForUpdate(ctx, tripID)
 	if err != nil {
 		return sqlcdb.Voyage{}, err
 	}
-	// A trip that moved to a cruise other than the locked one must retry,
-	// since locking the new cruise now would invert the order.
+	// A trip that moved to a cruise or captain other than the locked one
+	// must retry, since locking the new row now would invert the order.
 	if !locked || trip.CruiseID != cruiseID {
 		return sqlcdb.Voyage{}, errTripCruiseChanged
+	}
+	if trip.CaptainPersonID != captain {
+		return sqlcdb.Voyage{}, errTripCaptainChanged
 	}
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return sqlcdb.Voyage{}, sql.ErrNoRows

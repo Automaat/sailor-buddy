@@ -189,6 +189,10 @@ func (m *mockQuerier) LockTripCruise(context.Context, int64) (int64, error) {
 	panic("unexpected call to LockTripCruise")
 }
 
+func (m *mockQuerier) LockTripCaptain(context.Context, int64) (int64, error) {
+	panic("unexpected call to LockTripCaptain")
+}
+
 func (m *mockQuerier) CreateTrip(ctx context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
 	if m.createTripFn == nil {
 		panic("unexpected call to CreateTrip")

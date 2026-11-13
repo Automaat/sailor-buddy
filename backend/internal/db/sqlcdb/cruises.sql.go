@@ -496,9 +496,10 @@ ORDER BY cruise_id
 `
 
 // Cruises the user took part in: an accepted cruise or trip enrollment, a
-// leg captained by the account's person, or a crew-list entry linked to the account, or one without an
-// account that carries its email. Another account's person never matches by
-// email: it keeps the email that account had when the person was created.
+// leg captained by the account's person, or a crew-list entry linked to the
+// account, or one without an account that carries its email. Another
+// account's person never matches by email: it keeps the email that account
+// had when the person was created.
 //
 //	WITH me AS (
 //	    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1

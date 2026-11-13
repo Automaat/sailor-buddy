@@ -417,6 +417,27 @@ func (q *Queries) ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, e
 	return items, nil
 }
 
+const lockTripCaptain = `-- name: LockTripCaptain :one
+SELECT cm.id FROM crew_members cm
+WHERE cm.id = (SELECT t.captain_person_id FROM trips t WHERE t.id = $1)
+FOR KEY SHARE OF cm
+`
+
+// Key-share-locks the trip's captain person. Trip completion takes it before
+// the trip lock, in the same order as deleting the person (the person, then
+// the trips ON DELETE SET NULL), so the two cannot deadlock.
+// No row when the trip has no captain person or either is gone.
+//
+//	SELECT cm.id FROM crew_members cm
+//	WHERE cm.id = (SELECT t.captain_person_id FROM trips t WHERE t.id = $1)
+//	FOR KEY SHARE OF cm
+func (q *Queries) LockTripCaptain(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockTripCaptain, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const lockTripCruise = `-- name: LockTripCruise :one
 SELECT c.id FROM cruises c
 WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
