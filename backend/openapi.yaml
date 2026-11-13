@@ -176,9 +176,19 @@ components:
           type: string
         full_name:
           type: string
+        has_account:
+          description: Whether the person is linked to an account
+          type: boolean
         id:
           format: int64
           type: integer
+        other_names:
+          description: Other spellings and maiden names that search matches
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         patent_number:
           type: string
         phone:
@@ -195,7 +205,9 @@ components:
           type: integer
       required:
         - id
+        - has_account
         - full_name
+        - other_names
         - created_at
         - updated_at
       type: object
@@ -219,6 +231,14 @@ components:
           description: Crew member full name
           minLength: 1
           type: string
+        other_names:
+          description: Other spellings and maiden names; blank and repeated entries are dropped, each at most 200 characters. An update replaces the list.
+          items:
+            type: string
+          maxItems: 20
+          type:
+            - array
+            - "null"
         patent_number:
           type: string
         phone:
@@ -2646,6 +2666,14 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: Case-insensitive part of a name, other name or e-mail; blank lists everyone
+          explode: false
+          in: query
+          name: q
+          schema:
+            description: Case-insensitive part of a name, other name or e-mail; blank lists everyone
+            maxLength: 200
+            type: string
       responses:
         "200":
           content:
@@ -2659,7 +2687,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: List crew members
+      summary: List and search people
       tags:
         - Crew
     post:
@@ -2707,7 +2735,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Delete a crew member (admin)
+      summary: Delete a person without an account (admin)
       tags:
         - Crew
     get:

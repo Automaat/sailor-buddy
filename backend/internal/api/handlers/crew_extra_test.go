@@ -27,7 +27,7 @@ func TestCrewHandler_List_Errors(t *testing.T) {
 	t.Run("count error", func(t *testing.T) {
 		m := &mockQuerier{
 			listCrewMembersFn:  func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) { return nil, nil },
-			countCrewMembersFn: func(context.Context) (int64, error) { return 0, errors.New("fail") },
+			countCrewMembersFn: func(context.Context, types.NullString) (int64, error) { return 0, errors.New("fail") },
 		}
 		resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew")
 		if resp.Code != http.StatusInternalServerError {
@@ -125,7 +125,7 @@ func TestCrewHandler_Update(t *testing.T) {
 
 func TestCrewHandler_Delete(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		m := &mockQuerier{deleteCrewMemberFn: func(context.Context, int64) error { return nil }}
+		m := &mockQuerier{deleteCrewMemberFn: func(context.Context, int64) (int64, error) { return 1, nil }}
 		resp := crewTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/crew/1")
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
@@ -133,7 +133,7 @@ func TestCrewHandler_Delete(t *testing.T) {
 	})
 
 	t.Run("db error", func(t *testing.T) {
-		m := &mockQuerier{deleteCrewMemberFn: func(context.Context, int64) error { return errors.New("fail") }}
+		m := &mockQuerier{deleteCrewMemberFn: func(context.Context, int64) (int64, error) { return 0, errors.New("fail") }}
 		resp := crewTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/crew/1")
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)

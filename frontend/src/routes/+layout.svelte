@@ -33,7 +33,7 @@
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
 		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
-		{ href: '/crew', label: 'Załoga', icon: Contact, adminOnly: true }
+		{ href: '/crew', label: 'Osoby', icon: Contact, adminOnly: true }
 	];
 
 	// Phone navigation drawer (below md). It closes on every navigation so a

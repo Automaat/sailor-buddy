@@ -32,7 +32,12 @@ func optionalAuthPath(r *http.Request) bool {
 	return ok && token != "" && !strings.Contains(token, "/")
 }
 
-func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Handler {
+// TokenVerifier verifies a Firebase ID token; *fbauth.Client implements it.
+type TokenVerifier interface {
+	VerifyIDToken(ctx context.Context, idToken string) (*fbauth.Token, error)
+}
+
+func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			optional := optionalAuthPath(r)
@@ -103,6 +108,14 @@ func Auth(fbClient *fbauth.Client, q sqlcdb.Querier) func(http.Handler) http.Han
 			}
 			if err != nil {
 				slog.Error("provision user", "email", email, "uid", fbToken.UID, "err", err)
+				http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
+				return
+			}
+
+			// Every account has exactly one person (crew record); the first
+			// request of a new account creates it.
+			if err := q.EnsureUserPerson(r.Context(), user.ID); err != nil {
+				slog.Error("ensure user person", "user_id", user.ID, "err", err)
 				http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 				return
 			}

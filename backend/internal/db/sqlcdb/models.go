@@ -79,6 +79,7 @@ type CrewMember struct {
 	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
 	CreatedAt             types.NullTime   `json:"created_at"`
 	UpdatedAt             types.NullTime   `json:"updated_at"`
+	OtherNames            json.RawMessage  `json:"other_names"`
 }
 
 type Cruise struct {

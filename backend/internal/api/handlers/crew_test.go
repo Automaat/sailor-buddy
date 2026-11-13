@@ -25,7 +25,7 @@ func TestCrewHandler_List(t *testing.T) {
 		listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) {
 			return []sqlcdb.CrewMember{{ID: 1, FullName: "Jan Nowak"}}, nil
 		},
-		countCrewMembersFn: func(context.Context) (int64, error) { return 1, nil },
+		countCrewMembersFn: func(context.Context, types.NullString) (int64, error) { return 1, nil },
 	}
 	resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew")
 	if resp.Code != http.StatusOK {

@@ -34,6 +34,15 @@ RETURNING *;
 UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4;
 
 -- name: UpdateUserProfile :one
+-- The account's person mirrors its name, phone and patent number.
+WITH person AS (
+  UPDATE crew_members SET
+    full_name = sqlc.arg(first_name)::TEXT || ' ' || sqlc.arg(last_name)::TEXT,
+    phone = sqlc.narg(phone),
+    patent_number = sqlc.narg(patent_number),
+    updated_at = CURRENT_TIMESTAMP
+  WHERE crew_members.user_id = sqlc.arg(id)
+)
 UPDATE users SET
   first_name = sqlc.arg(first_name),
   last_name = sqlc.arg(last_name),
@@ -43,7 +52,7 @@ UPDATE users SET
   patent_number = sqlc.narg(patent_number),
   onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
   updated_at = CURRENT_TIMESTAMP
-WHERE id = sqlc.arg(id)
+WHERE users.id = sqlc.arg(id)
 RETURNING *;
 
 -- name: CountUsers :one

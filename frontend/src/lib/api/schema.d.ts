@@ -46,7 +46,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List crew members */
+        /** List and search people */
         get: operations["list-crew"];
         put?: never;
         /** Create a crew member (admin) */
@@ -69,7 +69,7 @@ export interface paths {
         /** Update a crew member (admin) */
         put: operations["update-crew-member"];
         post?: never;
-        /** Delete a crew member (admin) */
+        /** Delete a person without an account (admin) */
         delete: operations["delete-crew-member"];
         options?: never;
         head?: never;
@@ -1119,8 +1119,12 @@ export interface components {
             emergency_contact_name?: string;
             emergency_contact_phone?: string;
             full_name: string;
+            /** @description Whether the person is linked to an account */
+            has_account: boolean;
             /** Format: int64 */
             id: number;
+            /** @description Other spellings and maiden names that search matches */
+            other_names: string[] | null;
             patent_number?: string;
             phone?: string;
             pzz_license_number?: string;
@@ -1142,6 +1146,8 @@ export interface components {
             emergency_contact_phone?: string;
             /** @description Crew member full name */
             full_name: string;
+            /** @description Other spellings and maiden names; blank and repeated entries are dropped, each at most 200 characters. An update replaces the list. */
+            other_names?: string[] | null;
             patent_number?: string;
             phone?: string;
             pzz_license_number?: string;
@@ -2673,6 +2679,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description Case-insensitive part of a name, other name or e-mail; blank lists everyone */
+                q?: string;
             };
             header?: never;
             path?: never;
