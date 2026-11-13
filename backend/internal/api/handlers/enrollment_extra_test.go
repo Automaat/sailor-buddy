@@ -87,6 +87,91 @@ func TestEnrollment_GetByToken_Cruise(t *testing.T) {
 	})
 }
 
+// TestEnrollment_GetByToken_CruiseLegsArePublicSummaries checks the public
+// cruise enroll response lists legs without their own enroll tokens, creator
+// or total cost, while keeping what the enroll page shows.
+func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
+	leg := sqlcdb.Trip{
+		ID:                     1,
+		Name:                   "Bodø – Tromsø",
+		CreatedBy:              types.NullInt64{Int64: 42, Valid: true},
+		CruiseID:               types.NullInt64{Int64: 7, Valid: true},
+		EmbarkDate:             types.NullString{String: "2025-07-01", Valid: true},
+		DisembarkDate:          types.NullString{String: "2025-07-10", Valid: true},
+		StartPort:              types.NullString{String: "Bodø", Valid: true},
+		EndPort:                types.NullString{String: "Tromsø", Valid: true},
+		CaptainName:            types.NullString{String: "Jan Kowalski", Valid: true},
+		CaptainUserID:          types.NullInt64{Int64: 9, Valid: true},
+		MaxCrew:                types.NullInt64{Int64: 8, Valid: true},
+		CostTotal:              types.NullFloat64{Float64: 20000, Valid: true},
+		CostPerPerson:          types.NullFloat64{Float64: 2500, Valid: true},
+		CostPerPersonNonMember: types.NullFloat64{Float64: 3000, Valid: true},
+		YachtFund:              types.NullFloat64{Float64: 500, Valid: true},
+		Deposit:                types.NullFloat64{Float64: 200, Valid: true},
+		Currency:               "EUR",
+		Status:                 sqlcdb.TripStatusCancelled,
+		EnrollToken:            types.NullString{String: "leg-secret", Valid: true},
+	}
+	m := &mockQuerier{
+		getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
+			return sqlcdb.GetTripByEnrollTokenRow{}, sql.ErrNoRows
+		},
+		getCruiseByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
+			return sqlcdb.GetCruiseByEnrollTokenRow{ID: 7, Name: "NNE 2025"}, nil
+		},
+		countCruiseEnrollmentsFn: func(context.Context, int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
+			return sqlcdb.CountCruiseEnrollmentsRow{}, nil
+		},
+		listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+			return []sqlcdb.Trip{leg}, nil
+		},
+		countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+			return nil, nil
+		},
+	}
+	// Anonymous caller: the enroll link needs no login.
+	resp := enrollTestAPI(t, m).GetCtx(context.Background(), "/enroll/tok")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+	}
+	var raw struct {
+		Trips []map[string]any `json:"trips"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(raw.Trips) != 1 {
+		t.Fatalf("trips = %d, want 1; body=%s", len(raw.Trips), resp.Body)
+	}
+	got := raw.Trips[0]
+	for _, k := range []string{"enroll_token", "created_by", "cost_total", "captain_user_id"} {
+		if _, ok := got[k]; ok {
+			t.Errorf("trips[0] exposes %q: %v", k, got[k])
+		}
+	}
+	want := map[string]any{
+		"id":                         float64(1),
+		"name":                       "Bodø – Tromsø",
+		"status":                     "cancelled",
+		"embark_date":                "2025-07-01",
+		"disembark_date":             "2025-07-10",
+		"start_port":                 "Bodø",
+		"end_port":                   "Tromsø",
+		"captain_name":               "Jan Kowalski",
+		"max_crew":                   float64(8),
+		"currency":                   "EUR",
+		"cost_per_person":            float64(2500),
+		"cost_per_person_non_member": float64(3000),
+		"yacht_fund":                 float64(500),
+		"deposit":                    float64(200),
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("trips[0][%q] = %v, want %v", k, got[k], v)
+		}
+	}
+}
+
 func TestEnrollment_GetByToken_Errors(t *testing.T) {
 	t.Run("trip lookup db error", func(t *testing.T) {
 		m := &mockQuerier{

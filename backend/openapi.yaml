@@ -744,7 +744,7 @@ components:
             - "null"
         trips:
           items:
-            $ref: "#/components/schemas/Trip"
+            $ref: "#/components/schemas/EnrollLeg"
           type:
             - array
             - "null"
@@ -753,6 +753,65 @@ components:
         - enrolled
         - accepted_count
         - total_count
+      type: object
+    EnrollLeg:
+      additionalProperties: false
+      properties:
+        captain_name:
+          type: string
+        cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
+          format: double
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
+          format: double
+          type: number
+        countries:
+          type: string
+        currency:
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          type: number
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_photo_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        start_port:
+          type: string
+        status:
+          enum:
+            - planned
+            - cancelled
+          type: string
+        yacht_fund:
+          description: Estimated yacht fund (kasa jachtowa) per person
+          format: double
+          type: number
+      required:
+        - status
+        - id
+        - name
+        - currency
       type: object
     EnrollLegResult:
       additionalProperties: false
