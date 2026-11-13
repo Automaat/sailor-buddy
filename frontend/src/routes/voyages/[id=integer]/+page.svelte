@@ -61,9 +61,10 @@
 	const id = $derived(Number(page.params.id));
 	// Voyages are club-managed: only admins manage crew & opinions.
 	const canManageCrew = $derived(auth.isAdmin);
-	// The assigned captain logs the post-cruise data: hours, miles, ports, note.
+	// The captain, through the person linked to their account, logs the
+	// post-cruise data: hours, miles, ports, note.
 	const isVoyageCaptain = $derived(
-		!!auth.user && !!voyage?.captain_user_id && voyage.captain_user_id === auth.user.id
+		!!auth.user?.person_id && voyage?.captain_person_id === auth.user.person_id
 	);
 	const canLog = $derived(auth.isAdmin || isVoyageCaptain);
 	const yacht = $derived(yachts.find((y) => y.id === voyage?.yacht_id) ?? null);

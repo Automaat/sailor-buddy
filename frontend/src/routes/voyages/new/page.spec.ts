@@ -12,10 +12,10 @@ vi.mock('#lib/api/routes.js', () => ({
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	createVoyage: vi.fn(),
-	listMembers: vi.fn()
+	listMembers: vi.fn(), listCrew: vi.fn()
 }));
 
-import { listCruises, listYachts, createVoyage, createYacht, listMembers } from '#lib/api/routes.js';
+import { listCruises, listYachts, createVoyage, createYacht, listMembers, listCrew } from '#lib/api/routes.js';
 import NewVoyagePage from './+page.svelte';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
@@ -24,6 +24,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	pageState.url = new URL('http://localhost/voyages/new');
 	fn(listMembers).mockResolvedValue([]);
+	fn(listCrew).mockResolvedValue([]);
 	fn(listYachts).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025' })]);
 	fn(createVoyage).mockResolvedValue(makeVoyage({ id: 8 }));

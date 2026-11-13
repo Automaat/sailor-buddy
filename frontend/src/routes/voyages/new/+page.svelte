@@ -36,7 +36,7 @@
 		hours_over_6bf: 0,
 		miles: 0,
 		days: 0,
-		captain_user_id: 0,
+		captain_person_id: 0,
 		yacht_id: 0,
 		tidal_waters: false,
 		cost_total: 0,
@@ -71,7 +71,7 @@
 				yacht_id: form.yacht_id || undefined,
 				track_url: form.track_url.trim() || undefined,
 				voyage_card: form.voyage_card.trim() || undefined,
-				captain_user_id: form.captain_user_id || undefined
+				captain_person_id: form.captain_person_id || undefined
 			};
 			const voyage = await createVoyage(payload);
 			goto(`/voyages/${voyage.id}`);
@@ -130,7 +130,7 @@
 			</div>
 			<div>
 				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-				<CaptainSelect bind:value={form.captain_user_id} />
+				<CaptainSelect bind:value={form.captain_person_id} />
 			</div>
 		</div>
 

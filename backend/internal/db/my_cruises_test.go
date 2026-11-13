@@ -26,13 +26,13 @@ func TestListUserCruiseIDs(t *testing.T) {
 	}
 	trip := func(cruiseID int64, captain any) int64 {
 		var id int64
-		mustScan(t, conn.QueryRow(`INSERT INTO trips (name, cruise_id, captain_user_id) VALUES ('leg', $1, $2) RETURNING id`,
+		mustScan(t, conn.QueryRow(`INSERT INTO trips (name, cruise_id, captain_person_id) VALUES ('leg', $1, $2) RETURNING id`,
 			cruiseID, captain), &id)
 		return id
 	}
 	voyage := func(cruiseID int64, captain any) int64 {
 		var id int64
-		mustScan(t, conn.QueryRow(`INSERT INTO voyages (name, cruise_id, captain_user_id) VALUES ('leg', $1, $2) RETURNING id`,
+		mustScan(t, conn.QueryRow(`INSERT INTO voyages (name, cruise_id, captain_person_id) VALUES ('leg', $1, $2) RETURNING id`,
 			cruiseID, captain), &id)
 		return id
 	}
@@ -49,6 +49,10 @@ func TestListUserCruiseIDs(t *testing.T) {
 		}
 	}
 
+	mePerson := crew(me, nil)
+	otherPerson := crew(other, "ola@example.dev")
+	noAccountPerson := crew(nil, nil)
+
 	acceptedCruise := cruise("accepted cruise enrollment")
 	exec(`INSERT INTO cruise_enrollments (cruise_id, user_id, status) VALUES ($1, $2, 'accepted')`, acceptedCruise, me)
 
@@ -59,13 +63,13 @@ func TestListUserCruiseIDs(t *testing.T) {
 	exec(`INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'accepted')`, trip(acceptedTrip, nil), me)
 
 	captainedTrip := cruise("captained trip")
-	trip(captainedTrip, me)
+	trip(captainedTrip, mePerson)
 
 	captainedVoyage := cruise("captained voyage")
-	voyage(captainedVoyage, me)
+	voyage(captainedVoyage, mePerson)
 
 	linkedCrew := cruise("crew linked by account")
-	exec(`INSERT INTO crew_assignments (trip_id, crew_member_id) VALUES ($1, $2)`, trip(linkedCrew, nil), crew(me, nil))
+	exec(`INSERT INTO crew_assignments (trip_id, crew_member_id) VALUES ($1, $2)`, trip(linkedCrew, nil), mePerson)
 
 	emailCrew := cruise("crew matched by email")
 	exec(`INSERT INTO crew_assignments (voyage_id, crew_member_id) VALUES ($1, $2)`,
@@ -73,7 +77,7 @@ func TestListUserCruiseIDs(t *testing.T) {
 
 	othersCruise := cruise("someone else's cruise")
 	exec(`INSERT INTO crew_assignments (voyage_id, crew_member_id) VALUES ($1, $2)`,
-		voyage(othersCruise, other), crew(other, "ola@example.dev"))
+		voyage(othersCruise, otherPerson), otherPerson)
 	exec(`INSERT INTO cruise_enrollments (cruise_id, user_id, status) VALUES ($1, $2, 'accepted')`, othersCruise, other)
 
 	var previousOwner int64
@@ -82,6 +86,9 @@ func TestListUserCruiseIDs(t *testing.T) {
 	exec(`INSERT INTO crew_assignments (voyage_id, crew_member_id) VALUES ($1, $2)`,
 		voyage(staleEmailCruise, nil), crew(previousOwner, "jan@example.dev"))
 
+	noAccountCaptain := cruise("captained by a person without an account")
+	voyage(noAccountCaptain, noAccountPerson)
+
 	got, err := sqlcdb.New(conn).ListUserCruiseIDs(context.Background(), me)
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -89,7 +96,7 @@ func TestListUserCruiseIDs(t *testing.T) {
 	want := []int64{acceptedCruise, acceptedTrip, captainedTrip, captainedVoyage, linkedCrew, emailCrew}
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
-		t.Fatalf("cruise ids = %v, want %v (pending %d, others %d, stale e-mail %d excluded)",
-			got, want, pendingCruise, othersCruise, staleEmailCruise)
+		t.Fatalf("cruise ids = %v, want %v (pending %d, others %d, stale e-mail %d, no-account captain %d excluded)",
+			got, want, pendingCruise, othersCruise, staleEmailCruise, noAccountCaptain)
 	}
 }

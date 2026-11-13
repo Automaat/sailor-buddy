@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type AuthHandler struct {
@@ -76,7 +79,22 @@ func (h *AuthHandler) me(ctx context.Context, _ *struct{}) (*meOutput, error) {
 		slog.Error("get current user", "user_id", claims.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to load profile")
 	}
-	return &meOutput{Body: dto.MeFromUser(user)}, nil
+	return h.meWithPerson(ctx, user)
+}
+
+// meWithPerson maps the profile and adds the account's person, so the client
+// can tell which legs and voyages the user captains.
+func (h *AuthHandler) meWithPerson(ctx context.Context, user sqlcdb.User) (*meOutput, error) {
+	me := dto.MeFromUser(user)
+	person, err := h.q.GetCrewMemberByUserID(ctx, types.NullInt64{Int64: user.ID, Valid: true})
+	switch {
+	case err == nil:
+		me.PersonID = &person.ID
+	case !errors.Is(err, sql.ErrNoRows):
+		slog.Error("get current user person", "user_id", user.ID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to load profile")
+	}
+	return &meOutput{Body: me}, nil
 }
 
 func (h *AuthHandler) updateMe(ctx context.Context, in *updateMeInput) (*meOutput, error) {
@@ -103,7 +121,7 @@ func (h *AuthHandler) updateMe(ctx context.Context, in *updateMeInput) (*meOutpu
 		slog.Error("update user profile", "user_id", claims.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update profile")
 	}
-	return &meOutput{Body: dto.MeFromUser(user)}, nil
+	return h.meWithPerson(ctx, user)
 }
 
 // profileParams trims the form and enforces the cross-field rules: names

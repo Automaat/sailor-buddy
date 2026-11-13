@@ -2,7 +2,7 @@
 INSERT INTO trips (
     created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
     captain_name, yacht_id, cost_total, cost_per_person, max_crew,
-    image_logo_url, image_photo_url, image_route_url, description, status, captain_user_id,
+    image_logo_url, image_photo_url, image_route_url, description, status, captain_person_id,
     currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
@@ -39,7 +39,7 @@ UPDATE trips SET
     start_port = $5, end_port = $6, captain_name = $7, yacht_id = $8,
     cost_total = $9, cost_per_person = $10, max_crew = $11,
     image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
-    cruise_id = $16, captain_user_id = $17,
+    cruise_id = $16, captain_person_id = $17,
     currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
     sign_up_deadline = $22,
     updated_at = CURRENT_TIMESTAMP

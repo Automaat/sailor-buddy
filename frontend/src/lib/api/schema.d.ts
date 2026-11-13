@@ -288,7 +288,7 @@ export interface paths {
         };
         /**
          * Caller's sea time, plus club totals for admins
-         * @description Personal totals count voyages where the caller is the assigned captain or on the crew list through a crew record linked to their account.
+         * @description Personal totals count voyages captained by the caller's person or on the crew list through a crew record linked to their account.
          */
         get: operations["get-dashboard"];
         put?: never;
@@ -1768,6 +1768,11 @@ export interface components {
             onboarded: boolean;
             patent_number?: string;
             patent_type?: string;
+            /**
+             * Format: int64
+             * @description The account's person (crew record); a leg or voyage it captains gives the account captain rights
+             */
+            person_id?: number;
             phone?: string;
             role: string;
         };
@@ -2126,8 +2131,11 @@ export interface components {
              */
             readonly $schema?: string;
             captain_name?: string;
-            /** Format: int64 */
-            captain_user_id?: number;
+            /**
+             * Format: int64
+             * @description Person (crew record) who captains the trip
+             */
+            captain_person_id?: number;
             /**
              * Format: double
              * @description Member price per person (czlonek, sympatyk)
@@ -2201,13 +2209,13 @@ export interface components {
              * @example /api/TripBody.json
              */
             readonly $schema?: string;
-            /** @description Free-text captain; replaced by the user's name when captain_user_id is set */
+            /** @description Free-text captain; replaced by the person's name when captain_person_id is set */
             captain_name?: string;
             /**
              * Format: int64
-             * @description User ID of the assigned captain (must be in the captain group)
+             * @description Person (crew record) who captains the trip; any person may be chosen
              */
-            captain_user_id?: number;
+            captain_person_id?: number;
             /**
              * Format: double
              * @description Member price per person (czlonek, sympatyk)
@@ -2323,8 +2331,11 @@ export interface components {
             readonly $schema?: string;
             captain_name?: string;
             captain_notes?: string;
-            /** Format: int64 */
-            captain_user_id?: number;
+            /**
+             * Format: int64
+             * @description Person (crew record) who captains the voyage
+             */
+            captain_person_id?: number;
             /** Format: double */
             cost_per_person?: number;
             /** Format: double */
@@ -2377,13 +2388,13 @@ export interface components {
              * @example /api/VoyageBody.json
              */
             readonly $schema?: string;
-            /** @description Free-text captain; replaced by the user's name when captain_user_id is set */
+            /** @description Free-text captain; replaced by the person's name when captain_person_id is set */
             captain_name?: string;
             /**
              * Format: int64
-             * @description User ID of the assigned captain (must be in the captain group)
+             * @description Person (crew record) who captains the voyage; any person may be chosen
              */
-            captain_user_id?: number;
+            captain_person_id?: number;
             /** Format: double */
             cost_per_person?: number;
             /** Format: double */

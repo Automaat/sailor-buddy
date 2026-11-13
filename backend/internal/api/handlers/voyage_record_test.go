@@ -17,8 +17,17 @@ import (
 
 const recordCaptainID = 7
 
+const recordCaptainPersonID = 70
+
 func captainVoyage(_ context.Context, id int64) (sqlcdb.Voyage, error) {
-	return sqlcdb.Voyage{ID: id, CaptainUserID: types.NullInt64{Int64: recordCaptainID, Valid: true}}, nil
+	return sqlcdb.Voyage{ID: id, CaptainPersonID: types.NullInt64{Int64: recordCaptainPersonID, Valid: true}}, nil
+}
+
+func recordCaptain(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
+	if id != recordCaptainPersonID {
+		return sqlcdb.CrewMember{}, sql.ErrNoRows
+	}
+	return sqlcdb.CrewMember{ID: id, UserID: types.NullInt64{Int64: recordCaptainID, Valid: true}}, nil
 }
 
 func TestVoyageLog_RecordFields(t *testing.T) {
@@ -35,7 +44,8 @@ func TestVoyageLog_RecordFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var got *sqlcdb.UpdateVoyageLogParams
 			m := &mockQuerier{
-				getVoyageFn: captainVoyage,
+				getVoyageFn:     captainVoyage,
+				getCrewMemberFn: recordCaptain,
 				updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
 					got = &arg
 					return nil
@@ -70,7 +80,8 @@ func TestVoyageLog_RecordFields(t *testing.T) {
 func TestVoyageLog_ClearsEmptyRecordFields(t *testing.T) {
 	var got *sqlcdb.UpdateVoyageLogParams
 	m := &mockQuerier{
-		getVoyageFn: captainVoyage,
+		getVoyageFn:     captainVoyage,
+		getCrewMemberFn: recordCaptain,
 		updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
 			got = &arg
 			return nil
@@ -107,7 +118,8 @@ func TestVoyageTrackURL_Validation(t *testing.T) {
 		t.Run(tt.url, func(t *testing.T) {
 			written := false
 			m := &mockQuerier{
-				getVoyageFn: captainVoyage,
+				getVoyageFn:     captainVoyage,
+				getCrewMemberFn: recordCaptain,
 				updateVoyageLogFn: func(context.Context, sqlcdb.UpdateVoyageLogParams) error {
 					written = true
 					return nil
@@ -172,7 +184,8 @@ func TestVoyageCreate_StoresRecordFields(t *testing.T) {
 
 func TestVoyageLog_UnknownYacht(t *testing.T) {
 	m := &mockQuerier{
-		getVoyageFn: captainVoyage,
+		getVoyageFn:     captainVoyage,
+		getCrewMemberFn: recordCaptain,
 		updateVoyageLogFn: func(context.Context, sqlcdb.UpdateVoyageLogParams) error {
 			return &pgconn.PgError{Code: "23503", ConstraintName: "voyages_yacht_id_fkey"}
 		},
@@ -205,6 +218,7 @@ func TestVoyageAddYacht_Authorization(t *testing.T) {
 					}
 					return captainVoyage(ctx, id)
 				},
+				getCrewMemberFn: recordCaptain,
 				createYachtFn: func(_ context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error) {
 					got = &arg
 					return sqlcdb.Yacht{ID: 11, Name: arg.Name, YachtType: arg.YachtType, RegistrationNo: arg.RegistrationNo}, nil
@@ -242,7 +256,8 @@ func TestVoyageAddYacht_Authorization(t *testing.T) {
 func TestVoyagePorts_AddNameOnlyAnchorage(t *testing.T) {
 	var got *sqlcdb.CreateVoyagePortParams
 	m := &mockQuerier{
-		getVoyageFn: captainVoyage,
+		getVoyageFn:     captainVoyage,
+		getCrewMemberFn: recordCaptain,
 		createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
 			got = &arg
 			return sqlcdb.VoyagePort{
@@ -282,7 +297,8 @@ func TestVoyagePorts_RejectsHalfCoordinates(t *testing.T) {
 	for _, body := range bodies {
 		created := false
 		m := &mockQuerier{
-			getVoyageFn: captainVoyage,
+			getVoyageFn:     captainVoyage,
+			getCrewMemberFn: recordCaptain,
 			createVoyagePortFn: func(context.Context, sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
 				created = true
 				return sqlcdb.VoyagePort{}, nil

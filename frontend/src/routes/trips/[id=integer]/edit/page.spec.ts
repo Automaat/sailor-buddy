@@ -11,10 +11,10 @@ vi.mock('#lib/api/routes.js', () => ({
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	listCruises: vi.fn(),
-	listMembers: vi.fn()
+	listMembers: vi.fn(), listCrew: vi.fn()
 }));
 
-import { getTrip, updateTrip, listYachts, listCruises, listMembers } from '#lib/api/routes.js';
+import { getTrip, updateTrip, listYachts, listCruises, listMembers, listCrew } from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import EditTripPage from './+page.svelte';
 
@@ -34,6 +34,7 @@ beforeEach(() => {
 	);
 	fn(listYachts).mockResolvedValue([]);
 	fn(listMembers).mockResolvedValue([]);
+	fn(listCrew).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025' }), makeCruise({ id: 14, name: 'WRM 2025' })]);
 	fn(updateTrip).mockResolvedValue(undefined);
 });

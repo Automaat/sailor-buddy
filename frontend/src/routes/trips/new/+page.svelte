@@ -36,7 +36,7 @@
 		start_port: '',
 		end_port: '',
 		cruise_id: 0,
-		captain_user_id: 0,
+		captain_person_id: 0,
 		max_crew: 0,
 		description: ''
 	});
@@ -48,7 +48,7 @@
 	$effect(() => {
 		if (captainDefaulted || !auth.user) return;
 		captainDefaulted = true;
-		if (auth.user.is_captain) form.captain_user_id = auth.user.id;
+		if (auth.user.is_captain && auth.user.person_id) form.captain_person_id = auth.user.person_id;
 	});
 
 	type Prefillable = 'embark_date' | 'disembark_date' | 'countries' | 'start_port' | 'end_port';
@@ -98,7 +98,7 @@
 				...form,
 				...priceBody(price),
 				sign_up_deadline: form.sign_up_deadline || undefined,
-				captain_user_id: form.captain_user_id || undefined
+				captain_person_id: form.captain_person_id || undefined
 			};
 			const trip = await createTrip(payload);
 			goto(`/trips/${trip.id}`);
@@ -129,7 +129,7 @@
 			</div>
 			<div class="sm:col-span-2">
 				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
-				<CaptainSelect bind:value={form.captain_user_id} />
+				<CaptainSelect bind:value={form.captain_person_id} />
 			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>

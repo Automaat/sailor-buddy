@@ -4,7 +4,7 @@ INSERT INTO voyages (
     captain_name, yacht_id,
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
     cost_total, cost_per_person,
-    image_logo_url, image_photo_url, image_route_url, description, captain_user_id,
+    image_logo_url, image_photo_url, image_route_url, description, captain_person_id,
     track_url, voyage_card
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27) RETURNING *;
 
@@ -25,7 +25,7 @@ UPDATE voyages SET
     miles = $14, days = $15, tidal_waters = $16,
     cost_total = $17, cost_per_person = $18,
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
-    cruise_id = $23, captain_user_id = $24,
+    cruise_id = $23, captain_person_id = $24,
     track_url = $26, voyage_card = $27,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $25;
@@ -61,16 +61,18 @@ SELECT
 FROM voyages GROUP BY year ORDER BY year;
 
 -- name: ListUserSeaTimeVoyages :many
--- Voyages the user sailed: as the assigned captain or through a crew record
--- linked to their account. One row per voyage; captain wins on overlap.
+-- Voyages the user sailed: as the captain through the account's person or
+-- through a crew record linked to their account. One row per voyage; captain
+-- wins on overlap.
 SELECT
     v.id, v.name, v.year, v.embark_date, v.disembark_date,
     y.name AS yacht_name,
-    COALESCE(v.captain_user_id = sqlc.arg(user_id)::BIGINT, FALSE)::BOOLEAN AS as_captain,
+    COALESCE(cp.user_id = sqlc.arg(user_id)::BIGINT, FALSE)::BOOLEAN AS as_captain,
     v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
 FROM voyages v
 LEFT JOIN yachts y ON y.id = v.yacht_id
-WHERE v.captain_user_id = sqlc.arg(user_id)::BIGINT
+LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
+WHERE cp.user_id = sqlc.arg(user_id)::BIGINT
    OR EXISTS (
        SELECT 1 FROM crew_assignments ca
        JOIN crew_members cm ON cm.id = ca.crew_member_id

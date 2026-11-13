@@ -133,7 +133,7 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
 		return nil, err
 	}
-	captainID, captainName, err := captainAssignment(ctx, h.q, types.NullInt64{}, in.Body.CaptainUserID, in.Body.CaptainName)
+	captainID, captainName, err := captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		StartPort:              nullString(in.Body.StartPort),
 		EndPort:                nullString(in.Body.EndPort),
 		CaptainName:            captainName,
-		CaptainUserID:          captainID,
+		CaptainPersonID:        captainID,
 		YachtID:                nullInt64(in.Body.YachtID),
 		CostTotal:              nullFloat64(in.Body.CostTotal),
 		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
@@ -243,7 +243,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 			return nil, huma.Error409Conflict("trip has enrollments; remove them before moving it to another cruise")
 		}
 	}
-	captainID, captainName, err := captainAssignment(ctx, h.q, current.CaptainUserID, in.Body.CaptainUserID, in.Body.CaptainName)
+	captainID, captainName, err := captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +255,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		StartPort:              nullString(in.Body.StartPort),
 		EndPort:                nullString(in.Body.EndPort),
 		CaptainName:            captainName,
-		CaptainUserID:          captainID,
+		CaptainPersonID:        captainID,
 		YachtID:                nullInt64(in.Body.YachtID),
 		CostTotal:              nullFloat64(in.Body.CostTotal),
 		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
@@ -438,30 +438,30 @@ func createVoyageFromTrip(ctx context.Context, qtx sqlcdb.Querier, trip sqlcdb.T
 	}
 
 	return qtx.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-		CreatedBy:     trip.CreatedBy,
-		CruiseID:      trip.CruiseID,
-		Name:          trip.Name,
-		Year:          nullInt64(year),
-		EmbarkDate:    trip.EmbarkDate,
-		DisembarkDate: trip.DisembarkDate,
-		Countries:     trip.Countries,
-		StartPort:     trip.StartPort,
-		EndPort:       trip.EndPort,
-		CaptainName:   trip.CaptainName,
-		CaptainUserID: trip.CaptainUserID,
-		YachtID:       trip.YachtID,
-		HoursTotal:    valOrZeroFloat(req.HoursTotal),
-		HoursSail:     valOrZeroFloat(req.HoursSail),
-		HoursEngine:   valOrZeroFloat(req.HoursEngine),
-		HoursOver6bf:  valOrZeroFloat(req.HoursOver6bf),
-		Miles:         valOrZeroFloat(req.Miles),
-		Days:          valOrZeroInt(req.Days),
-		TidalWaters:   valOrZeroInt(req.TidalWaters),
-		CostTotal:     trip.CostTotal,
-		CostPerPerson: trip.CostPerPerson,
-		ImageLogoUrl:  trip.ImageLogoUrl,
-		ImagePhotoUrl: trip.ImagePhotoUrl,
-		ImageRouteUrl: trip.ImageRouteUrl,
-		Description:   trip.Description,
+		CreatedBy:       trip.CreatedBy,
+		CruiseID:        trip.CruiseID,
+		Name:            trip.Name,
+		Year:            nullInt64(year),
+		EmbarkDate:      trip.EmbarkDate,
+		DisembarkDate:   trip.DisembarkDate,
+		Countries:       trip.Countries,
+		StartPort:       trip.StartPort,
+		EndPort:         trip.EndPort,
+		CaptainName:     trip.CaptainName,
+		CaptainPersonID: trip.CaptainPersonID,
+		YachtID:         trip.YachtID,
+		HoursTotal:      valOrZeroFloat(req.HoursTotal),
+		HoursSail:       valOrZeroFloat(req.HoursSail),
+		HoursEngine:     valOrZeroFloat(req.HoursEngine),
+		HoursOver6bf:    valOrZeroFloat(req.HoursOver6bf),
+		Miles:           valOrZeroFloat(req.Miles),
+		Days:            valOrZeroInt(req.Days),
+		TidalWaters:     valOrZeroInt(req.TidalWaters),
+		CostTotal:       trip.CostTotal,
+		CostPerPerson:   trip.CostPerPerson,
+		ImageLogoUrl:    trip.ImageLogoUrl,
+		ImagePhotoUrl:   trip.ImagePhotoUrl,
+		ImageRouteUrl:   trip.ImageRouteUrl,
+		Description:     trip.Description,
 	})
 }

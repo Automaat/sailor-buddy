@@ -30,7 +30,7 @@ func RegisterDashboardRoutes(api huma.API, q sqlcdb.Querier) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-dashboard", Method: http.MethodGet, Path: "/dashboard",
 		Summary: "Caller's sea time, plus club totals for admins",
-		Description: "Personal totals count voyages where the caller is the assigned captain " +
+		Description: "Personal totals count voyages captained by the caller's person " +
 			"or on the crew list through a crew record linked to their account.",
 		Tags: []string{"Dashboard"},
 	}, h.get)
