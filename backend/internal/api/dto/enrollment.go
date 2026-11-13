@@ -298,25 +298,25 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 	out := make([]EnrollLeg, len(ts))
 	for i := range ts {
 		t := ts[i]
-		var leg EnrollLeg
-		leg.ID = t.ID
-		leg.Name = t.Name
-		leg.Status = string(t.Status)
-		leg.EmbarkDate = strPtr(t.EmbarkDate)
-		leg.DisembarkDate = strPtr(t.DisembarkDate)
-		leg.Countries = strPtr(t.Countries)
-		leg.StartPort = strPtr(t.StartPort)
-		leg.EndPort = strPtr(t.EndPort)
-		leg.Description = strPtr(t.Description)
-		leg.MaxCrew = intPtr(t.MaxCrew)
-		leg.CaptainName = strPtr(t.CaptainName)
-		leg.ImagePhotoUrl = strPtr(t.ImagePhotoUrl)
-		leg.CostPerPerson = floatPtr(t.CostPerPerson)
-		leg.Currency = t.Currency
-		leg.CostPerPersonNonMember = floatPtr(t.CostPerPersonNonMember)
-		leg.YachtFund = floatPtr(t.YachtFund)
-		leg.Deposit = floatPtr(t.Deposit)
-		out[i] = leg
+		out[i] = EnrollLeg{
+			ID:                     t.ID,
+			Name:                   t.Name,
+			Status:                 string(t.Status),
+			EmbarkDate:             strPtr(t.EmbarkDate),
+			DisembarkDate:          strPtr(t.DisembarkDate),
+			Countries:              strPtr(t.Countries),
+			StartPort:              strPtr(t.StartPort),
+			EndPort:                strPtr(t.EndPort),
+			Description:            strPtr(t.Description),
+			MaxCrew:                intPtr(t.MaxCrew),
+			CaptainName:            strPtr(t.CaptainName),
+			ImagePhotoUrl:          strPtr(t.ImagePhotoUrl),
+			CostPerPerson:          floatPtr(t.CostPerPerson),
+			Currency:               t.Currency,
+			CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
+			YachtFund:              floatPtr(t.YachtFund),
+			Deposit:                floatPtr(t.Deposit),
+		}
 	}
 	return out
 }
