@@ -257,6 +257,9 @@ func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInpu
 		PatentNumber: nullString(in.Body.PatentNumber),
 	})
 	if err != nil {
+		if isForeignKeyViolation(err, "crew_assignments_trip_id_fkey") {
+			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
+		}
 		slog.Error("assign trip crew", "trip_id", in.TripID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to assign crew member")
 	}

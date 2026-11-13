@@ -163,6 +163,8 @@ Every trip and voyage is a leg of a club event: `cruise_id` is required on
 trip and voyage bodies (`422 cruise not found` for an unknown id). A cruise
 that still has trips or voyages cannot be deleted (`409`). A trip with cruise or
 leg enrollments cannot be moved to another cruise (`409`).
+Assigning crew or a cruise enrollment to a trip that was completed or
+deleted at the same moment returns `409`.
 
 Trip lifecycle: a `trip` is `planned`, then either `cancelled` or `completed`.
 Completing a trip atomically converts it into a `voyage` (a logged, finished
@@ -250,7 +252,9 @@ On create, an omitted (or 0) `max_crew` defaults to the yacht's `berths` when
 unknown yacht). An explicit `max_crew` is kept.
 
 `complete` returns `404` `trip not found or not in planned state` when the trip
-is missing or already completed/cancelled. `cancel` returns `404`
+is missing or already completed/cancelled, and `409`
+`trip moved to another cruise; retry` when the trip keeps changing cruise
+while it completes. `cancel` returns `404`
 `trip not found or invalid transition` likewise.
 
 ### Trip crew assignments

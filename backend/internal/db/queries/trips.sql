@@ -18,6 +18,15 @@ SELECT * FROM trips WHERE id = $1;
 -- then sees the trip gone instead of deadlocking with the deletes.
 SELECT * FROM trips WHERE id = $1 FOR UPDATE;
 
+-- name: LockTripCruise :one
+-- Key-share-locks the cruise the trip belongs to. Trip completion takes it
+-- before the trip lock, in the same order as DELETE FROM cruises (cruise,
+-- then the trips foreign-key check), so the two cannot deadlock.
+-- No row when the trip or its cruise is gone.
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+FOR KEY SHARE OF c;
+
 -- name: ListTrips :many
 SELECT * FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2;
 

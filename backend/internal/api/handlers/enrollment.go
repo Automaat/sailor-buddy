@@ -224,6 +224,9 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 			if isUniqueViolation(err) {
 				return nil, huma.Error409Conflict("already enrolled")
 			}
+			if isForeignKeyViolation(err, tripEnrollmentTripFKey) {
+				return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
+			}
 			slog.Error("create trip enrollment", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
 			return nil, huma.Error500InternalServerError("failed to enroll")
 		}
@@ -421,6 +424,11 @@ func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnroll
 	}
 	return &noContentOutput{}, nil
 }
+
+// tripEnrollmentTripFKey is the PostgreSQL name of the trip_enrollments.trip_id
+// foreign key. Its violation means the trip was completed or deleted between
+// the status check and the insert.
+const tripEnrollmentTripFKey = "trip_enrollments_trip_id_fkey"
 
 // isUniqueViolation reports whether err is a PostgreSQL unique-constraint error.
 func isUniqueViolation(err error) bool {

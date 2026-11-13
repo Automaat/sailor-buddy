@@ -539,6 +539,15 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR SHARE
 	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
+	// Key-share-locks the cruise the trip belongs to. Trip completion takes it
+	// before the trip lock, in the same order as DELETE FROM cruises (cruise,
+	// then the trips foreign-key check), so the two cannot deadlock.
+	// No row when the trip or its cruise is gone.
+	//
+	//  SELECT c.id FROM cruises c
+	//  WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+	//  FOR KEY SHARE OF c
+	LockTripCruise(ctx context.Context, id int64) (int64, error)
 	//RepointCrewAssignmentsToVoyage
 	//
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL

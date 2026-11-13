@@ -286,29 +286,71 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found or not in planned state")
 		}
+		if errors.Is(err, errTripCruiseChanged) {
+			return nil, huma.Error409Conflict("trip moved to another cruise; retry")
+		}
 		slog.Error("complete trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to complete trip")
 	}
 	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
 }
 
+// errTripCruiseChanged reports that the trip moved to another cruise between
+// the cruise lock and the trip lock on every completion attempt.
+var errTripCruiseChanged = errors.New("trip cruise changed during completion")
+
+// completeTripAttempts bounds the retries when the trip's cruise changes
+// between the cruise lock and the trip lock.
+const completeTripAttempts = 3
+
 // completeTripTx wraps the trip → voyage transition: it creates the voyage,
 // copies ports, repoints crew assignments, drops enrollments and deletes the
 // trip — all in one transaction.
 func completeTripTx(ctx context.Context, db *sql.DB, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+	return completeTripTxWith(ctx, db, nil, tripID, req)
+}
+
+// completeTripTxWith runs completeTripTx with an optional querier wrapper,
+// which tests use to pause the transaction between statements.
+func completeTripTxWith(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+	for range completeTripAttempts {
+		voyage, err := completeTripOnce(ctx, db, wrap, tripID, req)
+		if !errors.Is(err, errTripCruiseChanged) {
+			return voyage, err
+		}
+	}
+	return sqlcdb.Voyage{}, errTripCruiseChanged
+}
+
+func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return sqlcdb.Voyage{}, &QueryError{Op: "BeginTx", Err: err}
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	qtx := sqlcdb.New(tx)
+	var qtx sqlcdb.Querier = sqlcdb.New(tx)
+	if wrap != nil {
+		qtx = wrap(qtx)
+	}
 
-	// Lock the trip before any write: a concurrent leg enrollment share-locks
-	// it, and taking the lock late would deadlock with that enrollment.
+	// Lock the cruise, then the trip, before any write. DELETE FROM cruises
+	// takes the same order (cruise, then the trips foreign-key check), and a
+	// concurrent leg enrollment share-locks the trip; any other order
+	// deadlocks with one of them.
+	cruiseID, err := qtx.LockTripCruise(ctx, tripID)
+	locked := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripCruise", Err: err}
+	}
 	trip, err := qtx.GetTripForUpdate(ctx, tripID)
 	if err != nil {
 		return sqlcdb.Voyage{}, err
+	}
+	// A trip that moved to a cruise other than the locked one must retry,
+	// since locking the new cruise now would invert the order.
+	if !locked || trip.CruiseID != cruiseID {
+		return sqlcdb.Voyage{}, errTripCruiseChanged
 	}
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return sqlcdb.Voyage{}, sql.ErrNoRows
@@ -358,7 +400,7 @@ func completeTripTx(ctx context.Context, db *sql.DB, tripID int64, req dto.Compl
 
 // createVoyageFromTrip inserts the voyage row for a completed trip. The voyage
 // year falls back to the trip embark date when the request omits it.
-func createVoyageFromTrip(ctx context.Context, qtx *sqlcdb.Queries, trip sqlcdb.Trip, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+func createVoyageFromTrip(ctx context.Context, qtx sqlcdb.Querier, trip sqlcdb.Trip, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
 	year := req.Year
 	if year == nil && trip.EmbarkDate.Valid {
 		if t, perr := time.Parse(time.DateOnly, trip.EmbarkDate.String); perr == nil {
