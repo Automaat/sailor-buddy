@@ -12,6 +12,7 @@
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import Users from '@lucide/svelte/icons/users';
 	import Repeat from '@lucide/svelte/icons/repeat';
+	import Contact from '@lucide/svelte/icons/contact';
 
 	let { children } = $props();
 
@@ -28,8 +29,9 @@
 		{ href: '/cruises', label: 'Rejsy', icon: Sailboat, alsoActiveUnder: ['/trips', '/voyages'] },
 		{ href: '/series', label: 'Serie', icon: Repeat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
-		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
-		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true }
+		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
+		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
+		{ href: '/crew', label: 'Załoga', icon: Contact, adminOnly: true }
 	];
 
 	async function handleLogout() {
