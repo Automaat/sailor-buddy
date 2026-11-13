@@ -305,6 +305,10 @@ func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (
 	return &crewAssignmentListOutput{Body: dto.TripCrewFromDB(assignments)}, nil
 }
 
+// crewMemberFKey is violated when the person was deleted, or merged away,
+// between verifyCrewMember and the crew insert.
+const crewMemberFKey = "crew_assignments_crew_member_id_fkey"
+
 // verifyCrewMember confirms the crew member exists.
 func (h *CrewHandler) verifyCrewMember(ctx context.Context, crewMemberID int64) error {
 	if _, err := h.q.GetCrewMember(ctx, crewMemberID); err != nil {
@@ -340,6 +344,9 @@ func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInpu
 	if err != nil {
 		if isForeignKeyViolation(err, "crew_assignments_trip_id_fkey") {
 			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
+		}
+		if isForeignKeyViolation(err, crewMemberFKey) {
+			return nil, huma.Error404NotFound("crew member not found")
 		}
 		slog.Error("assign trip crew", "trip_id", in.TripID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to assign crew member")
@@ -391,6 +398,9 @@ func (h *CrewHandler) assignVoyageCrew(ctx context.Context, in *assignVoyageCrew
 		PatentNumber: nullString(in.Body.PatentNumber),
 	})
 	if err != nil {
+		if isForeignKeyViolation(err, crewMemberFKey) {
+			return nil, huma.Error404NotFound("crew member not found")
+		}
 		slog.Error("assign voyage crew", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to assign crew member")
 	}

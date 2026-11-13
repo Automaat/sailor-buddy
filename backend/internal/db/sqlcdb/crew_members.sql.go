@@ -497,6 +497,24 @@ func (q *Queries) LockUserForUpdate(ctx context.Context, id int64) (int64, error
 	return id_2, err
 }
 
+const lockUserPerson = `-- name: LockUserPerson :one
+SELECT id FROM crew_members WHERE user_id = $1
+FOR KEY SHARE
+`
+
+// Key-share-locks the account's person, so a merge or delete of it waits
+// for the caller's transaction. No row when the person was deleted, for
+// example merged away, before the lock was granted.
+//
+//	SELECT id FROM crew_members WHERE user_id = $1
+//	FOR KEY SHARE
+func (q *Queries) LockUserPerson(ctx context.Context, userID types.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockUserPerson, userID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const moveTripCaptain = `-- name: MoveTripCaptain :execrows
 UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
 WHERE captain_person_id = $2::BIGINT

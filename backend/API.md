@@ -306,7 +306,7 @@ returns `404`
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/trips/{tripID}/crew` | member | List trip crew | 200 |
-| POST | `/api/trips/{tripID}/crew` | **admin** | Assign crew member | 201 |
+| POST | `/api/trips/{tripID}/crew` | **admin** | Assign crew member; `404` when the person is gone | 201 |
 | DELETE | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
 Assignment body — `crew_member_id` and `role` required:
@@ -471,7 +471,9 @@ in the API. Setting the sign-up to any other status, deleting it, or moving
 an accepted cruise enrollment off the leg removes that entry once the user
 holds no other accepted sign-up for the leg. Crew the admin added by hand
 stays. A refused accept (`409`) changes nothing. Pending and waitlisted
-sign-ups add no crew.
+sign-ups add no crew. Acceptance waits for a concurrent merge or delete of
+the user's person; when the person still changed under it, or it kept
+losing deadlocks to merges, it answers a retryable `409`.
 
 Every status change, leg move and delete of a sign-up locks the legs it
 touches before the enrollment row, so concurrent changes for one leg apply
@@ -491,7 +493,7 @@ moves it returns `409`.
 | POST | `/api/voyages/{id}/yachts` | **admin** or voyage captain | Add a yacht to the club list (does not assign it) | 201 |
 | DELETE | `/api/voyages/{id}` | **admin** | Delete voyage | 204 |
 | GET | `/api/voyages/{voyageID}/crew` | member | List voyage crew | 200 |
-| POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member | 201 |
+| POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member; `404` when the person is gone | 201 |
 | DELETE | `/api/voyages/{voyageID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
 Voyage body — `name` required; also accepts `year` and the sailing-log fields
@@ -716,8 +718,12 @@ account owner overwrite its person's name, phone and patent number.
   voyage either person is on or captains (the person-then-leg order of leg
   completion and person deletion), so a concurrent profile save, leg
   completion or new crew assignment waits for it. Sign-up acceptance locks
-  the leg first; when it deadlocks with a merge, the merge is retried up to
-  three times. Go callers of `MergePeople` should retry on `40P01` too.
+  the leg, then the account's person; whichever side loses a deadlock
+  between the two is retried up to three times. Go callers of
+  `MergePeople` should retry on `40P01` too.
+- An acceptance that waited for the merge adds the kept person, which now
+  holds the account. Hand-assigning the duplicate, or any person deleted
+  meanwhile, to a leg or voyage → `404`.
 - Where both are on the same leg, the kept entry counts as added by an
   accepted sign-up (`added_by_acceptance`) only when both entries did.
 - The same ID twice, or merged `other_names` over the 20 × 200 limit →
