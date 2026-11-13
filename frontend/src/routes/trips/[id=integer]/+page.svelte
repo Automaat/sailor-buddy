@@ -22,6 +22,7 @@
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
+	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 
 	let trip = $state<Trip | null>(null);
 	let cruise = $state<Cruise | null>(null);
@@ -138,13 +139,7 @@
 		goto(`/voyages/${voyage.id}`);
 	}
 
-	function statusBadge(status: string) {
-		return status === 'cancelled' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700';
-	}
-
-	function statusLabel(status: string) {
-		return status === 'cancelled' ? 'Anulowany' : 'Planowany';
-	}
+	const status = $derived(trip ? legStatus(trip, cruise) : 'planned');
 
 </script>
 
@@ -161,8 +156,8 @@
 				{/if}
 				<div class="flex items-center gap-3">
 					<h1 class="text-3xl font-bold text-[var(--navy)]">{trip.name}</h1>
-					<span class="rounded-full px-2.5 py-1 text-xs font-medium {statusBadge(trip.status)}">
-						{statusLabel(trip.status)}
+					<span class="rounded-full px-2.5 py-1 text-xs font-medium {legStatusBadges[status]}">
+						{legStatusLabels[status]}
 					</span>
 				</div>
 				<p class="mt-1 text-[var(--text-muted)]">
@@ -197,6 +192,19 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if canManageCrew && status === 'overdue'}
+			<div role="status" class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+				<p>Rejs się zakończył, ale nadal czeka na rozliczenie. Zrealizuj go, aby wpisać przebieg do dziennika.</p>
+				<button
+					onclick={() => (showCompleteModal = true)}
+					disabled={completing}
+					class="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+				>
+					Zrealizuj teraz
+				</button>
+			</div>
+		{/if}
 
 		{#if trip.embark_date || trip.captain_name || trip.cost_total}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
