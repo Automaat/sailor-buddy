@@ -5,6 +5,8 @@
  * formatted in UTC, so the browser's time zone never shifts them by a day.
  */
 
+import { plural } from './plural.js';
+
 type DateValue = string | null | undefined;
 
 const dateFormat = new Intl.DateTimeFormat('pl-PL', {
@@ -86,7 +88,7 @@ export function dayCount(start: DateValue, end: DateValue): number | null {
 
 /** daysLabel renders a day count with its Polish noun: "1 dzień", "9 dni". */
 export function daysLabel(n: number): string {
-	return `${n} ${n === 1 ? 'dzień' : 'dni'}`;
+	return `${n} ${plural(n, 'dzień', 'dni', 'dni')}`;
 }
 
 /**

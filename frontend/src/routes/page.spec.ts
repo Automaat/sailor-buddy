@@ -115,10 +115,10 @@ describe('dashboard page', () => {
 		expect(within(mine).getByText('Mile morskie').nextElementSibling).toHaveTextContent('320');
 		expect(within(mine).getByText('60h żagle / 20h silnik')).toBeInTheDocument();
 		expect(within(mine).getByText('Jako kapitan').nextElementSibling).toHaveTextContent(
-			'1 rejsy · 200 Mm · 50 h · 6 dni'
+			'1 rejs · 200 Mm · 50 h · 6 dni'
 		);
 		expect(within(mine).getByText('Jako załoga').nextElementSibling).toHaveTextContent(
-			'1 rejsy · 120 Mm · 30 h · 4 dni'
+			'1 rejs · 120 Mm · 30 h · 4 dni'
 		);
 
 		const years = within(mine).getAllByRole('row');
@@ -133,6 +133,27 @@ describe('dashboard page', () => {
 		const gotland = within(mine).getByRole('link', { name: /Gotland/ });
 		expect(gotland).toHaveAttribute('href', '/voyages/11');
 		expect(gotland).toHaveTextContent('Kapitan · 200 Mm · 50 h');
+	});
+
+	it.each([
+		[0, '0 rejsów', '0 dni'],
+		[1, '1 rejs', '1 dzień'],
+		[2, '2 rejsy', '2 dni'],
+		[5, '5 rejsów', '5 dni'],
+		[12, '12 rejsów', '12 dni']
+	])('uses Polish plurals in the role split for %i', async (n, voyages, days) => {
+		const split = seaTime({ voyage_count: n, total_days: n });
+		mockGet.mockResolvedValue({
+			personal: { ...sailor.personal, as_captain: split, as_crew: split }
+		});
+		render(DashboardPage);
+
+		const mine = await screen.findByRole('region', { name: 'Mój staż' });
+		for (const label of ['Jako kapitan', 'Jako załoga']) {
+			expect(within(mine).getByText(label).nextElementSibling).toHaveTextContent(
+				`${voyages} · 0 Mm · 0 h · ${days}`
+			);
+		}
 	});
 
 	it('hides the club section when the response has none (member)', async () => {
