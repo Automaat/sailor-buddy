@@ -115,33 +115,6 @@ func (q *Queries) GetYacht(ctx context.Context, id int64) (Yacht, error) {
 	return i, err
 }
 
-const getYachtByName = `-- name: GetYachtByName :one
-SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE name = $1
-`
-
-// GetYachtByName
-//
-//	SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE name = $1
-func (q *Queries) GetYachtByName(ctx context.Context, name string) (Yacht, error) {
-	row := q.db.QueryRowContext(ctx, getYachtByName, name)
-	var i Yacht
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedBy,
-		&i.Name,
-		&i.RegistrationNo,
-		&i.YachtType,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Berths,
-		&i.LengthM,
-		&i.BuildYear,
-		&i.Engine,
-		&i.OwnerName,
-	)
-	return i, err
-}
-
 const listYachts = `-- name: ListYachts :many
 SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 `

@@ -505,13 +505,3 @@ Body — `name` required: `{ "name": "ISSA Skipper", "date": "2026-03-01", "orga
 | GET | `/api/uploads/*` | Serve a previously uploaded file | 200 (file) |
 
 `400` on missing `file` field, oversized file, or unsupported type.
-
-### Import (XLSX)
-
-| Method | Path | Auth | Description | Success |
-|--------|------|------|-------------|---------|
-| POST | `/api/import/xlsx` | member | Upload XLSX, returns parsed preview (`voyages`, `trainings`) | 200 |
-| POST | `/api/import/confirm` | **admin** | Persist the reviewed preview | 201 |
-
-`confirm` body echoes the preview shape: `{ "voyages": [...], "trainings": [...] }`.
-Returns `{voyages_created, trainings_created, yachts_created, crew_created}`.

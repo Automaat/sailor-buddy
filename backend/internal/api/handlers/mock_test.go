@@ -98,13 +98,12 @@ type mockQuerier struct {
 	listCruiseSeriesEditionsFn func(ctx context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error)
 
 	// yachts
-	listYachtsFn     func(ctx context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error)
-	countYachtsFn    func(ctx context.Context) (int64, error)
-	getYachtFn       func(ctx context.Context, id int64) (sqlcdb.Yacht, error)
-	createYachtFn    func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
-	updateYachtFn    func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
-	deleteYachtFn    func(ctx context.Context, id int64) error
-	getYachtByNameFn func(ctx context.Context, name string) (sqlcdb.Yacht, error)
+	listYachtsFn  func(ctx context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error)
+	countYachtsFn func(ctx context.Context) (int64, error)
+	getYachtFn    func(ctx context.Context, id int64) (sqlcdb.Yacht, error)
+	createYachtFn func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
+	updateYachtFn func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
+	deleteYachtFn func(ctx context.Context, id int64) error
 
 	// trainings
 	listTrainingsFn  func(ctx context.Context, arg sqlcdb.ListTrainingsParams) ([]sqlcdb.Training, error)
@@ -115,13 +114,12 @@ type mockQuerier struct {
 	deleteTrainingFn func(ctx context.Context, arg sqlcdb.DeleteTrainingParams) error
 
 	// crew members
-	listCrewMembersFn     func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
-	countCrewMembersFn    func(ctx context.Context) (int64, error)
-	getCrewMemberFn       func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
-	createCrewMemberFn    func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
-	updateCrewMemberFn    func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
-	deleteCrewMemberFn    func(ctx context.Context, id int64) error
-	getCrewMemberByNameFn func(ctx context.Context, fullName string) (sqlcdb.CrewMember, error)
+	listCrewMembersFn  func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
+	countCrewMembersFn func(ctx context.Context) (int64, error)
+	getCrewMemberFn    func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
+	createCrewMemberFn func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
+	updateCrewMemberFn func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
+	deleteCrewMemberFn func(ctx context.Context, id int64) error
 
 	// cruises
 	listCruisesFn          func(ctx context.Context, arg sqlcdb.ListCruisesParams) ([]sqlcdb.Cruise, error)
@@ -606,13 +604,6 @@ func (m *mockQuerier) DeleteYacht(ctx context.Context, id int64) error {
 	return m.deleteYachtFn(ctx, id)
 }
 
-func (m *mockQuerier) GetYachtByName(ctx context.Context, name string) (sqlcdb.Yacht, error) {
-	if m.getYachtByNameFn == nil {
-		panic("unexpected call to GetYachtByName")
-	}
-	return m.getYachtByNameFn(ctx, name)
-}
-
 // --- trainings ---
 
 func (m *mockQuerier) ListTrainings(ctx context.Context, arg sqlcdb.ListTrainingsParams) ([]sqlcdb.Training, error) {
@@ -699,13 +690,6 @@ func (m *mockQuerier) DeleteCrewMember(ctx context.Context, id int64) error {
 		panic("unexpected call to DeleteCrewMember")
 	}
 	return m.deleteCrewMemberFn(ctx, id)
-}
-
-func (m *mockQuerier) GetCrewMemberByName(ctx context.Context, fullName string) (sqlcdb.CrewMember, error) {
-	if m.getCrewMemberByNameFn == nil {
-		panic("unexpected call to GetCrewMemberByName")
-	}
-	return m.getCrewMemberByNameFn(ctx, fullName)
 }
 
 // --- cruises ---
