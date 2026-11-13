@@ -56,6 +56,12 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 		getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
 		},
+		lockCruiseEnrollTokenFn: func(_ context.Context, arg sqlcdb.LockCruiseEnrollTokenParams) (int64, error) {
+			if arg.ID != 7 || arg.EnrollToken != (types.NullString{String: "tok", Valid: true}) {
+				return 0, sql.ErrNoRows
+			}
+			return arg.ID, nil
+		},
 		lockCruiseTripStatusesFn: func(_ context.Context, cid int64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
 			if cid != 7 {
 				return nil, nil
@@ -240,6 +246,21 @@ func TestEnrollLegs_RejectsInvalidPicksWithoutWriting(t *testing.T) {
 	}
 }
 
+func TestEnrollLegs_LinkSwitchedOffUnderLockIsInvalidLink(t *testing.T) {
+	s := &legStore{}
+	m := newLegMock(s, legTrips())
+	m.lockCruiseEnrollTokenFn = func(context.Context, sqlcdb.LockCruiseEnrollTokenParams) (int64, error) {
+		return 0, sql.ErrNoRows
+	}
+	code, _, body := postLegs(t, m, userCtxRole(context.Background(), "member"), map[string]any{"trip_ids": []int64{11}})
+	if code != http.StatusNotFound {
+		t.Fatalf("got %d, want 404; body=%s", code, body)
+	}
+	if s.inserts != 0 {
+		t.Fatalf("inserts = %d, want 0", s.inserts)
+	}
+}
+
 func TestEnrollLegs_Errors(t *testing.T) {
 	t.Run("unknown token", func(t *testing.T) {
 		m := newLegMock(&legStore{}, legTrips())
@@ -255,6 +276,16 @@ func TestEnrollLegs_Errors(t *testing.T) {
 		m := newLegMock(&legStore{}, legTrips())
 		m.getCruiseByEnrollFn = func(context.Context, types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
 			return sqlcdb.GetCruiseByEnrollTokenRow{}, errors.New("fail")
+		}
+		code, _, _ := postLegs(t, m, userCtx(context.Background()), map[string]any{"trip_ids": []int64{11}})
+		if code != http.StatusInternalServerError {
+			t.Fatalf("got %d, want 500", code)
+		}
+	})
+	t.Run("cruise lock error", func(t *testing.T) {
+		m := newLegMock(&legStore{}, legTrips())
+		m.lockCruiseEnrollTokenFn = func(context.Context, sqlcdb.LockCruiseEnrollTokenParams) (int64, error) {
+			return 0, errors.New("fail")
 		}
 		code, _, _ := postLegs(t, m, userCtx(context.Background()), map[string]any{"trip_ids": []int64{11}})
 		if code != http.StatusInternalServerError {

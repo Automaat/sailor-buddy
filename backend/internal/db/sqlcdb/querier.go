@@ -640,6 +640,17 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Share-locks the cruise for the rest of a share-link sign-up while it still
+	// has the given enroll token, so clearing or regenerating the link waits for
+	// the sign-up to commit and a sign-up after that sees the change. Taken
+	// before LockCruiseTripStatuses, in the same cruise-then-trips order as
+	// DELETE FROM cruises and trip completion. No row when the cruise no longer
+	// has that token.
+	//
+	//  SELECT id FROM cruises
+	//  WHERE id = $1 AND enroll_token = $2
+	//  FOR SHARE
+	LockCruiseEnrollToken(ctx context.Context, arg LockCruiseEnrollTokenParams) (int64, error)
 	// Row-locks one enrollment of a cruise for a capacity-checked change, taken
 	// after the leg's trip lock. No row when it does not exist or belongs to
 	// another cruise.
@@ -679,10 +690,11 @@ type Querier interface {
 	// the write, and concurrent sign-ups and accepts of the leg take its places
 	// one at a time. FOR NO KEY UPDATE still lets foreign-key checks (KEY SHARE)
 	// through. open is true while the leg's sign-ups are switched on (it has an
-	// enroll token); sign_up_deadline is the last day it takes them. No row when
-	// the trip does not exist.
+	// enroll token); enroll_token is the current share token, so a share-link
+	// sign-up can check the presented token still holds. sign_up_deadline is the
+	// last day it takes them. No row when the trip does not exist.
 	//
-	//  SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, max_crew, sign_up_deadline
+	//  SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, enroll_token, max_crew, sign_up_deadline
 	//  FROM trips
 	//  WHERE id = $1
 	//  FOR NO KEY UPDATE

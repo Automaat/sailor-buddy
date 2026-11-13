@@ -339,6 +339,16 @@ token sign-ups return `422` and write nothing: `POST /api/enroll/{token}`
 for that trip, and `POST /api/enroll/{token}/legs` when any picked leg is
 past its deadline.
 
+Both token sign-ups re-check the presented token under the lock they write
+under, so a link an admin switches off or regenerates while a sign-up is in
+flight takes no sign-up and writes nothing. `POST /api/enroll/{token}`
+locks the trip and returns `409 enrollment closed: the enrollment link was
+switched off` when the trip no longer has that token.
+`POST /api/enroll/{token}/legs` share-locks the cruise while it still has
+that token, then its legs, and returns `404 invalid enrollment link` when it
+no longer does. A clear or regenerate that comes second waits for the
+sign-up to commit.
+
 Payment status: every trip enrollment carries `payment_status`, set by hand
 by an admin after checking transfers: `unpaid` (default for a new sign-up),
 `deposit` (first payment received) or `paid` (paid in full). No amounts are

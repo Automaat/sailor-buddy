@@ -143,9 +143,10 @@ SELECT (
 -- the write, and concurrent sign-ups and accepts of the leg take its places
 -- one at a time. FOR NO KEY UPDATE still lets foreign-key checks (KEY SHARE)
 -- through. open is true while the leg's sign-ups are switched on (it has an
--- enroll token); sign_up_deadline is the last day it takes them. No row when
--- the trip does not exist.
-SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, max_crew, sign_up_deadline
+-- enroll token); enroll_token is the current share token, so a share-link
+-- sign-up can check the presented token still holds. sign_up_deadline is the
+-- last day it takes them. No row when the trip does not exist.
+SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, enroll_token, max_crew, sign_up_deadline
 FROM trips
 WHERE id = $1
 FOR NO KEY UPDATE;

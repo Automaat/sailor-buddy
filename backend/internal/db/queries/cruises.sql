@@ -41,6 +41,17 @@ UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 
 -- name: ClearCruiseEnrollToken :exec
 UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
+-- name: LockCruiseEnrollToken :one
+-- Share-locks the cruise for the rest of a share-link sign-up while it still
+-- has the given enroll token, so clearing or regenerating the link waits for
+-- the sign-up to commit and a sign-up after that sees the change. Taken
+-- before LockCruiseTripStatuses, in the same cruise-then-trips order as
+-- DELETE FROM cruises and trip completion. No row when the cruise no longer
+-- has that token.
+SELECT id FROM cruises
+WHERE id = $1 AND enroll_token = $2
+FOR SHARE;
+
 -- name: GetCruiseByEnrollToken :one
 SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, image_photo_url, max_crew, cost_per_person,

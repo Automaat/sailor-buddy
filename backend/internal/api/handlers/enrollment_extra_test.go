@@ -202,6 +202,35 @@ func TestEnrollment_GetByToken_Errors(t *testing.T) {
 	})
 }
 
+// tripTok is the enroll token the trip-token tests present as "tok".
+var tripTok = types.NullString{String: "tok", Valid: true}
+
+func TestEnrollment_Enroll_TripLinkSwitchedOffUnderLock(t *testing.T) {
+	cases := []struct {
+		name  string
+		token types.NullString
+	}{
+		{"cleared", types.NullString{}},
+		{"regenerated", types.NullString{String: "new-tok", Valid: true}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := &mockQuerier{
+				getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
+					return sqlcdb.GetTripByEnrollTokenRow{ID: 5}, nil
+				},
+				lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+					return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: c.token.Valid, EnrollToken: c.token}, nil
+				},
+			}
+			resp := enrollTestAPI(t, m).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{})
+			if resp.Code != http.StatusConflict {
+				t.Fatalf("got %d, want 409; body=%s", resp.Code, resp.Body)
+			}
+		})
+	}
+}
+
 func TestEnrollment_Enroll_Trip(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
@@ -209,7 +238,7 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 				return sqlcdb.GetTripByEnrollTokenRow{ID: 5}, nil
 			},
 			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
-				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true}, nil
+				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok}, nil
 			},
 			createTripEnrollmentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 				return sqlcdb.TripEnrollment{ID: 1, TripID: arg.TripID, UserID: arg.UserID, Status: "pending"}, nil
@@ -272,7 +301,7 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 				return sqlcdb.GetTripByEnrollTokenRow{ID: 5}, nil
 			},
 			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
-				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true}, nil
+				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok}, nil
 			},
 			createTripEnrollmentFn: func(context.Context, sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 				return sqlcdb.TripEnrollment{}, &pgconn.PgError{Code: "23505"}
@@ -290,7 +319,7 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 				return sqlcdb.GetTripByEnrollTokenRow{ID: 5}, nil
 			},
 			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
-				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true}, nil
+				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok}, nil
 			},
 			createTripEnrollmentFn: func(context.Context, sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 				return sqlcdb.TripEnrollment{}, errors.New("fail")
