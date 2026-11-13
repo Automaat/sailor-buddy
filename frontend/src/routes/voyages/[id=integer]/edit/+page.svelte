@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
+	import YachtSelect from '#lib/components/YachtSelect.svelte';
 
 	let error = $state('');
 	let loading = $state(true);
@@ -46,7 +47,9 @@
 		description: '',
 		image_logo_url: '',
 		image_photo_url: '',
-		image_route_url: ''
+		image_route_url: '',
+		track_url: '',
+		voyage_card: ''
 	});
 
 	const id = $derived(Number(page.params.id));
@@ -84,7 +87,9 @@
 				description: voyage.description ?? '',
 				image_logo_url: voyage.image_logo_url ?? '',
 				image_photo_url: voyage.image_photo_url ?? '',
-				image_route_url: voyage.image_route_url ?? ''
+				image_route_url: voyage.image_route_url ?? '',
+				track_url: voyage.track_url ?? '',
+				voyage_card: voyage.voyage_card ?? ''
 			};
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się wczytać';
@@ -109,6 +114,8 @@
 				image_logo_url: form.image_logo_url || undefined,
 				image_photo_url: form.image_photo_url || undefined,
 				image_route_url: form.image_route_url || undefined,
+				track_url: form.track_url.trim() || undefined,
+				voyage_card: form.voyage_card.trim() || undefined,
 				// captain_name of a linked captain is the server's snapshot, so only a
 				// legacy free-text name survives clearing the captain.
 				captain_user_id: form.captain_user_id || undefined,
@@ -150,12 +157,7 @@
 				</div>
 				<div>
 					<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
-					<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
-						<option value={0}>-- Wybierz --</option>
-						{#each yachts as yacht}
-							<option value={yacht.id}>{yacht.name}</option>
-						{/each}
-					</select>
+					<YachtSelect bind:value={form.yacht_id} bind:yachts />
 				</div>
 				<div>
 					<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
@@ -234,6 +236,17 @@
 			<div>
 				<label for="desc" class="mb-1 block text-sm font-medium">Opis</label>
 				<textarea id="desc" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+			</div>
+
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div>
+					<label for="track_url" class="mb-1 block text-sm font-medium">Link do śladu rejsu</label>
+					<input id="track_url" type="url" bind:value={form.track_url} placeholder="https://..." class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div>
+					<label for="voyage_card" class="mb-1 block text-sm font-medium">Karta rejsu</label>
+					<input id="voyage_card" type="text" bind:value={form.voyage_card} placeholder="np. u kapitana, w klubie" class="w-full rounded-lg border px-3 py-2" />
+				</div>
 			</div>
 
 			<div class="flex gap-3">

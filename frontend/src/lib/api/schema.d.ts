@@ -972,6 +972,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/voyages/{voyageID}/yachts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a yacht to the club list from a voyage (admin or voyage captain) */
+        post: operations["add-voyage-yacht"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/yachts": {
         parameters: {
             query?: never;
@@ -2338,8 +2355,10 @@ export interface components {
             start_port?: string;
             /** Format: int64 */
             tidal_waters: number;
+            track_url?: string;
             /** Format: date-time */
             updated_at: string;
+            voyage_card?: string;
             /** Format: int64 */
             yacht_id?: number;
             /** Format: int64 */
@@ -2393,6 +2412,10 @@ export interface components {
             start_port?: string;
             /** Format: int64 */
             tidal_waters?: number;
+            /** @description Link to the track recording (http or https) */
+            track_url?: string;
+            /** @description Voyage card (Karta rejsu): who holds it or where it is */
+            voyage_card?: string;
             /** Format: int64 */
             yacht_id?: number;
             /** Format: int64 */
@@ -2421,6 +2444,15 @@ export interface components {
             miles?: number;
             /** Format: int64 */
             tidal_waters?: number;
+            /** @description Link to the track recording (http or https) */
+            track_url?: string;
+            /** @description Voyage card (Karta rejsu): who holds it or where it is */
+            voyage_card?: string;
+            /**
+             * Format: int64
+             * @description Yacht sailed; omit to clear
+             */
+            yacht_id?: number;
         };
         VoyageOpinion: {
             /**
@@ -2447,14 +2479,15 @@ export interface components {
              * @example /api/VoyagePort.json
              */
             readonly $schema?: string;
+            anchorage: boolean;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
             id: number;
             /** Format: double */
-            latitude: number;
+            latitude?: number;
             /** Format: double */
-            longitude: number;
+            longitude?: number;
             name: string;
             /** Format: int64 */
             position: number;
@@ -2468,16 +2501,18 @@ export interface components {
              * @example /api/VoyagePortBody.json
              */
             readonly $schema?: string;
+            /** @description An anchorage rather than a harbour */
+            anchorage?: boolean;
             /**
              * Format: double
-             * @description Latitude
+             * @description Latitude; omit with longitude for a name-only port
              */
-            latitude: number;
+            latitude?: number;
             /**
              * Format: double
-             * @description Longitude
+             * @description Longitude; omit with latitude for a name-only port
              */
-            longitude: number;
+            longitude?: number;
             /** @description Port / town name */
             name: string;
             /**
@@ -5229,6 +5264,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "add-voyage-yacht": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["YachtBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yacht"];
+                };
             };
             /** @description Error */
             default: {

@@ -246,6 +246,8 @@ type Voyage struct {
 	UpdatedAt     types.NullTime    `json:"updated_at"`
 	CaptainUserID types.NullInt64   `json:"captain_user_id"`
 	CaptainNotes  types.NullString  `json:"captain_notes"`
+	TrackUrl      types.NullString  `json:"track_url"`
+	VoyageCard    types.NullString  `json:"voyage_card"`
 }
 
 type VoyageOpinion struct {
@@ -258,13 +260,14 @@ type VoyageOpinion struct {
 }
 
 type VoyagePort struct {
-	ID        int64          `json:"id"`
-	VoyageID  int64          `json:"voyage_id"`
-	Name      string         `json:"name"`
-	Latitude  float64        `json:"latitude"`
-	Longitude float64        `json:"longitude"`
-	Position  int64          `json:"position"`
-	CreatedAt types.NullTime `json:"created_at"`
+	ID        int64             `json:"id"`
+	VoyageID  int64             `json:"voyage_id"`
+	Name      string            `json:"name"`
+	Latitude  types.NullFloat64 `json:"latitude"`
+	Longitude types.NullFloat64 `json:"longitude"`
+	Position  int64             `json:"position"`
+	CreatedAt types.NullTime    `json:"created_at"`
+	Anchorage bool              `json:"anchorage"`
 }
 
 type Yacht struct {

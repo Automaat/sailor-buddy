@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -37,12 +38,44 @@ func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput)
 		Days:         valOrZeroInt(in.Body.Days),
 		TidalWaters:  valOrZeroInt(in.Body.TidalWaters),
 		CaptainNotes: nullString(in.Body.CaptainNotes),
+		YachtID:      nullInt64(in.Body.YachtID),
+		TrackUrl:     nullString(trimmedPtr(in.Body.TrackUrl)),
+		VoyageCard:   nullString(trimmedPtr(in.Body.VoyageCard)),
 		ID:           voyage.ID,
 	}); err != nil {
+		if isForeignKeyViolation(err, "voyages_yacht_id_fkey") {
+			return nil, huma.Error422UnprocessableEntity("yacht not found")
+		}
 		slog.Error("update voyage log", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update voyage log")
 	}
 	return &noContentOutput{}, nil
+}
+
+// addYacht creates a yacht from a voyage form so a charter yacht used once
+// can be entered without leaving the form. The voyage's captain may add one
+// here even though the club yacht list is otherwise admin-managed; picking it
+// for the voyage is a separate log or voyage update.
+func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (*yachtOutput, error) {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.ID); err != nil {
+		return nil, err
+	}
+	yacht, err := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
+		CreatedBy:      types.NullInt64{Int64: middleware.GetUser(ctx).UserID, Valid: true},
+		Name:           in.Body.Name,
+		RegistrationNo: nullString(in.Body.RegistrationNo),
+		YachtType:      nullString(in.Body.YachtType),
+		Berths:         nullInt64(in.Body.Berths),
+		LengthM:        nullFloat64(in.Body.LengthM),
+		BuildYear:      nullInt64(in.Body.BuildYear),
+		Engine:         nullString(in.Body.Engine),
+		OwnerName:      nullString(in.Body.OwnerName),
+	})
+	if err != nil {
+		slog.Error("add voyage yacht", "voyage_id", in.ID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to add yacht")
+	}
+	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
 }
 
 // getVoyageForCaptain loads a voyage and authorizes the caller as an admin or
@@ -84,6 +117,11 @@ type cruiseVoyagesOutput struct {
 	Body []dto.Voyage
 }
 
+type addVoyageYachtInput struct {
+	ID   int64 `path:"voyageID" doc:"Voyage ID"`
+	Body dto.YachtBody
+}
+
 type updateVoyageLogInput struct {
 	ID   int64 `path:"voyageID" doc:"Voyage ID"`
 	Body dto.VoyageLogBody
@@ -116,6 +154,10 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 		OperationID: "update-voyage-log", Method: http.MethodPut, Path: "/voyages/{voyageID}/log",
 		Summary: "Log post-cruise statistics and notes (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateLog)
+	huma.Register(api, huma.Operation{
+		OperationID: "add-voyage-yacht", Method: http.MethodPost, Path: "/voyages/{voyageID}/yachts",
+		Summary: "Add a yacht to the club list from a voyage (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusCreated,
+	}, h.addYacht)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-voyage", Method: http.MethodDelete, Path: "/voyages/{voyageID}",
 		Summary: "Delete a voyage (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
@@ -243,6 +285,8 @@ func createVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateVoyag
 		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
 		ImageRouteUrl: nullString(body.ImageRouteUrl),
 		Description:   nullString(body.Description),
+		TrackUrl:      nullString(trimmedPtr(body.TrackUrl)),
+		VoyageCard:    nullString(trimmedPtr(body.VoyageCard)),
 	}
 }
 
@@ -270,6 +314,8 @@ func updateVoyageParams(body dto.VoyageBody) sqlcdb.UpdateVoyageParams {
 		ImagePhotoUrl: nullString(body.ImagePhotoUrl),
 		ImageRouteUrl: nullString(body.ImageRouteUrl),
 		Description:   nullString(body.Description),
+		TrackUrl:      nullString(trimmedPtr(body.TrackUrl)),
+		VoyageCard:    nullString(trimmedPtr(body.VoyageCard)),
 		CruiseID:      body.CruiseID,
 	}
 }

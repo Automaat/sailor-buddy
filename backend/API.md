@@ -135,8 +135,9 @@ held on the `users.role` column:
   on shared club data — require the caller to be an `admin`; a member gets
   `403 admin only`.
 - **Voyage captain** — the user assigned as a voyage's `captain_user_id` may
-  also write that voyage's post-cruise log (`PUT /voyages/{id}/log`) and its
-  visited ports. Other mutations stay admin-only.
+  also write that voyage's post-cruise log (`PUT /voyages/{id}/log`), its
+  visited ports, and add a yacht to the club list from the voyage
+  (`POST /voyages/{id}/yachts`). Other mutations stay admin-only.
 - **Trainings** are the exception: a per-member course/certification log,
   scoped to the caller. Each member manages their own trainings.
 
@@ -449,7 +450,8 @@ enrollment belongs to another cruise.
 | POST | `/api/voyages` | **admin** | Create voyage (body needs `cruise_id`) | 201 |
 | GET | `/api/voyages/{id}` | member | Get voyage | 200 |
 | PUT | `/api/voyages/{id}` | **admin** | Update voyage | 204 |
-| PUT | `/api/voyages/{id}/log` | **admin** or voyage captain | Post-cruise log: hours, miles, days, tidal waters, `captain_notes` | 204 |
+| PUT | `/api/voyages/{id}/log` | **admin** or voyage captain | Post-cruise log: hours, miles, days, tidal waters, `captain_notes`, `yacht_id`, `track_url`, `voyage_card`; every field replaces the stored value | 204 |
+| POST | `/api/voyages/{id}/yachts` | **admin** or voyage captain | Add a yacht to the club list (does not assign it) | 201 |
 | DELETE | `/api/voyages/{id}` | **admin** | Delete voyage | 204 |
 | GET | `/api/voyages/{voyageID}/crew` | member | List voyage crew | 200 |
 | POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member | 201 |
@@ -457,7 +459,9 @@ enrollment belongs to another cruise.
 
 Voyage body — `name` required; also accepts `year` and the sailing-log fields
 (`hours_total`, `hours_sail`, `hours_engine`, `hours_over_6bf`, `miles`,
-`days`, `tidal_waters`) plus the trip fields above.
+`days`, `tidal_waters`) plus the trip fields above, `track_url` (absolute
+`http`/`https` link to the track recording, else 422) and `voyage_card`
+(free text: who holds the voyage card or where it is).
 
 ### Voyage ports
 
@@ -467,6 +471,10 @@ Voyage body — `name` required; also accepts `year` and the sailing-log fields
 | POST | `/api/voyages/{voyageID}/ports` | **admin** or voyage captain | Add a port | 201 |
 | DELETE | `/api/voyages/{voyageID}/ports/{portID}` | **admin** or voyage captain | Remove a port | 204 |
 | PUT | `/api/voyages/{voyageID}/ports/order` | **admin** or voyage captain | Reorder ports | 200 |
+
+Port body — `name` required; `latitude` and `longitude` are optional but come
+together (one without the other is 422). A name-only port is listed in the
+route but not drawn on the map. `anchorage: true` marks an anchorage.
 
 ### Voyage opinions (crew documents)
 

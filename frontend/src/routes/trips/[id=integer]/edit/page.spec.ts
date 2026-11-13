@@ -9,6 +9,7 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	updateTrip: vi.fn(),
 	listYachts: vi.fn(),
+	createYacht: vi.fn(),
 	listCruises: vi.fn(),
 	listMembers: vi.fn()
 }));

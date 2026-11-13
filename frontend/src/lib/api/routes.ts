@@ -145,6 +145,12 @@ export function updateVoyageLog(id: number, body: Schemas['VoyageLogBody']) {
 	return api.put('/voyages/{voyageID}/log', { path: { voyageID: id }, body });
 }
 
+// addVoyageYacht adds a yacht to the club list on behalf of the voyage's
+// captain, who may not manage the yacht list directly.
+export function addVoyageYacht(id: number, body: Schemas['YachtBody']) {
+	return api.post('/voyages/{voyageID}/yachts', { path: { voyageID: id }, body });
+}
+
 export function listVoyageCrew(id: number) {
 	return api.get('/voyages/{voyageID}/crew', { path: { voyageID: id } });
 }

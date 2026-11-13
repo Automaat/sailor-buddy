@@ -336,12 +336,12 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, 
 }
 
 const listCruiseVoyages = `-- name: ListCruiseVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes, track_url, voyage_card FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
 `
 
 // ListCruiseVoyages
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes, track_url, voyage_card FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
 func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseVoyages, cruiseID)
 	if err != nil {
@@ -381,6 +381,8 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voya
 			&i.UpdatedAt,
 			&i.CaptainUserID,
 			&i.CaptainNotes,
+			&i.TrackUrl,
+			&i.VoyageCard,
 		); err != nil {
 			return nil, err
 		}

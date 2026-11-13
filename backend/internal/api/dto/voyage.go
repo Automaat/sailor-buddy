@@ -1,7 +1,11 @@
 package dto
 
 import (
+	"net/url"
+	"strings"
 	"time"
+
+	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
@@ -35,6 +39,8 @@ type Voyage struct {
 	ImagePhotoUrl *string   `json:"image_photo_url,omitempty"`
 	ImageRouteUrl *string   `json:"image_route_url,omitempty"`
 	Description   *string   `json:"description,omitempty"`
+	TrackUrl      *string   `json:"track_url,omitempty"`
+	VoyageCard    *string   `json:"voyage_card,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -64,12 +70,20 @@ type VoyageBody struct {
 	ImagePhotoUrl *string  `json:"image_photo_url,omitempty"`
 	ImageRouteUrl *string  `json:"image_route_url,omitempty"`
 	Description   *string  `json:"description,omitempty"`
+	TrackUrl      *string  `json:"track_url,omitempty" maxLength:"2048" doc:"Link to the track recording (http or https)"`
+	VoyageCard    *string  `json:"voyage_card,omitempty" doc:"Voyage card (Karta rejsu): who holds it or where it is"`
 	CruiseID      int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this voyage was a leg of"`
 }
 
+// Resolve rejects a track link that is not an absolute http(s) URL.
+func (b *VoyageBody) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
+	return trackURLErrors(b.TrackUrl, prefix)
+}
+
 // VoyageLogBody is the post-cruise log a voyage's captain (or an admin)
-// submits: sailing statistics and a free-form note. Ports are logged through
-// the voyage ports endpoints.
+// submits: sailing statistics, the yacht, the track link, the voyage card
+// and a free-form note. Every field replaces the stored value. Ports are
+// logged through the voyage ports endpoints.
 type VoyageLogBody struct {
 	HoursTotal   *float64 `json:"hours_total,omitempty" minimum:"0"`
 	HoursSail    *float64 `json:"hours_sail,omitempty" minimum:"0"`
@@ -79,6 +93,32 @@ type VoyageLogBody struct {
 	Days         *int64   `json:"days,omitempty" minimum:"0"`
 	TidalWaters  *int64   `json:"tidal_waters,omitempty" minimum:"0"`
 	CaptainNotes *string  `json:"captain_notes,omitempty" doc:"Captain's note on the cruise"`
+	YachtID      *int64   `json:"yacht_id,omitempty" doc:"Yacht sailed; omit to clear"`
+	TrackUrl     *string  `json:"track_url,omitempty" maxLength:"2048" doc:"Link to the track recording (http or https)"`
+	VoyageCard   *string  `json:"voyage_card,omitempty" doc:"Voyage card (Karta rejsu): who holds it or where it is"`
+}
+
+// Resolve rejects a track link that is not an absolute http(s) URL.
+func (b *VoyageLogBody) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
+	return trackURLErrors(b.TrackUrl, prefix)
+}
+
+// trackURLErrors accepts an absent or empty link, or an absolute http(s)
+// URL with a host. Anything else (javascript:, relative paths) is rejected
+// because the link is rendered as an anchor on the voyage page.
+func trackURLErrors(raw *string, prefix *huma.PathBuffer) []error {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil
+	}
+	u, err := url.Parse(strings.TrimSpace(*raw))
+	if err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" {
+		return nil
+	}
+	return []error{&huma.ErrorDetail{
+		Message:  "track_url must be an http or https link",
+		Location: prefix.With("track_url"),
+		Value:    *raw,
+	}}
 }
 
 // VoyagesFromDB maps a slice of database rows, returning a non-nil slice.
@@ -120,6 +160,8 @@ func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 		ImagePhotoUrl: strPtr(v.ImagePhotoUrl),
 		ImageRouteUrl: strPtr(v.ImageRouteUrl),
 		Description:   strPtr(v.Description),
+		TrackUrl:      strPtr(v.TrackUrl),
+		VoyageCard:    strPtr(v.VoyageCard),
 		CreatedAt:     timeVal(v.CreatedAt),
 		UpdatedAt:     timeVal(v.UpdatedAt),
 	}

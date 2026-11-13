@@ -2164,8 +2164,12 @@ components:
         tidal_waters:
           format: int64
           type: integer
+        track_url:
+          type: string
         updated_at:
           format: date-time
+          type: string
+        voyage_card:
           type: string
         yacht_id:
           format: int64
@@ -2258,6 +2262,13 @@ components:
         tidal_waters:
           format: int64
           type: integer
+        track_url:
+          description: Link to the track recording (http or https)
+          maxLength: 2048
+          type: string
+        voyage_card:
+          description: "Voyage card (Karta rejsu): who holds it or where it is"
+          type: string
         yacht_id:
           format: int64
           type: integer
@@ -2309,6 +2320,17 @@ components:
           format: int64
           minimum: 0
           type: integer
+        track_url:
+          description: Link to the track recording (http or https)
+          maxLength: 2048
+          type: string
+        voyage_card:
+          description: "Voyage card (Karta rejsu): who holds it or where it is"
+          type: string
+        yacht_id:
+          description: Yacht sailed; omit to clear
+          format: int64
+          type: integer
       type: object
     VoyageOpinion:
       additionalProperties: false
@@ -2353,6 +2375,8 @@ components:
           format: uri
           readOnly: true
           type: string
+        anchorage:
+          type: boolean
         created_at:
           format: date-time
           type: string
@@ -2377,8 +2401,7 @@ components:
         - id
         - voyage_id
         - name
-        - latitude
-        - longitude
+        - anchorage
         - position
         - created_at
       type: object
@@ -2392,14 +2415,17 @@ components:
           format: uri
           readOnly: true
           type: string
+        anchorage:
+          description: An anchorage rather than a harbour
+          type: boolean
         latitude:
-          description: Latitude
+          description: Latitude; omit with longitude for a name-only port
           format: double
           maximum: 90
           minimum: -90
           type: number
         longitude:
-          description: Longitude
+          description: Longitude; omit with latitude for a name-only port
           format: double
           maximum: 180
           minimum: -180
@@ -2415,8 +2441,6 @@ components:
           type: integer
       required:
         - name
-        - latitude
-        - longitude
       type: object
     VoyagePortOrderBody:
       additionalProperties: false
@@ -5016,6 +5040,40 @@ paths:
       summary: Remove a visited port from a voyage (admin or voyage captain)
       tags:
         - Voyage ports
+  /voyages/{voyageID}/yachts:
+    post:
+      operationId: add-voyage-yacht
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YachtBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Yacht"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Add a yacht to the club list from a voyage (admin or voyage captain)
+      tags:
+        - Voyages
   /yachts:
     get:
       operationId: list-yachts
