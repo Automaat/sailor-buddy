@@ -41,6 +41,8 @@ export type Enrollment = Schemas['Enrollment'];
 
 export type PublicTrip = Schemas['EnrollTrip'];
 export type PublicCruise = Schemas['EnrollCruise'];
+/** PublicLeg is a cruise trip as the public enroll link shows it. */
+export type PublicLeg = Schemas['EnrollLeg'];
 
 export type Cruise = Schemas['Cruise'];
 export type CruiseBody = Schemas['CruiseBody'];
@@ -57,4 +59,4 @@ export type Member = Schemas['Member'];
 type EnrollBase = Omit<Schemas['EnrollInfo'], '$schema' | 'kind' | 'trip' | 'cruise' | 'trips'>;
 export type EnrollPageData =
 	| (EnrollBase & { kind: 'trip'; trip: PublicTrip })
-	| (EnrollBase & { kind: 'cruise'; cruise: PublicCruise; trips: Trip[] | null });
+	| (EnrollBase & { kind: 'cruise'; cruise: PublicCruise; trips: PublicLeg[] | null });

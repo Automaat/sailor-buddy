@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
@@ -130,6 +131,55 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 		}
 	})
 
+	validLinks := []string{
+		"https://discord.gg/sycylia",
+		"https://chat.example.com:443/g",
+		"https://chat.example.com:65535/g",
+		"http://192.168.1.10/crew",
+		"http://192.168.1.10./crew",
+		"http://255.255.255.255:8080/g",
+		"http://127.1/g",
+		"http://0x7f.0.0.1/g",
+		"http://4294967295/g",
+		"http://[::1]:8080/g",
+		"https://[2001:db8::1]/g",
+		"https://chat.example.123abc/g",
+		"https://0x7g.example.com/g",
+		"http://1.0x/g",
+		"https://１２７.0.0.1/g",
+		"https://my_chat.example.com/g",
+		"https://żagle.pl/czat",
+		"https://\U00011F00.example.com/g",
+		"https://-chat.example.com/g",
+		"https://xn--agle-99a.pl/czat",
+		"https://XN--AGLE-99A.pl/czat",
+		"https://\u0915\u094d\u200d.example.com/g",
+		"https://\u0628\u200c\u0628.example.com/g",
+		"https://a\u0301.example.com/g",
+		"https://[fe80::1]/g",
+		"https://chat.0x10000000000000000g/crew",
+		"https://chat.99999999999999999999999a/crew",
+	}
+	for _, link := range validLinks {
+		t.Run("create accepts "+link, func(t *testing.T) {
+			var stored types.NullString
+			m := &mockQuerier{
+				createCruiseFn: func(_ context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
+					stored = arg.GroupChatUrl
+					return sqlcdb.Cruise{ID: 1, Name: arg.Name, Kind: arg.Kind}, nil
+				},
+			}
+			resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises",
+				map[string]any{"name": "X", "group_chat_url": link})
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+			}
+			if stored != (types.NullString{String: link, Valid: true}) {
+				t.Fatalf("stored = %+v", stored)
+			}
+		})
+	}
+
 	invalidLinks := []string{
 		"discord.gg/abc",
 		"javascript:alert(1)",
@@ -141,6 +191,47 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 		"https://chat.example.com:99999/g",
 		"https://chat.example.com:0/g",
 		"https://:443/g",
+		"https://192.168.1.999/crew",
+		"https://1.2.3.4.5/crew",
+		"https://chat.123/g",
+		"https://256.0.0.1/g",
+		"https://1.2.3.256/g",
+		"https://1.2.3.08/g",
+		"https://4294967296/g",
+		"https://0x100000000/g",
+		"https://1.0xg.5/g",
+		"https://example.0x1g.1/g",
+		"https://1.2.3.4.5./g",
+		"https://192.168.1.９９９/crew",
+		"https://1.2.3.4。5/crew",
+		"https://１.２.３.４.５/crew",
+		"https://\U00011F00.192.168.1.\uff19\uff19\uff19/crew",
+		"https://xn--zz.１.２.３.４.５/crew",
+		"https://chat.99999999999999999999999/crew",
+		"https://chat.0x10000000000000000/crew",
+		"https://1.2.3.4\u200d/crew",
+		"https://a\u200cb.example.com/g",
+		"https://a\u200db.example.com/g",
+		"https://\u0378.example.com/g",
+		"https://\ue000.example.com/g",
+		"https://\U000F0000.example.com/g",
+		"https://\ufffd.example.com/g",
+		"https://xn--zz.example.com/g",
+		"https://XN--ZZ.example.com/g",
+		"https://xn--zva.example.com/g",
+		"https://xn--abc-.example.com/g",
+		"https://\u017c.xn--abc-.example/g",
+		"https://\u017c.xn--.example/g",
+		"https://\u017c\u3002xn--.example/g",
+		"https://\u017c.\uff58\uff4e--abc-.example/g",
+		"https://\u017c.xn--gha.pl/g",
+		"https://\u017c.xn--agle-49a.pl/czat",
+		"https://xn--agle-49a.pl/czat",
+		"https://xn--\u00e9.example.com/g",
+		"https://\u017c.xn--\u00e9.example/g",
+		"https://\u0301abc.example.com/g",
+		"https://chat.\u0301abc/g",
+		"https://[fe80::1%25eth0]/g",
 	}
 	for _, link := range invalidLinks {
 		t.Run("create rejects "+link, func(t *testing.T) {
@@ -148,6 +239,9 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 				map[string]any{"name": "X", "group_chat_url": link})
 			if resp.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
+			}
+			if !strings.Contains(resp.Body.String(), "group_chat_url must be an http or https URL") {
+				t.Fatalf("body=%s, want group_chat_url message", resp.Body)
 			}
 		})
 		t.Run("update rejects "+link, func(t *testing.T) {

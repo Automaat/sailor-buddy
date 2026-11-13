@@ -1317,7 +1317,46 @@ export interface components {
             total_count: number;
             trip?: components["schemas"]["EnrollTrip"];
             trip_accepted?: components["schemas"]["TripAccepted"][] | null;
-            trips?: components["schemas"]["Trip"][] | null;
+            trips?: components["schemas"]["EnrollLeg"][] | null;
+        };
+        EnrollLeg: {
+            captain_name?: string;
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
+            cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
+            countries?: string;
+            /** @enum {string} */
+            currency: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
+            description?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            /** Format: int64 */
+            id: number;
+            image_photo_url?: string;
+            /** Format: int64 */
+            max_crew?: number;
+            name: string;
+            start_port?: string;
+            /** @enum {string} */
+            status: "planned" | "cancelled";
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person
+             */
+            yacht_fund?: number;
         };
         EnrollLegResult: {
             enrollment: components["schemas"]["Enrollment"];
