@@ -11,7 +11,7 @@ import (
 func TestMigrate_VoyageRouteKeepsExistingPorts(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	applyMigrationsBefore(t, conn, "024_voyage_route_track.sql")
+	applyMigrationsBefore(t, conn, "025_voyage_route_track.sql")
 
 	var cruiseID, voyageID int64
 	mustScan(t, conn.QueryRow(`INSERT INTO cruises (name) VALUES ('event') RETURNING id`), &cruiseID)
