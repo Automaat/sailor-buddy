@@ -17,7 +17,9 @@ type PersonClaimCandidate struct {
 }
 
 // PersonLinkRequest is a user's request to be linked to an existing person.
-// The user and person e-mails are filled only on the admin list.
+// PersonName is the name the user claimed; the admin list shows the
+// person's current name instead. The user and person e-mails are filled
+// only on the admin list.
 type PersonLinkRequest struct {
 	ID          int64      `json:"id"`
 	UserID      int64      `json:"user_id"`
@@ -64,11 +66,10 @@ func PersonClaimCandidatesFromDB(rows []sqlcdb.ListPersonClaimCandidatesRow) []P
 	return out
 }
 
-// PersonLinkRequestFromDB maps a request row with the requested person's
-// name.
-func PersonLinkRequestFromDB(r sqlcdb.PersonLinkRequest, personName string) PersonLinkRequest {
+// PersonLinkRequestFromDB maps a request row.
+func PersonLinkRequestFromDB(r sqlcdb.PersonLinkRequest) PersonLinkRequest {
 	out := PersonLinkRequest{
-		ID: r.ID, UserID: r.UserID, PersonID: r.PersonID, PersonName: personName,
+		ID: r.ID, UserID: r.UserID, PersonID: r.PersonID, PersonName: r.PersonName,
 		Status: r.Status, CreatedAt: r.CreatedAt,
 	}
 	if r.DecidedAt.Valid {
@@ -81,9 +82,9 @@ func PersonLinkRequestFromDB(r sqlcdb.PersonLinkRequest, personName string) Pers
 // MyPersonLinkRequestFromDB maps the user's latest request row.
 func MyPersonLinkRequestFromDB(r sqlcdb.GetLatestPersonLinkRequestRow) PersonLinkRequest {
 	return PersonLinkRequestFromDB(sqlcdb.PersonLinkRequest{
-		ID: r.ID, UserID: r.UserID, PersonID: r.PersonID, Status: r.Status,
+		ID: r.ID, UserID: r.UserID, PersonID: r.PersonID, PersonName: r.PersonName, Status: r.Status,
 		DecidedBy: r.DecidedBy, DecidedAt: r.DecidedAt, CreatedAt: r.CreatedAt,
-	}, r.PersonName)
+	})
 }
 
 // PendingPersonLinkRequestsFromDB maps the admin list rows, returning a
@@ -93,9 +94,9 @@ func PendingPersonLinkRequestsFromDB(rows []sqlcdb.ListPendingPersonLinkRequests
 	for i := range rows {
 		r := &rows[i]
 		req := PersonLinkRequestFromDB(sqlcdb.PersonLinkRequest{
-			ID: r.ID, UserID: r.UserID, PersonID: r.PersonID, Status: r.Status,
+			ID: r.ID, UserID: r.UserID, PersonID: r.PersonID, PersonName: r.CurrentPersonName, Status: r.Status,
 			DecidedBy: r.DecidedBy, DecidedAt: r.DecidedAt, CreatedAt: r.CreatedAt,
-		}, r.PersonName)
+		})
 		req.UserName = r.UserName
 		req.UserEmail = r.UserEmail
 		req.PersonEmail = strPtr(r.PersonEmail)

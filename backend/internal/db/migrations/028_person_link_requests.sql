@@ -2,12 +2,15 @@
 -- without an account ("To ja"), so voyages recorded before the account
 -- existed count for it. Linking waits for admin approval; approval merges
 -- the account's own person into the requested one. An account has at most
--- one pending request.
+-- one pending request. person_name keeps the name the user claimed, since
+-- approval renames the person to the account's name. A merge of the
+-- requested person moves its requests to the kept person.
 
 CREATE TABLE person_link_requests (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     person_id BIGINT NOT NULL REFERENCES crew_members(id) ON DELETE CASCADE,
+    person_name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
     decided_by BIGINT REFERENCES users(id) ON DELETE SET NULL,

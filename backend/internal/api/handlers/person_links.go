@@ -129,7 +129,8 @@ func registerPersonLinkRoutes(api huma.API, h *PersonLinkHandler) {
 		OperationID: "unlink-crew-member", Method: http.MethodPost, Path: "/crew/{crewID}/unlink",
 		Summary: "Unlink this person from its account (admin)", Tags: admin,
 		Description: "The person stays without an account and loses the account's e-mail; the account gets " +
-			"a new person without history. 409 when the person has no account.",
+			"a new person without history, and an approved request for this person no longer shows to the " +
+			"user. 409 when the person has no account.",
 	}, h.unlink)
 }
 
@@ -161,6 +162,9 @@ func (h *PersonLinkHandler) mine(ctx context.Context, _ *struct{}) (*myLinkReque
 		slog.Error("get person link request", "user_id", u.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to load your request")
 	}
+	if row.Status == linkApproved && !row.PersonLinked {
+		return &myLinkRequestOutput{}, nil
+	}
 	req := dto.MyPersonLinkRequestFromDB(row)
 	return &myLinkRequestOutput{Body: dto.MyPersonLinkRequest{Request: &req}}, nil
 }
@@ -182,7 +186,7 @@ func (h *PersonLinkHandler) create(ctx context.Context, in *createLinkRequestInp
 		return nil, huma.Error409Conflict("person already has an account")
 	}
 	req, err := h.q.CreatePersonLinkRequest(ctx, sqlcdb.CreatePersonLinkRequestParams{
-		UserID: u.UserID, PersonID: person.ID,
+		UserID: u.UserID, PersonID: person.ID, PersonName: person.FullName,
 	})
 	switch {
 	case isUniqueViolation(err):
@@ -193,7 +197,7 @@ func (h *PersonLinkHandler) create(ctx context.Context, in *createLinkRequestInp
 		slog.Error("create person link request", "user_id", u.UserID, "person_id", person.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to send the request")
 	}
-	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req, person.FullName)}, nil
+	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req)}, nil
 }
 
 func (h *PersonLinkHandler) cancel(ctx context.Context, _ *struct{}) (*noContentOutput, error) {
@@ -265,7 +269,7 @@ func (h *PersonLinkHandler) approve(ctx context.Context, in *linkRequestIDParam)
 	}
 	removeOpinionFiles(result.RemovedOpinionFiles)
 	req.Status = linkApproved
-	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req, result.Kept.FullName)}, nil
+	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req)}, nil
 }
 
 func (h *PersonLinkHandler) reject(ctx context.Context, in *linkRequestIDParam) (*linkRequestOutput, error) {
@@ -274,15 +278,11 @@ func (h *PersonLinkHandler) reject(ctx context.Context, in *linkRequestIDParam) 
 	}
 	adminID := middleware.GetUser(ctx).UserID
 	var req sqlcdb.PersonLinkRequest
-	var person sqlcdb.CrewMember
 	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
 		var err error
 		req, err = lockPendingRequest(ctx, q, in.ID)
 		if err != nil {
 			return err
-		}
-		if person, err = q.GetCrewMember(ctx, req.PersonID); err != nil {
-			return &QueryError{Op: "GetCrewMember", Err: err}
 		}
 		return decideRequest(ctx, q, req.ID, linkRejected, adminID)
 	})
@@ -290,7 +290,7 @@ func (h *PersonLinkHandler) reject(ctx context.Context, in *linkRequestIDParam) 
 		return nil, linkHTTPError(err, "reject person link request", in.ID)
 	}
 	req.Status = linkRejected
-	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req, person.FullName)}, nil
+	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req)}, nil
 }
 
 func (h *PersonLinkHandler) link(ctx context.Context, in *linkPersonInput) (*crewOutput, error) {

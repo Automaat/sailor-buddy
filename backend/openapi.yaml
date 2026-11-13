@@ -3237,7 +3237,7 @@ paths:
         - Crew
   /crew/{crewID}/unlink:
     post:
-      description: The person stays without an account and loses the account's e-mail; the account gets a new person without history. 409 when the person has no account.
+      description: The person stays without an account and loses the account's e-mail; the account gets a new person without history, and an approved request for this person no longer shows to the user. 409 when the person has no account.
       operationId: unlink-crew-member
       parameters:
         - description: Crew member ID

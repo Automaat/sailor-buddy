@@ -136,13 +136,14 @@ type CruiseSeries struct {
 }
 
 type PersonLinkRequest struct {
-	ID        int64           `json:"id"`
-	UserID    int64           `json:"user_id"`
-	PersonID  int64           `json:"person_id"`
-	Status    string          `json:"status"`
-	DecidedBy types.NullInt64 `json:"decided_by"`
-	DecidedAt types.NullTime  `json:"decided_at"`
-	CreatedAt time.Time       `json:"created_at"`
+	ID         int64           `json:"id"`
+	UserID     int64           `json:"user_id"`
+	PersonID   int64           `json:"person_id"`
+	PersonName string          `json:"person_name"`
+	Status     string          `json:"status"`
+	DecidedBy  types.NullInt64 `json:"decided_by"`
+	DecidedAt  types.NullTime  `json:"decided_at"`
+	CreatedAt  time.Time       `json:"created_at"`
 }
 
 type RefreshToken struct {

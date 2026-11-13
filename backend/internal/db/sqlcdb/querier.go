@@ -225,7 +225,7 @@ type Querier interface {
 	CreateCruiseSeries(ctx context.Context, arg CreateCruiseSeriesParams) (CruiseSeries, error)
 	//CreatePersonLinkRequest
 	//
-	//  INSERT INTO person_link_requests (user_id, person_id) VALUES ($1, $2) RETURNING id, user_id, person_id, status, decided_by, decided_at, created_at
+	//  INSERT INTO person_link_requests (user_id, person_id, person_name) VALUES ($1, $2, $3) RETURNING id, user_id, person_id, person_name, status, decided_by, decided_at, created_at
 	CreatePersonLinkRequest(ctx context.Context, arg CreatePersonLinkRequestParams) (PersonLinkRequest, error)
 	//CreateTraining
 	//
@@ -460,9 +460,10 @@ type Querier interface {
 	//  FROM voyages
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
 	// The user's most recent request, so a rejection stays visible until the
-	// user sends a new one.
+	// user sends a new one. person_linked tells whether the requested person
+	// still carries the account, which an admin's unlink ends.
 	//
-	//  SELECT r.id, r.user_id, r.person_id, r.status, r.decided_by, r.decided_at, r.created_at, cm.full_name AS person_name
+	//  SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, (cm.user_id IS NOT DISTINCT FROM r.user_id)::BOOLEAN AS person_linked
 	//  FROM person_link_requests r
 	//  JOIN crew_members cm ON cm.id = r.person_id
 	//  WHERE r.user_id = $1
@@ -650,8 +651,8 @@ type Querier interface {
 	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
 	//ListPendingPersonLinkRequests
 	//
-	//  SELECT r.id, r.user_id, r.person_id, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
-	//         cm.full_name AS person_name, cm.email AS person_email
+	//  SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
+	//         cm.full_name AS current_person_name, cm.email AS person_email
 	//  FROM person_link_requests r
 	//  JOIN users u ON u.id = r.user_id
 	//  JOIN crew_members cm ON cm.id = r.person_id
@@ -871,7 +872,7 @@ type Querier interface {
 	// Locks the request, so a cancel or a second decision waits for this one
 	// and then finds it no longer pending.
 	//
-	//  SELECT id, user_id, person_id, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
+	//  SELECT id, user_id, person_id, person_name, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
 	LockPersonLinkRequest(ctx context.Context, id int64) (PersonLinkRequest, error)
 	// Key-share-locks the trip's captain person. Trip completion takes it before
 	// the trip lock, in the same order as deleting the person (the person, then
@@ -937,6 +938,12 @@ type Querier interface {
 	//  UPDATE crew_assignments SET crew_member_id = $1::BIGINT
 	//  WHERE crew_member_id = $2::BIGINT
 	MoveCrewAssignments(ctx context.Context, arg MoveCrewAssignmentsParams) (int64, error)
+	// Points the duplicate's requests at the kept person when two people are
+	// merged, so a pending request survives the duplicate's deletion.
+	//
+	//  UPDATE person_link_requests SET person_id = $1::BIGINT
+	//  WHERE person_id = $2::BIGINT
+	MovePersonLinkRequests(ctx context.Context, arg MovePersonLinkRequestsParams) (int64, error)
 	//MoveTripCaptain
 	//
 	//  UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP

@@ -1246,3 +1246,7 @@ func (m *mockQuerier) CloseUserPendingLinkRequests(context.Context, sqlcdb.Close
 func (m *mockQuerier) UnlinkCrewMember(context.Context, sqlcdb.UnlinkCrewMemberParams) (int64, error) {
 	panic("unexpected call to UnlinkCrewMember")
 }
+
+func (m *mockQuerier) MovePersonLinkRequests(context.Context, sqlcdb.MovePersonLinkRequestsParams) (int64, error) {
+	panic("unexpected call to MovePersonLinkRequests")
+}

@@ -702,7 +702,7 @@ account owner overwrite its person's name, phone and patent number.
 `{id}` and removes the duplicate, in one transaction:
 
 - Crew assignments (legs and voyages), voyage opinions and leg and voyage
-  captaincies (`captain_person_id`) move to the kept person. Where both are on the same leg or voyage, the kept person's
+  captaincies (`captain_person_id`) and "To ja" requests move to the kept person. Where both are on the same leg or voyage, the kept person's
   assignment stays (it takes the duplicate's patent number if it has none)
   and the duplicate's is dropped; the same applies to two opinions for one
   voyage, and the dropped opinion's file is deleted after commit.
@@ -752,7 +752,10 @@ linked to it; an admin approves. There is no instant self-link.
 - Candidates match a case-insensitive part of `full_name` or
   `other_names`; e-mail matches (`email_match`) come first. Contact details
   are not returned.
-- A request has `status` `pending`, `approved`, `rejected` or `cancelled`.
+- A request has `status` `pending`, `approved`, `rejected` or `cancelled`
+  and `person_name`, the name the user claimed (the admin list shows the
+  person's current name). Merging the requested person into another moves
+  its requests to the kept person.
   An account has at most one pending request: another one → `409`. A
   person that already has an account → `409`; an unknown one → `404`.
   Cancelling without a pending request → `404`.
@@ -766,7 +769,9 @@ linked to it; an admin approves. There is no instant self-link.
 - Unlinking clears the person's account link and its e-mail when it is the
   account's (otherwise it would still count toward `/api/auth/me/cruises`);
   the account gets a new person built from its profile, without history.
-  A person without an account → `409`.
+  An approved request for that person no longer shows in
+  `/api/auth/me/person-link-request`, so the user can ask again. A person
+  without an account → `409`.
 
 ### Trainings (per-member)
 

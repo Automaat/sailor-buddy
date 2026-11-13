@@ -203,8 +203,8 @@ func TestPersonLinks_ApproveMergesTheAccountPersonIn(t *testing.T) {
 	if got := f.cruisesOf(user); !slices.Equal(got, []int64{ownCruise, pastCruise}) {
 		t.Errorf("cruises after approval: got %v, want %v", got, []int64{ownCruise, pastCruise})
 	}
-	if got := f.mine(user); got == nil || got.Status != "approved" {
-		t.Errorf("my request after approval: %+v", got)
+	if got := f.mine(user); got == nil || got.Status != "approved" || got.PersonName != "Anna Kowalska" {
+		t.Errorf("my request after approval: %+v, want approved for the claimed name", got)
 	}
 	f.decide(admin, req.ID, "approve", http.StatusConflict)
 	f.decide(admin, req.ID, "reject", http.StatusConflict)
@@ -359,5 +359,48 @@ func TestPersonLinks_AdminLinkAndUnlink(t *testing.T) {
 	resp = f.api.PostCtx(adminCtx, fmt.Sprintf("/crew/%d/unlink", target))
 	if resp.Code != http.StatusConflict {
 		t.Errorf("unlink a person without an account: got %d", resp.Code)
+	}
+}
+
+func TestPersonLinks_UnlinkAfterApprovalLetsTheUserAskAgain(t *testing.T) {
+	f := newLinkFixture(t)
+	admin, _ := f.account("admin@example.dev", "Admin")
+	user, _ := f.account("u@example.dev", "U")
+	past := f.person("Ewa Lis", nil)
+	req := f.request(user, past, http.StatusCreated)
+	f.decide(admin, req.ID, "approve", http.StatusOK)
+
+	resp := f.api.PostCtx(callerCtx(admin, "admin"), fmt.Sprintf("/crew/%d/unlink", past))
+	if resp.Code != http.StatusOK {
+		t.Fatalf("unlink: got %d; body=%s", resp.Code, resp.Body)
+	}
+	if got := f.mine(user); got != nil {
+		t.Errorf("my request after unlink: %+v, want none", got)
+	}
+	f.request(user, past, http.StatusCreated)
+}
+
+func TestPersonLinks_MergeKeepsPendingRequest(t *testing.T) {
+	f := newLinkFixture(t)
+	admin, _ := f.account("admin@example.dev", "Admin")
+	user, _ := f.account("u@example.dev", "U")
+	duplicate := f.person("Jan Kowalsky", nil)
+	kept := f.person("Jan Kowalski", nil)
+	req := f.request(user, duplicate, http.StatusCreated)
+
+	_, api := humatest.New(t)
+	registerCrewRoutes(api, &CrewHandler{q: f.q, runTx: sqlTxRunner(f.conn)})
+	resp := api.PostCtx(callerCtx(admin, "admin"), fmt.Sprintf("/crew/%d/merge", kept), map[string]any{"duplicate_id": duplicate})
+	if resp.Code != http.StatusOK {
+		t.Fatalf("merge: got %d; body=%s", resp.Code, resp.Body)
+	}
+
+	got := f.mine(user)
+	if got == nil || got.ID != req.ID || got.Status != "pending" || got.PersonID != kept {
+		t.Fatalf("request after merge: %+v, want pending for person %d", got, kept)
+	}
+	f.decide(admin, req.ID, "approve", http.StatusOK)
+	if got := f.userIDOf(kept); got.Int64 != user {
+		t.Errorf("kept person account after approval: %+v", got)
 	}
 }

@@ -21,12 +21,13 @@ ORDER BY email_match DESC, cm.full_name, cm.id
 LIMIT 20;
 
 -- name: CreatePersonLinkRequest :one
-INSERT INTO person_link_requests (user_id, person_id) VALUES ($1, $2) RETURNING *;
+INSERT INTO person_link_requests (user_id, person_id, person_name) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: GetLatestPersonLinkRequest :one
 -- The user's most recent request, so a rejection stays visible until the
--- user sends a new one.
-SELECT r.*, cm.full_name AS person_name
+-- user sends a new one. person_linked tells whether the requested person
+-- still carries the account, which an admin's unlink ends.
+SELECT r.*, (cm.user_id IS NOT DISTINCT FROM r.user_id)::BOOLEAN AS person_linked
 FROM person_link_requests r
 JOIN crew_members cm ON cm.id = r.person_id
 WHERE r.user_id = $1
@@ -39,7 +40,7 @@ WHERE user_id = $1 AND status = 'pending';
 
 -- name: ListPendingPersonLinkRequests :many
 SELECT r.*, u.name AS user_name, u.email AS user_email,
-       cm.full_name AS person_name, cm.email AS person_email
+       cm.full_name AS current_person_name, cm.email AS person_email
 FROM person_link_requests r
 JOIN users u ON u.id = r.user_id
 JOIN crew_members cm ON cm.id = r.person_id
@@ -77,3 +78,9 @@ UPDATE crew_members SET
         THEN NULL ELSE email END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id);
+
+-- name: MovePersonLinkRequests :execrows
+-- Points the duplicate's requests at the kept person when two people are
+-- merged, so a pending request survives the duplicate's deletion.
+UPDATE person_link_requests SET person_id = sqlc.arg(kept_id)::BIGINT
+WHERE person_id = sqlc.arg(duplicate_id)::BIGINT;

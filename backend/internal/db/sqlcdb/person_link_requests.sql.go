@@ -70,24 +70,26 @@ func (q *Queries) CountPendingPersonLinkRequests(ctx context.Context) (int64, er
 }
 
 const createPersonLinkRequest = `-- name: CreatePersonLinkRequest :one
-INSERT INTO person_link_requests (user_id, person_id) VALUES ($1, $2) RETURNING id, user_id, person_id, status, decided_by, decided_at, created_at
+INSERT INTO person_link_requests (user_id, person_id, person_name) VALUES ($1, $2, $3) RETURNING id, user_id, person_id, person_name, status, decided_by, decided_at, created_at
 `
 
 type CreatePersonLinkRequestParams struct {
-	UserID   int64 `json:"user_id"`
-	PersonID int64 `json:"person_id"`
+	UserID     int64  `json:"user_id"`
+	PersonID   int64  `json:"person_id"`
+	PersonName string `json:"person_name"`
 }
 
 // CreatePersonLinkRequest
 //
-//	INSERT INTO person_link_requests (user_id, person_id) VALUES ($1, $2) RETURNING id, user_id, person_id, status, decided_by, decided_at, created_at
+//	INSERT INTO person_link_requests (user_id, person_id, person_name) VALUES ($1, $2, $3) RETURNING id, user_id, person_id, person_name, status, decided_by, decided_at, created_at
 func (q *Queries) CreatePersonLinkRequest(ctx context.Context, arg CreatePersonLinkRequestParams) (PersonLinkRequest, error) {
-	row := q.db.QueryRowContext(ctx, createPersonLinkRequest, arg.UserID, arg.PersonID)
+	row := q.db.QueryRowContext(ctx, createPersonLinkRequest, arg.UserID, arg.PersonID, arg.PersonName)
 	var i PersonLinkRequest
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.PersonID,
+		&i.PersonName,
 		&i.Status,
 		&i.DecidedBy,
 		&i.DecidedAt,
@@ -119,7 +121,7 @@ func (q *Queries) DecidePersonLinkRequest(ctx context.Context, arg DecidePersonL
 }
 
 const getLatestPersonLinkRequest = `-- name: GetLatestPersonLinkRequest :one
-SELECT r.id, r.user_id, r.person_id, r.status, r.decided_by, r.decided_at, r.created_at, cm.full_name AS person_name
+SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, (cm.user_id IS NOT DISTINCT FROM r.user_id)::BOOLEAN AS person_linked
 FROM person_link_requests r
 JOIN crew_members cm ON cm.id = r.person_id
 WHERE r.user_id = $1
@@ -128,20 +130,22 @@ LIMIT 1
 `
 
 type GetLatestPersonLinkRequestRow struct {
-	ID         int64           `json:"id"`
-	UserID     int64           `json:"user_id"`
-	PersonID   int64           `json:"person_id"`
-	Status     string          `json:"status"`
-	DecidedBy  types.NullInt64 `json:"decided_by"`
-	DecidedAt  types.NullTime  `json:"decided_at"`
-	CreatedAt  time.Time       `json:"created_at"`
-	PersonName string          `json:"person_name"`
+	ID           int64           `json:"id"`
+	UserID       int64           `json:"user_id"`
+	PersonID     int64           `json:"person_id"`
+	PersonName   string          `json:"person_name"`
+	Status       string          `json:"status"`
+	DecidedBy    types.NullInt64 `json:"decided_by"`
+	DecidedAt    types.NullTime  `json:"decided_at"`
+	CreatedAt    time.Time       `json:"created_at"`
+	PersonLinked bool            `json:"person_linked"`
 }
 
 // The user's most recent request, so a rejection stays visible until the
-// user sends a new one.
+// user sends a new one. person_linked tells whether the requested person
+// still carries the account, which an admin's unlink ends.
 //
-//	SELECT r.id, r.user_id, r.person_id, r.status, r.decided_by, r.decided_at, r.created_at, cm.full_name AS person_name
+//	SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, (cm.user_id IS NOT DISTINCT FROM r.user_id)::BOOLEAN AS person_linked
 //	FROM person_link_requests r
 //	JOIN crew_members cm ON cm.id = r.person_id
 //	WHERE r.user_id = $1
@@ -154,18 +158,19 @@ func (q *Queries) GetLatestPersonLinkRequest(ctx context.Context, userID int64) 
 		&i.ID,
 		&i.UserID,
 		&i.PersonID,
+		&i.PersonName,
 		&i.Status,
 		&i.DecidedBy,
 		&i.DecidedAt,
 		&i.CreatedAt,
-		&i.PersonName,
+		&i.PersonLinked,
 	)
 	return i, err
 }
 
 const listPendingPersonLinkRequests = `-- name: ListPendingPersonLinkRequests :many
-SELECT r.id, r.user_id, r.person_id, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
-       cm.full_name AS person_name, cm.email AS person_email
+SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
+       cm.full_name AS current_person_name, cm.email AS person_email
 FROM person_link_requests r
 JOIN users u ON u.id = r.user_id
 JOIN crew_members cm ON cm.id = r.person_id
@@ -174,23 +179,24 @@ ORDER BY r.created_at, r.id
 `
 
 type ListPendingPersonLinkRequestsRow struct {
-	ID          int64            `json:"id"`
-	UserID      int64            `json:"user_id"`
-	PersonID    int64            `json:"person_id"`
-	Status      string           `json:"status"`
-	DecidedBy   types.NullInt64  `json:"decided_by"`
-	DecidedAt   types.NullTime   `json:"decided_at"`
-	CreatedAt   time.Time        `json:"created_at"`
-	UserName    string           `json:"user_name"`
-	UserEmail   string           `json:"user_email"`
-	PersonName  string           `json:"person_name"`
-	PersonEmail types.NullString `json:"person_email"`
+	ID                int64            `json:"id"`
+	UserID            int64            `json:"user_id"`
+	PersonID          int64            `json:"person_id"`
+	PersonName        string           `json:"person_name"`
+	Status            string           `json:"status"`
+	DecidedBy         types.NullInt64  `json:"decided_by"`
+	DecidedAt         types.NullTime   `json:"decided_at"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UserName          string           `json:"user_name"`
+	UserEmail         string           `json:"user_email"`
+	CurrentPersonName string           `json:"current_person_name"`
+	PersonEmail       types.NullString `json:"person_email"`
 }
 
 // ListPendingPersonLinkRequests
 //
-//	SELECT r.id, r.user_id, r.person_id, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
-//	       cm.full_name AS person_name, cm.email AS person_email
+//	SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
+//	       cm.full_name AS current_person_name, cm.email AS person_email
 //	FROM person_link_requests r
 //	JOIN users u ON u.id = r.user_id
 //	JOIN crew_members cm ON cm.id = r.person_id
@@ -209,13 +215,14 @@ func (q *Queries) ListPendingPersonLinkRequests(ctx context.Context) ([]ListPend
 			&i.ID,
 			&i.UserID,
 			&i.PersonID,
+			&i.PersonName,
 			&i.Status,
 			&i.DecidedBy,
 			&i.DecidedAt,
 			&i.CreatedAt,
 			&i.UserName,
 			&i.UserEmail,
-			&i.PersonName,
+			&i.CurrentPersonName,
 			&i.PersonEmail,
 		); err != nil {
 			return nil, err
@@ -312,13 +319,13 @@ func (q *Queries) ListPersonClaimCandidates(ctx context.Context, arg ListPersonC
 }
 
 const lockPersonLinkRequest = `-- name: LockPersonLinkRequest :one
-SELECT id, user_id, person_id, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
+SELECT id, user_id, person_id, person_name, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
 `
 
 // Locks the request, so a cancel or a second decision waits for this one
 // and then finds it no longer pending.
 //
-//	SELECT id, user_id, person_id, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
+//	SELECT id, user_id, person_id, person_name, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
 func (q *Queries) LockPersonLinkRequest(ctx context.Context, id int64) (PersonLinkRequest, error) {
 	row := q.db.QueryRowContext(ctx, lockPersonLinkRequest, id)
 	var i PersonLinkRequest
@@ -326,12 +333,36 @@ func (q *Queries) LockPersonLinkRequest(ctx context.Context, id int64) (PersonLi
 		&i.ID,
 		&i.UserID,
 		&i.PersonID,
+		&i.PersonName,
 		&i.Status,
 		&i.DecidedBy,
 		&i.DecidedAt,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const movePersonLinkRequests = `-- name: MovePersonLinkRequests :execrows
+UPDATE person_link_requests SET person_id = $1::BIGINT
+WHERE person_id = $2::BIGINT
+`
+
+type MovePersonLinkRequestsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// Points the duplicate's requests at the kept person when two people are
+// merged, so a pending request survives the duplicate's deletion.
+//
+//	UPDATE person_link_requests SET person_id = $1::BIGINT
+//	WHERE person_id = $2::BIGINT
+func (q *Queries) MovePersonLinkRequests(ctx context.Context, arg MovePersonLinkRequestsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, movePersonLinkRequests, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const unlinkCrewMember = `-- name: UnlinkCrewMember :execrows
