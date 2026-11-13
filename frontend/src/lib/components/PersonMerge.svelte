@@ -162,7 +162,7 @@
 						{count(preview.shared_opinions, 'opinia', 'opinie', 'opinii')}.
 					</p>
 				{/if}
-				{#if preview.person.other_names.length}
+				{#if preview.person.other_names?.length}
 					<p class="mt-2">Inne nazwiska po połączeniu: {preview.person.other_names.join(', ')}</p>
 				{/if}
 				{#if preview.duplicate.has_account}
