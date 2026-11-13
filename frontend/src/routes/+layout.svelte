@@ -102,7 +102,7 @@
 	<div class="flex min-h-screen">
 		<nav class="flex w-60 flex-col bg-[var(--navy)] text-white">
 			<a href="/" class="flex items-center gap-3 border-b border-white/10 p-4">
-				<ClubLogo inverted class="h-9 w-auto" />
+				<ClubLogo inverted alt="" class="h-9 w-auto" />
 				<span class="text-lg font-bold">AKŻ AGH</span>
 			</a>
 
