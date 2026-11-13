@@ -223,11 +223,12 @@ type Querier interface {
 	//
 	//  DELETE FROM cruise_series WHERE id = $1
 	DeleteCruiseSeries(ctx context.Context, id int64) error
-	// Withdraws the caller's own sign-up for a trip while it is still pending.
-	// No row when the user has no pending sign-up for it.
+	// Withdraws the caller's own sign-up for a trip while it is still pending
+	// and no payment is recorded on it. No row when the user has no such
+	// sign-up for it.
 	//
 	//  DELETE FROM trip_enrollments
-	//  WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+	//  WHERE trip_id = $1 AND user_id = $2 AND status = 'pending' AND payment_status = 'unpaid'
 	//  RETURNING id
 	DeletePendingUserTripEnrollment(ctx context.Context, arg DeletePendingUserTripEnrollmentParams) (int64, error)
 	//DeleteTraining

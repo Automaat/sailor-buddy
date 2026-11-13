@@ -99,8 +99,9 @@ func TestUpdatePaymentStatus(t *testing.T) {
 
 // TestPaymentStatus_AgainstDatabase checks the payment status SQL: a new
 // sign-up starts unpaid, an admin change persists and leaves the review
-// status alone, a review change leaves the payment status alone, and an
-// enrollment id under another trip is not updated.
+// status alone, a review change leaves the payment status alone, a member
+// cannot withdraw a sign-up with a recorded payment, and an enrollment id
+// under another trip is not updated.
 func TestPaymentStatus_AgainstDatabase(t *testing.T) {
 	conn := lockTestDB(t)
 	ctx := context.Background()
@@ -158,6 +159,16 @@ func TestPaymentStatus_AgainstDatabase(t *testing.T) {
 	}
 	if mine.Enrollment == nil || mine.Enrollment.PaymentStatus != "deposit" {
 		t.Fatalf("member sign-up = %+v, want deposit", mine.Enrollment)
+	}
+
+	if _, err := conn.ExecContext(ctx, "UPDATE trip_enrollments SET status = 'pending' WHERE trip_id = $1", leg.tripID); err != nil {
+		t.Fatalf("reset to pending: %v", err)
+	}
+	if resp := api.DeleteCtx(guestCtx(leg.userID), trip+"/sign-up"); resp.Code != http.StatusConflict {
+		t.Fatalf("withdraw with deposit: got %d, want 409; body=%s", resp.Code, resp.Body)
+	}
+	if got := listed(); got.PaymentStatus != "deposit" {
+		t.Fatalf("withdraw changed payment to %q", got.PaymentStatus)
 	}
 
 	other := "/trips/" + strconv.FormatInt(leg.tripID+1000, 10) + "/enrollments/" +

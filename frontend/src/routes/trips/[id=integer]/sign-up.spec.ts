@@ -111,6 +111,19 @@ describe('trip page sign-up', () => {
 		expect(within(card).getByTestId('sign-up-payment')).toHaveTextContent(label);
 	});
 
+	it.each(['deposit', 'paid'])('hides withdraw on a pending sign-up with a %s payment', async (payment) => {
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ payment_status: payment })
+		});
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('oczekujący');
+		expect(within(card).queryByRole('button', { name: /Wycofaj/ })).not.toBeInTheDocument();
+	});
+
 	it('shows no payment status for a cruise-level enrollment', async () => {
 		fn(getTripSignUp).mockResolvedValue({
 			trip_id: 50,

@@ -369,8 +369,9 @@ The note is added after signing up: `PUT .../sign-up/note` with
 `{ "note": "message" }` (up to 2000 characters, trimmed; blank or omitted
 clears it). `404 not signed up for this leg` without a sign-up.
 
-`DELETE .../sign-up` withdraws only a `pending` sign-up. `404` when the
-caller has none, `409` once an admin has accepted, rejected or waitlisted it.
+`DELETE .../sign-up` withdraws only a `pending` sign-up with no recorded
+payment. `404` when the caller has none, `409` once an admin has accepted,
+rejected or waitlisted it, or set its payment status to `deposit` or `paid`.
 
 A cruise enrollment made before per-leg sign-up and assigned to a leg counts
 as the user's sign-up for that leg: both reads return it as `enrollment`

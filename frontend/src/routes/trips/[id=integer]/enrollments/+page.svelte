@@ -25,6 +25,9 @@
 	let enrollments = $state<TripEnrollment[]>([]);
 	let loading = $state(true);
 	let paymentError = $state('');
+	// Enrollment ids with a payment status save in flight; their select is
+	// disabled so two quick changes cannot race.
+	let savingPayment = $state<number[]>([]);
 
 	const id = $derived(Number(page.params.id));
 	const payments = $derived(paymentCounts(enrollments));
@@ -61,6 +64,7 @@
 		const paymentStatus = select.value as PaymentStatus;
 		const previous = enrollments.find((e) => e.id === enrollmentId)?.payment_status ?? 'unpaid';
 		paymentError = '';
+		savingPayment = [...savingPayment, enrollmentId];
 		try {
 			const updated = await updateTripEnrollmentPaymentStatus(id, enrollmentId, paymentStatus);
 			enrollments = enrollments.map((e) =>
@@ -70,6 +74,8 @@
 			console.error('Failed to update payment status:', err);
 			select.value = previous;
 			paymentError = 'Nie udało się zapisać statusu płatności';
+		} finally {
+			savingPayment = savingPayment.filter((x) => x !== enrollmentId);
 		}
 	}
 
@@ -149,6 +155,7 @@
 									id={`payment-${enrollment.id}`}
 									value={enrollment.payment_status ?? 'unpaid'}
 									onchange={(e) => updatePayment(enrollment.id, e.currentTarget)}
+									disabled={savingPayment.includes(enrollment.id)}
 									class="rounded border px-2 py-1 text-xs"
 								>
 									{#each paymentStatuses as ps}

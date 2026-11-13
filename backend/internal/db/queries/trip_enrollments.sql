@@ -107,10 +107,11 @@ WHERE trip_id = $1 AND user_id = $2
 RETURNING *;
 
 -- name: DeletePendingUserTripEnrollment :one
--- Withdraws the caller's own sign-up for a trip while it is still pending.
--- No row when the user has no pending sign-up for it.
+-- Withdraws the caller's own sign-up for a trip while it is still pending
+-- and no payment is recorded on it. No row when the user has no such
+-- sign-up for it.
 DELETE FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+WHERE trip_id = $1 AND user_id = $2 AND status = 'pending' AND payment_status = 'unpaid'
 RETURNING id;
 
 -- name: ListCruiseTripEnrollments :many

@@ -201,7 +201,7 @@ func (q *Queries) CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTr
 
 const deletePendingUserTripEnrollment = `-- name: DeletePendingUserTripEnrollment :one
 DELETE FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+WHERE trip_id = $1 AND user_id = $2 AND status = 'pending' AND payment_status = 'unpaid'
 RETURNING id
 `
 
@@ -210,11 +210,12 @@ type DeletePendingUserTripEnrollmentParams struct {
 	UserID int64 `json:"user_id"`
 }
 
-// Withdraws the caller's own sign-up for a trip while it is still pending.
-// No row when the user has no pending sign-up for it.
+// Withdraws the caller's own sign-up for a trip while it is still pending
+// and no payment is recorded on it. No row when the user has no such
+// sign-up for it.
 //
 //	DELETE FROM trip_enrollments
-//	WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+//	WHERE trip_id = $1 AND user_id = $2 AND status = 'pending' AND payment_status = 'unpaid'
 //	RETURNING id
 func (q *Queries) DeletePendingUserTripEnrollment(ctx context.Context, arg DeletePendingUserTripEnrollmentParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, deletePendingUserTripEnrollment, arg.TripID, arg.UserID)

@@ -725,7 +725,7 @@ export interface paths {
         post: operations["sign-up-for-trip"];
         /**
          * Withdraw the caller's pending leg sign-up
-         * @description Deletes the caller's sign-up while it is pending. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted).
+         * @description Deletes the caller's sign-up while it is pending and unpaid. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted) or recorded a payment on it (deposit or paid).
          */
         delete: operations["withdraw-trip-sign-up"];
         options?: never;

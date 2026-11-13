@@ -91,6 +91,21 @@ describe('trip enrollments page payment status', () => {
 		expect(screen.getAllByText('oczekujący')).toHaveLength(3);
 	});
 
+	it('disables the control while its change is saving', async () => {
+		let resolve: (v: unknown) => void = () => {};
+		fn(updateTripEnrollmentPaymentStatus).mockReturnValue(new Promise((r) => (resolve = r)));
+		render(EnrollmentsPage);
+		const darek = await screen.findByLabelText('Płatność: Darek');
+
+		await fireEvent.change(darek, { target: { value: 'paid' } });
+
+		await waitFor(() => expect(darek).toBeDisabled());
+		expect(screen.getByLabelText('Płatność: Anna')).toBeEnabled();
+		resolve(row(4, 'Darek', { payment_status: 'paid' }));
+		await waitFor(() => expect(darek).toBeEnabled());
+		expect(counts().paid).toBe('Opłacone: 2');
+	});
+
 	it('shows the saved payment status after a reload', async () => {
 		fn(listTripEnrollments).mockResolvedValue([row(4, 'Darek', { payment_status: 'paid' })]);
 		render(EnrollmentsPage);

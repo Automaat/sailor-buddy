@@ -95,7 +95,7 @@
 			{#if cruiseLevel}
 				<span class="text-xs text-[var(--text-muted)]" data-testid="cruise-level">zapis na wydarzenie</span>
 			{/if}
-			{#if enrollment.status === 'pending' && !cruiseLevel}
+			{#if enrollment.status === 'pending' && !cruiseLevel && (enrollment.payment_status ?? 'unpaid') === 'unpaid'}
 				<button
 					type="button"
 					onclick={withdraw}
