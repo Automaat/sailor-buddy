@@ -157,7 +157,7 @@ type Training struct {
 type Trip struct {
 	ID                     int64             `json:"id"`
 	CreatedBy              types.NullInt64   `json:"created_by"`
-	CruiseID               types.NullInt64   `json:"cruise_id"`
+	CruiseID               int64             `json:"cruise_id"`
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
@@ -213,7 +213,7 @@ type User struct {
 type Voyage struct {
 	ID            int64             `json:"id"`
 	CreatedBy     types.NullInt64   `json:"created_by"`
-	CruiseID      types.NullInt64   `json:"cruise_id"`
+	CruiseID      int64             `json:"cruise_id"`
 	Name          string            `json:"name"`
 	Year          types.NullInt64   `json:"year"`
 	EmbarkDate    types.NullString  `json:"embark_date"`

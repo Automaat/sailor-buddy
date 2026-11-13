@@ -1,5 +1,5 @@
 // Reusable factories and helpers shared across form/component test suites.
-import type { Member, Trip, Voyage } from '#lib/api/types.js';
+import type { Cruise, Member, Trip, Voyage } from '#lib/api/types.js';
 
 export function makeMember(overrides: Partial<Member> = {}): Member {
 	return {
@@ -14,9 +14,24 @@ export function makeMember(overrides: Partial<Member> = {}): Member {
 	};
 }
 
+export function makeCruise(overrides: Partial<Cruise> = {}): Cruise {
+	return {
+		id: 1,
+		name: 'Regaty Klubowe',
+		kind: 'sea',
+		currency: 'PLN',
+		included: [],
+		not_included: [],
+		created_at: '2026-01-01T00:00:00Z',
+		updated_at: '2026-01-01T00:00:00Z',
+		...overrides
+	};
+}
+
 export function makeTrip(overrides: Partial<Trip> = {}): Trip {
 	return {
 		id: 1,
+		cruise_id: 1,
 		name: 'Rejs Bałtyk',
 		status: 'planned',
 		currency: 'PLN',
@@ -31,6 +46,7 @@ export function makeTrip(overrides: Partial<Trip> = {}): Trip {
 export function makeVoyage(overrides: Partial<Voyage> = {}): Voyage {
 	return {
 		id: 1,
+		cruise_id: 1,
 		name: 'Rejs Bałtyk',
 		hours_total: 0,
 		hours_sail: 0,

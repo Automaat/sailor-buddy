@@ -1,16 +1,18 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { getVoyage, updateVoyage, listYachts } from '#lib/api/routes.js';
-	import type { Yacht } from '#lib/api/types.js';
+	import { getVoyage, updateVoyage, listYachts, listCruises } from '#lib/api/routes.js';
+	import type { Cruise, Yacht } from '#lib/api/types.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
+	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 
 	let error = $state('');
 	let loading = $state(true);
 	let saving = $state(false);
 	let yachts = $state<Yacht[]>([]);
+	let cruises = $state<Cruise[]>([]);
 
 	// Editing voyages is an admin task; redirect regular members away.
 	$effect(() => {
@@ -29,6 +31,7 @@
 		countries: '',
 		start_port: '',
 		end_port: '',
+		cruise_id: 0,
 		hours_total: 0,
 		hours_sail: 0,
 		hours_engine: 0,
@@ -40,15 +43,23 @@
 		tidal_waters: false,
 		cost_total: 0,
 		cost_per_person: 0,
-		description: ''
+		description: '',
+		image_logo_url: '',
+		image_photo_url: '',
+		image_route_url: ''
 	});
 
 	const id = $derived(Number(page.params.id));
 
 	onMount(async () => {
 		try {
-			const [voyage, y] = await Promise.all([getVoyage(id), listYachts()]);
+			const [voyage, y, c] = await Promise.all([
+				getVoyage(id),
+				listYachts(),
+				listCruises().catch(() => [])
+			]);
 			yachts = y;
+			cruises = c ?? [];
 			legacyCaptainName = voyage.captain_user_id ? '' : (voyage.captain_name ?? '');
 			form = {
 				name: voyage.name,
@@ -58,6 +69,7 @@
 				countries: voyage.countries ?? '',
 				start_port: voyage.start_port ?? '',
 				end_port: voyage.end_port ?? '',
+				cruise_id: voyage.cruise_id,
 				hours_total: voyage.hours_total,
 				hours_sail: voyage.hours_sail,
 				hours_engine: voyage.hours_engine,
@@ -69,7 +81,10 @@
 				tidal_waters: voyage.tidal_waters > 0,
 				cost_total: voyage.cost_total ?? 0,
 				cost_per_person: voyage.cost_per_person ?? 0,
-				description: voyage.description ?? ''
+				description: voyage.description ?? '',
+				image_logo_url: voyage.image_logo_url ?? '',
+				image_photo_url: voyage.image_photo_url ?? '',
+				image_route_url: voyage.image_route_url ?? ''
 			};
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się wczytać';
@@ -80,6 +95,10 @@
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		if (!form.cruise_id) {
+			error = 'Wybierz wydarzenie, do którego należy rejs';
+			return;
+		}
 		saving = true;
 		error = '';
 		try {
@@ -87,6 +106,9 @@
 				...form,
 				tidal_waters: form.tidal_waters ? 1 : 0,
 				yacht_id: form.yacht_id || undefined,
+				image_logo_url: form.image_logo_url || undefined,
+				image_photo_url: form.image_photo_url || undefined,
+				image_route_url: form.image_route_url || undefined,
 				// captain_name of a linked captain is the server's snapshot, so only a
 				// legacy free-text name survives clearing the captain.
 				captain_user_id: form.captain_user_id || undefined,
@@ -114,6 +136,10 @@
 
 		<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-2 gap-4">
+				<div class="col-span-2">
+					<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
+					<CruiseSelect bind:value={form.cruise_id} {cruises} />
+				</div>
 				<div class="col-span-2">
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />

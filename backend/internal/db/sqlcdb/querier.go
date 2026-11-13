@@ -46,7 +46,7 @@ type Querier interface {
 	//  FROM trips t
 	//  WHERE t.cruise_id = $1
 	//  ORDER BY t.id
-	CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error)
+	CountAcceptedByCruiseTrip(ctx context.Context, cruiseID int64) ([]CountAcceptedByCruiseTripRow, error)
 	// Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 	//
 	//  SELECT COUNT(*)::BIGINT AS accepted FROM (
@@ -91,6 +91,13 @@ type Querier interface {
 	//  FROM trip_enrollments
 	//  WHERE trip_id = $1
 	CountTripEnrollments(ctx context.Context, tripID int64) (CountTripEnrollmentsRow, error)
+	//CountTripLinkedEnrollments
+	//
+	//  SELECT (
+	//      (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+	//      + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+	//  )::BIGINT AS linked
+	CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error)
 	//CountTrips
 	//
 	//  SELECT COUNT(*)::BIGINT FROM trips
@@ -265,10 +272,6 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE id = $1
 	GetCrewMember(ctx context.Context, id int64) (CrewMember, error)
-	//GetCrewMemberByName
-	//
-	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE full_name = $1
-	GetCrewMemberByName(ctx context.Context, fullName string) (CrewMember, error)
 	//GetCrewMemberStats
 	//
 	//  SELECT
@@ -399,10 +402,6 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE id = $1
 	GetYacht(ctx context.Context, id int64) (Yacht, error)
-	//GetYachtByName
-	//
-	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE name = $1
-	GetYachtByName(ctx context.Context, name string) (Yacht, error)
 	//LinkFirebaseUIDByEmail
 	//
 	//  UPDATE users SET
@@ -456,11 +455,11 @@ type Querier interface {
 	//ListCruiseTrips
 	//
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
-	ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64) ([]Trip, error)
+	ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error)
 	//ListCruiseVoyages
 	//
 	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
-	ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error)
+	ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error)
 	//ListCruises
 	//
 	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
@@ -539,11 +538,11 @@ type Querier interface {
 	//  WHERE cruise_id = $1
 	//  ORDER BY id
 	//  FOR SHARE
-	LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error)
+	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
 	// Key-share-locks the cruise the trip belongs to. Trip completion takes it
 	// before the trip lock, in the same order as DELETE FROM cruises (cruise,
-	// then trip via the ON DELETE SET NULL cascade), so the two cannot deadlock.
-	// No row when the trip has no cruise or the cruise is gone.
+	// then the trips foreign-key check), so the two cannot deadlock.
+	// No row when the trip or its cruise is gone.
 	//
 	//  SELECT c.id FROM cruises c
 	//  WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)

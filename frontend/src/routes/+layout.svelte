@@ -8,7 +8,6 @@
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
-	import Download from '@lucide/svelte/icons/download';
 	import Users from '@lucide/svelte/icons/users';
 	import Repeat from '@lucide/svelte/icons/repeat';
 
@@ -19,17 +18,15 @@
 		label: string;
 		icon: typeof Anchor;
 		adminOnly?: boolean;
+		alsoActiveUnder?: string[];
 	};
 
 	const navItems: NavItem[] = [
 		{ href: '/', label: 'Pulpit', icon: Anchor },
-		{ href: '/cruises', label: 'Wydarzenia', icon: Sailboat },
+		{ href: '/cruises', label: 'Rejsy', icon: Sailboat, alsoActiveUnder: ['/trips', '/voyages'] },
 		{ href: '/series', label: 'Serie', icon: Repeat },
-		{ href: '/trips', label: 'Planowane', icon: Sailboat },
-		{ href: '/voyages', label: 'Zrealizowane', icon: Sailboat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
-		{ href: '/import', label: 'Import', icon: Download },
 		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true }
 	];
 
@@ -103,7 +100,8 @@
 					{#if !item.adminOnly || auth.isAdmin}
 						{@const active =
 							page.url.pathname === item.href ||
-							(item.href !== '/' && page.url.pathname.startsWith(item.href))}
+							(item.href !== '/' && page.url.pathname.startsWith(item.href)) ||
+							(item.alsoActiveUnder ?? []).some((p) => page.url.pathname.startsWith(p))}
 						{@const Icon = item.icon}
 						<a
 							href={item.href}

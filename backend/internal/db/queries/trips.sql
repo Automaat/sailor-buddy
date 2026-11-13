@@ -21,8 +21,8 @@ SELECT * FROM trips WHERE id = $1 FOR UPDATE;
 -- name: LockTripCruise :one
 -- Key-share-locks the cruise the trip belongs to. Trip completion takes it
 -- before the trip lock, in the same order as DELETE FROM cruises (cruise,
--- then trip via the ON DELETE SET NULL cascade), so the two cannot deadlock.
--- No row when the trip has no cruise or the cruise is gone.
+-- then the trips foreign-key check), so the two cannot deadlock.
+-- No row when the trip or its cruise is gone.
 SELECT c.id FROM cruises c
 WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
 FOR KEY SHARE OF c;

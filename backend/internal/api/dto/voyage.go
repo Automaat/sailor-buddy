@@ -10,7 +10,7 @@ import (
 type Voyage struct {
 	ID            int64     `json:"id"`
 	CreatedBy     *int64    `json:"created_by,omitempty"`
-	CruiseID      *int64    `json:"cruise_id,omitempty"`
+	CruiseID      int64     `json:"cruise_id"`
 	Name          string    `json:"name"`
 	Year          *int64    `json:"year,omitempty"`
 	EmbarkDate    *string   `json:"embark_date,omitempty"`
@@ -64,7 +64,7 @@ type VoyageBody struct {
 	ImagePhotoUrl *string  `json:"image_photo_url,omitempty"`
 	ImageRouteUrl *string  `json:"image_route_url,omitempty"`
 	Description   *string  `json:"description,omitempty"`
-	CruiseID      *int64   `json:"cruise_id,omitempty"`
+	CruiseID      int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this voyage was a leg of"`
 }
 
 // VoyageLogBody is the post-cruise log a voyage's captain (or an admin)
@@ -95,7 +95,7 @@ func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 	return Voyage{
 		ID:            v.ID,
 		CreatedBy:     intPtr(v.CreatedBy),
-		CruiseID:      intPtr(v.CruiseID),
+		CruiseID:      v.CruiseID,
 		Name:          v.Name,
 		Year:          intPtr(v.Year),
 		EmbarkDate:    strPtr(v.EmbarkDate),

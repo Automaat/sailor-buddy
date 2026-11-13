@@ -195,6 +195,7 @@ func TestTripPricing_CreateStoresAndReturnsPrices(t *testing.T) {
 		},
 	}
 	resp := tripTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips", map[string]any{
+		"cruise_id":                  1,
 		"name":                       "WRM 2025",
 		"currency":                   "PLN",
 		"cost_per_person":            820,
@@ -222,14 +223,14 @@ func TestTripPricing_CreateStoresAndReturnsPrices(t *testing.T) {
 func TestTripPricing_UpdatePassesPricesAndDefaultsCurrency(t *testing.T) {
 	var got sqlcdb.UpdateTripParams
 	m := &mockQuerier{
-		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
+		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
 		updateTripFn: func(_ context.Context, arg sqlcdb.UpdateTripParams) error {
 			got = arg
 			return nil
 		},
 	}
 	resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/4", map[string]any{
-		"name": "NNE leg", "cost_per_person_non_member": 250, "deposit": 0,
+		"cruise_id": 1, "name": "NNE leg", "cost_per_person_non_member": 250, "deposit": 0,
 	})
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204; body=%s", resp.Code, resp.Body)
@@ -255,7 +256,7 @@ func TestTripPricing_Rejects(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.body["name"] = "X"
 			m := &mockQuerier{
-				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
+				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
 			}
 			for _, method := range []string{http.MethodPost, http.MethodPut} {
 				path := "/trips"

@@ -14,6 +14,9 @@ import (
 
 func voyageTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
+	if m.getCruiseFn == nil {
+		m.getCruiseFn = func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil }
+	}
 	_, api := humatest.New(t)
 	RegisterVoyageRoutes(api, m)
 	return api
@@ -91,7 +94,7 @@ func TestVoyageHandler_Create(t *testing.T) {
 				return sqlcdb.Voyage{ID: 1, Name: arg.Name}, nil
 			},
 		}
-		resp := voyageTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages", map[string]any{"name": "Ionian"})
+		resp := voyageTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages", map[string]any{"cruise_id": 1, "name": "Ionian"})
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
@@ -110,7 +113,7 @@ func TestVoyageHandler_Create(t *testing.T) {
 				return sqlcdb.Voyage{}, errors.New("fail")
 			},
 		}
-		resp := voyageTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages", map[string]any{"name": "X"})
+		resp := voyageTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages", map[string]any{"cruise_id": 1, "name": "X"})
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
@@ -123,7 +126,7 @@ func TestVoyageHandler_Update(t *testing.T) {
 			getVoyageFn:    func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			updateVoyageFn: func(context.Context, sqlcdb.UpdateVoyageParams) error { return nil },
 		}
-		resp := voyageTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/1", map[string]any{"name": "Renamed"})
+		resp := voyageTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/1", map[string]any{"cruise_id": 1, "name": "Renamed"})
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
 		}
@@ -141,7 +144,7 @@ func TestVoyageHandler_Update(t *testing.T) {
 			getVoyageFn:    func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			updateVoyageFn: func(context.Context, sqlcdb.UpdateVoyageParams) error { return errors.New("fail") },
 		}
-		resp := voyageTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/1", map[string]any{"name": "X"})
+		resp := voyageTestAPI(t, m).PutCtx(userCtx(context.Background()), "/voyages/1", map[string]any{"cruise_id": 1, "name": "X"})
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
@@ -172,7 +175,7 @@ func TestVoyageHandler_Delete(t *testing.T) {
 
 func TestVoyageHandler_Create_MemberForbidden(t *testing.T) {
 	resp := voyageTestAPI(t, &mockQuerier{}).PostCtx(
-		userCtxRole(context.Background(), "member"), "/voyages", map[string]any{"name": "X"})
+		userCtxRole(context.Background(), "member"), "/voyages", map[string]any{"cruise_id": 1, "name": "X"})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("got %d, want 403; body=%s", resp.Code, resp.Body)
 	}

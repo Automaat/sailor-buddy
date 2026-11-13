@@ -18,6 +18,3 @@ WHERE id = $9;
 
 -- name: DeleteYacht :exec
 DELETE FROM yachts WHERE id = $1;
-
--- name: GetYachtByName :one
-SELECT * FROM yachts WHERE name = $1;

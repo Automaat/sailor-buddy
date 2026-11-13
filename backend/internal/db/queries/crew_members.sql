@@ -25,5 +25,3 @@ WHERE id = $9;
 -- name: DeleteCrewMember :exec
 DELETE FROM crew_members WHERE id = $1;
 
--- name: GetCrewMemberByName :one
-SELECT * FROM crew_members WHERE full_name = $1;

@@ -20,7 +20,6 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 // lockTestDB creates a throwaway database on the server named by
@@ -94,7 +93,7 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 		t.Fatalf("set cruise token: %v", err)
 	}
 	trip, err := q.CreateTrip(ctx, sqlcdb.CreateTripParams{
-		CruiseID: types.NullInt64{Int64: cruise.ID, Valid: true},
+		CruiseID: cruise.ID,
 		Name:     "Leg 1",
 		Status:   sqlcdb.TripStatusPlanned,
 		Currency: "PLN",
@@ -144,7 +143,7 @@ type pausingQuerier struct {
 	release <-chan struct{}
 }
 
-func (p pausingQuerier) LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
+func (p pausingQuerier) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
 	rows, err := p.Querier.LockCruiseTripStatuses(ctx, cruiseID)
 	close(p.locked)
 	<-p.release
@@ -285,7 +284,7 @@ func assertTripCompleted(t *testing.T, conn *sql.DB, leg legFixture, voyage sqlc
 	if trips != 0 || enrollments != 0 || onVoyage != 1 {
 		t.Fatalf("trips=%d enrollments=%d voyage crew=%d, want 0 0 1", trips, enrollments, onVoyage)
 	}
-	if !voyage.CruiseID.Valid || voyage.CruiseID.Int64 != leg.cruiseID {
+	if voyage.CruiseID != leg.cruiseID {
 		t.Fatalf("voyage cruise = %+v, want %d", voyage.CruiseID, leg.cruiseID)
 	}
 }

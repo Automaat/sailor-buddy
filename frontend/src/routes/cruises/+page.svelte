@@ -1,26 +1,62 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { listCruises } from '#lib/api/routes.js';
-	import type { Cruise } from '#lib/api/types.js';
+	import { listCruises, listTrips, listVoyages } from '#lib/api/routes.js';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import {
+		buildRejsEntries,
+		filterRejsEntries,
+		parseRejsTab,
+		rejsStatusLabels,
+		rejsTabs,
+		type RejsEntry,
+		type RejsTab
+	} from '#lib/rejsy.js';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 
-	let cruises = $state<Cruise[]>([]);
+	let entries = $state<RejsEntry[]>([]);
 	let loading = $state(true);
+	let tab = $state<RejsTab>(parseRejsTab(page.url.searchParams.get('tab')));
+	$effect(() => {
+		tab = parseRejsTab(page.url.searchParams.get('tab'));
+	});
 	let kindFilter = $state<CruiseKind | 'all'>('all');
 
+	const inTab = $derived(filterRejsEntries(entries, tab));
 	const visible = $derived(
-		kindFilter === 'all' ? cruises : cruises.filter((c) => c.kind === kindFilter)
+		kindFilter === 'all' ? inTab : inTab.filter((e) => e.kind === kindFilter)
 	);
-	const filters: { value: CruiseKind | 'all'; label: string }[] = [
+	const kindFilters: { value: CruiseKind | 'all'; label: string }[] = [
 		{ value: 'all', label: 'Wszystkie' },
 		...cruiseKinds.map((k) => ({ value: k, label: cruiseKindLabels[k] }))
 	];
+	const emptyLabels: Record<RejsTab, string> = {
+		upcoming: 'Brak nadchodzących rejsów',
+		completed: 'Brak zrealizowanych rejsów',
+		all: 'Brak rejsów'
+	};
+
+	function selectTab(next: RejsTab) {
+		tab = next;
+		goto(next === 'upcoming' ? '/cruises' : `/cruises?tab=${next}`, { replace: true, shallow: true });
+	}
+
+	function statusBadge(status: RejsEntry['status']) {
+		if (status === 'completed') return 'bg-green-100 text-green-700';
+		if (status === 'cancelled') return 'bg-gray-100 text-gray-500';
+		return 'bg-blue-100 text-blue-700';
+	}
 
 	async function load() {
 		loading = true;
 		try {
-			cruises = await listCruises();
+			const [cruises, trips, voyages] = await Promise.all([
+				listCruises(),
+				listTrips(),
+				listVoyages()
+			]);
+			entries = buildRejsEntries(cruises ?? [], trips ?? [], voyages ?? []);
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {
@@ -34,11 +70,11 @@
 </script>
 
 <div>
-	<div class="mb-6 flex items-center justify-between">
+	<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
 		<div>
-			<h1 class="text-3xl font-bold text-[var(--navy)]">Wydarzenia klubu</h1>
+			<h1 class="text-3xl font-bold text-[var(--navy)]">Rejsy</h1>
 			<p class="mt-1 text-sm text-[var(--text-muted)]">
-				Rejsy wieloyachtowe z otwartymi zapisami
+				Wydarzenia klubu: planowane i zrealizowane
 			</p>
 		</div>
 		{#if auth.isAdmin}
@@ -51,8 +87,24 @@
 		{/if}
 	</div>
 
+	<div class="mb-3 flex gap-1 border-b" role="tablist" aria-label="Stan rejsu">
+		{#each rejsTabs as t (t.value)}
+			<button
+				type="button"
+				role="tab"
+				aria-selected={tab === t.value}
+				onclick={() => selectTab(t.value)}
+				class="-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors {tab === t.value
+					? 'border-[var(--ocean)] text-[var(--ocean)]'
+					: 'border-transparent text-[var(--text-muted)] hover:text-[var(--navy)]'}"
+			>
+				{t.label}
+			</button>
+		{/each}
+	</div>
+
 	<div class="mb-4 flex gap-2" role="group" aria-label="Rodzaj rejsu">
-		{#each filters as f (f.value)}
+		{#each kindFilters as f (f.value)}
 			<button
 				type="button"
 				aria-pressed={kindFilter === f.value}
@@ -68,15 +120,15 @@
 
 	{#if loading}
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
-	{:else if cruises.length > 0 && visible.length === 0}
+	{:else if inTab.length > 0 && visible.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
-			<p class="text-lg text-[var(--text-muted)]">Brak wydarzeń tego rodzaju</p>
+			<p class="text-lg text-[var(--text-muted)]">Brak rejsów tego rodzaju</p>
 		</div>
-	{:else if cruises.length === 0}
+	{:else if visible.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
-			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak wydarzeń</p>
-			{#if auth.isAdmin}
+			<p class="mt-4 text-lg text-[var(--text-muted)]">{emptyLabels[tab]}</p>
+			{#if auth.isAdmin && entries.length === 0}
 				<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
 					Utwórz pierwsze wydarzenie
 				</a>
@@ -84,36 +136,54 @@
 		</div>
 	{:else}
 		<div class="grid gap-4">
-			{#each visible as cruise (cruise.id)}
+			{#each visible as entry (entry.key)}
 				<a
-					href="/cruises/{cruise.id}"
+					href={entry.href}
 					class="flex items-center justify-between rounded-2xl bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
 				>
 					<div>
-						<div class="flex items-center gap-2">
-							<h3 class="font-semibold text-[var(--navy)]">{cruise.name}</h3>
-							{#if cruise.kind}
+						<div class="flex flex-wrap items-center gap-2">
+							<h3 class="font-semibold text-[var(--navy)]">{entry.name}</h3>
+							<span class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadge(entry.status)}">
+								{rejsStatusLabels[entry.status]}
+							</span>
+							{#if entry.kind}
 								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
-									{cruiseKindLabels[cruise.kind]}
+									{cruiseKindLabels[entry.kind]}
 								</span>
 							{/if}
 						</div>
 						<div class="mt-1 text-sm text-[var(--text-muted)]">
-							{#if cruise.start_port && cruise.end_port}
-								{cruise.start_port} → {cruise.end_port}
+							{#if entry.startPort && entry.endPort}
+								{entry.startPort} → {entry.endPort}
 							{/if}
-							{#if cruise.countries} · {cruise.countries}{/if}
+							{#if entry.countries} · {entry.countries}{/if}
 						</div>
 						<div class="mt-1 text-xs text-[var(--text-muted)]">
-							{#if cruise.embark_date}
-								{cruise.embark_date}
-								{#if cruise.disembark_date}– {cruise.disembark_date}{/if}
+							{#if entry.embarkDate}
+								{entry.embarkDate}
+								{#if entry.disembarkDate}– {entry.disembarkDate}{/if}
+							{/if}
+							{#if entry.plannedLegs + entry.completedLegs > 0}
+								· etapy: {entry.completedLegs}/{entry.plannedLegs + entry.completedLegs} zrealizowane
 							{/if}
 						</div>
 					</div>
 					<div class="text-right text-sm text-[var(--text-muted)]">
-						{#if cruise.max_crew}<div>max {cruise.max_crew} os.</div>{/if}
-						{#if cruise.enroll_token}
+						{#if entry.completedLegs > 0}
+							<div class="flex gap-4">
+								<div>
+									<div class="text-lg font-bold text-[var(--ocean)]">{Math.round(entry.hoursTotal)}h</div>
+									<div class="text-xs">godziny</div>
+								</div>
+								<div>
+									<div class="text-lg font-bold text-[var(--sand)]">{Math.round(entry.miles)}</div>
+									<div class="text-xs">Mm</div>
+								</div>
+							</div>
+						{/if}
+						{#if entry.maxCrew && entry.status === 'upcoming'}<div>max {entry.maxCrew} os.</div>{/if}
+						{#if entry.enrollOpen && entry.status === 'upcoming'}
 							<div class="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
 								Zapisy otwarte
 							</div>

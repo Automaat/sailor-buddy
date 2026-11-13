@@ -44,20 +44,20 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 		countCruiseEnrollmentsFn: func(context.Context, int64) (sqlcdb.CountCruiseEnrollmentsRow, error) {
 			return sqlcdb.CountCruiseEnrollmentsRow{}, nil
 		},
-		listCruiseTripsFn: func(_ context.Context, cid types.NullInt64) ([]sqlcdb.Trip, error) {
-			if cid.Int64 != 7 {
+		listCruiseTripsFn: func(_ context.Context, cid int64) ([]sqlcdb.Trip, error) {
+			if cid != 7 {
 				return nil, nil
 			}
 			return trips, nil
 		},
-		countAcceptedByCruiseTripFn: func(context.Context, types.NullInt64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
+		countAcceptedByCruiseTripFn: func(context.Context, int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
 			return nil, nil
 		},
 		getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
 			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
 		},
-		lockCruiseTripStatusesFn: func(_ context.Context, cid types.NullInt64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
-			if cid.Int64 != 7 {
+		lockCruiseTripStatusesFn: func(_ context.Context, cid int64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
+			if cid != 7 {
 				return nil, nil
 			}
 			out := make([]sqlcdb.LockCruiseTripStatusesRow, len(trips))
@@ -113,7 +113,7 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 }
 
 func legTrips() []sqlcdb.Trip {
-	cruise := types.NullInt64{Int64: 7, Valid: true}
+	cruise := int64(7)
 	return []sqlcdb.Trip{
 		{ID: 11, Name: "Leg A", CruiseID: cruise, Status: sqlcdb.TripStatusPlanned},
 		{ID: 12, Name: "Leg B", CruiseID: cruise, Status: sqlcdb.TripStatusPlanned},
@@ -247,7 +247,7 @@ func TestEnrollLegs_Errors(t *testing.T) {
 	})
 	t.Run("trip lock error", func(t *testing.T) {
 		m := newLegMock(&legStore{}, legTrips())
-		m.lockCruiseTripStatusesFn = func(context.Context, types.NullInt64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
+		m.lockCruiseTripStatusesFn = func(context.Context, int64) ([]sqlcdb.LockCruiseTripStatusesRow, error) {
 			return nil, errors.New("fail")
 		}
 		code, _, _ := postLegs(t, m, userCtx(context.Background()), map[string]any{"trip_ids": []int64{11}})

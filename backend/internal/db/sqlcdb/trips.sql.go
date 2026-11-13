@@ -95,7 +95,7 @@ INSERT INTO trips (
 
 type CreateTripParams struct {
 	CreatedBy              types.NullInt64   `json:"created_by"`
-	CruiseID               types.NullInt64   `json:"cruise_id"`
+	CruiseID               int64             `json:"cruise_id"`
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
@@ -428,8 +428,8 @@ FOR KEY SHARE OF c
 
 // Key-share-locks the cruise the trip belongs to. Trip completion takes it
 // before the trip lock, in the same order as DELETE FROM cruises (cruise,
-// then trip via the ON DELETE SET NULL cascade), so the two cannot deadlock.
-// No row when the trip has no cruise or the cruise is gone.
+// then the trips foreign-key check), so the two cannot deadlock.
+// No row when the trip or its cruise is gone.
 //
 //	SELECT c.id FROM cruises c
 //	WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
@@ -486,7 +486,7 @@ type UpdateTripParams struct {
 	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
 	ImageRouteUrl          types.NullString  `json:"image_route_url"`
 	Description            types.NullString  `json:"description"`
-	CruiseID               types.NullInt64   `json:"cruise_id"`
+	CruiseID               int64             `json:"cruise_id"`
 	CaptainUserID          types.NullInt64   `json:"captain_user_id"`
 	Currency               string            `json:"currency"`
 	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`

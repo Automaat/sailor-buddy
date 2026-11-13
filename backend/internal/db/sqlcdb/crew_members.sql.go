@@ -125,34 +125,6 @@ func (q *Queries) GetCrewMember(ctx context.Context, id int64) (CrewMember, erro
 	return i, err
 }
 
-const getCrewMemberByName = `-- name: GetCrewMemberByName :one
-SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE full_name = $1
-`
-
-// GetCrewMemberByName
-//
-//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE full_name = $1
-func (q *Queries) GetCrewMemberByName(ctx context.Context, fullName string) (CrewMember, error) {
-	row := q.db.QueryRowContext(ctx, getCrewMemberByName, fullName)
-	var i CrewMember
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedBy,
-		&i.UserID,
-		&i.FullName,
-		&i.Email,
-		&i.PatentNumber,
-		&i.Phone,
-		&i.PzzLicenseType,
-		&i.PzzLicenseNumber,
-		&i.EmergencyContactName,
-		&i.EmergencyContactPhone,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const listCrewMembers = `-- name: ListCrewMembers :many
 SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members ORDER BY full_name, id LIMIT $1 OFFSET $2
 `

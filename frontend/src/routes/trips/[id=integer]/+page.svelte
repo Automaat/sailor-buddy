@@ -69,7 +69,7 @@
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
 		await deleteTrip(id);
-		goto('/trips');
+		goto(trip ? `/cruises/${trip.cruise_id}` : '/cruises');
 	}
 
 	async function toggleEnrollment() {
@@ -330,14 +330,14 @@
 	<NotFound
 		title="Nie znaleziono rejsu"
 		message="Ten rejs nie istnieje lub nie masz do niego dostępu."
-		backHref="/trips"
+		backHref="/cruises"
 		backLabel="Wszystkie rejsy"
 	/>
 {:else}
 	<NotFound
 		title="Nie udało się wczytać rejsu"
 		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
-		backHref="/trips"
+		backHref="/cruises"
 		backLabel="Wszystkie rejsy"
 	/>
 {/if}

@@ -34,12 +34,6 @@ export default defineConfig(({ mode }) => {
 						functions: 80,
 						lines: 80
 					},
-					'src/routes/import/+page.svelte': {
-						statements: 80,
-						branches: 80,
-						functions: 80,
-						lines: 80
-					},
 					'src/routes/orgs/**/settings/+page.svelte': {
 						statements: 80,
 						branches: 80,

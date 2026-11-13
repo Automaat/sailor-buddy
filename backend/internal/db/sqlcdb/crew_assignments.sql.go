@@ -168,7 +168,7 @@ ORDER BY t.embark_date ASC
 type GetCrewMemberTripsRow struct {
 	ID                     int64             `json:"id"`
 	CreatedBy              types.NullInt64   `json:"created_by"`
-	CruiseID               types.NullInt64   `json:"cruise_id"`
+	CruiseID               int64             `json:"cruise_id"`
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
@@ -266,7 +266,7 @@ ORDER BY v.year DESC, v.embark_date DESC
 type GetCrewMemberVoyagesRow struct {
 	ID            int64             `json:"id"`
 	CreatedBy     types.NullInt64   `json:"created_by"`
-	CruiseID      types.NullInt64   `json:"cruise_id"`
+	CruiseID      int64             `json:"cruise_id"`
 	Name          string            `json:"name"`
 	Year          types.NullInt64   `json:"year"`
 	EmbarkDate    types.NullString  `json:"embark_date"`

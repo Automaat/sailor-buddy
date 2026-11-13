@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 // pauseAfterTripLock holds a completion transaction right after it locks the
@@ -29,12 +29,12 @@ func (p pauseAfterTripLock) GetTripForUpdate(ctx context.Context, id int64) (sql
 	return trip, err
 }
 
-// assertDetachedVoyage checks the trip became a voyage whose cruise link was
-// cleared by the cruise delete, and that the cruise is gone.
-func assertDetachedVoyage(t *testing.T, conn *sql.DB, leg legFixture, voyage sqlcdb.Voyage) {
+// assertVoyageKeepsCruise checks the trip became a voyage still linked to its
+// cruise, which the refused delete left in place.
+func assertVoyageKeepsCruise(t *testing.T, conn *sql.DB, leg legFixture, voyage sqlcdb.Voyage) {
 	t.Helper()
 	var trips, cruises int
-	var voyageCruise sql.NullInt64
+	var voyageCruise int64
 	if err := conn.QueryRow(`SELECT
 		(SELECT count(*) FROM trips WHERE id = $1),
 		(SELECT count(*) FROM cruises WHERE id = $2),
@@ -42,14 +42,23 @@ func assertDetachedVoyage(t *testing.T, conn *sql.DB, leg legFixture, voyage sql
 		leg.tripID, leg.cruiseID, voyage.ID).Scan(&trips, &cruises, &voyageCruise); err != nil {
 		t.Fatalf("read final state: %v", err)
 	}
-	if trips != 0 || cruises != 0 || voyageCruise.Valid {
-		t.Fatalf("trips=%d cruises=%d voyage cruise=%+v, want 0 0 NULL", trips, cruises, voyageCruise)
+	if trips != 0 || cruises != 1 || voyageCruise != leg.cruiseID {
+		t.Fatalf("trips=%d cruises=%d voyage cruise=%d, want 0 1 %d", trips, cruises, voyageCruise, leg.cruiseID)
+	}
+}
+
+// assertDeleteRefused checks the cruise delete failed on a leg foreign key, the
+// clean refusal the API maps to 409, rather than a deadlock abort.
+func assertDeleteRefused(t *testing.T, err error) {
+	t.Helper()
+	if !isForeignKeyViolation(err, "trips_cruise_id_fkey") && !isForeignKeyViolation(err, "voyages_cruise_id_fkey") {
+		t.Fatalf("delete cruise: got %v, want a trips/voyages foreign-key violation", err)
 	}
 }
 
 // TestCompleteTrip_ConcurrentCruiseDelete replays a trip completion racing the
-// delete of the trip's cruise. Both must commit in either order, without a
-// deadlock abort on either side.
+// delete of the trip's cruise. In either order completion commits and the
+// delete is refused cleanly, without a deadlock abort on either side.
 func TestCompleteTrip_ConcurrentCruiseDelete(t *testing.T) {
 	t.Run("completion locks first", func(t *testing.T) {
 		conn := lockTestDB(t)
@@ -76,10 +85,8 @@ func TestCompleteTrip_ConcurrentCruiseDelete(t *testing.T) {
 		if done.err != nil {
 			t.Fatalf("complete trip: %v", done.err)
 		}
-		if err := <-deleted; err != nil {
-			t.Fatalf("delete cruise: %v", err)
-		}
-		assertDetachedVoyage(t, conn, leg, done.val)
+		assertDeleteRefused(t, <-deleted)
+		assertVoyageKeepsCruise(t, conn, leg, done.val)
 	})
 
 	t.Run("delete locks the cruise first", func(t *testing.T) {
@@ -92,30 +99,23 @@ func TestCompleteTrip_ConcurrentCruiseDelete(t *testing.T) {
 			t.Fatalf("begin delete: %v", err)
 		}
 		defer func() { _ = deleter.Rollback() }()
-		if err := sqlcdb.New(deleter).DeleteCruise(ctx, leg.cruiseID); err != nil {
-			t.Fatalf("delete cruise: %v", err)
-		}
+		assertDeleteRefused(t, sqlcdb.New(deleter).DeleteCruise(ctx, leg.cruiseID))
+		_ = deleter.Rollback()
 
-		completed := make(chan result[sqlcdb.Voyage], 1)
+		done := make(chan result[sqlcdb.Voyage], 1)
 		go func() {
 			v, err := completeTripTx(ctx, conn, leg.tripID, dto.CompleteTripBody{})
-			completed <- result[sqlcdb.Voyage]{v, err}
+			done <- result[sqlcdb.Voyage]{v, err}
 		}()
-		waitForLockWaiters(t, conn, 1)
 		select {
-		case done := <-completed:
-			t.Fatalf("completion finished while the delete held the cruise: err=%v", done.err)
-		case <-time.After(300 * time.Millisecond):
+		case got := <-done:
+			if got.err != nil {
+				t.Fatalf("complete trip: %v", got.err)
+			}
+			assertVoyageKeepsCruise(t, conn, leg, got.val)
+		case <-time.After(10 * time.Second):
+			t.Fatal("completion blocked after the refused delete")
 		}
-		if err := deleter.Commit(); err != nil {
-			t.Fatalf("commit delete: %v", err)
-		}
-
-		done := <-completed
-		if done.err != nil {
-			t.Fatalf("complete trip: %v", done.err)
-		}
-		assertDetachedVoyage(t, conn, leg, done.val)
 	})
 }
 
@@ -123,6 +123,7 @@ func TestCompleteTrip_ConcurrentCruiseDelete(t *testing.T) {
 // locks the trip's cruise, so the test can move the trip to another cruise.
 type pauseAfterCruiseLock struct {
 	sqlcdb.Querier
+	calls   *atomic.Int32
 	once    *sync.Once
 	locked  chan<- struct{}
 	release <-chan struct{}
@@ -130,6 +131,7 @@ type pauseAfterCruiseLock struct {
 
 func (p pauseAfterCruiseLock) LockTripCruise(ctx context.Context, tripID int64) (int64, error) {
 	id, err := p.Querier.LockTripCruise(ctx, tripID)
+	p.calls.Add(1)
 	p.once.Do(func() {
 		close(p.locked)
 		<-p.release
@@ -154,12 +156,13 @@ func TestCompleteTrip_TripMovedToAnotherCruise(t *testing.T) {
 	}
 
 	var once sync.Once
+	var lockCalls atomic.Int32
 	locked := make(chan struct{})
 	release := make(chan struct{})
 	completed := make(chan result[sqlcdb.Voyage], 1)
 	go func() {
 		v, err := completeTripTxWith(ctx, conn, func(q sqlcdb.Querier) sqlcdb.Querier {
-			return pauseAfterCruiseLock{Querier: q, once: &once, locked: locked, release: release}
+			return pauseAfterCruiseLock{Querier: q, calls: &lockCalls, once: &once, locked: locked, release: release}
 		}, leg.tripID, dto.CompleteTripBody{})
 		completed <- result[sqlcdb.Voyage]{v, err}
 	}()
@@ -173,8 +176,11 @@ func TestCompleteTrip_TripMovedToAnotherCruise(t *testing.T) {
 	if done.err != nil {
 		t.Fatalf("complete trip: %v", done.err)
 	}
-	if want := (types.NullInt64{Int64: other.ID, Valid: true}); done.val.CruiseID != want {
-		t.Fatalf("voyage cruise = %+v, want %+v", done.val.CruiseID, want)
+	if done.val.CruiseID != other.ID {
+		t.Fatalf("voyage cruise = %d, want %d", done.val.CruiseID, other.ID)
+	}
+	if got := lockCalls.Load(); got != 2 {
+		t.Fatalf("cruise lock attempts = %d, want 2 (one retry after the move)", got)
 	}
 }
 
