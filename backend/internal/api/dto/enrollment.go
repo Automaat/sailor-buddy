@@ -78,6 +78,14 @@ type EnrollTrip struct {
 	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
 }
 
+// EnrollLeg is the public summary of one cruise trip (leg) on the enroll
+// page. It omits the trip's own enroll token, creator and total cost: the
+// cruise link is shared publicly and must not reveal per-leg links.
+type EnrollLeg struct {
+	EnrollTrip
+	Status string `json:"status" enum:"planned,cancelled"`
+}
+
 // EnrollCruise is the cruise summary returned when resolving an enrollment token.
 type EnrollCruise struct {
 	ID                     int64    `json:"id"`
@@ -110,7 +118,7 @@ type EnrollInfo struct {
 	Kind          string        `json:"kind" enum:"trip,cruise"`
 	Trip          *EnrollTrip   `json:"trip,omitempty"`
 	Cruise        *EnrollCruise `json:"cruise,omitempty"`
-	Trips         []Trip        `json:"trips,omitempty"`
+	Trips         []EnrollLeg   `json:"trips,omitempty"`
 	Enrolled      bool          `json:"enrolled"`
 	Enrollment    *Enrollment   `json:"enrollment,omitempty"`
 	AcceptedCount int64         `json:"accepted_count"`
@@ -281,6 +289,34 @@ func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow, member bool) Enroll
 	}
 	if member {
 		out.GroupChatUrl = strPtr(c.GroupChatUrl)
+	}
+	return out
+}
+
+// EnrollLegsFromDB maps a cruise's trips to their public leg summaries.
+func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
+	out := make([]EnrollLeg, len(ts))
+	for i := range ts {
+		t := ts[i]
+		out[i] = EnrollLeg{
+			ID:                     t.ID,
+			Name:                   t.Name,
+			Status:                 string(t.Status),
+			EmbarkDate:             strPtr(t.EmbarkDate),
+			DisembarkDate:          strPtr(t.DisembarkDate),
+			Countries:              strPtr(t.Countries),
+			StartPort:              strPtr(t.StartPort),
+			EndPort:                strPtr(t.EndPort),
+			Description:            strPtr(t.Description),
+			MaxCrew:                intPtr(t.MaxCrew),
+			CaptainName:            strPtr(t.CaptainName),
+			ImagePhotoUrl:          strPtr(t.ImagePhotoUrl),
+			CostPerPerson:          floatPtr(t.CostPerPerson),
+			Currency:               t.Currency,
+			CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
+			YachtFund:              floatPtr(t.YachtFund),
+			Deposit:                floatPtr(t.Deposit),
+		}
 	}
 	return out
 }

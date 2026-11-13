@@ -285,6 +285,10 @@ missing.
 For a cruise, `cruise` also carries `travel_notes` and `min_age`, and
 `group_chat_url` only when the caller is logged in: the preview is public,
 the chat link is for members.
+A cruise's `trips` are public leg summaries (`EnrollLeg`): name, status,
+dates, ports, captain, `max_crew` and prices. They omit each trip's own
+`enroll_token`, `created_by` and `cost_total`, so the cruise link never
+reveals the per-leg links.
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,
@@ -390,8 +394,9 @@ member price in PLN.
 Logistics, all optional and returned on every cruise read:
 
 - `group_chat_url` — link to the crew group chat (Discord, WhatsApp, ...).
-  Must be an absolute `http` or `https` URL, up to 2000 characters;
-  anything else is rejected with 422.
+  Must be an absolute `http` or `https` URL, up to 2000 characters, whose
+  host a browser accepts (a valid IPv4 address if it ends in a number,
+  valid IDNA labels, no IPv6 zone ID); anything else is rejected with 422.
 - `travel_notes` — how to get there (flights, transport, meeting point),
   up to 5000 characters.
 - `min_age` — minimum crew age, 0–99. Information only: the app stores no
