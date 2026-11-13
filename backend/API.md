@@ -285,6 +285,10 @@ missing.
 For a cruise, `cruise` also carries `travel_notes` and `min_age`, and
 `group_chat_url` only when the caller is logged in: the preview is public,
 the chat link is for members.
+A cruise's `trips` are public leg summaries (`EnrollLeg`): name, status,
+dates, ports, captain, `max_crew` and prices. They omit each trip's own
+`enroll_token`, `created_by` and `cost_total`, so the cruise link never
+reveals the per-leg links.
 
 Enroll body: `{ "note": "optional message" }`.
 Enroll conflicts return `409` (`already enrolled`,
