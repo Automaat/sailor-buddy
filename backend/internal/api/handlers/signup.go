@@ -98,7 +98,7 @@ func registerSignUpRoutes(api huma.API, h *EnrollmentHandler) {
 		OperationID: "list-cruise-trip-enrollments", Method: http.MethodGet, Path: "/cruises/{cruiseID}/trip-enrollments",
 		Summary: "List every leg sign-up of a cruise (admin)",
 		Description: "Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg " +
-			"(embark date, then id) and sign-up time.",
+			"(embark date, then id) and sign-up time. 404 when the cruise does not exist.",
 		Tags: tag,
 	}, h.listCruiseTripEnrollments)
 }
@@ -135,6 +135,37 @@ func legOpen(status sqlcdb.TripStatus, enrollToken types.NullString) bool {
 	return status == sqlcdb.TripStatusPlanned && enrollToken.Valid
 }
 
+// signUpOf returns the user's sign-up for a leg: their trip enrollment or,
+// failing that, a cruise enrollment assigned to the leg, made before sign-ups
+// moved to legs. A cruise enrollment carries cruise_id in the result. found
+// is false when the user has neither.
+func signUpOf(ctx context.Context, q sqlcdb.Querier, tripID, userID int64) (e dto.Enrollment, found bool, err error) {
+	te, err := q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: tripID, UserID: userID})
+	if err == nil {
+		return dto.TripEnrollmentToDTO(te), true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return dto.Enrollment{}, false, &QueryError{Op: "GetUserTripEnrollment", Err: err}
+	}
+	ce, err := q.GetUserCruiseEnrollmentForTrip(ctx, sqlcdb.GetUserCruiseEnrollmentForTripParams{
+		TripID: types.NullInt64{Int64: tripID, Valid: true},
+		UserID: userID,
+	})
+	if err == nil {
+		return dto.CruiseEnrollmentToDTO(ce), true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return dto.Enrollment{}, false, &QueryError{Op: "GetUserCruiseEnrollmentForTrip", Err: err}
+	}
+	return dto.Enrollment{}, false, nil
+}
+
+// errCruiseLevelSignUp is the 409 for changing a cruise-level enrollment
+// through the leg sign-up operations; admins manage those.
+func errCruiseLevelSignUp() error {
+	return huma.Error409Conflict("cruise-level sign-up: ask an admin to change it")
+}
+
 func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) (*legSignUpOutput, error) {
 	user, err := signedIn(ctx)
 	if err != nil {
@@ -154,13 +185,13 @@ func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) 
 		return nil, huma.Error500InternalServerError("failed to count accepted crew")
 	}
 	out := dto.LegSignUp{TripID: trip.ID, Open: legOpen(trip.Status, trip.EnrollToken), AcceptedCount: accepted}
-	e, err := h.q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: trip.ID, UserID: user.UserID})
-	switch {
-	case err == nil:
-		out.Enrollment = new(dto.TripEnrollmentToDTO(e))
-	case !errors.Is(err, sql.ErrNoRows):
-		slog.Error("get user trip enrollment", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
+	e, found, err := signUpOf(ctx, h.q, trip.ID, user.UserID)
+	if err != nil {
+		slog.Error("get user leg sign-up", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to get sign-up")
+	}
+	if found {
+		out.Enrollment = &e
 	}
 	return &legSignUpOutput{Body: out}, nil
 }
@@ -168,8 +199,9 @@ func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) 
 // signUpForTrip creates the caller's pending sign-up for a leg, or returns
 // the existing one. The trip row is share-locked first, so the open check
 // and the insert see the same leg state, in the same lock order as trip
-// completion (trip, then its enrollments). An existing sign-up is returned
-// even when the leg has since closed. When a concurrent request from the
+// completion (trip, then its enrollments). An existing sign-up, including a
+// cruise enrollment assigned to the leg, is returned even when the leg has
+// since closed. When a concurrent request from the
 // same user wins the insert, the conditional insert returns no row and the
 // winner's enrollment is returned as already_enrolled.
 func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) (*signUpOutput, error) {
@@ -184,19 +216,19 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 		if err != nil {
 			return err
 		}
-		e, err := q.GetUserTripEnrollment(ctx, key)
-		if err == nil {
-			out = dto.EnrollLegResult{TripID: trip.ID, Result: "already_enrolled", Enrollment: dto.TripEnrollmentToDTO(e)}
-			return nil
+		existing, found, err := signUpOf(ctx, q, trip.ID, user.UserID)
+		if err != nil {
+			return err
 		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			return &QueryError{Op: "GetUserTripEnrollment", Err: err}
+		if found {
+			out = dto.EnrollLegResult{TripID: trip.ID, Result: "already_enrolled", Enrollment: existing}
+			return nil
 		}
 		if err := checkSignUpOpen(trip); err != nil {
 			return err
 		}
 		result := "created"
-		e, err = q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
+		e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
 			TripID: trip.ID,
 			UserID: user.UserID,
 		})
@@ -245,7 +277,7 @@ func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUp
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("not signed up for this leg")
+			return nil, h.noTripSignUp(ctx, in.TripID, user.UserID)
 		}
 		slog.Error("update trip sign-up note", "trip_id", in.TripID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update note")
@@ -255,13 +287,12 @@ func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUp
 
 // withdrawTripSignUp deletes the caller's pending sign-up. When nothing was
 // deleted, a follow-up read tells a missing sign-up (404) from one an admin
-// has already reviewed (409).
+// has already reviewed or a cruise-level enrollment (409).
 func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDParam) (*noContentOutput, error) {
 	user, err := signedIn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	key := sqlcdb.GetUserTripEnrollmentParams{TripID: in.ID, UserID: user.UserID}
 	_, err = h.q.DeletePendingUserTripEnrollment(ctx, sqlcdb.DeletePendingUserTripEnrollmentParams{
 		TripID: in.ID,
 		UserID: user.UserID,
@@ -273,14 +304,31 @@ func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDPa
 		slog.Error("withdraw trip sign-up", "trip_id", in.ID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to withdraw sign-up")
 	}
-	if _, gerr := h.q.GetUserTripEnrollment(ctx, key); gerr != nil {
-		if errors.Is(gerr, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("not signed up for this leg")
-		}
+	e, found, gerr := signUpOf(ctx, h.q, in.ID, user.UserID)
+	switch {
+	case gerr != nil:
 		slog.Error("get trip sign-up for withdraw", "trip_id", in.ID, "user_id", user.UserID, "err", gerr)
 		return nil, huma.Error500InternalServerError("failed to withdraw sign-up")
+	case !found:
+		return nil, huma.Error404NotFound("not signed up for this leg")
+	case e.CruiseID != nil:
+		return nil, errCruiseLevelSignUp()
 	}
 	return nil, huma.Error409Conflict("only a pending sign-up can be withdrawn")
+}
+
+// noTripSignUp explains why the caller has no trip enrollment to change:
+// none at all (404), or only a cruise enrollment assigned to the leg (409).
+func (h *EnrollmentHandler) noTripSignUp(ctx context.Context, tripID, userID int64) error {
+	e, found, err := signUpOf(ctx, h.q, tripID, userID)
+	switch {
+	case err != nil:
+		slog.Error("get trip sign-up", "trip_id", tripID, "user_id", userID, "err", err)
+		return huma.Error500InternalServerError("failed to get sign-up")
+	case found && e.CruiseID != nil:
+		return errCruiseLevelSignUp()
+	}
+	return huma.Error404NotFound("not signed up for this leg")
 }
 
 func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruiseIDPathParam) (*legSignUpsOutput, error) {
@@ -313,16 +361,24 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 	for _, c := range counts {
 		accepted[c.TripID] = c.Accepted
 	}
-	byTrip := make(map[int64]sqlcdb.TripEnrollment, len(mine))
+	byTrip := make(map[int64]dto.Enrollment, len(mine)+1)
+	ce, err := h.q.GetUserCruiseEnrollment(ctx, sqlcdb.GetUserCruiseEnrollmentParams{CruiseID: in.CruiseID, UserID: user.UserID})
+	switch {
+	case err == nil && ce.TripID.Valid:
+		byTrip[ce.TripID.Int64] = dto.CruiseEnrollmentToDTO(ce)
+	case err != nil && !errors.Is(err, sql.ErrNoRows):
+		slog.Error("get user cruise enrollment for sign-ups", "cruise_id", in.CruiseID, "user_id", user.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list sign-ups")
+	}
 	for i := range mine {
-		byTrip[mine[i].TripID] = mine[i]
+		byTrip[mine[i].TripID] = dto.TripEnrollmentToDTO(mine[i])
 	}
 	out := make([]dto.LegSignUp, len(trips))
 	for i := range trips {
 		t := &trips[i]
 		out[i] = dto.LegSignUp{TripID: t.ID, Open: legOpen(t.Status, t.EnrollToken), AcceptedCount: accepted[t.ID]}
 		if e, ok := byTrip[t.ID]; ok {
-			out[i].Enrollment = new(dto.TripEnrollmentToDTO(e))
+			out[i].Enrollment = &e
 		}
 	}
 	return &legSignUpsOutput{Body: out}, nil
@@ -330,6 +386,9 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 
 func (h *EnrollmentHandler) listCruiseTripEnrollments(ctx context.Context, in *cruiseIDPathParam) (*tripEnrollmentsOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.verifyCruise(ctx, in.CruiseID); err != nil {
 		return nil, err
 	}
 	rows, err := h.q.ListCruiseTripEnrollments(ctx, in.CruiseID)

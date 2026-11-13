@@ -353,6 +353,13 @@ clears it). `404 not signed up for this leg` without a sign-up.
 `DELETE .../sign-up` withdraws only a `pending` sign-up. `404` when the
 caller has none, `409` once an admin has accepted, rejected or waitlisted it.
 
+A cruise enrollment made before per-leg sign-up and assigned to a leg counts
+as the user's sign-up for that leg: both reads return it as `enrollment`
+(it carries `cruise_id`), and `POST .../sign-up` returns it as
+`already_enrolled` without adding a trip enrollment. Admins manage it through
+the cruise enrollment routes, so the note and withdraw operations return
+`409` for it.
+
 Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
 
 ### Voyages

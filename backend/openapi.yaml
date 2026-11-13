@@ -2981,7 +2981,7 @@ paths:
         - Sign-up
   /cruises/{cruiseID}/trip-enrollments:
     get:
-      description: Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time.
+      description: Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
       operationId: list-cruise-trip-enrollments
       parameters:
         - description: Cruise ID

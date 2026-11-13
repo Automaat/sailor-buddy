@@ -426,6 +426,19 @@ describe('cruise page leg sign-up', () => {
 		expect(withdraw !== null).toBe(want === 'oczekujący');
 	});
 
+	it('shows a cruise-level enrollment assigned to the leg as the status, without withdraw or note', async () => {
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
+		fn(listCruiseLegSignUps).mockResolvedValue([
+			signUp(50, { enrollment: { ...pending(50), cruise_id: 7, status: 'pending' } })
+		]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		const row = rowOf('Jacht A');
+		expect(within(row).getByText('oczekujący')).toBeInTheDocument();
+		expect(within(row).getByTestId('cruise-level')).toHaveTextContent('zapis na wydarzenie');
+		expect(within(row).queryByRole('button', { name: /Zapisz się|Wycofaj|notatkę/ })).not.toBeInTheDocument();
+	});
+
 	it('shows a cancelled leg without a sign-up button', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(51, 'Jacht B', { status: 'cancelled' })]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(51, { open: false })]);

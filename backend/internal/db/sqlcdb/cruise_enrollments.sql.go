@@ -109,6 +109,42 @@ func (q *Queries) GetUserCruiseEnrollment(ctx context.Context, arg GetUserCruise
 	return i, err
 }
 
+const getUserCruiseEnrollmentForTrip = `-- name: GetUserCruiseEnrollmentForTrip :one
+SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+WHERE trip_id = $1 AND user_id = $2
+ORDER BY id
+LIMIT 1
+`
+
+type GetUserCruiseEnrollmentForTripParams struct {
+	TripID types.NullInt64 `json:"trip_id"`
+	UserID int64           `json:"user_id"`
+}
+
+// A user's cruise-level enrollment assigned to a trip. Cruise enrollments
+// predate per-leg sign-up; one assigned to a leg counts as the user's
+// sign-up for that leg.
+//
+//	SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+//	WHERE trip_id = $1 AND user_id = $2
+//	ORDER BY id
+//	LIMIT 1
+func (q *Queries) GetUserCruiseEnrollmentForTrip(ctx context.Context, arg GetUserCruiseEnrollmentForTripParams) (CruiseEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, getUserCruiseEnrollmentForTrip, arg.TripID, arg.UserID)
+	var i CruiseEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.CruiseID,
+		&i.UserID,
+		&i.TripID,
+		&i.Note,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listCruiseEnrollments = `-- name: ListCruiseEnrollments :many
 SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
        u.name AS user_name, u.email AS user_email,

@@ -18,6 +18,7 @@
 	let noteDraft = $state('');
 
 	const enrollment = $derived(signUp.enrollment);
+	const cruiseLevel = $derived(enrollment?.cruise_id != null);
 
 	const statusColors: Record<string, string> = {
 		pending: 'bg-yellow-100 text-yellow-800',
@@ -77,7 +78,10 @@
 			>
 				{statusLabels[enrollment.status] ?? enrollment.status}
 			</span>
-			{#if enrollment.status === 'pending'}
+			{#if cruiseLevel}
+				<span class="text-xs text-[var(--text-muted)]" data-testid="cruise-level">zapis na wydarzenie</span>
+			{/if}
+			{#if enrollment.status === 'pending' && !cruiseLevel}
 				<button
 					type="button"
 					onclick={withdraw}
@@ -88,7 +92,7 @@
 					Wycofaj
 				</button>
 			{/if}
-			{#if !editingNote}
+			{#if !editingNote && !cruiseLevel}
 				<button
 					type="button"
 					onclick={startNote}

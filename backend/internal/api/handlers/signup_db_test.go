@@ -106,3 +106,50 @@ func TestSignUp_AgainstDatabase(t *testing.T) {
 		t.Fatalf("rows = %d (err %v), want 0", n, err)
 	}
 }
+
+// TestSignUp_CruiseEnrollmentAssignedToLegAgainstDatabase checks that a
+// cruise enrollment made before per-leg sign-up, once assigned to a leg, is
+// the user's sign-up for it: shown on both reads, and a new sign-up returns
+// it instead of adding a trip enrollment.
+func TestSignUp_CruiseEnrollmentAssignedToLegAgainstDatabase(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	leg := seedLeg(t, conn)
+	if _, err := conn.ExecContext(ctx, "DELETE FROM trip_enrollments; UPDATE trips SET enroll_token = 'leg-tok'"); err != nil {
+		t.Fatalf("reset leg: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx,
+		"INSERT INTO cruise_enrollments (cruise_id, user_id, trip_id, status) VALUES ($1, $2, $3, 'accepted')",
+		leg.cruiseID, leg.userID, leg.tripID); err != nil {
+		t.Fatalf("insert cruise enrollment: %v", err)
+	}
+	_, api := humatest.New(t)
+	registerEnrollmentRoutes(api, &EnrollmentHandler{q: sqlcdb.New(conn), runTx: sqlTxRunner(conn)})
+	caller := guestCtx(leg.userID)
+	path := "/trips/" + strconv.FormatInt(leg.tripID, 10) + "/sign-up"
+
+	var one dto.LegSignUp
+	if err := json.Unmarshal(api.GetCtx(caller, path).Body.Bytes(), &one); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if one.Enrollment == nil || one.Enrollment.CruiseID == nil || one.Enrollment.Status != "accepted" {
+		t.Fatalf("get = %+v, want the accepted cruise enrollment", one)
+	}
+	var legs []dto.LegSignUp
+	if err := json.Unmarshal(api.GetCtx(caller, "/cruises/"+strconv.FormatInt(leg.cruiseID, 10)+"/leg-sign-ups").Body.Bytes(), &legs); err != nil {
+		t.Fatalf("decode legs: %v", err)
+	}
+	if len(legs) != 1 || legs[0].Enrollment == nil || legs[0].Enrollment.CruiseID == nil {
+		t.Fatalf("legs = %+v, want the cruise enrollment on the leg", legs)
+	}
+	if resp := api.PostCtx(caller, path); resp.Code != http.StatusOK {
+		t.Fatalf("sign up: got %d, want 200; body=%s", resp.Code, resp.Body)
+	}
+	var n int
+	if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM trip_enrollments").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("trip enrollments = %d (err %v), want 0", n, err)
+	}
+	if resp := api.DeleteCtx(caller, path); resp.Code != http.StatusConflict {
+		t.Fatalf("withdraw: got %d, want 409; body=%s", resp.Code, resp.Body)
+	}
+}

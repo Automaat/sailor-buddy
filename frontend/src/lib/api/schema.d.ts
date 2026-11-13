@@ -228,7 +228,7 @@ export interface paths {
         };
         /**
          * List every leg sign-up of a cruise (admin)
-         * @description Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time.
+         * @description Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
          */
         get: operations["list-cruise-trip-enrollments"];
         put?: never;

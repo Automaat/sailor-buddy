@@ -21,6 +21,7 @@ import (
 type signUpStore struct {
 	trips   map[int64]sqlcdb.Trip
 	rows    []sqlcdb.TripEnrollment
+	legacy  []sqlcdb.CruiseEnrollment
 	nextID  int64
 	inserts int
 }
@@ -90,6 +91,14 @@ func (s *signUpStore) mock() *mockQuerier {
 			id := s.rows[i].ID
 			s.rows = append(s.rows[:i], s.rows[i+1:]...)
 			return id, nil
+		},
+		getUserCruiseEnrollForTripFn: func(_ context.Context, arg sqlcdb.GetUserCruiseEnrollmentForTripParams) (sqlcdb.CruiseEnrollment, error) {
+			for i := range s.legacy {
+				if s.legacy[i].TripID == arg.TripID && s.legacy[i].UserID == arg.UserID {
+					return s.legacy[i], nil
+				}
+			}
+			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
 		},
 		countAcceptedForTripFn: func(_ context.Context, tripID int64) (int64, error) {
 			var n int64
@@ -404,6 +413,9 @@ func TestListCruiseLegSignUps(t *testing.T) {
 		countAcceptedByCruiseTripFn: func(context.Context, int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {
 			return []sqlcdb.CountAcceptedByCruiseTripRow{{TripID: 11, Accepted: 3}, {TripID: 12, Accepted: 0}, {TripID: 13, Accepted: 0}}, nil
 		},
+		getUserCruiseEnrollmentFn: func(context.Context, sqlcdb.GetUserCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
+			return sqlcdb.CruiseEnrollment{ID: 5, CruiseID: 7, UserID: 42, TripID: types.NullInt64{Int64: 11, Valid: true}, Status: "accepted"}, nil
+		},
 		listUserCruiseTripEnrollFn: func(_ context.Context, arg sqlcdb.ListUserCruiseTripEnrollmentsParams) ([]sqlcdb.TripEnrollment, error) {
 			if arg.UserID != 42 {
 				t.Fatalf("user = %d, want 42", arg.UserID)
@@ -423,8 +435,8 @@ func TestListCruiseLegSignUps(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("got %d legs, want 3", len(got))
 	}
-	if !got[0].Open || got[0].AcceptedCount != 3 || got[0].Enrollment != nil {
-		t.Errorf("leg 11 = %+v, want open with 3 accepted and no sign-up", got[0])
+	if e := got[0].Enrollment; !got[0].Open || got[0].AcceptedCount != 3 || e == nil || e.CruiseID == nil || e.Status != "accepted" {
+		t.Errorf("leg 11 = %+v, want open with 3 accepted and the caller's cruise enrollment assigned to it", got[0])
 	}
 	if got[1].Open || got[1].Enrollment == nil || got[1].Enrollment.Status != "waitlisted" {
 		t.Errorf("leg 12 = %+v, want closed with the caller's waitlisted sign-up", got[1])
@@ -440,6 +452,12 @@ func TestListCruiseLegSignUps(t *testing.T) {
 
 func TestListCruiseTripEnrollments(t *testing.T) {
 	m := &mockQuerier{
+		getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) {
+			if id != 7 {
+				return sqlcdb.Cruise{}, sql.ErrNoRows
+			}
+			return sqlcdb.Cruise{ID: 7}, nil
+		},
 		listCruiseTripEnrollmentsFn: func(_ context.Context, cruiseID int64) ([]sqlcdb.ListCruiseTripEnrollmentsRow, error) {
 			if cruiseID != 7 {
 				t.Fatalf("cruise = %d, want 7", cruiseID)
@@ -462,4 +480,52 @@ func TestListCruiseTripEnrollments(t *testing.T) {
 	if resp := api.GetCtx(guestCtx(42), "/cruises/7/trip-enrollments"); resp.Code != http.StatusForbidden {
 		t.Fatalf("member: got %d, want 403", resp.Code)
 	}
+	if resp := api.GetCtx(userCtx(context.Background()), "/cruises/8/trip-enrollments"); resp.Code != http.StatusNotFound {
+		t.Fatalf("unknown cruise: got %d, want 404", resp.Code)
+	}
+}
+
+// legacyStore holds one cruise enrollment of user 42 assigned to leg 5, made
+// before sign-ups moved to legs.
+func legacyStore(status string) *signUpStore {
+	s := newSignUpStore(openTrip(5))
+	s.legacy = []sqlcdb.CruiseEnrollment{{
+		ID: 3, CruiseID: 7, UserID: 42, TripID: types.NullInt64{Int64: 5, Valid: true}, Status: status,
+	}}
+	return s
+}
+
+func TestSignUp_CruiseEnrollmentAssignedToLegCountsAsSignUp(t *testing.T) {
+	t.Run("get shows it", func(t *testing.T) {
+		resp := enrollTestAPI(t, legacyStore("accepted").mock()).GetCtx(guestCtx(42), "/trips/5/sign-up")
+		var got dto.LegSignUp
+		if err := json.Unmarshal(resp.Body.Bytes(), &got); err != nil {
+			t.Fatalf("decode: %v; body=%s", err, resp.Body)
+		}
+		if e := got.Enrollment; e == nil || e.ID != 3 || e.CruiseID == nil || e.Status != "accepted" {
+			t.Fatalf("got %+v, want the cruise enrollment 3", got)
+		}
+	})
+	t.Run("sign-up returns it and writes nothing", func(t *testing.T) {
+		s := legacyStore("accepted")
+		resp := enrollTestAPI(t, s.mock()).PostCtx(guestCtx(42), "/trips/5/sign-up")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		if got := decodeSignUp(t, resp.Body.Bytes()); got.Result != "already_enrolled" || got.Enrollment.ID != 3 {
+			t.Fatalf("result = %+v, want already_enrolled cruise enrollment 3", got)
+		}
+		if s.inserts != 0 || len(s.rows) != 0 {
+			t.Fatalf("inserts = %d, rows = %d; want nothing written", s.inserts, len(s.rows))
+		}
+	})
+	t.Run("withdraw and note are refused", func(t *testing.T) {
+		api := enrollTestAPI(t, legacyStore("pending").mock())
+		if resp := api.DeleteCtx(guestCtx(42), "/trips/5/sign-up"); resp.Code != http.StatusConflict {
+			t.Fatalf("withdraw: got %d, want 409; body=%s", resp.Code, resp.Body)
+		}
+		if resp := api.PutCtx(guestCtx(42), "/trips/5/sign-up/note", map[string]any{"note": "x"}); resp.Code != http.StatusConflict {
+			t.Fatalf("note: got %d, want 409; body=%s", resp.Code, resp.Body)
+		}
+	})
 }

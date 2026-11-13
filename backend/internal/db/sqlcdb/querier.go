@@ -370,6 +370,15 @@ type Querier interface {
 	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
 	//  WHERE cruise_id = $1 AND user_id = $2
 	GetUserCruiseEnrollment(ctx context.Context, arg GetUserCruiseEnrollmentParams) (CruiseEnrollment, error)
+	// A user's cruise-level enrollment assigned to a trip. Cruise enrollments
+	// predate per-leg sign-up; one assigned to a leg counts as the user's
+	// sign-up for that leg.
+	//
+	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+	//  WHERE trip_id = $1 AND user_id = $2
+	//  ORDER BY id
+	//  LIMIT 1
+	GetUserCruiseEnrollmentForTrip(ctx context.Context, arg GetUserCruiseEnrollmentForTripParams) (CruiseEnrollment, error)
 	//GetUserTripEnrollment
 	//
 	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at FROM trip_enrollments
