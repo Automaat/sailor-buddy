@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { makeCruise, makeTrip, makeVoyage } from '#lib/test-utils.js';
 
@@ -36,6 +36,9 @@ function serve(data: { cruises?: unknown[]; trips?: unknown[]; voyages?: unknown
 }
 
 beforeEach(() => {
+	// The factories' default leg (1-7 Jun 2025) is still ahead on this clock.
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date('2025-05-01T12:00:00Z'));
 	apiList.mockReset();
 	apiGet.mockReset();
 	mockGoto.mockReset();
@@ -43,6 +46,10 @@ beforeEach(() => {
 	vi.spyOn(console, 'error').mockImplementation(() => {});
 	mockAuth.isAdmin = true;
 	pageState.url = new URL('http://localhost/cruises');
+});
+
+afterEach(() => {
+	vi.useRealTimers();
 });
 
 describe('rejsy page', () => {
@@ -101,6 +108,23 @@ describe('rejsy page', () => {
 
 		expect(await screen.findByText('NNE 2025')).toBeInTheDocument();
 		expect(screen.getByRole('tab', { name: 'Zrealizowane' })).toHaveAttribute('aria-selected', 'true');
+	});
+
+	it('flags a past cruise with a planned leg for completion and lists it as sailed', async () => {
+		vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
+		serve({
+			cruises: [makeCruise({ id: 5, name: 'Bornholm 2026', embark_date: '2026-08-01', disembark_date: '2026-08-09' })],
+			trips: [makeTrip({ cruise_id: 5, embark_date: undefined, disembark_date: undefined })]
+		});
+		render(RejsyPage);
+		await screen.findByText('Brak nadchodzących rejsów');
+		expect(screen.queryByText('Bornholm 2026')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('tab', { name: 'Zrealizowane' }));
+
+		const card = screen.getByText('Bornholm 2026').closest('a');
+		expect(card).toHaveTextContent('Do rozliczenia');
+		expect(card).not.toHaveTextContent('Planowany');
 	});
 
 	it('lists cancelled cruises only under all', async () => {
