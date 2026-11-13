@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: sailor
       POSTGRES_DB: sailor
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres18-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sailor"]
       interval: 2s
@@ -81,7 +81,7 @@ services:
       - PUBLIC_FIREBASE_PROJECT_ID=sailor-buddy-dev
 
 volumes:
-  postgres-data:
+  postgres18-data:
   firebase-data:
   go-build-cache:
   go-mod-cache:
