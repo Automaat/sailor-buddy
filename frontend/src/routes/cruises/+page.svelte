@@ -67,9 +67,9 @@
 	}
 
 	function statusBadge(status: RejsEntry['status']) {
-		if (status === 'completed') return 'bg-green-100 text-green-700';
+		if (status === 'completed') return 'bg-[var(--navy)]/10 text-[var(--navy)]';
 		if (status === 'cancelled') return 'bg-gray-100 text-gray-500';
-		return 'bg-blue-100 text-blue-700';
+		return 'bg-[var(--ocean-tint)] text-[var(--ocean)]';
 	}
 
 	async function load() {
@@ -235,7 +235,7 @@
 						{/if}
 						{#if entry.maxCrew && entry.status === 'upcoming'}<div>max {entry.maxCrew} os.</div>{/if}
 						{#if entry.enrollOpen && entry.status === 'upcoming'}
-							<div class="mt-1 inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+							<div class="mt-1 inline-block rounded-full bg-[var(--ocean)] px-2 py-0.5 text-xs text-white">
 								Zapisy otwarte
 							</div>
 						{/if}

@@ -111,7 +111,7 @@
 			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{profileError}</div>
 		{/if}
 		{#if profileSuccess}
-			<div class="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-600">
+			<div class="mb-4 rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-3 text-sm">
 				{profileSuccess}
 			</div>
 		{/if}
@@ -165,7 +165,7 @@
 				<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{pwError}</div>
 			{/if}
 			{#if pwSuccess}
-				<div class="mb-4 rounded-lg bg-green-50 p-3 text-sm text-green-600">{pwSuccess}</div>
+				<div class="mb-4 rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-3 text-sm">{pwSuccess}</div>
 			{/if}
 
 			<form onsubmit={handlePasswordSave} class="space-y-4">

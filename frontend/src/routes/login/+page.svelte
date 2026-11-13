@@ -11,7 +11,7 @@
 	} from 'firebase/auth';
 	import { firebaseAuth } from '#lib/firebase.js';
 	import { safeRedirect } from '#lib/redirect.js';
-	import Anchor from '@lucide/svelte/icons/anchor';
+	import ClubLogo from '#lib/components/ClubLogo.svelte';
 
 	const googleProvider = new GoogleAuthProvider();
 	googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -70,10 +70,10 @@
 <div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 	<div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
 		<div class="mb-8 text-center">
-			<Anchor class="mx-auto h-14 w-14 text-[var(--navy)]" />
-			<h1 class="mt-4 text-2xl font-bold text-[var(--navy)]">Sailor Buddy</h1>
+			<ClubLogo class="mx-auto h-20 w-auto" />
+			<h1 class="mt-4 text-2xl font-bold text-[var(--navy)]">AKŻ AGH</h1>
 			<p class="mt-1 text-[var(--text-muted)]">
-				{isRegister ? 'Utwórz konto' : 'Witaj z powrotem, Kapitanie'}
+				{isRegister ? 'Utwórz konto' : 'Zaloguj się do aplikacji klubu'}
 			</p>
 		</div>
 
@@ -170,6 +170,12 @@
 			>
 				{isRegister ? 'Zaloguj' : 'Zarejestruj'}
 			</button>
+		</p>
+
+		<p class="mt-4 text-center text-sm">
+			<a href="https://keja.agh.edu.pl/" class="text-[var(--ocean)] hover:underline">
+				keja.agh.edu.pl
+			</a>
 		</p>
 	</div>
 </div>

@@ -139,7 +139,7 @@
 	}
 
 	function statusBadge(status: string) {
-		return status === 'cancelled' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700';
+		return status === 'cancelled' ? 'bg-gray-100 text-gray-500' : 'bg-[var(--ocean-tint)] text-[var(--ocean)]';
 	}
 
 	function statusLabel(status: string) {
@@ -178,7 +178,7 @@
 						<button
 							onclick={() => (showCompleteModal = true)}
 							disabled={completing}
-							class="rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+							class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 						>
 							Zrealizuj
 						</button>

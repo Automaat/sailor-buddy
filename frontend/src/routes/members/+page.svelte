@@ -141,7 +141,7 @@
 							<td class="p-4">
 								<span
 									class="rounded-full px-2 py-0.5 text-xs {member.role === 'admin'
-										? 'bg-blue-100 text-blue-700'
+										? 'bg-[var(--ocean-tint)] text-[var(--ocean)]'
 										: 'bg-gray-100 text-gray-600'}"
 								>
 									{member.role === 'admin' ? 'Administrator' : 'Użytkownik'}
