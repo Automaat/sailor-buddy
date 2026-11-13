@@ -13,6 +13,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 func voyagePortTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
@@ -38,7 +39,7 @@ func TestVoyagePorts_List(t *testing.T) {
 				t.Fatalf("unexpected voyage id: %d", voyageID)
 			}
 			return []sqlcdb.VoyagePort{
-				{ID: 1, VoyageID: 5, Name: "Split", Latitude: 43.5, Longitude: 16.4, Position: 0},
+				{ID: 1, VoyageID: 5, Name: "Split", Latitude: types.NullFloat64{Float64: 43.5, Valid: true}, Longitude: types.NullFloat64{Float64: 16.4, Valid: true}, Position: 0},
 			}, nil
 		},
 	}

@@ -266,9 +266,9 @@ func TestVoyageOpinionsFromDB(t *testing.T) {
 func TestVoyagePortFromDB(t *testing.T) {
 	got := VoyagePortFromDB(sqlcdb.VoyagePort{
 		ID: 1, VoyageID: 2, Name: "Gdańsk",
-		Latitude: 54.35, Longitude: 18.65, Position: 0, CreatedAt: ntime(),
+		Latitude: types.NullFloat64{Float64: 54.35, Valid: true}, Longitude: types.NullFloat64{Float64: 18.65, Valid: true}, Position: 0, CreatedAt: ntime(),
 	})
-	if got.Name != "Gdańsk" || got.Latitude != 54.35 || got.Longitude != 18.65 {
+	if got.Name != "Gdańsk" || got.Latitude == nil || *got.Latitude != 54.35 || got.Longitude == nil || *got.Longitude != 18.65 {
 		t.Fatalf("unexpected: %+v", got)
 	}
 	if got.VoyageID != 2 || got.Position != 0 {

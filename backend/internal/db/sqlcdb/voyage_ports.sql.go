@@ -7,25 +7,28 @@ package sqlcdb
 
 import (
 	"context"
+
+	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 const createVoyagePort = `-- name: CreateVoyagePort :one
-INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position)
-VALUES ($1, $2, $3, $4, $5) RETURNING id, voyage_id, name, latitude, longitude, position, created_at
+INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
 `
 
 type CreateVoyagePortParams struct {
-	VoyageID  int64   `json:"voyage_id"`
-	Name      string  `json:"name"`
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Position  int64   `json:"position"`
+	VoyageID  int64             `json:"voyage_id"`
+	Name      string            `json:"name"`
+	Latitude  types.NullFloat64 `json:"latitude"`
+	Longitude types.NullFloat64 `json:"longitude"`
+	Position  int64             `json:"position"`
+	Anchorage bool              `json:"anchorage"`
 }
 
 // CreateVoyagePort
 //
-//	INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position)
-//	VALUES ($1, $2, $3, $4, $5) RETURNING id, voyage_id, name, latitude, longitude, position, created_at
+//	INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+//	VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
 func (q *Queries) CreateVoyagePort(ctx context.Context, arg CreateVoyagePortParams) (VoyagePort, error) {
 	row := q.db.QueryRowContext(ctx, createVoyagePort,
 		arg.VoyageID,
@@ -33,6 +36,7 @@ func (q *Queries) CreateVoyagePort(ctx context.Context, arg CreateVoyagePortPara
 		arg.Latitude,
 		arg.Longitude,
 		arg.Position,
+		arg.Anchorage,
 	)
 	var i VoyagePort
 	err := row.Scan(
@@ -43,6 +47,7 @@ func (q *Queries) CreateVoyagePort(ctx context.Context, arg CreateVoyagePortPara
 		&i.Longitude,
 		&i.Position,
 		&i.CreatedAt,
+		&i.Anchorage,
 	)
 	return i, err
 }
@@ -65,12 +70,12 @@ func (q *Queries) DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortPara
 }
 
 const listVoyagePorts = `-- name: ListVoyagePorts :many
-SELECT id, voyage_id, name, latitude, longitude, position, created_at FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
+SELECT id, voyage_id, name, latitude, longitude, position, created_at, anchorage FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
 `
 
 // ListVoyagePorts
 //
-//	SELECT id, voyage_id, name, latitude, longitude, position, created_at FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
+//	SELECT id, voyage_id, name, latitude, longitude, position, created_at, anchorage FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
 func (q *Queries) ListVoyagePorts(ctx context.Context, voyageID int64) ([]VoyagePort, error) {
 	rows, err := q.db.QueryContext(ctx, listVoyagePorts, voyageID)
 	if err != nil {
@@ -88,6 +93,7 @@ func (q *Queries) ListVoyagePorts(ctx context.Context, voyageID int64) ([]Voyage
 			&i.Longitude,
 			&i.Position,
 			&i.CreatedAt,
+			&i.Anchorage,
 		); err != nil {
 			return nil, err
 		}

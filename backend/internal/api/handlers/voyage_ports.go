@@ -94,8 +94,9 @@ func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*v
 	port, err := h.q.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
 		VoyageID:  in.VoyageID,
 		Name:      in.Body.Name,
-		Latitude:  in.Body.Latitude,
-		Longitude: in.Body.Longitude,
+		Latitude:  nullFloat64(in.Body.Latitude),
+		Longitude: nullFloat64(in.Body.Longitude),
+		Anchorage: in.Body.Anchorage,
 		Position:  valOrZeroInt(in.Body.Position),
 	})
 	if err != nil {

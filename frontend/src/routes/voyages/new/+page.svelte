@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
+	import YachtSelect from '#lib/components/YachtSelect.svelte';
 
 	let yachts = $state<Yacht[]>([]);
 	let cruises = $state<Cruise[]>([]);
@@ -40,7 +41,9 @@
 		tidal_waters: false,
 		cost_total: 0,
 		cost_per_person: 0,
-		description: ''
+		description: '',
+		track_url: '',
+		voyage_card: ''
 	});
 
 	onMount(async () => {
@@ -66,6 +69,8 @@
 				...form,
 				tidal_waters: form.tidal_waters ? 1 : 0,
 				yacht_id: form.yacht_id || undefined,
+				track_url: form.track_url.trim() || undefined,
+				voyage_card: form.voyage_card.trim() || undefined,
 				captain_user_id: form.captain_user_id || undefined
 			};
 			const voyage = await createVoyage(payload);
@@ -101,12 +106,7 @@
 			</div>
 			<div>
 				<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
-				<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
-					<option value={0}>-- Wybierz --</option>
-					{#each yachts as yacht}
-						<option value={yacht.id}>{yacht.name}</option>
-					{/each}
-				</select>
+				<YachtSelect bind:value={form.yacht_id} bind:yachts />
 			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
@@ -185,6 +185,17 @@
 		<div>
 			<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
 			<textarea id="description" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+		</div>
+
+		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<div>
+				<label for="track_url" class="mb-1 block text-sm font-medium">Link do śladu rejsu</label>
+				<input id="track_url" type="url" bind:value={form.track_url} placeholder="https://..." class="w-full rounded-lg border px-3 py-2" />
+			</div>
+			<div>
+				<label for="voyage_card" class="mb-1 block text-sm font-medium">Karta rejsu</label>
+				<input id="voyage_card" type="text" bind:value={form.voyage_card} placeholder="np. u kapitana, w klubie" class="w-full rounded-lg border px-3 py-2" />
+			</div>
 		</div>
 
 		<div class="flex gap-3">

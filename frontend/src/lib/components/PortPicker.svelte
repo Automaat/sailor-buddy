@@ -8,10 +8,16 @@
 	import { geocode } from '#lib/api/routes.js';
 	import type { GeocodeResult, VoyagePortBody } from '#lib/api/types.js';
 
-	// A port only needs a name and coordinates to be drawn; both VoyagePort and
-	// VoyagePortBody satisfy this, so the picker works for the completion modal
-	// (unsaved bodies) and the voyage page (persisted ports) alike.
-	type PortLike = { name: string; latitude: number; longitude: number };
+	// Both VoyagePort and VoyagePortBody satisfy this, so the picker works for
+	// the completion modal (unsaved bodies) and the voyage page (persisted
+	// ports) alike. A port recorded by name only has no coordinates: it stays in
+	// the route list but is not drawn on the map.
+	type PortLike = {
+		name: string;
+		latitude?: number | null;
+		longitude?: number | null;
+		anchorage?: boolean;
+	};
 
 	type Props = {
 		ports: PortLike[];
@@ -35,6 +41,7 @@
 	}: Props = $props();
 
 	let query = $state('');
+	let anchorage = $state(false);
 	let results = $state<GeocodeResult[]>([]);
 	let searching = $state(false);
 	let searchError = $state('');
@@ -82,10 +89,14 @@
 		layer.clearLayers();
 		const points: [number, number][] = [];
 		ports.forEach((p, i) => {
+			if (!hasCoords(p)) return;
 			const point: [number, number] = [p.latitude, p.longitude];
 			points.push(point);
 			L!.marker(point)
-				.bindTooltip(`${i + 1}. ${p.name}`, { permanent: true, direction: 'top' })
+				.bindTooltip(tooltipLabel(`${i + 1}. ${p.anchorage ? '⚓ ' : ''}${p.name}`), {
+					permanent: true,
+					direction: 'top'
+				})
 				.addTo(layer!);
 		});
 		if (points.length > 1) {
@@ -96,10 +107,22 @@
 		}
 	}
 
+	// Leaflet inserts string tooltip content as HTML; port names are
+	// user-entered, so they go in as a text node.
+	function tooltipLabel(text: string): HTMLElement {
+		const el = document.createElement('span');
+		el.textContent = text;
+		return el;
+	}
+
+	function hasCoords(p: PortLike): p is PortLike & { latitude: number; longitude: number } {
+		return typeof p.latitude === 'number' && typeof p.longitude === 'number';
+	}
+
 	$effect(() => {
 		// Track the full ports content so edits/reorders (not just length
 		// changes) trigger a redraw.
-		ports.map((p) => `${p.name}:${p.latitude}:${p.longitude}`).join('|');
+		ports.map((p) => `${p.name}:${p.latitude}:${p.longitude}:${p.anchorage}`).join('|');
 		renderMarkers();
 	});
 
@@ -136,18 +159,32 @@
 		}
 	}
 
-	async function pick(r: GeocodeResult) {
+	async function add(port: VoyagePortBody) {
 		busy = true;
 		searchError = '';
 		try {
-			await onAdd?.({ name: r.name, latitude: r.latitude, longitude: r.longitude });
+			await onAdd?.(anchorage ? { ...port, anchorage: true } : port);
+			clearTimeout(debounce);
+			searchSeq++;
+			searching = false;
 			query = '';
 			results = [];
+			anchorage = false;
 		} catch {
 			searchError = 'Nie udało się dodać portu';
 		} finally {
 			busy = false;
 		}
+	}
+
+	function pick(r: GeocodeResult) {
+		return add({ name: r.name, latitude: r.latitude, longitude: r.longitude });
+	}
+
+	function addNameOnly() {
+		const name = query.trim();
+		if (!name) return;
+		return add({ name });
 	}
 
 	async function remove(i: number) {
@@ -221,6 +258,20 @@
 	{#if !readonly}
 		<div class="relative">
 			<label for="port-search" class="mb-1 block text-xs font-medium">Odwiedzone porty</label>
+			<div class="mb-1 flex flex-wrap items-center gap-3 text-xs">
+				<label class="flex items-center gap-1">
+					<input type="checkbox" bind:checked={anchorage} disabled={busy} />
+					⚓ Kotwicowisko
+				</label>
+				<button
+					type="button"
+					onclick={addNameOnly}
+					disabled={busy || !query.trim()}
+					class="text-[var(--ocean)] hover:underline disabled:opacity-40"
+				>
+					Dodaj bez lokalizacji na mapie
+				</button>
+			</div>
 			<input
 				id="port-search"
 				type="text"
@@ -283,7 +334,12 @@
 								>⠿</span
 							>
 						{/if}
-						<span><span class="text-[var(--text-muted)]">{i + 1}.</span> {port.name}</span>
+						<span>
+							<span class="text-[var(--text-muted)]">{i + 1}.</span>
+							{#if port.anchorage}<span title="Kotwicowisko" aria-label="Kotwicowisko">⚓</span>{/if}
+							{port.name}
+							{#if !hasCoords(port)}<span class="text-xs text-[var(--text-muted)]">(bez mapy)</span>{/if}
+						</span>
 					</span>
 					<span class="flex items-center gap-2">
 						{#if reorderable}

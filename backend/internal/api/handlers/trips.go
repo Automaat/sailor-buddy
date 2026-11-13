@@ -396,8 +396,9 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 		if _, err := qtx.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
 			VoyageID:  voyage.ID,
 			Name:      port.Name,
-			Latitude:  port.Latitude,
-			Longitude: port.Longitude,
+			Latitude:  nullFloat64(port.Latitude),
+			Longitude: nullFloat64(port.Longitude),
+			Anchorage: port.Anchorage,
 			Position:  position,
 		}); err != nil {
 			return sqlcdb.Voyage{}, &QueryError{Op: "CreateVoyagePort", Err: err}

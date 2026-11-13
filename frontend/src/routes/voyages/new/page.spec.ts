@@ -10,11 +10,12 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAdmin: true, user: { id
 vi.mock('#lib/api/routes.js', () => ({
 	listCruises: vi.fn(),
 	listYachts: vi.fn(),
+	createYacht: vi.fn(),
 	createVoyage: vi.fn(),
 	listMembers: vi.fn()
 }));
 
-import { listCruises, listYachts, createVoyage, listMembers } from '#lib/api/routes.js';
+import { listCruises, listYachts, createVoyage, createYacht, listMembers } from '#lib/api/routes.js';
 import NewVoyagePage from './+page.svelte';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
@@ -48,5 +49,51 @@ describe('new voyage page', () => {
 
 		await waitFor(() => expect(createVoyage).toHaveBeenCalled());
 		expect(fn(createVoyage).mock.calls[0][0]).toMatchObject({ cruise_id: 13, name: 'Rejs 2019' });
+	});
+
+	it('adds a charter yacht inline and logs it with the track link and card', async () => {
+		pageState.url = new URL('http://localhost/voyages/new?cruise_id=13');
+		fn(createYacht).mockResolvedValue({
+			id: 21,
+			name: 'Selma',
+			yacht_type: 'Hanse 415',
+			registration_no: 'POL-1',
+			created_at: '',
+			updated_at: ''
+		});
+		render(NewVoyagePage);
+		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+
+		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Typ jachtu'), { target: { value: 'Hanse 415' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.input(screen.getByLabelText('Numer rejestracyjny (opcjonalnie)'), { target: { value: 'POL-1' } });
+		await fireEvent.keyDown(screen.getByLabelText('Nazwa jachtu *'), { key: 'Enter' });
+
+		await waitFor(() => expect(screen.getByLabelText('Jacht')).toHaveValue('21'));
+		expect(createYacht).toHaveBeenCalledWith({ name: 'Selma', yacht_type: 'Hanse 415', registration_no: 'POL-1' });
+		expect(createVoyage).not.toHaveBeenCalled();
+		expect(screen.getByRole('option', { name: 'Selma (Hanse 415)' })).toBeInTheDocument();
+
+		await fireEvent.input(screen.getByLabelText('Link do śladu rejsu'), { target: { value: 'https://example.com/t' } });
+		await fireEvent.input(screen.getByLabelText('Karta rejsu'), { target: { value: 'w klubie' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
+
+		await waitFor(() => expect(createVoyage).toHaveBeenCalled());
+		expect(fn(createVoyage).mock.calls[0][0]).toMatchObject({
+			yacht_id: 21,
+			track_url: 'https://example.com/t',
+			voyage_card: 'w klubie'
+		});
+	});
+
+	it('keeps the form open when the yacht name is missing', async () => {
+		render(NewVoyagePage);
+		await fireEvent.click(await screen.findByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+
+		expect(await screen.findByText('Podaj nazwę jachtu')).toBeInTheDocument();
+		expect(createYacht).not.toHaveBeenCalled();
 	});
 });

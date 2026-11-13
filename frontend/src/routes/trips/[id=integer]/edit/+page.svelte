@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
+	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 
@@ -137,12 +138,7 @@
 				</div>
 				<div>
 					<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
-					<select id="yacht" bind:value={form.yacht_id} class="w-full rounded-lg border px-3 py-2">
-						<option value={0}>-- Wybierz --</option>
-						{#each yachts as yacht}
-							<option value={yacht.id}>{yacht.name}</option>
-						{/each}
-					</select>
+					<YachtSelect bind:value={form.yacht_id} bind:yachts />
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>

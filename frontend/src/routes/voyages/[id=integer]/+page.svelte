@@ -16,6 +16,8 @@
 		deleteVoyagePort,
 		reorderVoyagePorts,
 		updateVoyageLog,
+		addVoyageYacht,
+		listYachts,
 		getCruise
 	} from '#lib/api/routes.js';
 	import type {
@@ -25,12 +27,15 @@
 		VoyageOpinion,
 		VoyagePort,
 		VoyagePortBody,
-		Cruise
+		Cruise,
+		Yacht,
+		YachtBody
 	} from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PortPicker from '#lib/components/PortPicker.svelte';
+	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -41,6 +46,7 @@
 	let opinions = $state<VoyageOpinion[]>([]);
 	let ports = $state<VoyagePort[]>([]);
 	let allCrewMembers = $state<CrewMember[]>([]);
+	let yachts = $state<Yacht[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
 
@@ -60,6 +66,7 @@
 		!!auth.user && !!voyage?.captain_user_id && voyage.captain_user_id === auth.user.id
 	);
 	const canLog = $derived(auth.isAdmin || isVoyageCaptain);
+	const yacht = $derived(yachts.find((y) => y.id === voyage?.yacht_id) ?? null);
 
 	let logOpen = $state(false);
 	let logSaving = $state(false);
@@ -72,7 +79,10 @@
 		miles: 0,
 		days: 0,
 		tidal_waters: false,
-		captain_notes: ''
+		captain_notes: '',
+		yacht_id: 0,
+		track_url: '',
+		voyage_card: ''
 	});
 
 	function openLog() {
@@ -85,7 +95,10 @@
 			miles: voyage.miles,
 			days: voyage.days,
 			tidal_waters: !!voyage.tidal_waters,
-			captain_notes: voyage.captain_notes ?? ''
+			captain_notes: voyage.captain_notes ?? '',
+			yacht_id: voyage.yacht_id ?? 0,
+			track_url: voyage.track_url ?? '',
+			voyage_card: voyage.voyage_card ?? ''
 		};
 		logError = '';
 		logOpen = true;
@@ -100,7 +113,10 @@
 			const body = {
 				...logForm,
 				tidal_waters: logForm.tidal_waters ? 1 : 0,
-				captain_notes: logForm.captain_notes || undefined
+				captain_notes: logForm.captain_notes || undefined,
+				yacht_id: logForm.yacht_id || undefined,
+				track_url: logForm.track_url.trim() || undefined,
+				voyage_card: logForm.voyage_card.trim() || undefined
 			};
 			await updateVoyageLog(id, body);
 			voyage = { ...voyage, ...body };
@@ -112,14 +128,19 @@
 		}
 	}
 
+	function addYachtForVoyage(body: YachtBody) {
+		return addVoyageYacht(id, body);
+	}
+
 	onMount(async () => {
 		try {
 			voyage = await getVoyage(id);
-			[crew, opinions, ports, allCrewMembers] = await Promise.all([
+			[crew, opinions, ports, allCrewMembers, yachts] = await Promise.all([
 				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),
 				listVoyageOpinions(id).then((o) => o ?? []).catch(() => []),
 				listVoyagePorts(id).then((p) => p ?? []).catch(() => []),
-				listAssignableCrew().catch(() => [])
+				listAssignableCrew().catch(() => []),
+				listYachts().then((y) => y ?? []).catch(() => [])
 			]);
 			if (voyage?.cruise_id) {
 				cruise = await getCruise(voyage.cruise_id).catch(() => null);
@@ -272,7 +293,7 @@
 			</div>
 		</div>
 
-		{#if voyage.embark_date || voyage.captain_name || voyage.tidal_waters || voyage.cost_total}
+		{#if voyage.embark_date || voyage.captain_name || yacht || voyage.track_url || voyage.voyage_card || voyage.tidal_waters || voyage.cost_total}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Szczegóły</h2>
 				<dl class="grid grid-cols-1 text-sm sm:grid-cols-2 sm:gap-2 max-sm:[&>dd]:mb-2">
@@ -283,6 +304,22 @@
 					{#if voyage.captain_name}
 						<dt class="text-[var(--text-muted)]">Kapitan</dt>
 						<dd>{voyage.captain_name}</dd>
+					{/if}
+					{#if yacht}
+						<dt class="text-[var(--text-muted)]">Jacht</dt>
+						<dd>{yacht.yacht_type ? `${yacht.yacht_type} ` : ''}{yacht.name}</dd>
+					{/if}
+					{#if voyage.track_url}
+						<dt class="text-[var(--text-muted)]">Ślad rejsu</dt>
+						<dd>
+							<a href={voyage.track_url} target="_blank" rel="noopener noreferrer" class="break-all text-[var(--ocean)] hover:underline">
+								{voyage.track_url}
+							</a>
+						</dd>
+					{/if}
+					{#if voyage.voyage_card}
+						<dt class="text-[var(--text-muted)]">Karta rejsu</dt>
+						<dd>{voyage.voyage_card}</dd>
 					{/if}
 					{#if voyage.tidal_waters}
 						<dt class="text-[var(--text-muted)]">Wody pływowe</dt>
@@ -340,6 +377,20 @@
 								<input type="checkbox" bind:checked={logForm.tidal_waters} />
 								Wody pływowe
 							</label>
+						</div>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div class="sm:col-span-2">
+								<label for="log_yacht" class="mb-1 block text-xs font-medium">Jacht</label>
+								<YachtSelect id="log_yacht" bind:value={logForm.yacht_id} bind:yachts create={addYachtForVoyage} />
+							</div>
+							<div>
+								<label for="log_track_url" class="mb-1 block text-xs font-medium">Link do śladu rejsu</label>
+								<input id="log_track_url" type="url" bind:value={logForm.track_url} placeholder="https://..." class="w-full rounded-lg border px-3 py-2" />
+							</div>
+							<div>
+								<label for="log_voyage_card" class="mb-1 block text-xs font-medium">Karta rejsu</label>
+								<input id="log_voyage_card" type="text" bind:value={logForm.voyage_card} placeholder="np. u kapitana, w klubie" class="w-full rounded-lg border px-3 py-2" />
+							</div>
 						</div>
 						<div>
 							<label for="log_notes" class="mb-1 block text-xs font-medium">Notatka z rejsu</label>

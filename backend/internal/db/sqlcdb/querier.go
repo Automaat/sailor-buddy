@@ -220,8 +220,9 @@ type Querier interface {
 	//      captain_name, yacht_id,
 	//      hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
 	//      cost_total, cost_per_person,
-	//      image_logo_url, image_photo_url, image_route_url, description, captain_user_id
-	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes
+	//      image_logo_url, image_photo_url, image_route_url, description, captain_user_id,
+	//      track_url, voyage_card
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes, track_url, voyage_card
 	CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voyage, error)
 	//CreateVoyageCrewAssignment
 	//
@@ -234,8 +235,8 @@ type Querier interface {
 	CreateVoyageOpinion(ctx context.Context, arg CreateVoyageOpinionParams) (VoyageOpinion, error)
 	//CreateVoyagePort
 	//
-	//  INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position)
-	//  VALUES ($1, $2, $3, $4, $5) RETURNING id, voyage_id, name, latitude, longitude, position, created_at
+	//  INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+	//  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
 	CreateVoyagePort(ctx context.Context, arg CreateVoyagePortParams) (VoyagePort, error)
 	//CreateYacht
 	//
@@ -338,7 +339,7 @@ type Querier interface {
 	GetCrewMemberTrips(ctx context.Context, crewMemberID int64) ([]GetCrewMemberTripsRow, error)
 	//GetCrewMemberVoyages
 	//
-	//  SELECT v.id, v.created_by, v.cruise_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, v.captain_user_id, v.captain_notes, ca.role
+	//  SELECT v.id, v.created_by, v.cruise_id, v.name, v.year, v.embark_date, v.disembark_date, v.countries, v.start_port, v.end_port, v.captain_name, v.yacht_id, v.hours_total, v.hours_sail, v.hours_engine, v.hours_over_6bf, v.miles, v.days, v.tidal_waters, v.cost_total, v.cost_per_person, v.image_logo_url, v.image_photo_url, v.image_route_url, v.description, v.created_at, v.updated_at, v.captain_user_id, v.captain_notes, v.track_url, v.voyage_card, ca.role
 	//  FROM crew_assignments ca
 	//  JOIN voyages v ON v.id = ca.voyage_id
 	//  WHERE ca.crew_member_id = $1
@@ -432,7 +433,7 @@ type Querier interface {
 	GetUserTripEnrollment(ctx context.Context, arg GetUserTripEnrollmentParams) (TripEnrollment, error)
 	//GetVoyage
 	//
-	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE id = $1
+	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes, track_url, voyage_card FROM voyages WHERE id = $1
 	GetVoyage(ctx context.Context, id int64) (Voyage, error)
 	//GetVoyageCrewAssignmentByMember
 	//
@@ -550,7 +551,7 @@ type Querier interface {
 	ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error)
 	//ListCruiseVoyages
 	//
-	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
+	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes, track_url, voyage_card FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
 	ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error)
 	//ListCruises
 	//
@@ -656,7 +657,7 @@ type Querier interface {
 	ListVoyageCrewAssignments(ctx context.Context, voyageID types.NullInt64) ([]ListVoyageCrewAssignmentsRow, error)
 	//ListVoyagePorts
 	//
-	//  SELECT id, voyage_id, name, latitude, longitude, position, created_at FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
+	//  SELECT id, voyage_id, name, latitude, longitude, position, created_at, anchorage FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id
 	ListVoyagePorts(ctx context.Context, voyageID int64) ([]VoyagePort, error)
 	//ListVoyageVoyageOpinions
 	//
@@ -668,7 +669,7 @@ type Querier interface {
 	ListVoyageVoyageOpinions(ctx context.Context, voyageID int64) ([]ListVoyageVoyageOpinionsRow, error)
 	//ListVoyages
 	//
-	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes, track_url, voyage_card FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
 	ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error)
 	//ListYachts
 	//
@@ -865,6 +866,7 @@ type Querier interface {
 	//      cost_total = $17, cost_per_person = $18,
 	//      image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
 	//      cruise_id = $23, captain_user_id = $24,
+	//      track_url = $26, voyage_card = $27,
 	//      updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $25
 	UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) error
@@ -873,6 +875,7 @@ type Querier interface {
 	//  UPDATE voyages SET
 	//      hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
 	//      miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
+	//      yacht_id = $10, track_url = $11, voyage_card = $12,
 	//      updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $9
 	UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) error
