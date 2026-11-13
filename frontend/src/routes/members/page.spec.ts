@@ -287,6 +287,39 @@ describe('members page: save feedback', () => {
 		expect(first.value).toBe('gosc');
 	});
 
+	it('keeps an error visible when another row saves successfully afterwards', async () => {
+		let failFirst: (err: Error) => void = () => {};
+		let passSecond: () => void = () => {};
+		membershipMock
+			.mockImplementationOnce(() => new Promise((_resolve, reject) => (failFirst = reject)))
+			.mockImplementationOnce(() => new Promise<void>((resolve) => (passSecond = resolve)));
+		await renderPage();
+		vi.useFakeTimers();
+		await fireEvent.change(screen.getByRole('combobox', { name: 'Członkostwo: Gość Nowy' }), {
+			target: { value: 'czlonek' }
+		});
+		await fireEvent.change(screen.getByRole('combobox', { name: 'Członkostwo: Ewa Sternik' }), {
+			target: { value: 'sympatyk' }
+		});
+
+		failFirst(new Error('Serwer odrzucił zmianę'));
+		await vi.waitFor(() =>
+			expect(screen.getByRole('alert')).toHaveTextContent('Serwer odrzucił zmianę')
+		);
+		passSecond();
+		await vi.waitFor(() =>
+			expect(screen.getByRole('status')).toHaveTextContent(
+				'Zapisano członkostwo: Ewa Sternik — Sympatyk'
+			)
+		);
+		await vi.advanceTimersByTimeAsync(3500);
+		expect(screen.queryByRole('status')).not.toBeInTheDocument();
+		expect(screen.getByRole('alert')).toHaveTextContent('Serwer odrzucił zmianę');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Zamknij' }));
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
 	it('reports a failed role change and restores the select', async () => {
 		roleMock.mockRejectedValue(new Error('Brak uprawnień'));
 		await renderPage();

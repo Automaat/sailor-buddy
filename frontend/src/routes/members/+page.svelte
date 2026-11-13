@@ -14,17 +14,16 @@
 	import Search from '@lucide/svelte/icons/search';
 
 	type Role = 'admin' | 'member';
-	type Notice = { kind: 'success' | 'error'; text: string };
-
-	const NOTICE_MS = 3000;
+	const SUCCESS_MS = 3000;
 
 	let members = $state<Member[]>([]);
 	let loading = $state(true);
 	const saving = new SvelteSet<number>();
 	let query = $state('');
 	let filter = $state<MemberFilter>('all');
-	let notice = $state<Notice | null>(null);
-	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+	let success = $state('');
+	let failure = $state('');
+	let successTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const adminCount = $derived(members.filter((m) => m.role === 'admin').length);
 	const counts = $derived(filterCounts(members));
@@ -52,14 +51,14 @@
 		load();
 	});
 
-	$effect(() => () => clearTimeout(noticeTimer));
+	$effect(() => () => clearTimeout(successTimer));
 
-	function show(kind: Notice['kind'], text: string) {
-		clearTimeout(noticeTimer);
-		notice = { kind, text };
-		if (kind === 'success') {
-			noticeTimer = setTimeout(() => (notice = null), NOTICE_MS);
-		}
+	// A success never replaces an error: with saves on several rows in flight,
+	// the failure must stay visible until the admin dismisses it or saves again.
+	function showSuccess(text: string) {
+		clearTimeout(successTimer);
+		success = text;
+		successTimer = setTimeout(() => (success = ''), SUCCESS_MS);
 	}
 
 	function errorText(err: unknown, fallback: string): string {
@@ -86,14 +85,14 @@
 		revert: () => void
 	) {
 		saving.add(member.id);
-		notice = null;
+		failure = '';
 		try {
 			await run();
-			show('success', done);
+			showSuccess(done);
 			return true;
 		} catch (err) {
 			revert();
-			show('error', errorText(err, failed));
+			failure = errorText(err, failed);
 			return false;
 		} finally {
 			saving.delete(member.id);
@@ -171,17 +170,24 @@
 		</p>
 	</div>
 
-	{#if notice}
-		<div
-			role={notice.kind === 'error' ? 'alert' : 'status'}
-			class="fixed right-4 bottom-4 z-50 max-w-sm rounded-lg p-3 text-sm shadow-lg {notice.kind ===
-			'error'
-				? 'bg-red-50 text-red-600'
-				: 'bg-green-50 text-green-700'}"
-		>
-			{notice.text}
-		</div>
-	{/if}
+	<div class="fixed right-4 bottom-4 z-50 flex max-w-sm flex-col gap-2">
+		{#if failure}
+			<div
+				role="alert"
+				class="flex items-start gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-600 shadow-lg"
+			>
+				<span class="flex-1">{failure}</span>
+				<button type="button" onclick={() => (failure = '')} class="text-xs font-medium hover:underline">
+					Zamknij
+				</button>
+			</div>
+		{/if}
+		{#if success}
+			<div role="status" class="rounded-lg bg-green-50 p-3 text-sm text-green-700 shadow-lg">
+				{success}
+			</div>
+		{/if}
+	</div>
 
 	{#if loading}
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
