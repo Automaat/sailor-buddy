@@ -2,10 +2,14 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"log/slog"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
@@ -21,15 +25,30 @@ func requireAdmin(ctx context.Context) error {
 	return nil
 }
 
-// requireAdminOrCaptain allows admins and the captain assigned to the record.
-// Captains log post-cruise data (hours, miles, ports, notes) for their own
-// voyages; everything else stays admin-only.
-func requireAdminOrCaptain(ctx context.Context, captainUserID types.NullInt64) error {
+// requireAdminOrCaptain allows admins and the account linked to the record's
+// captain person. Captains log post-cruise data (hours, miles, ports, notes)
+// for their own voyages; a captain person without an account grants no
+// rights, and everything else stays admin-only.
+func requireAdminOrCaptain(ctx context.Context, q sqlcdb.Querier, captainPersonID types.NullInt64) error {
 	u := middleware.GetUser(ctx)
 	if u == nil {
 		return huma.Error403Forbidden("admin or voyage captain only")
 	}
-	if u.Role == "admin" || (captainUserID.Valid && captainUserID.Int64 == u.UserID) {
+	if u.Role == "admin" {
+		return nil
+	}
+	if !captainPersonID.Valid {
+		return huma.Error403Forbidden("admin or voyage captain only")
+	}
+	captain, err := q.GetCrewMember(ctx, captainPersonID.Int64)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return huma.Error403Forbidden("admin or voyage captain only")
+		}
+		slog.Error("get captain person", "person_id", captainPersonID.Int64, "err", err)
+		return huma.Error500InternalServerError("failed to verify captain")
+	}
+	if captain.UserID.Valid && captain.UserID.Int64 == u.UserID {
 		return nil
 	}
 	return huma.Error403Forbidden("admin or voyage captain only")

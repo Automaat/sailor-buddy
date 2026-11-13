@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { makeCruise, makeTrip } from '#lib/test-utils.js';
+import { makeCruise, makePerson, makeTrip } from '#lib/test-utils.js';
 
 const pageState = vi.hoisted(() => ({ url: new URL('http://localhost/trips/new') }));
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$app/state', () => ({ page: pageState }));
-vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAdmin: true, user: { id: 1, role: 'admin' } } }));
-vi.mock('#lib/api/routes.js', () => ({ listCruises: vi.fn(), createTrip: vi.fn(), listMembers: vi.fn() }));
+const authState = vi.hoisted(() => ({
+	isAdmin: true,
+	user: { id: 1, role: 'admin', is_captain: false, person_id: undefined as number | undefined }
+}));
+vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: authState }));
+vi.mock('#lib/api/routes.js', () => ({ listCruises: vi.fn(), createTrip: vi.fn(), listMembers: vi.fn(), listCrew: vi.fn() }));
 
-import { listCruises, createTrip, listMembers } from '#lib/api/routes.js';
+import { listCruises, createTrip, listMembers, listCrew } from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import NewTripPage from './+page.svelte';
 
@@ -18,7 +22,9 @@ const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 beforeEach(() => {
 	vi.clearAllMocks();
 	pageState.url = new URL('http://localhost/trips/new');
+	authState.user = { id: 1, role: 'admin', is_captain: false, person_id: undefined };
 	fn(listMembers).mockResolvedValue([]);
+	fn(listCrew).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025', start_port: 'Turku' })]);
 	fn(createTrip).mockResolvedValue(makeTrip({ id: 77 }));
 });
@@ -45,6 +51,22 @@ describe('new trip page', () => {
 		await waitFor(() => expect(createTrip).toHaveBeenCalled());
 		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ cruise_id: 13, name: 'Etap 1' });
 		expect(goto).toHaveBeenCalledWith('/trips/77');
+	});
+});
+
+describe('new trip page captain', () => {
+	it("preselects a captain's own person as the leg captain", async () => {
+		authState.user = { id: 1, role: 'admin', is_captain: true, person_id: 40 };
+		fn(listCrew).mockResolvedValue([makePerson({ id: 40, full_name: 'Kasia Admin', user_id: 1, has_account: true })]);
+		pageState.url = new URL('http://localhost/trips/new?cruise_id=13');
+		render(NewTripPage);
+		await screen.findByRole('option', { name: 'Kasia Admin' });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ captain_person_id: 40 });
 	});
 });
 

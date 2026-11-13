@@ -94,9 +94,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   admin. Admins are the board (Zarząd) and the Opiekun. Reads open to any
   member; mutations require admin (`requireAdmin`).
 - Captains: `users.is_captain` (admin-curated captain group; requires
-  `membership = czlonek` and a patent number). The voyage's assigned captain
-  (`captain_user_id`) may write its post-cruise log and ports
-  (`requireAdminOrCaptain`). Captain is not a role — keep it off `users.role`.
+  `membership = czlonek` and a patent number). A leg's or voyage's captain is
+  a person (`captain_person_id` → `crew_members`); any person may be chosen.
+  The account linked to a voyage's captain person may write its post-cruise
+  log and ports (`requireAdminOrCaptain`). Captain is not a role — keep it
+  off `users.role`.
 - `users.membership`: `czlonek` | `sympatyk` | `gosc` (club statute).
   Self-registered accounts start as `gosc`; an admin promotes them.
 - Onboarding: `users.onboarded_at` NULL sends a signed-in user to

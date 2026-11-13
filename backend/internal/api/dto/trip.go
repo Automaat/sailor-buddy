@@ -19,7 +19,7 @@ type Trip struct {
 	StartPort              *string   `json:"start_port,omitempty"`
 	EndPort                *string   `json:"end_port,omitempty"`
 	CaptainName            *string   `json:"captain_name,omitempty"`
-	CaptainUserID          *int64    `json:"captain_user_id,omitempty"`
+	CaptainPersonID        *int64    `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip"`
 	YachtID                *int64    `json:"yacht_id,omitempty"`
 	CostTotal              *float64  `json:"cost_total,omitempty"`
 	CostPerPerson          *float64  `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
@@ -46,8 +46,8 @@ type TripBody struct {
 	Countries              *string  `json:"countries,omitempty"`
 	StartPort              *string  `json:"start_port,omitempty"`
 	EndPort                *string  `json:"end_port,omitempty"`
-	CaptainName            *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the user's name when captain_user_id is set"`
-	CaptainUserID          *int64   `json:"captain_user_id,omitempty" doc:"User ID of the assigned captain (must be in the captain group)"`
+	CaptainName            *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
+	CaptainPersonID        *int64   `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip; any person may be chosen"`
 	YachtID                *int64   `json:"yacht_id,omitempty"`
 	CostTotal              *float64 `json:"cost_total,omitempty"`
 	CostPerPerson          *float64 `json:"cost_per_person,omitempty" minimum:"0" doc:"Member price per person (czlonek, sympatyk)"`
@@ -92,7 +92,7 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 		StartPort:              strPtr(t.StartPort),
 		EndPort:                strPtr(t.EndPort),
 		CaptainName:            strPtr(t.CaptainName),
-		CaptainUserID:          intPtr(t.CaptainUserID),
+		CaptainPersonID:        intPtr(t.CaptainPersonID),
 		YachtID:                intPtr(t.YachtID),
 		CostTotal:              floatPtr(t.CostTotal),
 		CostPerPerson:          floatPtr(t.CostPerPerson),

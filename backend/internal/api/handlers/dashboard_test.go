@@ -161,8 +161,9 @@ func TestDashboardHandler_Get(t *testing.T) {
 }
 
 // TestDashboardSeaTime_DB checks the sea-time query against a real schema:
-// captain and linked-crew voyages count, an overlap counts once, and
-// unlinked crew records do not count.
+// voyages captained by the user's person and linked-crew voyages count, an
+// overlap counts once, and unlinked crew records and captain persons do not
+// count.
 func TestDashboardSeaTime_DB(t *testing.T) {
 	conn := lockTestDB(t)
 	ctx := context.Background()
@@ -189,21 +190,6 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create yacht: %v", err)
 	}
-	mkVoyage := func(name string, year int64, miles float64, captain types.NullInt64) int64 {
-		v, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-			CruiseID: cruise.ID, Name: name, Year: nullID(year), YachtID: nullID(yacht.ID),
-			Miles: miles, HoursTotal: miles / 5, HoursSail: miles / 10, HoursEngine: miles / 10, Days: 2,
-			CaptainUserID: captain,
-		})
-		if err != nil {
-			t.Fatalf("create voyage: %v", err)
-		}
-		return v.ID
-	}
-	captained := mkVoyage("Captained and crewed", 2024, 100, nullID(alice))
-	crewed := mkVoyage("Crewed", 2025, 50, types.NullInt64{})
-	mkVoyage("Unlinked crew", 2025, 400, types.NullInt64{})
-
 	mkCrew := func(name string, user types.NullInt64) int64 {
 		c, err := q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{FullName: name, UserID: user})
 		if err != nil {
@@ -213,6 +199,23 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	}
 	aliceCrew := mkCrew("Alice", nullID(alice))
 	strangerCrew := mkCrew("Alice (no account)", types.NullInt64{})
+
+	mkVoyage := func(name string, year int64, miles float64, captain types.NullInt64) int64 {
+		v, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
+			CruiseID: cruise.ID, Name: name, Year: nullID(year), YachtID: nullID(yacht.ID),
+			Miles: miles, HoursTotal: miles / 5, HoursSail: miles / 10, HoursEngine: miles / 10, Days: 2,
+			CaptainPersonID: captain,
+		})
+		if err != nil {
+			t.Fatalf("create voyage: %v", err)
+		}
+		return v.ID
+	}
+	captained := mkVoyage("Captained and crewed", 2024, 100, nullID(aliceCrew))
+	crewed := mkVoyage("Crewed", 2025, 50, types.NullInt64{})
+	mkVoyage("Unlinked crew", 2025, 400, types.NullInt64{})
+	mkVoyage("Captained by a person without an account", 2025, 30, nullID(strangerCrew))
+
 	assign := func(voyage, crew int64) {
 		if _, err := q.CreateVoyageCrewAssignment(ctx, sqlcdb.CreateVoyageCrewAssignmentParams{
 			VoyageID: nullID(voyage), CrewMemberID: crew, Role: "zalogant",
@@ -252,7 +255,7 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	if d.Personal.Total.VoyageCount != 0 || len(d.Personal.Voyages) != 0 {
 		t.Errorf("bob personal = %+v, want empty", d.Personal)
 	}
-	if d.Club == nil || d.Club.Total.VoyageCount != 3 || d.Club.Total.TotalMiles != 550 {
-		t.Errorf("admin club = %+v, want 3 voyages / 550 Mm", d.Club)
+	if d.Club == nil || d.Club.Total.VoyageCount != 4 || d.Club.Total.TotalMiles != 580 {
+		t.Errorf("admin club = %+v, want 4 voyages / 580 Mm", d.Club)
 	}
 }

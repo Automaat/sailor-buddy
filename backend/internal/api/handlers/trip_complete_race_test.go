@@ -254,3 +254,177 @@ func TestEnroll_TripCompletedDuringEnroll(t *testing.T) {
 	}
 	assertTripCompleted(t, conn, leg, done.val)
 }
+
+// seedCaptainPerson gives the leg a captain person without an account.
+func seedCaptainPerson(t *testing.T, conn *sql.DB, leg legFixture) int64 {
+	t.Helper()
+	var person int64
+	if err := conn.QueryRow(`INSERT INTO crew_members (full_name) VALUES ('Kpt. Bez Konta') RETURNING id`).Scan(&person); err != nil {
+		t.Fatalf("seed captain person: %v", err)
+	}
+	if _, err := conn.Exec(`UPDATE trips SET captain_person_id = $1, captain_name = 'Kpt. Bez Konta' WHERE id = $2`,
+		person, leg.tripID); err != nil {
+		t.Fatalf("assign captain person: %v", err)
+	}
+	return person
+}
+
+// TestCompleteTrip_ConcurrentCaptainDelete replays a trip completion racing
+// the delete of the trip's captain person. In either order both commit,
+// without a deadlock abort on either side. In the second case a share lock
+// on the trip stalls the delete's ON DELETE SET NULL while it already holds
+// the person row, so completion starts against a delete still in flight.
+func TestCompleteTrip_ConcurrentCaptainDelete(t *testing.T) {
+	t.Run("completion locks first", func(t *testing.T) {
+		conn := lockTestDB(t)
+		leg := seedLeg(t, conn)
+		person := seedCaptainPerson(t, conn, leg)
+		ctx := context.Background()
+
+		locked := make(chan struct{})
+		release := make(chan struct{})
+		completed := make(chan result[sqlcdb.Voyage], 1)
+		go func() {
+			v, err := completeTripTxWith(ctx, conn, func(q sqlcdb.Querier) sqlcdb.Querier {
+				return pauseAfterTripLock{Querier: q, locked: locked, release: release}
+			}, leg.tripID, dto.CompleteTripBody{})
+			completed <- result[sqlcdb.Voyage]{v, err}
+		}()
+		<-locked
+
+		deleted := make(chan result[int64], 1)
+		go func() {
+			n, err := sqlcdb.New(conn).DeleteUnlinkedCrewMember(ctx, person)
+			deleted <- result[int64]{n, err}
+		}()
+		waitForLockWaiters(t, conn, 1)
+		close(release)
+
+		done := <-completed
+		if done.err != nil {
+			t.Fatalf("complete trip: %v", done.err)
+		}
+		if done.val.CaptainPersonID.Int64 != person {
+			t.Fatalf("voyage captain = %v, want person %d", done.val.CaptainPersonID, person)
+		}
+		if del := <-deleted; del.err != nil || del.val != 1 {
+			t.Fatalf("delete captain person = (%d, %v), want (1, nil)", del.val, del.err)
+		}
+		var captain sql.NullInt64
+		var name string
+		if err := conn.QueryRow(`SELECT captain_person_id, captain_name FROM voyages WHERE id = $1`, done.val.ID).
+			Scan(&captain, &name); err != nil {
+			t.Fatalf("read voyage: %v", err)
+		}
+		if captain.Valid || name != "Kpt. Bez Konta" {
+			t.Fatalf("voyage captain after delete = (%v, %q), want (NULL, the kept name)", captain, name)
+		}
+	})
+
+	t.Run("delete locks the person first", func(t *testing.T) {
+		conn := lockTestDB(t)
+		leg := seedLeg(t, conn)
+		person := seedCaptainPerson(t, conn, leg)
+		ctx := context.Background()
+
+		holder, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin holder: %v", err)
+		}
+		defer func() { _ = holder.Rollback() }()
+		if _, err := holder.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR SHARE", leg.tripID); err != nil {
+			t.Fatalf("hold trip: %v", err)
+		}
+
+		deleted := make(chan result[int64], 1)
+		go func() {
+			n, err := sqlcdb.New(conn).DeleteUnlinkedCrewMember(ctx, person)
+			deleted <- result[int64]{n, err}
+		}()
+		waitForLockWaiters(t, conn, 1)
+
+		completed := make(chan result[sqlcdb.Voyage], 1)
+		go func() {
+			v, err := completeTripTx(ctx, conn, leg.tripID, dto.CompleteTripBody{})
+			completed <- result[sqlcdb.Voyage]{v, err}
+		}()
+		waitForLockWaiters(t, conn, 2)
+		if err := holder.Commit(); err != nil {
+			t.Fatalf("release trip: %v", err)
+		}
+
+		if del := <-deleted; del.err != nil || del.val != 1 {
+			t.Fatalf("delete captain person = (%d, %v), want (1, nil)", del.val, del.err)
+		}
+		done := <-completed
+		if done.err != nil {
+			t.Fatalf("complete trip: %v", done.err)
+		}
+		if done.val.CaptainPersonID.Valid || done.val.CaptainName.String != "Kpt. Bez Konta" {
+			t.Fatalf("voyage captain = (%v, %q), want (NULL, the kept name)", done.val.CaptainPersonID, done.val.CaptainName.String)
+		}
+	})
+}
+
+// pauseAfterCaptainLock holds the first completion attempt right after it
+// locks the trip's captain person, so the test can change the captain.
+type pauseAfterCaptainLock struct {
+	sqlcdb.Querier
+	calls   *atomic.Int32
+	once    *sync.Once
+	locked  chan<- struct{}
+	release <-chan struct{}
+}
+
+func (p pauseAfterCaptainLock) LockTripCaptain(ctx context.Context, tripID int64) (int64, error) {
+	id, err := p.Querier.LockTripCaptain(ctx, tripID)
+	p.calls.Add(1)
+	p.once.Do(func() {
+		close(p.locked)
+		<-p.release
+	})
+	return id, err
+}
+
+// TestCompleteTrip_CaptainChanged changes the trip's captain person between
+// the completion's captain lock and trip lock. Completion must retry and give
+// the voyage the new captain.
+func TestCompleteTrip_CaptainChanged(t *testing.T) {
+	conn := lockTestDB(t)
+	leg := seedLeg(t, conn)
+	seedCaptainPerson(t, conn, leg)
+	ctx := context.Background()
+
+	var next int64
+	if err := conn.QueryRow(`INSERT INTO crew_members (full_name) VALUES ('Kpt. Nowy') RETURNING id`).Scan(&next); err != nil {
+		t.Fatalf("seed new captain: %v", err)
+	}
+
+	var once sync.Once
+	var lockCalls atomic.Int32
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	completed := make(chan result[sqlcdb.Voyage], 1)
+	go func() {
+		v, err := completeTripTxWith(ctx, conn, func(q sqlcdb.Querier) sqlcdb.Querier {
+			return pauseAfterCaptainLock{Querier: q, calls: &lockCalls, once: &once, locked: locked, release: release}
+		}, leg.tripID, dto.CompleteTripBody{})
+		completed <- result[sqlcdb.Voyage]{v, err}
+	}()
+	<-locked
+	if _, err := conn.ExecContext(ctx, "UPDATE trips SET captain_person_id = $1 WHERE id = $2", next, leg.tripID); err != nil {
+		t.Fatalf("change captain: %v", err)
+	}
+	close(release)
+
+	done := <-completed
+	if done.err != nil {
+		t.Fatalf("complete trip: %v", done.err)
+	}
+	if done.val.CaptainPersonID.Int64 != next {
+		t.Fatalf("voyage captain = %v, want %d", done.val.CaptainPersonID, next)
+	}
+	if got := lockCalls.Load(); got != 2 {
+		t.Fatalf("captain lock attempts = %d, want 2 (one retry after the change)", got)
+	}
+}

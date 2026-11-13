@@ -1209,6 +1209,10 @@ components:
           type: string
         patent_type:
           type: string
+        person_id:
+          description: The account's person (crew record); a leg or voyage it captains gives the account captain rights
+          format: int64
+          type: integer
         phone:
           type: string
         role:
@@ -1820,7 +1824,8 @@ components:
           type: string
         captain_name:
           type: string
-        captain_user_id:
+        captain_person_id:
+          description: Person (crew record) who captains the trip
           format: int64
           type: integer
         cost_per_person:
@@ -1933,10 +1938,10 @@ components:
           readOnly: true
           type: string
         captain_name:
-          description: Free-text captain; replaced by the user's name when captain_user_id is set
+          description: Free-text captain; replaced by the person's name when captain_person_id is set
           type: string
-        captain_user_id:
-          description: User ID of the assigned captain (must be in the captain group)
+        captain_person_id:
+          description: Person (crew record) who captains the trip; any person may be chosen
           format: int64
           type: integer
         cost_per_person:
@@ -2122,7 +2127,8 @@ components:
           type: string
         captain_notes:
           type: string
-        captain_user_id:
+        captain_person_id:
+          description: Person (crew record) who captains the voyage
           format: int64
           type: integer
         cost_per_person:
@@ -2222,10 +2228,10 @@ components:
           readOnly: true
           type: string
         captain_name:
-          description: Free-text captain; replaced by the user's name when captain_user_id is set
+          description: Free-text captain; replaced by the person's name when captain_person_id is set
           type: string
-        captain_user_id:
-          description: User ID of the assigned captain (must be in the captain group)
+        captain_person_id:
+          description: Person (crew record) who captains the voyage; any person may be chosen
           format: int64
           type: integer
         cost_per_person:
@@ -3288,7 +3294,7 @@ paths:
         - Cruises
   /dashboard:
     get:
-      description: Personal totals count voyages where the caller is the assigned captain or on the crew list through a crew record linked to their account.
+      description: Personal totals count voyages captained by the caller's person or on the crew list through a crew record linked to their account.
       operationId: get-dashboard
       responses:
         "200":

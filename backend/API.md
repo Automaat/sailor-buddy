@@ -134,27 +134,31 @@ held on the `users.role` column:
 - **Mutations** (`POST`/`PUT`/`DELETE`, plus `complete`/`cancel`/enroll-token)
   on shared club data — require the caller to be an `admin`; a member gets
   `403 admin only`.
-- **Voyage captain** — the user assigned as a voyage's `captain_user_id` may
-  also write that voyage's post-cruise log (`PUT /voyages/{id}/log`), its
-  visited ports, and add a yacht to the club list from the voyage
-  (`POST /voyages/{id}/yachts`). Other mutations stay admin-only.
+- **Voyage captain** — the account linked to a voyage's captain person
+  (`captain_person_id` → `crew_members.user_id`) may also write that
+  voyage's post-cruise log (`PUT /voyages/{id}/log`), its visited ports, and
+  add a yacht to the club list from the voyage
+  (`POST /voyages/{id}/yachts`). A captain person without an account grants
+  no rights. Other mutations stay admin-only.
 - **Trainings** are the exception: a per-member course/certification log,
   scoped to the caller. Each member manages their own trainings.
 
 Club attributes on `users`, both set by admins and not access roles:
 
-- `is_captain` — membership of the club's captain group. Only users in the
-  group can be assigned as a trip/voyage captain. Joining requires
-  `membership = czlonek` and a `patent_number` on the account (`422`
-  otherwise).
+- `is_captain` — membership of the club's captain group. The captain picker
+  lists people whose account is in the group first, under their own
+  heading. Joining requires `membership = czlonek` and a `patent_number` on
+  the account (`422` otherwise).
 - `membership` — `czlonek` (AGH student member), `sympatyk`
   (student of another university) or `gosc` (guest, the default for new accounts). A captain must stay
   `czlonek`.
 
-Captain assignment: trip/voyage bodies take `captain_user_id`. When set, the
-server checks the captain is eligible (`422` otherwise) and overwrites
-`captain_name` with the user's name. Without it, `captain_name` is kept as
-free text (imported history).
+Captain assignment: trip/voyage bodies take `captain_person_id`, a person
+(`crew_members.id`). Any person may be chosen, with or without an account.
+When set, the server overwrites `captain_name` with the person's name
+(`422` for an unknown person). Without it, `captain_name` is kept as free
+text (imported history). Deleting the person clears `captain_person_id` and
+keeps `captain_name`. Completing a trip carries its captain to the voyage.
 
 Resources keep a `created_by` audit column (the user who created the row); it
 is never used for access control. `crew_members` are decoupled from `users` —
@@ -191,9 +195,9 @@ require the caller to be an `admin` (marked **admin** below).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number}` |
+| GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number, person_id}`; `person_id` is the account's person |
 | PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
-| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise or trip enrollment, captained leg, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
+| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise or trip enrollment, leg captained by the account's person, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
 | GET | `/api/dashboard` | Caller's sea time; club totals for admins |
 
 `PUT /api/auth/me` body — `first_name` and `last_name` required (non-blank);
@@ -206,7 +210,7 @@ Firebase display name. The same statement copies the name, `phone` and
 `patent_number` to the caller's person.
 
 `GET /api/dashboard` returns `personal`: the caller's voyages as the
-assigned captain (`captain_user_id`) or on a crew list through a crew
+captain through their person (`captain_person_id`) or on a crew list through a crew
 record linked to their account (`crew_members.user_id`). It has `total`,
 `as_captain` and `as_crew` sums (`voyage_count`, `total_hours`,
 `total_hours_sail`, `total_hours_engine`, `total_miles`, `total_days`),
@@ -292,8 +296,9 @@ unknown yacht). An explicit `max_crew` is kept.
 
 `complete` returns `404` `trip not found or not in planned state` when the trip
 is missing or already completed/cancelled, and `409`
-`trip moved to another cruise; retry` when the trip keeps changing cruise
-while it completes. `cancel` returns `404`
+`trip moved to another cruise; retry` or `trip captain changed; retry` when
+the trip keeps changing cruise or captain while it completes. `cancel`
+returns `404`
 `trip not found or invalid transition` likewise.
 
 ### Trip crew assignments
