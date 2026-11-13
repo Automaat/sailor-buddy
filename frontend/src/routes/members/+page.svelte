@@ -9,6 +9,7 @@
 	} from '#lib/api/routes.js';
 	import type { Member } from '#lib/api/types.js';
 	import { filterCounts, filterMembers, memberFilters, type MemberFilter } from '#lib/members.js';
+	import { SvelteSet } from 'svelte/reactivity';
 	import Users from '@lucide/svelte/icons/users';
 	import Search from '@lucide/svelte/icons/search';
 
@@ -19,7 +20,7 @@
 
 	let members = $state<Member[]>([]);
 	let loading = $state(true);
-	let savingId = $state<number | null>(null);
+	const saving = new SvelteSet<number>();
 	let query = $state('');
 	let filter = $state<MemberFilter>('all');
 	let notice = $state<Notice | null>(null);
@@ -65,6 +66,12 @@
 		return err instanceof Error && err.message ? err.message : fallback;
 	}
 
+	// stored returns the member as currently held, so a failed save reverts its
+	// control to the latest value rather than the one captured at its start.
+	function stored(member: Member): Member {
+		return members.find((m) => m.id === member.id) ?? member;
+	}
+
 	function patch(id: number, change: Partial<Member>) {
 		members = members.map((m) => (m.id === id ? { ...m, ...change } : m));
 	}
@@ -78,7 +85,7 @@
 		failed: string,
 		revert: () => void
 	) {
-		savingId = member.id;
+		saving.add(member.id);
 		notice = null;
 		try {
 			await run();
@@ -89,7 +96,7 @@
 			show('error', errorText(err, failed));
 			return false;
 		} finally {
-			savingId = null;
+			saving.delete(member.id);
 		}
 	}
 
@@ -97,7 +104,7 @@
 
 	async function setRole(member: Member, role: Role, el: HTMLSelectElement) {
 		if (member.role === role) return;
-		const revert = () => (el.value = member.role);
+		const revert = () => (el.value = stored(member).role);
 		if (member.role === 'admin' && !confirm(`Odebrać uprawnienia administratora: ${member.name}?`)) {
 			revert();
 			return;
@@ -133,7 +140,7 @@
 			() => updateMemberCaptain(member.id, isCaptain),
 			isCaptain ? `Dodano do kadry: ${member.name}` : `Usunięto z kadry: ${member.name}`,
 			'Nie udało się zmienić statusu kapitana',
-			() => (el.checked = member.is_captain)
+			() => (el.checked = stored(member).is_captain)
 		);
 		if (ok) patch(member.id, { is_captain: isCaptain });
 	}
@@ -149,7 +156,7 @@
 			() => updateMemberMembership(member.id, membership),
 			`Zapisano członkostwo: ${member.name} — ${membershipLabels[membership]}`,
 			'Nie udało się zmienić statusu członkostwa',
-			() => (el.value = member.membership)
+			() => (el.value = stored(member).membership)
 		);
 		if (ok) patch(member.id, { membership });
 	}
@@ -233,7 +240,7 @@
 						{#each visible as member (member.id)}
 							{@const isLastAdmin = member.role === 'admin' && adminCount <= 1}
 							{@const blocker = captainBlocker(member)}
-							{@const busy = savingId === member.id}
+							{@const busy = saving.has(member.id)}
 							<tr class="border-b border-gray-50">
 								<td class="p-4 font-medium text-[var(--navy)]">
 									{member.name}

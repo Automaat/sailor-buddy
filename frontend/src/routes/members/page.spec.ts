@@ -264,6 +264,29 @@ describe('members page: save feedback', () => {
 		expect(box).not.toBeChecked();
 	});
 
+	it('keeps a row locked while its save is pending, even when another row saves', async () => {
+		let failFirst: (err: Error) => void = () => {};
+		membershipMock
+			.mockImplementationOnce(() => new Promise((_resolve, reject) => (failFirst = reject)))
+			.mockResolvedValue(undefined);
+		await renderPage();
+		const first = screen.getByRole('combobox', {
+			name: 'Członkostwo: Gość Nowy'
+		}) as HTMLSelectElement;
+		const second = screen.getByRole('combobox', { name: 'Członkostwo: Ewa Sternik' });
+
+		await fireEvent.change(first, { target: { value: 'sympatyk' } });
+		await fireEvent.change(second, { target: { value: 'sympatyk' } });
+		await waitFor(() => expect(membershipMock).toHaveBeenCalledWith(4, 'sympatyk'));
+		await screen.findByRole('status');
+		expect(first).toBeDisabled();
+
+		failFirst(new Error('Serwer odrzucił zmianę'));
+		expect(await screen.findByRole('alert')).toHaveTextContent('Serwer odrzucił zmianę');
+		expect(first).toBeEnabled();
+		expect(first.value).toBe('gosc');
+	});
+
 	it('reports a failed role change and restores the select', async () => {
 		roleMock.mockRejectedValue(new Error('Brak uprawnień'));
 		await renderPage();
