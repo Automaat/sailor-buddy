@@ -117,35 +117,6 @@ func (q *Queries) CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherA
 	return accepted, err
 }
 
-const countTakenPlacesForTrip = `-- name: CountTakenPlacesForTrip :one
-SELECT COUNT(*)::BIGINT AS taken FROM (
-    SELECT te.user_id FROM trip_enrollments te
-    WHERE te.trip_id = $1 AND te.status IN ('accepted', 'pending')
-    UNION
-    SELECT ce.user_id FROM cruise_enrollments ce
-    WHERE ce.trip_id = $1 AND ce.status IN ('accepted', 'pending')
-) taken_users
-`
-
-// Places of one trip that accepted or pending sign-ups hold: distinct users
-// with an accepted or pending direct trip enrollment or cruise enrollment
-// assigned to the trip. A new sign-up is waitlisted once this reaches
-// max_crew.
-//
-//	SELECT COUNT(*)::BIGINT AS taken FROM (
-//	    SELECT te.user_id FROM trip_enrollments te
-//	    WHERE te.trip_id = $1 AND te.status IN ('accepted', 'pending')
-//	    UNION
-//	    SELECT ce.user_id FROM cruise_enrollments ce
-//	    WHERE ce.trip_id = $1 AND ce.status IN ('accepted', 'pending')
-//	) taken_users
-func (q *Queries) CountTakenPlacesForTrip(ctx context.Context, tripID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countTakenPlacesForTrip, tripID)
-	var taken int64
-	err := row.Scan(&taken)
-	return taken, err
-}
-
 const countTripEnrollments = `-- name: CountTripEnrollments :one
 SELECT
     COUNT(*) FILTER (WHERE status = 'accepted')::BIGINT AS accepted,
@@ -191,6 +162,46 @@ func (q *Queries) CountTripLinkedEnrollments(ctx context.Context, tripID int64) 
 	var linked int64
 	err := row.Scan(&linked)
 	return linked, err
+}
+
+const countTripPlaceUse = `-- name: CountTripPlaceUse :one
+SELECT
+    (SELECT COUNT(*) FROM (
+        SELECT te.user_id FROM trip_enrollments te
+        WHERE te.trip_id = $1::BIGINT AND te.status IN ('accepted', 'pending')
+        UNION
+        SELECT ce.user_id FROM cruise_enrollments ce
+        WHERE ce.trip_id = $1::BIGINT AND ce.status IN ('accepted', 'pending')
+    ) taken_users)::BIGINT AS taken,
+    (SELECT COUNT(*) FROM trip_enrollments w
+     WHERE w.trip_id = $1::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted
+`
+
+type CountTripPlaceUseRow struct {
+	Taken      int64 `json:"taken"`
+	Waitlisted int64 `json:"waitlisted"`
+}
+
+// How one trip's places are used. taken counts distinct users with an
+// accepted or pending direct trip enrollment or cruise enrollment assigned
+// to the trip; waitlisted counts its waitlisted trip enrollments. A new
+// sign-up is waitlisted once taken reaches max_crew or anyone is waiting.
+//
+//	SELECT
+//	    (SELECT COUNT(*) FROM (
+//	        SELECT te.user_id FROM trip_enrollments te
+//	        WHERE te.trip_id = $1::BIGINT AND te.status IN ('accepted', 'pending')
+//	        UNION
+//	        SELECT ce.user_id FROM cruise_enrollments ce
+//	        WHERE ce.trip_id = $1::BIGINT AND ce.status IN ('accepted', 'pending')
+//	    ) taken_users)::BIGINT AS taken,
+//	    (SELECT COUNT(*) FROM trip_enrollments w
+//	     WHERE w.trip_id = $1::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted
+func (q *Queries) CountTripPlaceUse(ctx context.Context, tripID int64) (CountTripPlaceUseRow, error) {
+	row := q.db.QueryRowContext(ctx, countTripPlaceUse, tripID)
+	var i CountTripPlaceUseRow
+	err := row.Scan(&i.Taken, &i.Waitlisted)
+	return i, err
 }
 
 const createTripEnrollment = `-- name: CreateTripEnrollment :one

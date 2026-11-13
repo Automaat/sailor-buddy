@@ -2971,6 +2971,7 @@ paths:
         - Cruises
   /cruises/{cruiseID}/enrollments/{enrollmentID}/status:
     put:
+      description: "Accepting an enrollment assigned to a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise."
       operationId: update-cruise-enrollment-status
       parameters:
         - description: Cruise ID
@@ -3009,6 +3010,7 @@ paths:
         - Cruises
   /cruises/{cruiseID}/enrollments/{enrollmentID}/trip:
     put:
+      description: "Moving an accepted enrollment onto a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise."
       operationId: assign-cruise-enrollment-trip
       parameters:
         - description: Cruise ID

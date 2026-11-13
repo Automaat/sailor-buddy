@@ -78,8 +78,11 @@ export function nextWaitlisted(
 ): number | null {
 	const free = freePlaces(maxCrew, accepted);
 	if (!free) return null;
+	// Compare instants, not strings: the API drops trailing zeros from
+	// fractional seconds, so ".5Z" sorts after ".55Z" as text.
 	const waiting = enrollments
 		.filter((e) => e.status === 'waitlisted')
-		.sort((a, b) => (a.created_at === b.created_at ? a.id - b.id : a.created_at < b.created_at ? -1 : 1));
+		.map((e) => ({ id: e.id, at: Date.parse(e.created_at) }))
+		.sort((a, b) => a.at - b.at || a.id - b.id);
 	return waiting[0]?.id ?? null;
 }

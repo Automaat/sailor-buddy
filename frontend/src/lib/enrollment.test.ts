@@ -77,6 +77,14 @@ describe('nextWaitlisted', () => {
 		expect(nextWaitlisted(rows, 2, 1)).toBe(2);
 	});
 
+	it('orders by instant, not by text', () => {
+		const sameSecond = [
+			{ id: 8, status: 'waitlisted', created_at: '2026-01-01T10:00:00.55Z' },
+			{ id: 9, status: 'waitlisted', created_at: '2026-01-01T10:00:00.5Z' }
+		];
+		expect(nextWaitlisted(sameSecond, 2, 1)).toBe(9);
+	});
+
 	it('marks no one while the leg is full', () => {
 		expect(nextWaitlisted(rows, 2, 2)).toBeNull();
 		expect(nextWaitlisted(rows, 2, 3)).toBeNull();

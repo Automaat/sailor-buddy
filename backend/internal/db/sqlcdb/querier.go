@@ -90,19 +90,6 @@ type Querier interface {
 	//      WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
 	//  ) accepted_users
 	CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherAcceptedForTripParams) (int64, error)
-	// Places of one trip that accepted or pending sign-ups hold: distinct users
-	// with an accepted or pending direct trip enrollment or cruise enrollment
-	// assigned to the trip. A new sign-up is waitlisted once this reaches
-	// max_crew.
-	//
-	//  SELECT COUNT(*)::BIGINT AS taken FROM (
-	//      SELECT te.user_id FROM trip_enrollments te
-	//      WHERE te.trip_id = $1 AND te.status IN ('accepted', 'pending')
-	//      UNION
-	//      SELECT ce.user_id FROM cruise_enrollments ce
-	//      WHERE ce.trip_id = $1 AND ce.status IN ('accepted', 'pending')
-	//  ) taken_users
-	CountTakenPlacesForTrip(ctx context.Context, tripID int64) (int64, error)
 	//CountTrainings
 	//
 	//  SELECT COUNT(*)::BIGINT FROM trainings WHERE user_id = $1
@@ -122,6 +109,22 @@ type Querier interface {
 	//      + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
 	//  )::BIGINT AS linked
 	CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error)
+	// How one trip's places are used. taken counts distinct users with an
+	// accepted or pending direct trip enrollment or cruise enrollment assigned
+	// to the trip; waitlisted counts its waitlisted trip enrollments. A new
+	// sign-up is waitlisted once taken reaches max_crew or anyone is waiting.
+	//
+	//  SELECT
+	//      (SELECT COUNT(*) FROM (
+	//          SELECT te.user_id FROM trip_enrollments te
+	//          WHERE te.trip_id = $1::BIGINT AND te.status IN ('accepted', 'pending')
+	//          UNION
+	//          SELECT ce.user_id FROM cruise_enrollments ce
+	//          WHERE ce.trip_id = $1::BIGINT AND ce.status IN ('accepted', 'pending')
+	//      ) taken_users)::BIGINT AS taken,
+	//      (SELECT COUNT(*) FROM trip_enrollments w
+	//       WHERE w.trip_id = $1::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted
+	CountTripPlaceUse(ctx context.Context, tripID int64) (CountTripPlaceUseRow, error)
 	//CountTrips
 	//
 	//  SELECT COUNT(*)::BIGINT FROM trips
@@ -331,6 +334,12 @@ type Querier interface {
 	//         group_chat_url, travel_notes, min_age
 	//  FROM cruises WHERE enroll_token = $1
 	GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error)
+	// One enrollment of a cruise. No row when it does not exist or belongs to
+	// another cruise.
+	//
+	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+	//  WHERE id = $1 AND cruise_id = $2
+	GetCruiseEnrollmentOfCruise(ctx context.Context, arg GetCruiseEnrollmentOfCruiseParams) (CruiseEnrollment, error)
 	//GetCruiseSeries
 	//
 	//  SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series WHERE id = $1
@@ -632,6 +641,14 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Row-locks one enrollment of a cruise for a capacity-checked change, taken
+	// after the leg's trip lock. No row when it does not exist or belongs to
+	// another cruise.
+	//
+	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+	//  WHERE id = $1 AND cruise_id = $2
+	//  FOR UPDATE
+	LockCruiseEnrollmentOfCruise(ctx context.Context, arg LockCruiseEnrollmentOfCruiseParams) (CruiseEnrollment, error)
 	// Locks a cruise's trips for the rest of the transaction, in id order, so a
 	// leg cannot be cancelled or removed between validation and insert, and
 	// concurrent sign-ups and accepts of one leg take its places one at a time.

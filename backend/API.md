@@ -391,9 +391,10 @@ or an accepted cruise enrollment assigned to the leg, as `accepted_count`.
 - Waitlist threshold: a new leg sign-up (`POST .../sign-up`,
   `POST /api/enroll/{token}/legs`, `POST /api/enroll/{token}` with a trip
   token) starts `waitlisted` when accepted plus pending users already hold
-  `max_crew` places, otherwise `pending`. Pending sign-ups count because
-  they are the queue an admin reviews first; rejected and waitlisted ones
-  hold no place. The one-click and legs paths lock the leg, so concurrent
+  `max_crew` places, or when anyone is already waitlisted on the leg, so a
+  newcomer never gets ahead of an earlier sign-up. Otherwise it starts
+  `pending`. Pending sign-ups count because they are the queue an admin
+  reviews first; rejected and waitlisted ones hold no place. The one-click and legs paths lock the leg, so concurrent
   sign-ups count one another; the legacy trip-token path does not.
 - Position: `waitlist_position` (1, 2, ...) orders a leg's waitlisted trip
   enrollments by sign-up time, then id. Payment does not change it.
@@ -401,9 +402,12 @@ or an accepted cruise enrollment assigned to the leg, as `accepted_count`.
   rejected or deleted), the admin accepts the first waitlisted person. No
   one is accepted automatically.
 
-The cruise enrollment status route (`PUT /api/cruises/{id}/enrollments/
-{enrollmentID}/status`) predates leg sign-ups and does not check capacity;
-its accepted rows assigned to a leg still count toward that leg's places.
+Cruise enrollments made before leg sign-ups follow the same limit: setting
+one assigned to a leg to `accepted` (`PUT /api/cruises/{id}/enrollments/
+{enrollmentID}/status`), or assigning an accepted one to another leg
+(`PUT .../trip`), returns `409 leg is full` when the leg has no free place.
+Both lock the leg like the trip enrollment accept; `404` when the
+enrollment belongs to another cruise.
 
 ### Voyages
 
@@ -472,8 +476,8 @@ value is rejected with 422.
 | POST | `/api/cruises/{id}/enroll-token` | **admin** | Generate token → `{token}` | 200 |
 | DELETE | `/api/cruises/{id}/enroll-token` | **admin** | Clear token, 204 | 204 |
 | GET | `/api/cruises/{id}/enrollments` | **admin** | List cruise enrollments | 200 |
-| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/status` | **admin** | Set status, 204 | 204 |
-| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip, 204 | 204 |
+| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/status` | **admin** | Set status; `409` when accepting on a full leg | 204 |
+| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip; `409` when an accepted one moves to a full leg | 204 |
 | DELETE | `/api/cruises/{id}/enrollments/{enrollmentID}` | **admin** | Delete enrollment, 204 | 204 |
 
 Cruise body — `name` required, plus `embark_date`, `disembark_date`,

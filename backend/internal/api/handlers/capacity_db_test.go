@@ -181,3 +181,47 @@ func TestCapacity_ConcurrentAcceptsAgainstDatabase(t *testing.T) {
 		t.Fatalf("accepted = %d (err %v), want 1", accepted, err)
 	}
 }
+
+// TestCapacity_CruiseEnrollmentAgainstDatabase checks the cruise enrollment
+// routes against real tables: on a one-place leg already taken by a trip
+// enrollment, neither accepting an assigned cruise enrollment nor moving an
+// accepted one onto the leg goes past max_crew.
+func TestCapacity_CruiseEnrollmentAgainstDatabase(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	trip, users := capacityLeg(t, conn, 1, 3)
+	if _, err := conn.ExecContext(ctx, "INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'accepted')", trip, users[0]); err != nil {
+		t.Fatalf("seed accepted: %v", err)
+	}
+	var cruise, assigned, unassigned int64
+	if err := conn.QueryRow("SELECT cruise_id FROM trips WHERE id = $1", trip).Scan(&cruise); err != nil {
+		t.Fatalf("cruise: %v", err)
+	}
+	if err := conn.QueryRow("INSERT INTO cruise_enrollments (cruise_id, user_id, trip_id) VALUES ($1, $2, $3) RETURNING id",
+		cruise, users[1], trip).Scan(&assigned); err != nil {
+		t.Fatalf("seed assigned: %v", err)
+	}
+	if err := conn.QueryRow("INSERT INTO cruise_enrollments (cruise_id, user_id, status) VALUES ($1, $2, 'accepted') RETURNING id",
+		cruise, users[2]).Scan(&unassigned); err != nil {
+		t.Fatalf("seed unassigned: %v", err)
+	}
+	_, api := humatest.New(t)
+	registerCruiseRoutes(api, NewCruiseHandler(sqlcdb.New(conn), conn))
+	base := fmt.Sprintf("/cruises/%d/enrollments/", cruise)
+
+	if code := api.PutCtx(userCtx(ctx), fmt.Sprintf("%s%d/status", base, assigned), map[string]string{"status": "accepted"}).Code; code != http.StatusConflict {
+		t.Fatalf("accept assigned on a full leg: got %d, want 409", code)
+	}
+	if code := api.PutCtx(userCtx(ctx), fmt.Sprintf("%s%d/trip", base, unassigned), map[string]any{"trip_id": trip}).Code; code != http.StatusConflict {
+		t.Fatalf("move accepted onto a full leg: got %d, want 409", code)
+	}
+	if code := api.PutCtx(userCtx(ctx), fmt.Sprintf("%s%d/status", base, assigned), map[string]string{"status": "rejected"}).Code; code != http.StatusNoContent {
+		t.Fatalf("reject assigned: got %d, want 204", code)
+	}
+	var accepted int64
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM (
+		SELECT user_id FROM trip_enrollments WHERE trip_id = $1 AND status = 'accepted'
+		UNION SELECT user_id FROM cruise_enrollments WHERE trip_id = $1 AND status = 'accepted') u`, trip).Scan(&accepted); err != nil || accepted != 1 {
+		t.Fatalf("accepted on the leg = %d (err %v), want 1", accepted, err)
+	}
+}

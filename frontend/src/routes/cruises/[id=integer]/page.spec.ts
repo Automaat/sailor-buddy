@@ -221,6 +221,17 @@ describe('cruise page admin flows', () => {
 		await waitFor(() => expect(screen.queryByText('Nieznany')).not.toBeInTheDocument());
 	});
 
+	it('explains a full leg when accepting a cruise enrollment is refused', async () => {
+		fn(updateCruiseEnrollmentStatus).mockRejectedValueOnce(new ApiError(409, 'leg is full: all 1 places are taken'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		render(CruiseDetailPage);
+		await screen.findByText('Ala Kowalska');
+
+		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('Etap jest pełny');
+	});
+
 	it('toggles enrollment off and on and copies the link', async () => {
 		const writeText = vi.fn();
 		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

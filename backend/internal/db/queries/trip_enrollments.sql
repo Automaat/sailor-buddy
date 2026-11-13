@@ -70,18 +70,21 @@ SELECT COUNT(*)::BIGINT AS accepted FROM (
     WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
 ) accepted_users;
 
--- name: CountTakenPlacesForTrip :one
--- Places of one trip that accepted or pending sign-ups hold: distinct users
--- with an accepted or pending direct trip enrollment or cruise enrollment
--- assigned to the trip. A new sign-up is waitlisted once this reaches
--- max_crew.
-SELECT COUNT(*)::BIGINT AS taken FROM (
-    SELECT te.user_id FROM trip_enrollments te
-    WHERE te.trip_id = $1 AND te.status IN ('accepted', 'pending')
-    UNION
-    SELECT ce.user_id FROM cruise_enrollments ce
-    WHERE ce.trip_id = $1 AND ce.status IN ('accepted', 'pending')
-) taken_users;
+-- name: CountTripPlaceUse :one
+-- How one trip's places are used. taken counts distinct users with an
+-- accepted or pending direct trip enrollment or cruise enrollment assigned
+-- to the trip; waitlisted counts its waitlisted trip enrollments. A new
+-- sign-up is waitlisted once taken reaches max_crew or anyone is waiting.
+SELECT
+    (SELECT COUNT(*) FROM (
+        SELECT te.user_id FROM trip_enrollments te
+        WHERE te.trip_id = sqlc.arg(trip_id)::BIGINT AND te.status IN ('accepted', 'pending')
+        UNION
+        SELECT ce.user_id FROM cruise_enrollments ce
+        WHERE ce.trip_id = sqlc.arg(trip_id)::BIGINT AND ce.status IN ('accepted', 'pending')
+    ) taken_users)::BIGINT AS taken,
+    (SELECT COUNT(*) FROM trip_enrollments w
+     WHERE w.trip_id = sqlc.arg(trip_id)::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted;
 
 -- name: GetWaitlistPosition :one
 -- 1-based position of a waitlisted trip enrollment among its trip's

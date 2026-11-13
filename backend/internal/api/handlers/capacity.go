@@ -27,19 +27,20 @@ func crewLimit(maxCrew types.NullInt64) (limit int64, ok bool) {
 
 // initialSignUpStatus is the status a new sign-up for a leg starts with:
 // pending while accepted plus pending sign-ups hold fewer places than the
-// leg's crew limit, waitlisted once they hold all of them. A leg without a
-// limit never waitlists. Run it in the transaction that locked the leg, so
+// leg's crew limit and nobody is waiting, waitlisted otherwise, so a
+// newcomer never gets ahead of an earlier waitlisted sign-up. A leg without
+// a limit never waitlists. Run it in the transaction that locked the leg, so
 // concurrent sign-ups count one another.
 func initialSignUpStatus(ctx context.Context, q sqlcdb.Querier, tripID int64, maxCrew types.NullInt64) (string, error) {
 	limit, ok := crewLimit(maxCrew)
 	if !ok {
 		return enrollmentPending, nil
 	}
-	taken, err := q.CountTakenPlacesForTrip(ctx, tripID)
+	use, err := q.CountTripPlaceUse(ctx, tripID)
 	if err != nil {
-		return "", &QueryError{Op: "CountTakenPlacesForTrip", Err: err}
+		return "", &QueryError{Op: "CountTripPlaceUse", Err: err}
 	}
-	if taken >= limit {
+	if use.Taken >= limit || use.Waitlisted > 0 {
 		return enrollmentWaitlisted, nil
 	}
 	return enrollmentPending, nil

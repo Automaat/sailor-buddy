@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2/humatest"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -134,6 +136,7 @@ func TestSignUpForTrip_Waitlist(t *testing.T) {
 		{"accepted plus pending fill the leg", limitedTrip(5, 3), []string{"accepted", "pending", "pending"}, "waitlisted", 1},
 		{"joins the end of the waiting list", limitedTrip(5, 1), []string{"accepted", "waitlisted", "waitlisted"}, "waitlisted", 3},
 		{"rejected sign-ups hold no place", limitedTrip(5, 2), []string{"accepted", "rejected", "rejected"}, "pending", 0},
+		{"no one jumps an earlier waitlisted sign-up", limitedTrip(5, 3), []string{"accepted", "rejected", "waitlisted"}, "waitlisted", 2},
 		{"unset max_crew never waitlists", limitedTrip(5, 0), []string{"accepted", "accepted", "pending"}, "pending", 0},
 	}
 	for _, c := range cases {
@@ -193,14 +196,14 @@ func TestEnrollLegs_WaitlistsFullLegs(t *testing.T) {
 	trips[0].MaxCrew = types.NullInt64{Int64: 1, Valid: true}
 	s := &legStore{rows: []sqlcdb.TripEnrollment{{ID: 1, TripID: 11, UserID: 99, Status: "pending"}}, nextID: 1}
 	m := newLegMock(s, trips)
-	m.countTakenPlacesForTripFn = func(_ context.Context, tripID int64) (int64, error) {
+	m.countTripPlaceUseFn = func(_ context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error) {
 		var n int64
 		for i := range s.rows {
 			if r := &s.rows[i]; r.TripID == tripID && (r.Status == "pending" || r.Status == "accepted") {
 				n++
 			}
 		}
-		return n, nil
+		return sqlcdb.CountTripPlaceUseRow{Taken: n}, nil
 	}
 	m.getWaitlistPositionFn = func(context.Context, int64) (int64, error) { return 1, nil }
 	code, out, body := postLegs(t, m, userCtxRole(context.Background(), "member"), map[string]any{"trip_ids": []int64{11, 12}})
@@ -220,8 +223,120 @@ func TestEnrollLegs_WaitlistsFullLegs(t *testing.T) {
 }
 
 func TestInitialSignUpStatus_CountError(t *testing.T) {
-	m := &mockQuerier{countTakenPlacesForTripFn: func(context.Context, int64) (int64, error) { return 0, sql.ErrConnDone }}
+	m := &mockQuerier{countTripPlaceUseFn: func(context.Context, int64) (sqlcdb.CountTripPlaceUseRow, error) {
+		return sqlcdb.CountTripPlaceUseRow{}, sql.ErrConnDone
+	}}
 	if _, err := initialSignUpStatus(context.Background(), m, 5, types.NullInt64{Int64: 2, Valid: true}); !errors.Is(err, sql.ErrConnDone) {
 		t.Fatalf("err = %v, want the count error", err)
+	}
+}
+
+// cruiseEnrollmentMock adds cruise 7's enrollments (s.legacy) to the
+// sign-up store's fake, so cruise enrollment changes see the legs' crew.
+func cruiseEnrollmentMock(s *signUpStore) *mockQuerier {
+	m := s.mock()
+	m.getCruiseEnrollmentOfCruiseFn = func(_ context.Context, arg sqlcdb.GetCruiseEnrollmentOfCruiseParams) (sqlcdb.CruiseEnrollment, error) {
+		for i := range s.legacy {
+			if s.legacy[i].ID == arg.ID && s.legacy[i].CruiseID == arg.CruiseID {
+				return s.legacy[i], nil
+			}
+		}
+		return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
+	}
+	m.updateCruiseEnrollmentStatusFn = func(_ context.Context, arg sqlcdb.UpdateCruiseEnrollmentStatusParams) error {
+		for i := range s.legacy {
+			if s.legacy[i].ID == arg.ID {
+				s.legacy[i].Status = arg.Status
+			}
+		}
+		return nil
+	}
+	m.assignCruiseEnrollmentFn = func(_ context.Context, arg sqlcdb.AssignCruiseEnrollmentToTripParams) error {
+		for i := range s.legacy {
+			if s.legacy[i].ID == arg.ID {
+				s.legacy[i].TripID = arg.TripID
+			}
+		}
+		return nil
+	}
+	return m
+}
+
+func cruiseEnrollmentAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	registerCruiseRoutes(api, &CruiseHandler{q: m, runTx: directTxRunner(m)})
+	return api
+}
+
+// TestCruiseEnrollment_Capacity runs against two legs: leg 5 has one place,
+// already taken, and leg 6 has a free place.
+func TestCruiseEnrollment_Capacity(t *testing.T) {
+	onLeg := func(tripID int64) types.NullInt64 { return types.NullInt64{Int64: tripID, Valid: true} }
+	cases := []struct {
+		name       string
+		legacy     sqlcdb.CruiseEnrollment
+		path       string
+		body       map[string]any
+		want       int
+		wantStatus string
+		wantTrip   types.NullInt64
+	}{
+		{
+			name:   "accepting on a full leg is refused",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 7, UserID: 300, TripID: onLeg(5), Status: "pending"},
+			path:   "/cruises/7/enrollments/1/status", body: map[string]any{"status": "accepted"},
+			want: http.StatusConflict, wantStatus: "pending", wantTrip: onLeg(5),
+		},
+		{
+			name:   "accepting on a leg with a free place",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 7, UserID: 300, TripID: onLeg(6), Status: "pending"},
+			path:   "/cruises/7/enrollments/1/status", body: map[string]any{"status": "accepted"},
+			want: http.StatusNoContent, wantStatus: "accepted", wantTrip: onLeg(6),
+		},
+		{
+			name:   "accepting without a leg needs no place",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 7, UserID: 300, Status: "pending"},
+			path:   "/cruises/7/enrollments/1/status", body: map[string]any{"status": "accepted"},
+			want: http.StatusNoContent, wantStatus: "accepted",
+		},
+		{
+			name:   "moving an accepted enrollment onto a full leg is refused",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 7, UserID: 300, TripID: onLeg(6), Status: "accepted"},
+			path:   "/cruises/7/enrollments/1/trip", body: map[string]any{"trip_id": 5},
+			want: http.StatusConflict, wantStatus: "accepted", wantTrip: onLeg(6),
+		},
+		{
+			name:   "moving a pending enrollment onto a full leg is allowed",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 7, UserID: 300, Status: "pending"},
+			path:   "/cruises/7/enrollments/1/trip", body: map[string]any{"trip_id": 5},
+			want: http.StatusNoContent, wantStatus: "pending", wantTrip: onLeg(5),
+		},
+		{
+			name:   "unassigning an accepted enrollment is allowed",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 7, UserID: 300, TripID: onLeg(5), Status: "accepted"},
+			path:   "/cruises/7/enrollments/1/trip", body: map[string]any{"trip_id": nil},
+			want: http.StatusNoContent, wantStatus: "accepted",
+		},
+		{
+			name:   "enrollment of another cruise is not found",
+			legacy: sqlcdb.CruiseEnrollment{ID: 1, CruiseID: 8, UserID: 300, TripID: onLeg(6), Status: "pending"},
+			path:   "/cruises/7/enrollments/1/status", body: map[string]any{"status": "accepted"},
+			want: http.StatusNotFound, wantStatus: "pending", wantTrip: onLeg(6),
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := newSignUpStore(limitedTrip(5, 1), limitedTrip(6, 2))
+			s.rows = enrollmentRows("accepted")
+			s.legacy = []sqlcdb.CruiseEnrollment{c.legacy}
+			resp := cruiseEnrollmentAPI(t, cruiseEnrollmentMock(s)).PutCtx(userCtx(context.Background()), c.path, c.body)
+			if resp.Code != c.want {
+				t.Fatalf("got %d, want %d; body=%s", resp.Code, c.want, resp.Body)
+			}
+			if got := s.legacy[0]; got.Status != c.wantStatus || got.TripID != c.wantTrip {
+				t.Fatalf("enrollment = %s on %+v, want %s on %+v", got.Status, got.TripID, c.wantStatus, c.wantTrip)
+			}
+		})
 	}
 }

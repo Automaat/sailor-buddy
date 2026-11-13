@@ -44,3 +44,17 @@ SELECT * FROM cruise_enrollments
 WHERE trip_id = $1 AND user_id = $2
 ORDER BY id
 LIMIT 1;
+
+-- name: GetCruiseEnrollmentOfCruise :one
+-- One enrollment of a cruise. No row when it does not exist or belongs to
+-- another cruise.
+SELECT * FROM cruise_enrollments
+WHERE id = $1 AND cruise_id = $2;
+
+-- name: LockCruiseEnrollmentOfCruise :one
+-- Row-locks one enrollment of a cruise for a capacity-checked change, taken
+-- after the leg's trip lock. No row when it does not exist or belongs to
+-- another cruise.
+SELECT * FROM cruise_enrollments
+WHERE id = $1 AND cruise_id = $2
+FOR UPDATE;

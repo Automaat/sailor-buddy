@@ -50,7 +50,8 @@ func TestAssignToCompletedTrip_Conflict(t *testing.T) {
 	for _, tt := range enrollTests {
 		t.Run("enrollment/"+tt.name, func(t *testing.T) {
 			m := &mockQuerier{
-				assignCruiseEnrollmentFn: func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error { return tt.err },
+				getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
+				assignCruiseEnrollmentFn:      func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error { return tt.err },
 			}
 			resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()),
 				"/cruises/1/enrollments/2/trip", map[string]any{"trip_id": 5})

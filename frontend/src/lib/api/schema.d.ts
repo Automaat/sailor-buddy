@@ -173,7 +173,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update a cruise enrollment's status (admin) */
+        /**
+         * Update a cruise enrollment's status (admin)
+         * @description Accepting an enrollment assigned to a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.
+         */
         put: operations["update-cruise-enrollment-status"];
         post?: never;
         delete?: never;
@@ -190,7 +193,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Assign a cruise enrollment to a trip (admin) */
+        /**
+         * Assign a cruise enrollment to a trip (admin)
+         * @description Moving an accepted enrollment onto a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.
+         */
         put: operations["assign-cruise-enrollment-trip"];
         post?: never;
         delete?: never;

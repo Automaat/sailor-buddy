@@ -107,8 +107,14 @@ func (s *signUpStore) mock() *mockQuerier {
 		countOtherAcceptedForTripFn: func(_ context.Context, arg sqlcdb.CountOtherAcceptedForTripParams) (int64, error) {
 			return s.count(arg.TripID, arg.UserID, "accepted"), nil
 		},
-		countTakenPlacesForTripFn: func(_ context.Context, tripID int64) (int64, error) {
-			return s.count(tripID, 0, "accepted", "pending"), nil
+		countTripPlaceUseFn: func(_ context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error) {
+			var waiting int64
+			for i := range s.rows {
+				if s.rows[i].TripID == tripID && s.rows[i].Status == "waitlisted" {
+					waiting++
+				}
+			}
+			return sqlcdb.CountTripPlaceUseRow{Taken: s.count(tripID, 0, "accepted", "pending"), Waitlisted: waiting}, nil
 		},
 		getWaitlistPositionFn: func(_ context.Context, id int64) (int64, error) {
 			// Rows are kept in sign-up order, like ORDER BY created_at, id.

@@ -16,7 +16,7 @@ import (
 func cruiseTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterCruiseRoutes(api, m)
+	registerCruiseRoutes(api, &CruiseHandler{q: m, runTx: directTxRunner(m)})
 	return api
 }
 
@@ -353,9 +353,16 @@ func TestCruiseHandler_ListEnrollments(t *testing.T) {
 	})
 }
 
+// unassignedCruiseEnrollment is a pending enrollment 2 of cruise 1 with no
+// leg, so status and assign changes need no capacity check.
+func unassignedCruiseEnrollment(context.Context, sqlcdb.GetCruiseEnrollmentOfCruiseParams) (sqlcdb.CruiseEnrollment, error) {
+	return sqlcdb.CruiseEnrollment{ID: 2, CruiseID: 1, UserID: 9, Status: "pending"}, nil
+}
+
 func TestCruiseHandler_UpdateEnrollmentStatus(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
+			getCruiseEnrollmentOfCruiseFn:  unassignedCruiseEnrollment,
 			updateCruiseEnrollmentStatusFn: func(context.Context, sqlcdb.UpdateCruiseEnrollmentStatusParams) error { return nil },
 		}
 		resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()),
@@ -367,6 +374,7 @@ func TestCruiseHandler_UpdateEnrollmentStatus(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
+			getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
 			updateCruiseEnrollmentStatusFn: func(context.Context, sqlcdb.UpdateCruiseEnrollmentStatusParams) error {
 				return errors.New("fail")
 			},
@@ -382,7 +390,8 @@ func TestCruiseHandler_UpdateEnrollmentStatus(t *testing.T) {
 func TestCruiseHandler_AssignEnrollmentToTrip(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			assignCruiseEnrollmentFn: func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error { return nil },
+			getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
+			assignCruiseEnrollmentFn:      func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error { return nil },
 		}
 		resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()),
 			"/cruises/1/enrollments/2/trip", map[string]any{"trip_id": 5})
@@ -393,6 +402,7 @@ func TestCruiseHandler_AssignEnrollmentToTrip(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
+			getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
 			assignCruiseEnrollmentFn: func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error {
 				return errors.New("fail")
 			},
@@ -426,7 +436,7 @@ func TestCruiseHandler_DeleteEnrollment(t *testing.T) {
 }
 
 func TestNewCruiseHandler(t *testing.T) {
-	if NewCruiseHandler(&mockQuerier{}) == nil {
+	if NewCruiseHandler(&mockQuerier{}, nil) == nil {
 		t.Fatal("want non-nil handler")
 	}
 }

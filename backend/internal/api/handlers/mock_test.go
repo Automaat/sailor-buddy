@@ -73,7 +73,8 @@ type mockQuerier struct {
 	lockTripForSignUpFn            func(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error)
 	lockTripEnrollmentOfTripFn     func(ctx context.Context, arg sqlcdb.LockTripEnrollmentOfTripParams) (sqlcdb.TripEnrollment, error)
 	countOtherAcceptedForTripFn    func(ctx context.Context, arg sqlcdb.CountOtherAcceptedForTripParams) (int64, error)
-	countTakenPlacesForTripFn      func(ctx context.Context, tripID int64) (int64, error)
+	countTripPlaceUseFn            func(ctx context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error)
+	getCruiseEnrollmentOfCruiseFn  func(ctx context.Context, arg sqlcdb.GetCruiseEnrollmentOfCruiseParams) (sqlcdb.CruiseEnrollment, error)
 	getWaitlistPositionFn          func(ctx context.Context, id int64) (int64, error)
 	updateUserTripEnrollNoteFn     func(ctx context.Context, arg sqlcdb.UpdateUserTripEnrollmentNoteParams) (sqlcdb.TripEnrollment, error)
 	deletePendingUserTripEnrollFn  func(ctx context.Context, arg sqlcdb.WithdrawUserTripEnrollmentParams) (int64, error)
@@ -1021,11 +1022,23 @@ func (m *mockQuerier) CountOtherAcceptedForTrip(ctx context.Context, arg sqlcdb.
 	return m.countOtherAcceptedForTripFn(ctx, arg)
 }
 
-func (m *mockQuerier) CountTakenPlacesForTrip(ctx context.Context, tripID int64) (int64, error) {
-	if m.countTakenPlacesForTripFn == nil {
-		panic("unexpected call to CountTakenPlacesForTrip")
+func (m *mockQuerier) CountTripPlaceUse(ctx context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error) {
+	if m.countTripPlaceUseFn == nil {
+		panic("unexpected call to CountTripPlaceUse")
 	}
-	return m.countTakenPlacesForTripFn(ctx, tripID)
+	return m.countTripPlaceUseFn(ctx, tripID)
+}
+
+func (m *mockQuerier) GetCruiseEnrollmentOfCruise(ctx context.Context, arg sqlcdb.GetCruiseEnrollmentOfCruiseParams) (sqlcdb.CruiseEnrollment, error) {
+	if m.getCruiseEnrollmentOfCruiseFn == nil {
+		panic("unexpected call to GetCruiseEnrollmentOfCruise")
+	}
+	return m.getCruiseEnrollmentOfCruiseFn(ctx, arg)
+}
+
+// LockCruiseEnrollmentOfCruise shares the get fake: locking changes no data.
+func (m *mockQuerier) LockCruiseEnrollmentOfCruise(ctx context.Context, arg sqlcdb.LockCruiseEnrollmentOfCruiseParams) (sqlcdb.CruiseEnrollment, error) {
+	return m.GetCruiseEnrollmentOfCruise(ctx, sqlcdb.GetCruiseEnrollmentOfCruiseParams(arg))
 }
 
 func (m *mockQuerier) GetWaitlistPosition(ctx context.Context, id int64) (int64, error) {
