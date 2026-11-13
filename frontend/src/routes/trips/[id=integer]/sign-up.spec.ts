@@ -130,6 +130,49 @@ describe('trip page sign-up', () => {
 		expect(getTripSignUp).toHaveBeenCalledTimes(1);
 	});
 
+	it.each([
+		['unpaid', 'Brak wpłaty'],
+		['deposit', 'Zaliczka wpłacona'],
+		['paid', 'Opłacone']
+	])('shows the %s payment status next to the sign-up status', async (payment, label) => {
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ payment_status: payment })
+		});
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('oczekujący');
+		expect(within(card).getByTestId('sign-up-payment')).toHaveTextContent(label);
+	});
+
+	it.each(['deposit', 'paid'])('hides withdraw on a pending sign-up with a %s payment', async (payment) => {
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ payment_status: payment })
+		});
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('oczekujący');
+		expect(within(card).queryByRole('button', { name: /Wycofaj/ })).not.toBeInTheDocument();
+	});
+
+	it('shows no payment status for a cruise-level enrollment', async () => {
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ cruise_id: 7 })
+		});
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-status')).toBeInTheDocument();
+		expect(within(card).queryByTestId('sign-up-payment')).not.toBeInTheDocument();
+	});
+
 	it('withdraws a pending sign-up', async () => {
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3, enrollment: enrollment() });
 		fn(withdrawTripSignUp).mockResolvedValue(undefined);
@@ -170,6 +213,34 @@ describe('trip page sign-up', () => {
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByText('Zapisy zamknięte')).toBeInTheDocument();
 		expect(within(card).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
+	});
+
+	it('shows the sign-up deadline', async () => {
+		fn(getTrip).mockResolvedValue(
+			makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8, sign_up_deadline: '2026-06-01' })
+		);
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' })).toBeEnabled();
+	});
+
+	it('shows Zapisy zamknięte once the deadline has passed', async () => {
+		fn(getTrip).mockResolvedValue(
+			makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8, sign_up_deadline: '2026-06-01' })
+		);
+		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByText('Zapisy zamknięte')).toBeInTheDocument();
+		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(card).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
+	});
+
+	it('omits the deadline when the leg has none', async () => {
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
 	});
 
 	it('shows a cancelled leg without free places or a button', async () => {

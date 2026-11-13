@@ -674,6 +674,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripID}/enrollments/{id}/payment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a trip enrollment's manual payment status (admin)
+         * @description Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. 404 when the trip has no such enrollment.
+         */
+        put: operations["update-trip-enrollment-payment-status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{tripID}/enrollments/{id}/status": {
         parameters: {
             query?: never;
@@ -714,7 +734,7 @@ export interface paths {
         post: operations["sign-up-for-trip"];
         /**
          * Withdraw the caller's pending or waitlisted leg sign-up
-         * @description Deletes the caller's sign-up while it is pending or on the waiting list. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it.
+         * @description Deletes the caller's sign-up while it is pending or on the waiting list and unpaid. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it or recorded a payment on it (deposit or paid).
          */
         delete: operations["withdraw-trip-sign-up"];
         options?: never;
@@ -1286,6 +1306,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             note?: string;
+            /**
+             * @description Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only
+             * @enum {string}
+             */
+            payment_status?: "unpaid" | "deposit" | "paid";
             status: string;
             /** Format: int64 */
             trip_id?: number;
@@ -1466,6 +1491,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -1544,6 +1574,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /**
              * Format: double
@@ -1565,6 +1600,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             note?: string;
+            /**
+             * @description Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only
+             * @enum {string}
+             */
+            payment_status?: "unpaid" | "deposit" | "paid";
             status: string;
             /** Format: int64 */
             trip_id?: number;
@@ -1674,7 +1714,7 @@ export interface components {
             accepted_count: number;
             /** @description The caller's sign-up for this leg; omitted when not signed up */
             enrollment?: components["schemas"]["Enrollment"];
-            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) */
+            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed */
             open: boolean;
             /** Format: int64 */
             trip_id: number;
@@ -1931,6 +1971,19 @@ export interface components {
              */
             total: number;
         };
+        PaymentStatusBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PaymentStatusBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description unpaid, deposit (first payment received) or paid (in full)
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "deposit" | "paid";
+        };
         PersonalSeaTime: {
             as_captain: components["schemas"]["SeaTime"];
             as_crew: components["schemas"]["SeaTime"];
@@ -2094,6 +2147,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -2166,6 +2224,11 @@ export interface components {
             max_crew?: number;
             /** @description Trip name */
             name: string;
+            /**
+             * Format: date
+             * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /**
              * Format: double
@@ -2183,6 +2246,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             note?: string;
+            /**
+             * @description Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only
+             * @enum {string}
+             */
+            payment_status?: "unpaid" | "deposit" | "paid";
             status: string;
             /** Format: int64 */
             trip_id?: number;
@@ -4349,6 +4417,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-trip-enrollment-payment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+                /** @description Enrollment ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentStatusBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
             };
             /** @description Error */
             default: {

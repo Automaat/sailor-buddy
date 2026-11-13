@@ -26,7 +26,15 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
-import { cancelTrip, getCruise, getTrip, listAssignableCrew, listTripCrew } from '#lib/api/routes.js';
+import {
+	cancelTrip,
+	generateTripEnrollToken,
+	getCruise,
+	getTrip,
+	getTripSignUp,
+	listAssignableCrew,
+	listTripCrew
+} from '#lib/api/routes.js';
 import TripDetailPage from './+page.svelte';
 
 const mockAuth = auth as unknown as { isAdmin: boolean };
@@ -95,6 +103,32 @@ describe('trip page status', () => {
 		expect(await screen.findByText(want)).toBeInTheDocument();
 		expect(screen.queryByText('Do rozliczenia')).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Zrealizuj teraz' })).not.toBeInTheDocument();
+	});
+});
+
+describe('trip page sign-up toggle', () => {
+	it('keeps a leg closed after switching sign-ups on past its deadline', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', embark_date: '2027-01-10', sign_up_deadline: '2026-11-12' }));
+		vi.mocked(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
+		vi.mocked(generateTripEnrollToken).mockResolvedValue({ token: 'tok' });
+		render(TripDetailPage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Włącz zapisy' }));
+		expect(await screen.findByRole('button', { name: 'Wyłącz zapisy' })).toBeInTheDocument();
+		expect(screen.getByText('Zapisy zamknięte')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Zapisz się: Jacht A' })).not.toBeInTheDocument();
+	});
+
+	it('opens a leg when sign-ups are switched on before its deadline', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', embark_date: '2027-01-10', sign_up_deadline: '2026-11-13' }));
+		vi.mocked(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
+		vi.mocked(generateTripEnrollToken).mockResolvedValue({ token: 'tok' });
+		render(TripDetailPage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Włącz zapisy' }));
+		expect(await screen.findByRole('button', { name: 'Zapisz się: Jacht A' })).toBeEnabled();
 	});
 });
 

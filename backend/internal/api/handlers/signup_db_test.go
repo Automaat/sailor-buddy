@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
@@ -151,5 +152,50 @@ func TestSignUp_CruiseEnrollmentAssignedToLegAgainstDatabase(t *testing.T) {
 	}
 	if resp := api.DeleteCtx(caller, path); resp.Code != http.StatusConflict {
 		t.Fatalf("withdraw: got %d, want 409; body=%s", resp.Code, resp.Body)
+	}
+}
+
+// TestSignUp_DeadlineAgainstDatabase checks that the sign-up deadline stored
+// on the trip reaches the locked open check of every sign-up path.
+func TestSignUp_DeadlineAgainstDatabase(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	leg := seedLeg(t, conn)
+	if _, err := conn.ExecContext(ctx,
+		"DELETE FROM trip_enrollments; UPDATE trips SET enroll_token = 'leg-tok', sign_up_deadline = '2027-05-10'"); err != nil {
+		t.Fatalf("set deadline: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, "UPDATE cruises SET enroll_token = 'cruise-tok' WHERE id = $1", leg.cruiseID); err != nil {
+		t.Fatalf("cruise token: %v", err)
+	}
+	warsawJustPastMidnight := time.Date(2027, 5, 10, 22, 30, 0, 0, time.UTC)
+	_, api := humatest.New(t)
+	registerEnrollmentRoutes(api, &EnrollmentHandler{
+		q: sqlcdb.New(conn), runTx: sqlTxRunner(conn), now: func() time.Time { return warsawJustPastMidnight },
+	})
+	caller := guestCtx(leg.userID)
+	tripPath := "/trips/" + strconv.FormatInt(leg.tripID, 10) + "/sign-up"
+
+	if resp := api.PostCtx(caller, tripPath); resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("one-click after deadline: got %d, want 422; body=%s", resp.Code, resp.Body)
+	}
+	if resp := api.PostCtx(caller, "/enroll/leg-tok", map[string]any{}); resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("trip token after deadline: got %d, want 422; body=%s", resp.Code, resp.Body)
+	}
+	if resp := api.PostCtx(caller, "/enroll/cruise-tok/legs", map[string]any{"trip_ids": []int64{leg.tripID}}); resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("cruise legs after deadline: got %d, want 422; body=%s", resp.Code, resp.Body)
+	}
+	var one dto.LegSignUp
+	if err := json.Unmarshal(api.GetCtx(caller, tripPath).Body.Bytes(), &one); err != nil || one.Open {
+		t.Fatalf("get = %+v (err %v), want closed leg", one, err)
+	}
+	var info dto.EnrollInfo
+	if err := json.Unmarshal(api.Get("/enroll/leg-tok").Body.Bytes(), &info); err != nil ||
+		info.Trip == nil || info.Trip.SignUpDeadline == nil || *info.Trip.SignUpDeadline != "2027-05-10" {
+		t.Fatalf("preview = %+v (err %v), want sign_up_deadline 2027-05-10", info.Trip, err)
+	}
+	var n int
+	if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM trip_enrollments").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("rows = %d (err %v), want 0", n, err)
 	}
 }

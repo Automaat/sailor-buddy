@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { freePlaces, freePlacesLabel, nextWaitlisted, numberLegs, waitlistLabel } from './enrollment';
+import {
+	freePlaces,
+	freePlacesLabel,
+	nextWaitlisted,
+	numberLegs,
+	paymentCounts,
+	signUpClosedByDeadline,
+	signUpDeadlineLabel,
+	waitlistLabel
+} from './enrollment';
 
 describe('numberLegs', () => {
 	it('orders by embark date, undated trips last, ties by id', () => {
@@ -93,5 +102,46 @@ describe('nextWaitlisted', () => {
 	it('marks no one without a crew limit or a waiting list', () => {
 		expect(nextWaitlisted(rows, 0, 1)).toBeNull();
 		expect(nextWaitlisted([rows[1]], 4, 1)).toBeNull();
+	});
+});
+
+describe('signUpClosedByDeadline', () => {
+	it.each([
+		['2027-05-10', '2027-05-09', false],
+		['2027-05-10', '2027-05-10', false],
+		['2027-05-10', '2027-05-11', true],
+		[undefined, '2099-01-01', false],
+		[null, '2099-01-01', false]
+	] as const)('deadline %s on %s is closed: %s', (deadline, today, want) => {
+		expect(signUpClosedByDeadline(deadline, today)).toBe(want);
+	});
+});
+
+describe('signUpDeadlineLabel', () => {
+	it('formats the date the Polish way', () => {
+		expect(signUpDeadlineLabel('2027-05-10')).toBe('Zapisy do 10.05.2027');
+	});
+
+	it('is null without a deadline', () => {
+		expect(signUpDeadlineLabel(undefined)).toBeNull();
+		expect(signUpDeadlineLabel('')).toBeNull();
+	});
+});
+
+describe('paymentCounts', () => {
+	it('counts each payment status, treating a missing one as unpaid', () => {
+		expect(
+			paymentCounts([
+				{ payment_status: 'paid' },
+				{ payment_status: 'deposit' },
+				{ payment_status: 'deposit' },
+				{ payment_status: 'unpaid' },
+				{}
+			])
+		).toEqual({ unpaid: 2, deposit: 2, paid: 1 });
+	});
+
+	it('returns zeros for no sign-ups', () => {
+		expect(paymentCounts([])).toEqual({ unpaid: 0, deposit: 0, paid: 0 });
 	});
 });

@@ -137,6 +137,9 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err != nil {
 		return nil, err
 	}
+	if err := checkSignUpDeadline(&in.Body); err != nil {
+		return nil, err
+	}
 	maxCrew, err := defaultMaxCrew(ctx, h.q, in.Body.YachtID, in.Body.MaxCrew)
 	if err != nil {
 		return nil, err
@@ -166,12 +169,32 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
 		Description:            nullString(in.Body.Description),
 		Status:                 sqlcdb.TripStatusPlanned,
+		SignUpDeadline:         nullString(in.Body.SignUpDeadline),
 	})
 	if err != nil {
 		slog.Error("create trip", "name", in.Body.Name, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
 	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
+}
+
+// checkSignUpDeadline rejects a sign-up deadline after the leg's embark
+// date: sign-ups must close before the leg sails. huma already enforces
+// the YYYY-MM-DD format; a leg without a parseable embark date takes any
+// deadline.
+func checkSignUpDeadline(b *dto.TripBody) error {
+	if b.SignUpDeadline == nil || b.EmbarkDate == nil {
+		return nil
+	}
+	deadline, err := time.Parse(time.DateOnly, *b.SignUpDeadline)
+	if err != nil {
+		return huma.Error422UnprocessableEntity("sign_up_deadline must be a YYYY-MM-DD date")
+	}
+	embark, embarkErr := time.Parse(time.DateOnly, *b.EmbarkDate)
+	if embarkErr == nil && deadline.After(embark) {
+		return huma.Error422UnprocessableEntity("sign_up_deadline must not be after embark_date")
+	}
+	return nil
 }
 
 // defaultMaxCrew returns the trip's crew limit: the explicit max_crew when
@@ -197,6 +220,9 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		return nil, err
 	}
 	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
+		return nil, err
+	}
+	if err := checkSignUpDeadline(&in.Body); err != nil {
 		return nil, err
 	}
 	current, err := h.q.GetTrip(ctx, in.ID)
@@ -242,6 +268,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
 		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
 		Description:            nullString(in.Body.Description),
+		SignUpDeadline:         nullString(in.Body.SignUpDeadline),
 		CruiseID:               in.Body.CruiseID,
 		ID:                     in.ID,
 	}); err != nil {

@@ -443,6 +443,45 @@ describe('cruise page leg sign-up', () => {
 		expect(withdraw !== null).toBe(want === 'oczekujący' || want === 'lista rezerwowa (1.)');
 	});
 
+	it('shows the sign-up deadline on the leg row', async () => {
+		fn(listCruiseTrips).mockResolvedValue([
+			legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' }),
+			legTrip(51, 'Jacht B')
+		]);
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(rowOf('Jacht B')).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
+	});
+
+	it('shows Zapisy zamknięte instead of the button once the deadline has passed', async () => {
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' })]);
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { open: false })]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		const row = rowOf('Jacht A');
+		expect(within(row).getByText('Zapisy zamknięte')).toBeInTheDocument();
+		expect(within(row).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
+	});
+
+	it.each([
+		['unpaid', 'Brak wpłaty'],
+		['deposit', 'Zaliczka wpłacona'],
+		['paid', 'Opłacone']
+	] as const)('shows the %s payment status next to the sign-up status', async (payment, label) => {
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
+		fn(listCruiseLegSignUps).mockResolvedValue([
+			signUp(50, { enrollment: pending(50, { status: 'accepted', payment_status: payment }) })
+		]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		const row = rowOf('Jacht A');
+		expect(within(row).getByTestId('sign-up-status')).toHaveTextContent('zaakceptowany');
+		expect(within(row).getByTestId('sign-up-payment')).toHaveTextContent(label);
+	});
+
 	it('shows a cruise-level enrollment assigned to the leg as the status, without withdraw or note', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([

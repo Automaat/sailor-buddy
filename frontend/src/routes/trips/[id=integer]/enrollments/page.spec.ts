@@ -8,101 +8,131 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTripSignUp: vi.fn(),
 	listTripEnrollments: vi.fn(),
 	updateTripEnrollmentStatus: vi.fn(),
+	updateTripEnrollmentPaymentStatus: vi.fn(),
 	deleteTripEnrollment: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
-import { ApiError } from '#lib/api/client.js';
 import {
 	getTrip,
 	getTripSignUp,
 	listTripEnrollments,
 	updateTripEnrollmentStatus,
-	deleteTripEnrollment
+	updateTripEnrollmentPaymentStatus
 } from '#lib/api/routes.js';
 import { makeTrip } from '#lib/test-utils.js';
 import EnrollmentsPage from './+page.svelte';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 
-function row(id: number, status: string, day: number) {
+function row(id: number, name: string, overrides: Record<string, unknown> = {}) {
 	return {
 		id,
 		trip_id: 50,
-		user_id: 100 + id,
-		user_name: `Osoba ${id}`,
-		user_email: `osoba${id}@example.com`,
-		status,
-		created_at: `2026-01-0${day}T00:00:00Z`,
-		updated_at: `2026-01-0${day}T00:00:00Z`
+		user_id: id,
+		user_name: name,
+		user_email: `${name.toLowerCase()}@example.com`,
+		status: 'pending',
+		payment_status: 'unpaid',
+		created_at: '2026-01-01T00:00:00Z',
+		updated_at: '2026-01-01T00:00:00Z',
+		...overrides
 	};
 }
 
-// A two-place leg: both places accepted, two people waiting.
-const fullLeg = () => [row(1, 'accepted', 1), row(2, 'accepted', 2), row(4, 'waitlisted', 4), row(3, 'waitlisted', 3)];
-
-function card(name: string) {
-	return screen.getByText(name).closest('div.rounded-xl') as HTMLElement;
-}
-
 beforeEach(() => {
-	fn(getTrip).mockReset().mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 2 }));
-	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 2 });
-	fn(listTripEnrollments).mockReset().mockResolvedValue(fullLeg());
-	fn(updateTripEnrollmentStatus).mockReset().mockResolvedValue(undefined);
-	fn(deleteTripEnrollment).mockReset().mockResolvedValue(undefined);
-	vi.spyOn(window, 'confirm').mockReturnValue(true);
-	vi.spyOn(console, 'error').mockImplementation(() => {});
+	fn(getTrip).mockReset().mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 8 }));
+	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 1 });
+	fn(listTripEnrollments)
+		.mockReset()
+		.mockResolvedValue([
+			row(1, 'Anna', { payment_status: 'paid', status: 'accepted' }),
+			row(2, 'Bartek', { payment_status: 'deposit' }),
+			row(3, 'Celina', { payment_status: 'deposit' }),
+			row(4, 'Darek')
+		]);
+	fn(updateTripEnrollmentStatus).mockReset();
+	fn(updateTripEnrollmentPaymentStatus).mockReset();
 });
 
-describe('trip enrollments admin page', () => {
-	it('marks no one as next while the leg is full', async () => {
+function counts() {
+	const box = screen.getByTestId('payment-counts');
+	return {
+		unpaid: within(box).getByTestId('payment-count-unpaid').textContent,
+		deposit: within(box).getByTestId('payment-count-deposit').textContent,
+		paid: within(box).getByTestId('payment-count-paid').textContent
+	};
+}
+
+describe('trip enrollments page payment status', () => {
+	it('shows each sign-up payment status and the counts per status', async () => {
 		render(EnrollmentsPage);
-		expect(await screen.findByTestId('free-places')).toHaveTextContent('wolne 0 z 2');
-		expect(screen.queryByTestId('next-waitlisted')).not.toBeInTheDocument();
+		const anna = await screen.findByLabelText('Płatność: Anna');
+		expect(anna).toHaveValue('paid');
+		expect(screen.getByLabelText('Płatność: Bartek')).toHaveValue('deposit');
+		expect(screen.getByLabelText('Płatność: Darek')).toHaveValue('unpaid');
+		expect(counts()).toEqual({
+			unpaid: 'Brak wpłaty: 1',
+			deposit: 'Zaliczka wpłacona: 2',
+			paid: 'Opłacone: 1'
+		});
 	});
 
-	it('explains a full leg when an accept is refused and keeps the status', async () => {
-		fn(updateTripEnrollmentStatus).mockRejectedValue(new ApiError(409, 'leg is full: all 2 places are taken'));
+	it('sets the payment status and updates the counts without touching acceptance', async () => {
+		fn(updateTripEnrollmentPaymentStatus).mockResolvedValue(row(4, 'Darek', { payment_status: 'deposit' }));
 		render(EnrollmentsPage);
-		await screen.findByText('Osoba 3');
+		const darek = await screen.findByLabelText('Płatność: Darek');
 
-		await fireEvent.click(within(card('Osoba 3')).getByRole('button', { name: 'Akceptuj' }));
+		await fireEvent.change(darek, { target: { value: 'deposit' } });
 
-		expect(await screen.findByRole('alert')).toHaveTextContent('Etap jest pełny');
-		expect(within(card('Osoba 3')).getByText('lista rezerwowa')).toBeInTheDocument();
+		await waitFor(() => expect(updateTripEnrollmentPaymentStatus).toHaveBeenCalledWith(50, 4, 'deposit'));
+		await waitFor(() => expect(counts().deposit).toBe('Zaliczka wpłacona: 3'));
+		expect(counts().unpaid).toBe('Brak wpłaty: 0');
+		expect(updateTripEnrollmentStatus).not.toHaveBeenCalled();
+		expect(screen.getAllByText('oczekujący')).toHaveLength(3);
 	});
 
-	it('shows a free place and marks the earliest waitlisted as next after a rejection', async () => {
+	it('disables the control while its change is saving', async () => {
+		let resolve: (v: unknown) => void = () => {};
+		fn(updateTripEnrollmentPaymentStatus).mockReturnValue(new Promise((r) => (resolve = r)));
 		render(EnrollmentsPage);
-		await screen.findByText('Osoba 1');
+		const darek = await screen.findByLabelText('Płatność: Darek');
 
-		await fireEvent.click(within(card('Osoba 1')).getByRole('button', { name: 'Odrzuć' }));
+		await fireEvent.change(darek, { target: { value: 'paid' } });
 
-		await waitFor(() => expect(updateTripEnrollmentStatus).toHaveBeenCalledWith(50, 1, 'rejected'));
-		expect(await screen.findByTestId('free-places')).toHaveTextContent('wolne 1 z 2');
-		const next = screen.getByTestId('next-waitlisted');
-		expect(card('Osoba 3')).toContainElement(next);
-		expect(screen.getAllByTestId('next-waitlisted')).toHaveLength(1);
-		expect(updateTripEnrollmentStatus).not.toHaveBeenCalledWith(50, 3, 'accepted');
+		await waitFor(() => expect(darek).toBeDisabled());
+		expect(screen.getByLabelText('Płatność: Anna')).toBeEnabled();
+		resolve(row(4, 'Darek', { payment_status: 'paid' }));
+		await waitFor(() => expect(darek).toBeEnabled());
+		expect(counts().paid).toBe('Opłacone: 2');
 	});
 
-	it('marks the next waitlisted after an accepted sign-up is deleted', async () => {
+	it('shows the saved payment status after a reload', async () => {
+		fn(listTripEnrollments).mockResolvedValue([row(4, 'Darek', { payment_status: 'paid' })]);
 		render(EnrollmentsPage);
-		await screen.findByText('Osoba 2');
-
-		await fireEvent.click(within(card('Osoba 2')).getByRole('button', { name: 'Usuń' }));
-
-		await waitFor(() => expect(deleteTripEnrollment).toHaveBeenCalledWith(50, 2));
-		expect(within(card('Osoba 3')).getByTestId('next-waitlisted')).toBeInTheDocument();
+		expect(await screen.findByLabelText('Płatność: Darek')).toHaveValue('paid');
+		expect(counts().paid).toBe('Opłacone: 1');
 	});
 
-	it('counts cruise-level accepted crew toward the places', async () => {
-		fn(listTripEnrollments).mockResolvedValue([row(1, 'accepted', 1), row(3, 'waitlisted', 3)]);
+	it('reverts the control and shows an error when saving fails', async () => {
+		fn(updateTripEnrollmentPaymentStatus).mockRejectedValue(new Error('403'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		render(EnrollmentsPage);
-		expect(await screen.findByTestId('free-places')).toHaveTextContent('wolne 0 z 2');
-		expect(screen.queryByTestId('next-waitlisted')).not.toBeInTheDocument();
+		const anna = await screen.findByLabelText('Płatność: Anna');
+
+		await fireEvent.change(anna, { target: { value: 'unpaid' } });
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('Nie udało się zapisać statusu płatności');
+		expect(anna).toHaveValue('paid');
+		expect(counts().paid).toBe('Opłacone: 1');
+	});
+
+	it('hides the counts when there are no sign-ups', async () => {
+		fn(listTripEnrollments).mockResolvedValue([]);
+		render(EnrollmentsPage);
+		expect(await screen.findByText('Brak zapisów.')).toBeInTheDocument();
+		expect(screen.queryByTestId('payment-counts')).not.toBeInTheDocument();
 	});
 });

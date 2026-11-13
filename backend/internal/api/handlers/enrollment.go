@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -23,6 +24,8 @@ import (
 type EnrollmentHandler struct {
 	q     sqlcdb.Querier
 	runTx txRunner
+	// now is the clock for sign-up deadlines; nil means time.Now.
+	now func() time.Time
 }
 
 func NewEnrollmentHandler(q sqlcdb.Querier, db *sql.DB) *EnrollmentHandler {
@@ -69,6 +72,12 @@ type tripEnrollmentStatusInput struct {
 	TripID int64 `path:"tripID" doc:"Trip ID"`
 	ID     int64 `path:"id" doc:"Enrollment ID"`
 	Body   dto.EnrollmentStatusBody
+}
+
+type tripEnrollmentPaymentInput struct {
+	TripID int64 `path:"tripID" doc:"Trip ID"`
+	ID     int64 `path:"id" doc:"Enrollment ID"`
+	Body   dto.PaymentStatusBody
 }
 
 type tripEnrollmentParam struct {
@@ -126,6 +135,14 @@ func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 			"not exist or belongs to another trip.",
 		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateStatus)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-trip-enrollment-payment-status", Method: http.MethodPut,
+		Path:    "/trips/{tripID}/enrollments/{id}/payment-status",
+		Summary: "Set a trip enrollment's manual payment status (admin)",
+		Description: "Records whether the sign-up is unpaid, has its first payment (deposit) or is paid " +
+			"in full. The review status is left unchanged. 404 when the trip has no such enrollment.",
+		Tags: tag,
+	}, h.updatePaymentStatus)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-trip-enrollment", Method: http.MethodDelete, Path: "/trips/{tripID}/enrollments/{id}",
 		Summary: "Delete a trip enrollment (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
@@ -226,6 +243,9 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 		if status != sqlcdb.TripStatusPlanned {
 			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
 		}
+		if deadlinePassed(trip.SignUpDeadline, h.today()) {
+			return nil, huma.Error422UnprocessableEntity("sign-up closed: the sign-up deadline has passed")
+		}
 		// Unlike the leg sign-up, this legacy share-link path takes no trip
 		// lock, so two concurrent enrollments may both start pending. Accepts
 		// still enforce max_crew under the lock.
@@ -310,6 +330,7 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		for i := range trips {
 			legs[trips[i].ID] = trips[i]
 		}
+		today := h.today()
 		for _, id := range in.Body.TripIDs {
 			leg, ok := legs[id]
 			if !ok {
@@ -317,6 +338,9 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 			}
 			if leg.Status != sqlcdb.TripStatusPlanned {
 				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not open for enrollment", id)}
+			}
+			if deadlinePassed(leg.SignUpDeadline, today) {
+				return &invalidLegsError{msg: fmt.Sprintf("trip %d: the sign-up deadline has passed", id)}
 			}
 		}
 
@@ -469,6 +493,29 @@ func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollment
 		return nil, huma.Error500InternalServerError("failed to update status")
 	}
 	return &noContentOutput{}, nil
+}
+
+// updatePaymentStatus sets the manual payment status of one sign-up of the
+// trip. The update is scoped to the trip, so an enrollment of another trip
+// is a 404.
+func (h *EnrollmentHandler) updatePaymentStatus(ctx context.Context, in *tripEnrollmentPaymentInput) (*enrollmentBodyOutput, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	e, err := h.q.UpdateTripEnrollmentPaymentStatus(ctx, sqlcdb.UpdateTripEnrollmentPaymentStatusParams{
+		PaymentStatus: in.Body.PaymentStatus,
+		ID:            in.ID,
+		TripID:        in.TripID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("enrollment not found")
+		}
+		slog.Error("update trip enrollment payment status", "trip_id", in.TripID, "enrollment_id", in.ID,
+			"payment_status", in.Body.PaymentStatus, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update payment status")
+	}
+	return &enrollmentBodyOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
 }
 
 func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnrollmentParam) (*noContentOutput, error) {

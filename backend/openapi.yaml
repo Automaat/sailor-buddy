@@ -469,6 +469,13 @@ components:
           type: integer
         note:
           type: string
+        payment_status:
+          description: "Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"
+          enum:
+            - unpaid
+            - deposit
+            - paid
+          type: string
         status:
           type: string
         trip_id:
@@ -792,6 +799,10 @@ components:
           type: integer
         name:
           type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
+          type: string
         start_port:
           type: string
         status:
@@ -924,6 +935,10 @@ components:
           type: integer
         name:
           type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
+          type: string
         start_port:
           type: string
         yacht_fund:
@@ -955,6 +970,13 @@ components:
           format: int64
           type: integer
         note:
+          type: string
+        payment_status:
+          description: "Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"
+          enum:
+            - unpaid
+            - deposit
+            - paid
           type: string
         status:
           type: string
@@ -1115,7 +1137,7 @@ components:
           $ref: "#/components/schemas/Enrollment"
           description: The caller's sign-up for this leg; omitted when not signed up
         open:
-          description: "Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"
+          description: "Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed"
           type: boolean
         trip_id:
           format: int64
@@ -1534,6 +1556,26 @@ components:
         - offset
         - has_more
       type: object
+    PaymentStatusBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PaymentStatusBody.json
+          format: uri
+          readOnly: true
+          type: string
+        payment_status:
+          description: unpaid, deposit (first payment received) or paid (in full)
+          enum:
+            - unpaid
+            - deposit
+            - paid
+          type: string
+      required:
+        - payment_status
+      type: object
     PersonalSeaTime:
       additionalProperties: false
       properties:
@@ -1817,6 +1859,10 @@ components:
           type: integer
         name:
           type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
+          type: string
         start_port:
           type: string
         status:
@@ -1925,6 +1971,10 @@ components:
           description: Trip name
           minLength: 1
           type: string
+        sign_up_deadline:
+          description: Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
+          format: date
+          type: string
         start_port:
           type: string
         yacht_fund:
@@ -1952,6 +2002,13 @@ components:
           format: int64
           type: integer
         note:
+          type: string
+        payment_status:
+          description: "Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"
+          enum:
+            - unpaid
+            - deposit
+            - paid
           type: string
         status:
           type: string
@@ -4177,6 +4234,49 @@ paths:
       summary: Delete a trip enrollment (admin)
       tags:
         - Enrollment
+  /trips/{tripID}/enrollments/{id}/payment-status:
+    put:
+      description: Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. 404 when the trip has no such enrollment.
+      operationId: update-trip-enrollment-payment-status
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentStatusBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Set a trip enrollment's manual payment status (admin)
+      tags:
+        - Enrollment
   /trips/{tripID}/enrollments/{id}/status:
     put:
       description: "Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. 404 when the enrollment does not exist or belongs to another trip."
@@ -4218,7 +4318,7 @@ paths:
         - Enrollment
   /trips/{tripID}/sign-up:
     delete:
-      description: Deletes the caller's sign-up while it is pending or on the waiting list. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it.
+      description: Deletes the caller's sign-up while it is pending or on the waiting list and unpaid. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it or recorded a payment on it (deposit or paid).
       operationId: withdraw-trip-sign-up
       parameters:
         - description: Trip ID

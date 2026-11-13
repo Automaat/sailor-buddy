@@ -30,7 +30,7 @@ func limitedTrip(id, maxCrew int64) sqlcdb.Trip {
 func enrollmentRows(statuses ...string) []sqlcdb.TripEnrollment {
 	rows := make([]sqlcdb.TripEnrollment, len(statuses))
 	for i, st := range statuses {
-		rows[i] = sqlcdb.TripEnrollment{ID: int64(i + 1), TripID: 5, UserID: int64(100 + i), Status: st}
+		rows[i] = sqlcdb.TripEnrollment{ID: int64(i + 1), TripID: 5, UserID: int64(100 + i), Status: st, PaymentStatus: "unpaid"}
 	}
 	return rows
 }

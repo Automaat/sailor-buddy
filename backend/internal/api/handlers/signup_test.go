@@ -58,7 +58,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			if !ok {
 				return sqlcdb.LockTripForSignUpRow{}, sql.ErrNoRows
 			}
-			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, MaxCrew: t.MaxCrew}, nil
+			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, MaxCrew: t.MaxCrew, SignUpDeadline: t.SignUpDeadline}, nil
 		},
 		getUserTripEnrollmentFn: func(_ context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 			if i, ok := s.find(arg.TripID, arg.UserID); ok {
@@ -72,7 +72,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			}
 			s.inserts++
 			s.nextID++
-			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, UserID: arg.UserID, Note: arg.Note, Status: arg.Status}
+			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, UserID: arg.UserID, Note: arg.Note, Status: arg.Status, PaymentStatus: "unpaid"}
 			s.rows = append(s.rows, row)
 			return row, nil
 		},
@@ -86,7 +86,7 @@ func (s *signUpStore) mock() *mockQuerier {
 		},
 		deletePendingUserTripEnrollFn: func(_ context.Context, arg sqlcdb.WithdrawUserTripEnrollmentParams) (int64, error) {
 			i, ok := s.find(arg.TripID, arg.UserID)
-			if !ok || (s.rows[i].Status != "pending" && s.rows[i].Status != "waitlisted") {
+			if !ok || (s.rows[i].Status != "pending" && s.rows[i].Status != "waitlisted") || s.rows[i].PaymentStatus != "unpaid" {
 				return 0, sql.ErrNoRows
 			}
 			id := s.rows[i].ID
@@ -419,20 +419,24 @@ func TestWithdrawTripSignUp(t *testing.T) {
 	cases := []struct {
 		name     string
 		status   string
+		payment  string
 		want     int
 		wantRows int
 	}{
-		{"pending is withdrawn", "pending", http.StatusNoContent, 0},
-		{"accepted stays", "accepted", http.StatusConflict, 1},
-		{"waitlisted is withdrawn", "waitlisted", http.StatusNoContent, 0},
-		{"rejected stays", "rejected", http.StatusConflict, 1},
-		{"not signed up", "", http.StatusNotFound, 0},
+		{"pending is withdrawn", "pending", "unpaid", http.StatusNoContent, 0},
+		{"accepted stays", "accepted", "unpaid", http.StatusConflict, 1},
+		{"waitlisted is withdrawn", "waitlisted", "unpaid", http.StatusNoContent, 0},
+		{"rejected stays", "rejected", "unpaid", http.StatusConflict, 1},
+		{"pending with deposit stays", "pending", "deposit", http.StatusConflict, 1},
+		{"pending and paid stays", "pending", "paid", http.StatusConflict, 1},
+		{"waitlisted with deposit stays", "waitlisted", "deposit", http.StatusConflict, 1},
+		{"not signed up", "", "", http.StatusNotFound, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSignUpStore(openTrip(5))
 			if c.status != "" {
-				s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 42, Status: c.status}}
+				s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 42, Status: c.status, PaymentStatus: c.payment}}
 			}
 			resp := enrollTestAPI(t, s.mock()).DeleteCtx(guestCtx(42), "/trips/5/sign-up")
 			if resp.Code != c.want {
@@ -445,7 +449,7 @@ func TestWithdrawTripSignUp(t *testing.T) {
 	}
 	t.Run("other users' sign-ups are untouched", func(t *testing.T) {
 		s := newSignUpStore(openTrip(5))
-		s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 8, Status: "pending"}}
+		s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 8, Status: "pending", PaymentStatus: "unpaid"}}
 		resp := enrollTestAPI(t, s.mock()).DeleteCtx(guestCtx(42), "/trips/5/sign-up")
 		if resp.Code != http.StatusNotFound || len(s.rows) != 1 {
 			t.Fatalf("got %d with %d rows, want 404 and the other row kept", resp.Code, len(s.rows))

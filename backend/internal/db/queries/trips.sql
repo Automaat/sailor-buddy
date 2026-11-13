@@ -3,10 +3,10 @@ INSERT INTO trips (
     created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
     captain_name, yacht_id, cost_total, cost_per_person, max_crew,
     image_logo_url, image_photo_url, image_route_url, description, status, captain_user_id,
-    currency, cost_per_person_non_member, yacht_fund, deposit
+    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-    $20, $21, $22, $23
+    $20, $21, $22, $23, $24
 ) RETURNING *;
 
 -- name: GetTrip :one
@@ -41,8 +41,9 @@ UPDATE trips SET
     image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
     cruise_id = $16, captain_user_id = $17,
     currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
+    sign_up_deadline = $22,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $22;
+WHERE id = $23;
 
 -- name: DeleteTrip :exec
 DELETE FROM trips WHERE id = $1;
@@ -63,5 +64,6 @@ UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = 
 -- name: GetTripByEnrollToken :one
 SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, max_crew, captain_name, image_photo_url,
-       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit
+       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit,
+       sign_up_deadline
 FROM trips WHERE enroll_token = $1;

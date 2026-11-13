@@ -4,7 +4,8 @@ INSERT INTO trip_enrollments (trip_id, user_id, note, status)
 VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: ListTripEnrollments :many
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+       te.created_at, te.updated_at,
        u.name AS user_name, u.email AS user_email
 FROM trip_enrollments te
 JOIN users u ON u.id = te.user_id
@@ -20,6 +21,13 @@ UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id
 SELECT * FROM trip_enrollments
 WHERE id = $1 AND trip_id = $2
 FOR UPDATE;
+
+-- name: UpdateTripEnrollmentPaymentStatus :one
+-- Sets the manual payment status of one sign-up of a trip. The review
+-- status is left unchanged. No row when the trip has no such enrollment.
+UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
+WHERE id = $2 AND trip_id = $3
+RETURNING *;
 
 -- name: DeleteTripEnrollment :exec
 DELETE FROM trip_enrollments WHERE id = $1;
@@ -118,7 +126,7 @@ ORDER BY t.embark_date ASC, t.id ASC;
 -- leg cannot be cancelled or removed between validation and insert, and
 -- concurrent sign-ups and accepts of one leg take its places one at a time.
 -- FOR NO KEY UPDATE still lets foreign-key checks (KEY SHARE) through.
-SELECT id, status, max_crew FROM trips
+SELECT id, status, max_crew, sign_up_deadline FROM trips
 WHERE cruise_id = $1
 ORDER BY id
 FOR NO KEY UPDATE;
@@ -135,8 +143,9 @@ SELECT (
 -- the write, and concurrent sign-ups and accepts of the leg take its places
 -- one at a time. FOR NO KEY UPDATE still lets foreign-key checks (KEY SHARE)
 -- through. open is true while the leg's sign-ups are switched on (it has an
--- enroll token). No row when the trip does not exist.
-SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, max_crew
+-- enroll token); sign_up_deadline is the last day it takes them. No row when
+-- the trip does not exist.
+SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, max_crew, sign_up_deadline
 FROM trips
 WHERE id = $1
 FOR NO KEY UPDATE;
@@ -150,15 +159,17 @@ RETURNING *;
 
 -- name: WithdrawUserTripEnrollment :one
 -- Withdraws the caller's own sign-up for a trip while it is pending or on
--- the waiting list. No row when the user has no such sign-up for it.
+-- the waiting list and no payment is recorded on it. No row when the user
+-- has no such sign-up for it.
 DELETE FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2 AND status IN ('pending', 'waitlisted')
+WHERE trip_id = $1 AND user_id = $2 AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
 RETURNING id;
 
 -- name: ListCruiseTripEnrollments :many
 -- Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
 -- leg in leg order, then by sign-up time.
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+       te.created_at, te.updated_at,
        u.name AS user_name, u.email AS user_email
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id

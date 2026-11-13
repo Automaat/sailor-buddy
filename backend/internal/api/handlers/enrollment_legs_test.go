@@ -62,7 +62,7 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 			}
 			out := make([]sqlcdb.LockCruiseTripStatusesRow, len(trips))
 			for i := range trips {
-				out[i] = sqlcdb.LockCruiseTripStatusesRow{ID: trips[i].ID, Status: trips[i].Status, MaxCrew: trips[i].MaxCrew}
+				out[i] = sqlcdb.LockCruiseTripStatusesRow{ID: trips[i].ID, Status: trips[i].Status, MaxCrew: trips[i].MaxCrew, SignUpDeadline: trips[i].SignUpDeadline}
 			}
 			return out, nil
 		},
