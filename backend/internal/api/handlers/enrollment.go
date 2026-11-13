@@ -91,7 +91,10 @@ func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 	}, h.getByToken)
 	huma.Register(api, huma.Operation{
 		OperationID: "enroll", Method: http.MethodPost, Path: "/enroll/{token}",
-		Summary: "Self-enroll via a share token", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Self-enroll via a trip share token",
+		Description: "Creates a pending enrollment for the token's trip. A cruise token returns 422: " +
+			"sign-ups are per leg, made through enroll-cruise-legs.",
+		Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.enroll)
 	huma.Register(api, huma.Operation{
 		OperationID: "enroll-cruise-legs", Method: http.MethodPost, Path: "/enroll/{token}/legs",
@@ -122,6 +125,8 @@ func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 		OperationID: "delete-trip-enrollment", Method: http.MethodDelete, Path: "/trips/{tripID}/enrollments/{id}",
 		Summary: "Delete a trip enrollment (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.deleteEnrollment)
+
+	registerSignUpRoutes(api, h)
 }
 
 // getByToken resolves a share token, which may belong to a trip or a cruise.
@@ -204,7 +209,8 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 	return &enrollInfoOutput{Body: info}, nil
 }
 
-// enroll self-enrolls the caller into the trip or cruise the token resolves to.
+// enroll self-enrolls the caller into the trip a trip token resolves to. A
+// cruise token returns 422: sign-ups are per leg, made through enrollLegs.
 func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrollmentOutput, error) {
 	user := middleware.GetUser(ctx)
 	tok := types.NullString{String: in.Token, Valid: true}
@@ -237,27 +243,16 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 		return nil, huma.Error500InternalServerError("failed to get trip")
 	}
 
-	cruise, cerr := h.q.GetCruiseByEnrollToken(ctx, tok)
-	if cerr != nil {
+	// Sign-ups are per leg: a cruise token no longer takes a whole-cruise
+	// sign-up. Legs are picked through enroll-cruise-legs instead.
+	if _, cerr := h.q.GetCruiseByEnrollToken(ctx, tok); cerr != nil {
 		if errors.Is(cerr, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("invalid enrollment link")
 		}
 		slog.Error("get cruise by enroll token for enroll", "err", cerr)
 		return nil, huma.Error500InternalServerError("failed to get cruise")
 	}
-	e, err := h.q.CreateCruiseEnrollment(ctx, sqlcdb.CreateCruiseEnrollmentParams{
-		CruiseID: cruise.ID,
-		UserID:   user.UserID,
-		Note:     nullString(in.Body.Note),
-	})
-	if err != nil {
-		if isUniqueViolation(err) {
-			return nil, huma.Error409Conflict("already enrolled")
-		}
-		slog.Error("create cruise enrollment", "cruise_id", cruise.ID, "user_id", user.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to enroll")
-	}
-	return &enrollmentOutput{Body: dto.CruiseEnrollmentToDTO(e)}, nil
+	return nil, huma.Error422UnprocessableEntity("sign up for a leg: pick legs through POST /enroll/{token}/legs")
 }
 
 // invalidLegsError aborts the leg enrollment transaction when a picked trip is

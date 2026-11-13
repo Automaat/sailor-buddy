@@ -114,6 +114,42 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		verb: 'del',
 		args: ['/trips/{tripID}/enrollments/{id}', { path: { tripID: 5, id: 9 } }]
 	},
+	{
+		name: 'getTripSignUp',
+		run: () => routes.getTripSignUp(5),
+		verb: 'get',
+		args: ['/trips/{tripID}/sign-up', { path: { tripID: 5 } }]
+	},
+	{
+		name: 'signUpForTrip',
+		run: () => routes.signUpForTrip(5),
+		verb: 'post',
+		args: ['/trips/{tripID}/sign-up', { path: { tripID: 5 } }]
+	},
+	{
+		name: 'updateTripSignUpNote',
+		run: () => routes.updateTripSignUpNote(5, 'hi'),
+		verb: 'put',
+		args: ['/trips/{tripID}/sign-up/note', { path: { tripID: 5 }, body: { note: 'hi' } }]
+	},
+	{
+		name: 'withdrawTripSignUp',
+		run: () => routes.withdrawTripSignUp(5),
+		verb: 'del',
+		args: ['/trips/{tripID}/sign-up', { path: { tripID: 5 } }]
+	},
+	{
+		name: 'listCruiseLegSignUps',
+		run: () => routes.listCruiseLegSignUps(7),
+		verb: 'get',
+		args: ['/cruises/{cruiseID}/leg-sign-ups', { path: { cruiseID: 7 } }]
+	},
+	{
+		name: 'listCruiseTripEnrollments',
+		run: () => routes.listCruiseTripEnrollments(7),
+		verb: 'get',
+		args: ['/cruises/{cruiseID}/trip-enrollments', { path: { cruiseID: 7 } }]
+	},
 
 	{ name: 'listVoyages', run: () => routes.listVoyages(), verb: 'list', args: ['/voyages'] },
 	{

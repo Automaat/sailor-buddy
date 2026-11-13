@@ -11,9 +11,17 @@
 		listAssignableCrew,
 		getCruise,
 		generateTripEnrollToken,
-		clearTripEnrollToken
+		clearTripEnrollToken,
+		getTripSignUp
 	} from '#lib/api/routes.js';
-	import type { Trip, CrewAssignment, CrewMember, Cruise, CompleteTripPayload } from '#lib/api/types.js';
+	import type {
+		Trip,
+		CrewAssignment,
+		CrewMember,
+		Cruise,
+		CompleteTripPayload,
+		LegSignUp
+	} from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -22,6 +30,8 @@
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
+	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
+	import { freePlacesLabel } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 
 	let trip = $state<Trip | null>(null);
@@ -36,6 +46,8 @@
 	let assigning = $state(false);
 
 	let enrollToken = $state<string | null>(null);
+	let signUp = $state<LegSignUp | null>(null);
+	const places = $derived(trip && signUp ? freePlacesLabel(trip.max_crew, signUp.accepted_count) : null);
 	let togglingEnroll = $state(false);
 
 	let completing = $state(false);
@@ -49,9 +61,10 @@
 		try {
 			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
-			[crew, allCrewMembers] = await Promise.all([
+			[crew, allCrewMembers, signUp] = await Promise.all([
 				listTripCrew(id).then((c) => c ?? []).catch(() => []),
-				listAssignableCrew().catch(() => [])
+				listAssignableCrew().catch(() => []),
+				getTripSignUp(id).catch(() => null)
 			]);
 			if (trip?.cruise_id) {
 				cruise = await getCruise(trip.cruise_id).catch(() => null);
@@ -83,6 +96,7 @@
 				const res = await generateTripEnrollToken(id);
 				enrollToken = res.token;
 			}
+			if (signUp) signUp = { ...signUp, open: enrollToken !== null && trip?.status === 'planned' };
 		} catch (err) {
 			console.error('Failed to toggle enrollment:', err);
 		} finally {
@@ -126,6 +140,7 @@
 		try {
 			trip = await cancelTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
+			signUp = await getTripSignUp(id).catch(() => signUp);
 		} catch (err) {
 			console.error('Failed to cancel trip:', err);
 		} finally {
@@ -241,6 +256,23 @@
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Opis</h2>
 				<p class="whitespace-pre-wrap text-sm">{trip.description}</p>
+			</div>
+		{/if}
+
+		{#if signUp}
+			<div class="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-6 shadow-sm" data-testid="my-sign-up">
+				<div>
+					<h2 class="font-semibold text-[var(--navy)]">Twój zapis</h2>
+					{#if places && trip.status !== 'cancelled'}
+						<p class="mt-1 text-sm text-[var(--text-muted)]" data-testid="free-places">{places}</p>
+					{/if}
+				</div>
+				<LegSignUpControl
+					{signUp}
+					legName={trip.name}
+					cancelled={trip.status === 'cancelled'}
+					onchange={(next) => (signUp = next)}
+				/>
 			</div>
 		{/if}
 

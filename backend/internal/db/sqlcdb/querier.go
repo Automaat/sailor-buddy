@@ -135,11 +135,6 @@ type Querier interface {
 	//      $17, $18, $19, $20, $21, $22, $23, $24, $25
 	//  ) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age
 	CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error)
-	//CreateCruiseEnrollment
-	//
-	//  INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-	//  VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, created_at, updated_at
-	CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error)
 	//CreateCruiseSeries
 	//
 	//  INSERT INTO cruise_series (created_by, name, description)
@@ -228,6 +223,13 @@ type Querier interface {
 	//
 	//  DELETE FROM cruise_series WHERE id = $1
 	DeleteCruiseSeries(ctx context.Context, id int64) error
+	// Withdraws the caller's own sign-up for a trip while it is still pending.
+	// No row when the user has no pending sign-up for it.
+	//
+	//  DELETE FROM trip_enrollments
+	//  WHERE trip_id = $1 AND user_id = $2 AND status = 'pending'
+	//  RETURNING id
+	DeletePendingUserTripEnrollment(ctx context.Context, arg DeletePendingUserTripEnrollmentParams) (int64, error)
 	//DeleteTraining
 	//
 	//  DELETE FROM trainings WHERE id = $1 AND user_id = $2
@@ -368,6 +370,15 @@ type Querier interface {
 	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
 	//  WHERE cruise_id = $1 AND user_id = $2
 	GetUserCruiseEnrollment(ctx context.Context, arg GetUserCruiseEnrollmentParams) (CruiseEnrollment, error)
+	// A user's cruise-level enrollment assigned to a trip. Cruise enrollments
+	// predate per-leg sign-up; one assigned to a leg counts as the user's
+	// sign-up for that leg.
+	//
+	//  SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+	//  WHERE trip_id = $1 AND user_id = $2
+	//  ORDER BY id
+	//  LIMIT 1
+	GetUserCruiseEnrollmentForTrip(ctx context.Context, arg GetUserCruiseEnrollmentForTripParams) (CruiseEnrollment, error)
 	//GetUserTripEnrollment
 	//
 	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at FROM trip_enrollments
@@ -455,6 +466,17 @@ type Querier interface {
 	//  GROUP BY c.id
 	//  ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 	ListCruiseSeriesEditions(ctx context.Context, seriesID types.NullInt64) ([]ListCruiseSeriesEditionsRow, error)
+	// Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
+	// leg in leg order, then by sign-up time.
+	//
+	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at,
+	//         u.name AS user_name, u.email AS user_email
+	//  FROM trip_enrollments te
+	//  JOIN trips t ON t.id = te.trip_id
+	//  JOIN users u ON u.id = te.user_id
+	//  WHERE t.cruise_id = $1
+	//  ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
+	ListCruiseTripEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseTripEnrollmentsRow, error)
 	//ListCruiseTrips
 	//
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
@@ -599,6 +621,16 @@ type Querier interface {
 	//  WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
 	//  FOR KEY SHARE OF c
 	LockTripCruise(ctx context.Context, id int64) (int64, error)
+	// Share-locks one trip for the rest of a sign-up transaction, so the leg
+	// cannot be cancelled, closed, completed or deleted between the open check
+	// and the insert. open is true while the leg's sign-ups are switched on
+	// (it has an enroll token). No row when the trip does not exist.
+	//
+	//  SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+	//  FROM trips
+	//  WHERE id = $1
+	//  FOR SHARE
+	LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error)
 	//RepointCrewAssignmentsToVoyage
 	//
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
@@ -698,6 +730,13 @@ type Querier interface {
 	//
 	//  UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error
+	// Sets the note on the caller's own sign-up for a trip. No row when the
+	// user has no sign-up for it.
+	//
+	//  UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
+	//  WHERE trip_id = $1 AND user_id = $2
+	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at
+	UpdateUserTripEnrollmentNote(ctx context.Context, arg UpdateUserTripEnrollmentNoteParams) (TripEnrollment, error)
 	//UpdateVoyage
 	//
 	//  UPDATE voyages SET

@@ -326,3 +326,40 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 	}
 	return out
 }
+
+// LegSignUp is a leg (trip) as the signed-in caller sees it for sign-up:
+// whether it takes new sign-ups, how many crew are accepted, and the caller's
+// own sign-up, if any.
+type LegSignUp struct {
+	TripID        int64       `json:"trip_id"`
+	Open          bool        `json:"open" doc:"Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"`
+	AcceptedCount int64       `json:"accepted_count" doc:"Accepted crew: direct leg sign-ups plus cruise enrollments assigned to the leg"`
+	Enrollment    *Enrollment `json:"enrollment,omitempty" doc:"The caller's sign-up for this leg; omitted when not signed up"`
+}
+
+// SignUpNoteBody sets the note on the caller's own leg sign-up.
+type SignUpNoteBody struct {
+	Note *string `json:"note,omitempty" maxLength:"2000" doc:"Note to the organizer; omit or send an empty string to clear it"`
+}
+
+// CruiseTripEnrollmentsFromDB maps every leg enrollment of a cruise.
+func CruiseTripEnrollmentsFromDB(rows []sqlcdb.ListCruiseTripEnrollmentsRow) []TripEnrollmentDetail {
+	out := make([]TripEnrollmentDetail, len(rows))
+	for i := range rows {
+		r := rows[i]
+		tid := r.TripID
+		out[i] = TripEnrollmentDetail{
+			ID:        r.ID,
+			TripID:    &tid,
+			UserID:    r.UserID,
+			Note:      strPtr(r.Note),
+			Status:    r.Status,
+			CreatedAt: timeVal(r.CreatedAt),
+			UpdatedAt: timeVal(r.UpdatedAt),
+			UserName:  r.UserName,
+			UserEmail: r.UserEmail,
+		}
+
+	}
+	return out
+}

@@ -39,6 +39,8 @@ export type UploadResponse = Schemas['UploadURLOutputBody'];
 export type TripEnrollment = Schemas['TripEnrollmentDetail'];
 export type CruiseEnrollment = Schemas['CruiseEnrollmentDetail'];
 export type Enrollment = Schemas['Enrollment'];
+/** LegSignUp is a leg's sign-up state as the signed-in caller sees it. */
+export type LegSignUp = Schemas['LegSignUp'];
 
 export type PublicTrip = Schemas['EnrollTrip'];
 export type PublicCruise = Schemas['EnrollCruise'];

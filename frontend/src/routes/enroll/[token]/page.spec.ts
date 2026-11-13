@@ -111,11 +111,14 @@ describe('enroll page — cruise legs', () => {
 		expect(await screen.findByText(/Zostałeś zapisany!/)).toBeInTheDocument();
 	});
 
-	it('falls back to a whole-cruise sign-up when no leg is picked', async () => {
+	it('offers no whole-cruise sign-up: a leg must be picked', async () => {
 		render(EnrollPage);
-		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz się' }));
-		await waitFor(() => expect(enrollMock).toHaveBeenCalledWith('tok', undefined));
+		const submit = await screen.findByRole('button', { name: 'Zapisz się' });
+		expect(submit).toBeDisabled();
+		await fireEvent.click(submit);
+		expect(enrollMock).not.toHaveBeenCalled();
 		expect(enrollLegsMock).not.toHaveBeenCalled();
+		expect(screen.queryByText(/całe\s+wydarzenie/)).not.toBeInTheDocument();
 	});
 
 	it('offers only remaining legs and no whole-cruise sign-up once a leg is booked', async () => {
@@ -152,7 +155,10 @@ describe('enroll page — cruise legs', () => {
 		render(EnrollPage);
 		await screen.findByText('Etap 1: Bodø – Tromsø');
 		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-		expect(screen.getByText('Zaloguj się, aby dołączyć')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Zapisz się' })).toHaveAttribute(
+			'href',
+			'/login?redirect=%2Fenroll%2Ftok'
+		);
 	});
 
 	it('keeps a cruise-level sign-up visible while offering legs', async () => {

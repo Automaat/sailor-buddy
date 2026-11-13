@@ -1,7 +1,3 @@
--- name: CreateCruiseEnrollment :one
-INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-VALUES ($1, $2, $3) RETURNING *;
-
 -- name: ListCruiseEnrollments :many
 SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
        u.name AS user_name, u.email AS user_email,
@@ -39,3 +35,12 @@ WHERE cruise_id = $1;
 -- name: GetUserCruiseEnrollment :one
 SELECT * FROM cruise_enrollments
 WHERE cruise_id = $1 AND user_id = $2;
+
+-- name: GetUserCruiseEnrollmentForTrip :one
+-- A user's cruise-level enrollment assigned to a trip. Cruise enrollments
+-- predate per-leg sign-up; one assigned to a leg counts as the user's
+-- sign-up for that leg.
+SELECT * FROM cruise_enrollments
+WHERE trip_id = $1 AND user_id = $2
+ORDER BY id
+LIMIT 1;

@@ -67,37 +67,6 @@ func (q *Queries) CountCruiseEnrollments(ctx context.Context, cruiseID int64) (C
 	return i, err
 }
 
-const createCruiseEnrollment = `-- name: CreateCruiseEnrollment :one
-INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, created_at, updated_at
-`
-
-type CreateCruiseEnrollmentParams struct {
-	CruiseID int64            `json:"cruise_id"`
-	UserID   int64            `json:"user_id"`
-	Note     types.NullString `json:"note"`
-}
-
-// CreateCruiseEnrollment
-//
-//	INSERT INTO cruise_enrollments (cruise_id, user_id, note)
-//	VALUES ($1, $2, $3) RETURNING id, cruise_id, user_id, trip_id, note, status, created_at, updated_at
-func (q *Queries) CreateCruiseEnrollment(ctx context.Context, arg CreateCruiseEnrollmentParams) (CruiseEnrollment, error) {
-	row := q.db.QueryRowContext(ctx, createCruiseEnrollment, arg.CruiseID, arg.UserID, arg.Note)
-	var i CruiseEnrollment
-	err := row.Scan(
-		&i.ID,
-		&i.CruiseID,
-		&i.UserID,
-		&i.TripID,
-		&i.Note,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const deleteCruiseEnrollment = `-- name: DeleteCruiseEnrollment :exec
 DELETE FROM cruise_enrollments WHERE id = $1
 `
@@ -126,6 +95,42 @@ type GetUserCruiseEnrollmentParams struct {
 //	WHERE cruise_id = $1 AND user_id = $2
 func (q *Queries) GetUserCruiseEnrollment(ctx context.Context, arg GetUserCruiseEnrollmentParams) (CruiseEnrollment, error) {
 	row := q.db.QueryRowContext(ctx, getUserCruiseEnrollment, arg.CruiseID, arg.UserID)
+	var i CruiseEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.CruiseID,
+		&i.UserID,
+		&i.TripID,
+		&i.Note,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserCruiseEnrollmentForTrip = `-- name: GetUserCruiseEnrollmentForTrip :one
+SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+WHERE trip_id = $1 AND user_id = $2
+ORDER BY id
+LIMIT 1
+`
+
+type GetUserCruiseEnrollmentForTripParams struct {
+	TripID types.NullInt64 `json:"trip_id"`
+	UserID int64           `json:"user_id"`
+}
+
+// A user's cruise-level enrollment assigned to a trip. Cruise enrollments
+// predate per-leg sign-up; one assigned to a leg counts as the user's
+// sign-up for that leg.
+//
+//	SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+//	WHERE trip_id = $1 AND user_id = $2
+//	ORDER BY id
+//	LIMIT 1
+func (q *Queries) GetUserCruiseEnrollmentForTrip(ctx context.Context, arg GetUserCruiseEnrollmentForTripParams) (CruiseEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, getUserCruiseEnrollmentForTrip, arg.TripID, arg.UserID)
 	var i CruiseEnrollment
 	err := row.Scan(
 		&i.ID,

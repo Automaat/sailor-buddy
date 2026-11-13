@@ -82,6 +82,32 @@ export function deleteTripEnrollment(tripID: number, enrollmentID: number) {
 	return api.del('/trips/{tripID}/enrollments/{id}', { path: { tripID, id: enrollmentID } });
 }
 
+// ---- leg sign-up (the caller's own one-click sign-up) ------------------------
+
+export function getTripSignUp(tripID: number) {
+	return api.get('/trips/{tripID}/sign-up', { path: { tripID } });
+}
+
+export function signUpForTrip(tripID: number) {
+	return api.post('/trips/{tripID}/sign-up', { path: { tripID } });
+}
+
+export function updateTripSignUpNote(tripID: number, note: string) {
+	return api.put('/trips/{tripID}/sign-up/note', { path: { tripID }, body: { note } });
+}
+
+export function withdrawTripSignUp(tripID: number) {
+	return api.del('/trips/{tripID}/sign-up', { path: { tripID } });
+}
+
+export function listCruiseLegSignUps(cruiseID: number) {
+	return api.get('/cruises/{cruiseID}/leg-sign-ups', { path: { cruiseID } });
+}
+
+export function listCruiseTripEnrollments(cruiseID: number) {
+	return api.get('/cruises/{cruiseID}/trip-enrollments', { path: { cruiseID } });
+}
+
 // ---- voyages ----------------------------------------------------------------
 
 export function listVoyages() {

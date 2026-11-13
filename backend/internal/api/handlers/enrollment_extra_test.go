@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -273,7 +274,7 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 }
 
 func TestEnrollment_Enroll_Cruise(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
+	t.Run("cruise token takes no whole-cruise sign-up", func(t *testing.T) {
 		m := &mockQuerier{
 			getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
 				return sqlcdb.GetTripByEnrollTokenRow{}, sql.ErrNoRows
@@ -281,13 +282,13 @@ func TestEnrollment_Enroll_Cruise(t *testing.T) {
 			getCruiseByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
 				return sqlcdb.GetCruiseByEnrollTokenRow{ID: 7}, nil
 			},
-			createCruiseEnrollmentFn: func(_ context.Context, arg sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
-				return sqlcdb.CruiseEnrollment{ID: 1, CruiseID: arg.CruiseID, UserID: arg.UserID, Status: "pending"}, nil
-			},
 		}
-		resp := enrollTestAPI(t, m).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{})
-		if resp.Code != http.StatusCreated {
-			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+		resp := enrollTestAPI(t, m).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{"note": "x"})
+		if resp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
+		}
+		if !strings.Contains(resp.Body.String(), "/enroll/{token}/legs") {
+			t.Fatalf("body must point to the legs operation: %s", resp.Body)
 		}
 	})
 
@@ -306,34 +307,13 @@ func TestEnrollment_Enroll_Cruise(t *testing.T) {
 		}
 	})
 
-	t.Run("duplicate enrollment is a conflict", func(t *testing.T) {
+	t.Run("cruise lookup db error", func(t *testing.T) {
 		m := &mockQuerier{
 			getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
 				return sqlcdb.GetTripByEnrollTokenRow{}, sql.ErrNoRows
 			},
 			getCruiseByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
-				return sqlcdb.GetCruiseByEnrollTokenRow{ID: 7}, nil
-			},
-			createCruiseEnrollmentFn: func(context.Context, sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
-				return sqlcdb.CruiseEnrollment{}, &pgconn.PgError{Code: "23505"}
-			},
-		}
-		resp := enrollTestAPI(t, m).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{})
-		if resp.Code != http.StatusConflict {
-			t.Fatalf("got %d, want 409", resp.Code)
-		}
-	})
-
-	t.Run("create enrollment db error", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
-				return sqlcdb.GetTripByEnrollTokenRow{}, sql.ErrNoRows
-			},
-			getCruiseByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetCruiseByEnrollTokenRow, error) {
-				return sqlcdb.GetCruiseByEnrollTokenRow{ID: 7}, nil
-			},
-			createCruiseEnrollmentFn: func(context.Context, sqlcdb.CreateCruiseEnrollmentParams) (sqlcdb.CruiseEnrollment, error) {
-				return sqlcdb.CruiseEnrollment{}, errors.New("fail")
+				return sqlcdb.GetCruiseByEnrollTokenRow{}, errors.New("fail")
 			},
 		}
 		resp := enrollTestAPI(t, m).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{})

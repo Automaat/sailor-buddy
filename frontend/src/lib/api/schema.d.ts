@@ -199,6 +199,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cruises/{cruiseID}/leg-sign-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the caller's sign-up state for every leg of a cruise
+         * @description One entry per trip of the cruise, in the cruise trip list order. 404 when the cruise does not exist.
+         */
+        get: operations["list-cruise-leg-sign-ups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/trip-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every leg sign-up of a cruise (admin)
+         * @description Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
+         */
+        get: operations["list-cruise-trip-enrollments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cruises/{cruiseID}/trips": {
         parameters: {
             query?: never;
@@ -263,7 +303,10 @@ export interface paths {
         /** Resolve an enrollment token to its trip or cruise */
         get: operations["resolve-enroll-token"];
         put?: never;
-        /** Self-enroll via a share token */
+        /**
+         * Self-enroll via a trip share token
+         * @description Creates a pending enrollment for the token's trip. A cruise token returns 422: sign-ups are per leg, made through enroll-cruise-legs.
+         */
         post: operations["enroll"];
         delete?: never;
         options?: never;
@@ -635,6 +678,54 @@ export interface paths {
         get?: never;
         /** Update a trip enrollment's status (admin) */
         put: operations["update-trip-enrollment-status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/sign-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the caller's sign-up state for a leg
+         * @description Returns whether the leg takes new sign-ups, its accepted crew count and the caller's own sign-up, if any. 404 when the trip does not exist.
+         */
+        get: operations["get-trip-sign-up"];
+        put?: never;
+        /**
+         * Sign the caller up for a leg with one click
+         * @description Creates a pending trip enrollment for the caller (201, result created). Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete.
+         */
+        post: operations["sign-up-for-trip"];
+        /**
+         * Withdraw the caller's pending leg sign-up
+         * @description Deletes the caller's sign-up while it is pending. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted).
+         */
+        delete: operations["withdraw-trip-sign-up"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/sign-up/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the note on the caller's leg sign-up
+         * @description Replaces the note to the organizer on the caller's existing sign-up. An empty or omitted note clears it. 404 when the caller has not signed up for the leg.
+         */
+        put: operations["update-trip-sign-up-note"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1376,6 +1467,12 @@ export interface components {
             yacht_fund?: number;
         };
         EnrollLegResult: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/EnrollLegResult.json
+             */
+            readonly $schema?: string;
             enrollment: components["schemas"]["Enrollment"];
             /** @enum {string} */
             result: "created" | "already_enrolled";
@@ -1548,6 +1645,25 @@ export interface components {
             /** Format: double */
             longitude: number;
             name: string;
+        };
+        LegSignUp: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/LegSignUp.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Accepted crew: direct leg sign-ups plus cruise enrollments assigned to the leg
+             */
+            accepted_count: number;
+            /** @description The caller's sign-up for this leg; omitted when not signed up */
+            enrollment?: components["schemas"]["Enrollment"];
+            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) */
+            open: boolean;
+            /** Format: int64 */
+            trip_id: number;
         };
         Me: {
             /**
@@ -1850,6 +1966,16 @@ export interface components {
             yacht_name?: string;
             /** Format: int64 */
             year?: number;
+        };
+        SignUpNoteBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/SignUpNoteBody.json
+             */
+            readonly $schema?: string;
+            /** @description Note to the organizer; omit or send an empty string to clear it */
+            note?: string;
         };
         TokenOutputBody: {
             /**
@@ -2965,6 +3091,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cruise-leg-sign-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegSignUp"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cruise-trip-enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripEnrollmentDetail"][] | null;
+                };
             };
             /** @description Error */
             default: {
@@ -4176,6 +4366,136 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-trip-sign-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegSignUp"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "sign-up-for-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollLegResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "withdraw-trip-sign-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-trip-sign-up-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignUpNoteBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
             };
             /** @description Error */
             default: {

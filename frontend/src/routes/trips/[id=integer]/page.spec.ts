@@ -15,7 +15,11 @@ vi.mock('#lib/api/routes.js', () => ({
 	listAssignableCrew: vi.fn(),
 	getCruise: vi.fn(),
 	generateTripEnrollToken: vi.fn(),
-	clearTripEnrollToken: vi.fn()
+	clearTripEnrollToken: vi.fn(),
+	getTripSignUp: vi.fn(() => Promise.resolve(null)),
+	signUpForTrip: vi.fn(),
+	updateTripSignUpNote: vi.fn(),
+	withdrawTripSignUp: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: false, user: { id: 2, role: 'member' } }
