@@ -14,7 +14,7 @@ vi.mock('#lib/api/routes.js', () => ({
 	listMembers: vi.fn()
 }));
 
-import { getTrip, updateTrip, listYachts, listCruises, listMembers } from '#lib/api/routes.js';
+import { getTrip, updateTrip, listYachts, createYacht, listCruises, listMembers } from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import EditTripPage from './+page.svelte';
 
@@ -76,6 +76,22 @@ describe('trip edit page', () => {
 		expect(select).toHaveValue('13');
 
 		expect(await save()).toMatchObject({ cruise_id: 13 });
+	});
+
+	it('saves the leg with the yacht still being added', async () => {
+		let resolveYacht!: (y: unknown) => void;
+		fn(createYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
+		render(EditTripPage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
+		expect(updateTrip).not.toHaveBeenCalled();
+
+		resolveYacht({ id: 21, name: 'Selma', created_at: '', updated_at: '' });
+		await waitFor(() => expect(updateTrip).toHaveBeenCalledTimes(1));
+		expect(fn(updateTrip).mock.calls[0][1]).toMatchObject({ yacht_id: 21 });
 	});
 
 	it('refuses to save without a cruise', async () => {
