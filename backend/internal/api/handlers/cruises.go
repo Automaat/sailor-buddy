@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/net/idna"
@@ -503,9 +504,9 @@ var assignedByUnicode13 = rangetable.Assigned("13.0.0")
 
 // failsDomainToASCII reports whether the WHATWG URL parser (used by browsers
 // and the frontend's new URL()) rejects host in its "domain to ASCII" step,
-// which url.Parse does not run. It checks each label of the UTS46-mapped
-// host for an undecodable xn-- label, an unassigned or private-use code
-// point or U+FFFD, a leading combining mark, and ZWNJ/ZWJ outside their
+// which url.Parse does not run. It checks each UTS46-mapped label for an
+// xn-- label that does not decode to non-ASCII text, an unassigned or
+// private-use code point or U+FFFD, a leading combining mark, and ZWNJ/ZWJ outside their
 // CONTEXTJ contexts. An IPv6 literal with a zone ID fails too: url.Parse
 // accepts "[fe80::1%25eth0]", browsers do not.
 //
@@ -515,13 +516,15 @@ func failsDomainToASCII(host string) bool {
 	if strings.Contains(host, ":") {
 		return strings.Contains(host, "%")
 	}
-	// ToUnicode maps the host and decodes every valid xn-- label, returning
-	// that result even alongside an error.
-	mapped, _ := whatwgIDNA.ToUnicode(host)
-	for label := range strings.SplitSeq(mapped, ".") {
-		if strings.HasPrefix(label, "xn--") {
-			// Punycode that does not decode. The WHATWG parser rejects it;
-			// Node's new URL() skips IDNA for all-ASCII hosts and accepts it.
+	for raw := range strings.FieldsFuncSeq(host, isLabelSeparator) {
+		// ToUnicode maps the label and decodes it if it is a valid xn--
+		// label, returning that result even alongside an error.
+		label, _ := whatwgIDNA.ToUnicode(raw)
+		if isACELabel(raw) && (label == "" || isASCII(label)) {
+			// Punycode that does not decode (the label stays xn--...) or
+			// decodes to nothing or plain ASCII. The WHATWG parser rejects
+			// it; Node's new URL() skips IDNA for all-ASCII hosts and
+			// accepts it.
 			return true
 		}
 		for i, r := range label {
@@ -541,6 +544,27 @@ func failsDomainToASCII(host string) bool {
 		}
 	}
 	return false
+}
+
+// isLabelSeparator reports the code points UTS46 maps to a label dot.
+func isLabelSeparator(r rune) bool {
+	return r == '.' || r == '\u3002' || r == '\uff0e' || r == '\uff61'
+}
+
+// isACELabel reports whether raw, once UTS46-mapped, starts with "xn--"
+// (e.g. full-width "ｘｎ--"). The leading "a" stops ToUnicode decoding it.
+func isACELabel(raw string) bool {
+	mapped, _ := whatwgIDNA.ToUnicode("a" + raw)
+	return strings.HasPrefix(mapped, "axn--")
+}
+
+func isASCII(s string) bool {
+	for i := range len(s) {
+		if s[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
 }
 
 // invalidNumericHost reports whether host is one the WHATWG URL parser
