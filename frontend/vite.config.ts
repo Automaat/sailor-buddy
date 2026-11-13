@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
 			exclude: ['**/node_modules/**', '**/e2e/**'],
 			coverage: {
 				provider: 'v8',
-				reporter: ['text', 'cobertura'],
+				reporter: ['text'],
 				// Per-form gate: high-risk forms must stay above 80% so PRs
 				// regressing their coverage fail CI.
 				thresholds: {
