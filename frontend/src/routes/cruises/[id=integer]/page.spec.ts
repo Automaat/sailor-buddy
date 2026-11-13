@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import type { Cruise } from '#lib/api/types.js';
 
@@ -565,5 +565,43 @@ describe('cruise page admin sign-ups by leg', () => {
 		const section = await screen.findByTestId('admin-sign-ups');
 		expect(within(section).getByRole('button', { name: 'Wyłącz zapisy' })).toBeInTheDocument();
 		expect(within(section).getByRole('button', { name: 'Kopiuj link' })).toBeInTheDocument();
+	});
+});
+
+describe('cruise page past planned legs', () => {
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
+		mockGet.mockResolvedValue(cruise({ disembark_date: '2026-08-09' }));
+		fn(listCruiseTrips).mockResolvedValue([
+			tripRow(50, 'Jacht A', 'planned'),
+			{ ...tripRow(51, 'Jacht B', 'planned'), disembark_date: '2026-11-20' }
+		]);
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('flags a leg past the cruise end and prompts an admin to complete it', async () => {
+		mockAuth.isAdmin = true;
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+
+		const overdue = rowOf('Jacht A');
+		expect(within(overdue).getByRole('link', { name: 'Jacht A' })).toHaveAttribute('href', '/trips/50');
+		expect(within(overdue).getByText('Do rozliczenia')).toBeInTheDocument();
+		expect(within(overdue).getByText('Zrealizuj →')).toBeInTheDocument();
+
+		const ongoing = rowOf('Jacht B');
+		expect(within(ongoing).getByText('Planowany')).toBeInTheDocument();
+		expect(within(ongoing).queryByText('Zrealizuj →')).not.toBeInTheDocument();
+	});
+
+	it('shows the status but no prompt to a member', async () => {
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+
+		expect(within(rowOf('Jacht A')).getByText('Do rozliczenia')).toBeInTheDocument();
+		expect(screen.queryByText('Zrealizuj →')).not.toBeInTheDocument();
 	});
 });

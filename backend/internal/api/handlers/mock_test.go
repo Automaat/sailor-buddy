@@ -38,6 +38,7 @@ type mockQuerier struct {
 	deleteVoyageFn     func(ctx context.Context, id int64) error
 	getDashboardFn     func(ctx context.Context) (sqlcdb.GetDashboardStatsRow, error)
 	getVoyagesByYearFn func(ctx context.Context) ([]sqlcdb.GetVoyagesByYearRow, error)
+	listUserSeaTimeFn  func(ctx context.Context, userID int64) ([]sqlcdb.ListUserSeaTimeVoyagesRow, error)
 
 	// voyage ports
 	createVoyagePortFn      func(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error)
@@ -299,6 +300,13 @@ func (m *mockQuerier) GetDashboardStats(ctx context.Context) (sqlcdb.GetDashboar
 		panic("unexpected call to GetDashboardStats")
 	}
 	return m.getDashboardFn(ctx)
+}
+
+func (m *mockQuerier) ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]sqlcdb.ListUserSeaTimeVoyagesRow, error) {
+	if m.listUserSeaTimeFn == nil {
+		panic("unexpected call to ListUserSeaTimeVoyages")
+	}
+	return m.listUserSeaTimeFn(ctx, userID)
 }
 
 func (m *mockQuerier) GetVoyagesByYear(ctx context.Context) ([]sqlcdb.GetVoyagesByYearRow, error) {

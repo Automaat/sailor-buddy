@@ -216,9 +216,9 @@
 										{/if}
 									</span>
 									{#if cancelled}
-										<span class="text-xs font-medium text-red-600">odwołany — niedostępny</span>
+										<span class="text-xs font-medium text-[var(--text-muted)]">odwołany — niedostępny</span>
 									{:else if leg.enrollment}
-										<span class="text-xs font-medium text-blue-700">
+										<span class="text-xs font-medium text-[var(--ocean)]">
 											zapisany: {statusLabels[leg.enrollment.status] ?? leg.enrollment.status}
 										</span>
 									{/if}
@@ -251,11 +251,11 @@
 			{/if}
 
 			{#if success}
-				<div class="rounded-lg bg-green-50 p-4 text-center text-sm text-green-700">
+				<div class="rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-4 text-center text-sm">
 					Zostałeś zapisany! Organizator rozpatrzy Twoje zgłoszenie.
 				</div>
 			{:else if data.enrolled && !showForm}
-				<div class="rounded-lg bg-blue-50 p-4 text-center text-sm text-blue-700">
+				<div class="rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-4 text-center text-sm">
 					Jesteś już zapisany.
 					{#if data.enrollment}
 						Status: <span class="font-semibold">{statusLabels[data.enrollment.status] ?? data.enrollment.status}</span>
@@ -290,7 +290,7 @@
 						</div>
 					{/if}
 					{#if data.enrollment}
-						<p class="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
+						<p class="rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-3 text-sm">
 							Jesteś zapisany na wydarzenie. Status:
 							<span class="font-semibold">{statusLabels[data.enrollment.status] ?? data.enrollment.status}</span>
 						</p>

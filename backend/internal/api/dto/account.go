@@ -1,6 +1,12 @@
 package dto
 
-import "github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+import (
+	"cmp"
+	"slices"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
+)
 
 // Me is the authenticated user's profile.
 type Me struct {
@@ -63,15 +69,129 @@ type VoyagesByYear struct {
 	TotalDays   int64   `json:"total_days"`
 }
 
-// Dashboard is the club-wide sailing summary.
+// SeaTime sums the logged sailing of a set of voyages.
+type SeaTime struct {
+	VoyageCount      int64   `json:"voyage_count"`
+	TotalHours       float64 `json:"total_hours"`
+	TotalHoursSail   float64 `json:"total_hours_sail"`
+	TotalHoursEngine float64 `json:"total_hours_engine"`
+	TotalMiles       float64 `json:"total_miles"`
+	TotalDays        int64   `json:"total_days"`
+}
+
+func (s *SeaTime) add(r *sqlcdb.ListUserSeaTimeVoyagesRow) {
+	s.VoyageCount++
+	s.TotalHours += r.HoursTotal
+	s.TotalHoursSail += r.HoursSail
+	s.TotalHoursEngine += r.HoursEngine
+	s.TotalMiles += r.Miles
+	s.TotalDays += r.Days
+}
+
+// SeaTimeVoyage is one voyage in the caller's sea-time log.
+type SeaTimeVoyage struct {
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	Year          *int64  `json:"year,omitempty"`
+	EmbarkDate    *string `json:"embark_date,omitempty"`
+	DisembarkDate *string `json:"disembark_date,omitempty"`
+	YachtName     *string `json:"yacht_name,omitempty"`
+	Role          string  `json:"role" enum:"captain,crew" doc:"captain when the user is the voyage's assigned captain, else crew"`
+	Miles         float64 `json:"miles"`
+	HoursTotal    float64 `json:"hours_total"`
+	Days          int64   `json:"days"`
+}
+
+// PersonalSeaTime is the caller's own club sea time.
+type PersonalSeaTime struct {
+	Total     SeaTime         `json:"total"`
+	AsCaptain SeaTime         `json:"as_captain"`
+	AsCrew    SeaTime         `json:"as_crew"`
+	ByYear    []VoyagesByYear `json:"by_year"`
+	Voyages   []SeaTimeVoyage `json:"voyages"`
+}
+
+// ClubSeaTime is the club-wide sailing summary.
+type ClubSeaTime struct {
+	Total  SeaTime         `json:"total"`
+	ByYear []VoyagesByYear `json:"by_year"`
+}
+
+// Dashboard is the caller's sea time, plus club totals for admins.
 type Dashboard struct {
-	VoyageCount      int64           `json:"voyage_count"`
-	TotalHours       float64         `json:"total_hours"`
-	TotalMiles       float64         `json:"total_miles"`
-	TotalDays        int64           `json:"total_days"`
-	TotalHoursSail   float64         `json:"total_hours_sail"`
-	TotalHoursEngine float64         `json:"total_hours_engine"`
-	ByYear           []VoyagesByYear `json:"by_year"`
+	Personal PersonalSeaTime `json:"personal"`
+	Club     *ClubSeaTime    `json:"club,omitempty" doc:"Club-wide totals; present for admins only"`
+}
+
+// PersonalSeaTimeFromDB aggregates the caller's voyages. Rows are one per
+// voyage, so a voyage the user both captained and crewed counts once.
+func PersonalSeaTimeFromDB(rows []sqlcdb.ListUserSeaTimeVoyagesRow) PersonalSeaTime {
+	out := PersonalSeaTime{
+		ByYear:  []VoyagesByYear{},
+		Voyages: make([]SeaTimeVoyage, len(rows)),
+	}
+	yearIdx := map[types.NullInt64]int{}
+	for i := range rows {
+		r := &rows[i]
+		out.Total.add(r)
+		role := "crew"
+		if r.AsCaptain {
+			role = "captain"
+			out.AsCaptain.add(r)
+		} else {
+			out.AsCrew.add(r)
+		}
+		out.Voyages[i] = SeaTimeVoyage{
+			ID:            r.ID,
+			Name:          r.Name,
+			Year:          intPtr(r.Year),
+			EmbarkDate:    strPtr(r.EmbarkDate),
+			DisembarkDate: strPtr(r.DisembarkDate),
+			YachtName:     strPtr(r.YachtName),
+			Role:          role,
+			Miles:         r.Miles,
+			HoursTotal:    r.HoursTotal,
+			Days:          r.Days,
+		}
+		j, ok := yearIdx[r.Year]
+		if !ok {
+			j = len(out.ByYear)
+			yearIdx[r.Year] = j
+			out.ByYear = append(out.ByYear, VoyagesByYear{Year: intPtr(r.Year)})
+		}
+		out.ByYear[j].VoyageCount++
+		out.ByYear[j].TotalHours += r.HoursTotal
+		out.ByYear[j].TotalMiles += r.Miles
+		out.ByYear[j].TotalDays += r.Days
+	}
+	// Ascending with unknown year last, matching the club breakdown.
+	slices.SortFunc(out.ByYear, func(a, b VoyagesByYear) int {
+		switch {
+		case a.Year == nil && b.Year == nil:
+			return 0
+		case a.Year == nil:
+			return 1
+		case b.Year == nil:
+			return -1
+		}
+		return cmp.Compare(*a.Year, *b.Year)
+	})
+	return out
+}
+
+// ClubSeaTimeFromDB maps the club-wide totals and per-year rows.
+func ClubSeaTimeFromDB(stats sqlcdb.GetDashboardStatsRow, byYear []sqlcdb.GetVoyagesByYearRow) *ClubSeaTime {
+	return &ClubSeaTime{
+		Total: SeaTime{
+			VoyageCount:      stats.VoyageCount,
+			TotalHours:       stats.TotalHours,
+			TotalHoursSail:   stats.TotalHoursSail,
+			TotalHoursEngine: stats.TotalHoursEngine,
+			TotalMiles:       stats.TotalMiles,
+			TotalDays:        stats.TotalDays,
+		},
+		ByYear: VoyagesByYearFromDB(byYear),
+	}
 }
 
 // VoyagesByYearFromDB maps the per-year rows, returning a non-nil slice.

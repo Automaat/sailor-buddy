@@ -121,7 +121,7 @@
 				<button type="button" onclick={onClose} class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50">
 					Anuluj
 				</button>
-				<button type="submit" disabled={submitting} class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+				<button type="submit" disabled={submitting} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 					{submitting ? 'Zapisywanie...' : 'Zrealizuj rejs'}
 				</button>
 			</div>

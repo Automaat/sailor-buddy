@@ -6,6 +6,7 @@
 	import { getMe } from '#lib/api/routes.js';
 	import { ONBOARDING_PATH, onboardingRedirect } from '#lib/onboarding.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
+	import ClubLogo from '#lib/components/ClubLogo.svelte';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
@@ -93,17 +94,17 @@
 
 {#if auth.loading}
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
-		<Anchor class="h-10 w-10 text-white" />
+		<ClubLogo inverted class="h-14 w-auto" />
 	</div>
 {:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname) || page.url.pathname === ONBOARDING_PATH}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">
 		<nav class="flex w-60 flex-col bg-[var(--navy)] text-white">
-			<div class="flex items-center gap-2 border-b border-white/10 p-4">
-				<Anchor class="h-6 w-6" />
-				<span class="text-lg font-bold">Sailor Buddy</span>
-			</div>
+			<a href="/" class="flex items-center gap-3 border-b border-white/10 p-4">
+				<ClubLogo inverted alt="" class="h-9 w-auto" />
+				<span class="text-lg font-bold">AKŻ AGH</span>
+			</a>
 
 			<div class="mt-4 flex flex-1 flex-col gap-1 px-2">
 				{#each navItems as item}

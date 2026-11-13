@@ -553,6 +553,24 @@ type Querier interface {
 	//  WHERE t.cruise_id = $1 AND te.user_id = $2
 	//  ORDER BY t.embark_date ASC, t.id ASC
 	ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error)
+	// Voyages the user sailed: as the assigned captain or through a crew record
+	// linked to their account. One row per voyage; captain wins on overlap.
+	//
+	//  SELECT
+	//      v.id, v.name, v.year, v.embark_date, v.disembark_date,
+	//      y.name AS yacht_name,
+	//      COALESCE(v.captain_user_id = $1::BIGINT, FALSE)::BOOLEAN AS as_captain,
+	//      v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+	//  FROM voyages v
+	//  LEFT JOIN yachts y ON y.id = v.yacht_id
+	//  WHERE v.captain_user_id = $1::BIGINT
+	//     OR EXISTS (
+	//         SELECT 1 FROM crew_assignments ca
+	//         JOIN crew_members cm ON cm.id = ca.crew_member_id
+	//         WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
+	//     )
+	//  ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
+	ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]ListUserSeaTimeVoyagesRow, error)
 	//ListUsers
 	//
 	//  SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users ORDER BY role, name, id

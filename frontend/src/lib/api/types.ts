@@ -32,6 +32,7 @@ export type TrainingBody = Schemas['TrainingBody'];
 
 export type DashboardStats = Schemas['Dashboard'];
 export type YearStats = Schemas['VoyagesByYear'];
+export type SeaTime = Schemas['SeaTime'];
 
 export type UploadResponse = Schemas['UploadURLOutputBody'];
 

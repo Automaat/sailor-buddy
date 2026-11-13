@@ -59,10 +59,10 @@
 	}
 
 	const statusColors: Record<string, string> = {
-		pending: 'bg-yellow-100 text-yellow-800',
-		accepted: 'bg-green-100 text-green-800',
-		rejected: 'bg-red-100 text-red-800',
-		waitlisted: 'bg-purple-100 text-purple-800'
+		pending: 'bg-[var(--ocean-tint)] text-[var(--ocean)]',
+		accepted: 'bg-[var(--ocean)] text-white',
+		rejected: 'bg-gray-100 text-gray-600',
+		waitlisted: 'bg-[var(--navy)]/10 text-[var(--navy)]'
 	};
 </script>
 
@@ -105,12 +105,12 @@
 							</div>
 							<div class="flex gap-1">
 								{#if enrollment.status !== 'accepted'}
-									<button onclick={() => updateStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-green-700 hover:bg-green-50">
+									<button onclick={() => updateStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]">
 										Akceptuj
 									</button>
 								{/if}
 								{#if enrollment.status !== 'waitlisted'}
-									<button onclick={() => updateStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-purple-700 hover:bg-purple-50">
+									<button onclick={() => updateStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-[var(--navy)] hover:bg-[var(--ocean-tint)]">
 										Rezerwa
 									</button>
 								{/if}

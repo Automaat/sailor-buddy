@@ -207,9 +207,12 @@ func TestMemberFromUser(t *testing.T) {
 	u := sqlcdb.User{
 		ID: 1, Name: "Ed", Email: "ed@x", Role: "member",
 		AvatarUrl: nstr("a.png"), PatentType: nstr("zeglarz_jachtowy"),
-		PatentNumber: nstr("Z-1"), CreatedAt: ntime(),
+		PatentNumber: nstr("Z-1"), CreatedAt: ntime(), OnboardedAt: ntime(),
 	}
 	got := MemberFromUser(u)
+	if !got.Onboarded {
+		t.Fatalf("want onboarded when onboarded_at is set")
+	}
 	if got.ID != 1 || got.Name != "Ed" || got.Role != "member" {
 		t.Fatalf("unexpected: %+v", got)
 	}
@@ -221,8 +224,8 @@ func TestMemberFromUser(t *testing.T) {
 	}
 
 	bare := MemberFromUser(sqlcdb.User{ID: 2})
-	if bare.AvatarURL != nil || bare.PatentType != nil {
-		t.Fatalf("want nil optionals, got %+v", bare)
+	if bare.AvatarURL != nil || bare.PatentType != nil || bare.Onboarded {
+		t.Fatalf("want nil optionals and not onboarded, got %+v", bare)
 	}
 }
 
@@ -603,5 +606,26 @@ func TestCruiseSeriesEditionsFromDB(t *testing.T) {
 	}
 	if CruiseSeriesEditionsFromDB(nil) == nil {
 		t.Fatalf("want non-nil slice")
+	}
+}
+
+func TestPersonalSeaTimeFromDB_YearOrder(t *testing.T) {
+	got := PersonalSeaTimeFromDB([]sqlcdb.ListUserSeaTimeVoyagesRow{
+		{ID: 1, Year: nint(2025), Miles: 10},
+		{ID: 2, Miles: 5},
+		{ID: 3, Year: nint(2023), Miles: 7},
+		{ID: 4, Year: nint(2025), Miles: 1},
+	})
+	if len(got.ByYear) != 3 {
+		t.Fatalf("by_year = %+v, want 3 buckets", got.ByYear)
+	}
+	if *got.ByYear[0].Year != 2023 || *got.ByYear[1].Year != 2025 || got.ByYear[2].Year != nil {
+		t.Errorf("order = %+v, want 2023, 2025, unknown", got.ByYear)
+	}
+	if got.ByYear[1].VoyageCount != 2 || got.ByYear[1].TotalMiles != 11 {
+		t.Errorf("2025 bucket = %+v", got.ByYear[1])
+	}
+	if got.AsCrew.VoyageCount != 4 || got.AsCaptain.VoyageCount != 0 {
+		t.Errorf("roles: captain %+v crew %+v", got.AsCaptain, got.AsCrew)
 	}
 }

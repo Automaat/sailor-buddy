@@ -1,24 +1,33 @@
 @import 'tailwindcss';
 
+@theme {
+	--font-sans: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	/* keja.agh.edu.pl sets headings in Roboto 600; pages mark them font-bold */
+	--font-weight-bold: 600;
+	/* club site buttons and inputs use a 4px radius */
+	--radius-lg: 0.25rem;
+}
+
+/*
+ * Palette of the club site keja.agh.edu.pl (Elementor global kit).
+ * Token names predate the rebrand: --ocean is the primary blue,
+ * --navy the dark blue, --sand the light-blue accent.
+ */
 :root {
-	--navy: #1b2838;
-	--navy-light: #2a3f56;
-	--ocean: #0ea5e9;
-	--ocean-dark: #0284c7;
-	--sand: #f59e0b;
-	--sand-light: #fbbf24;
-	--surface: #f8fafc;
-	--surface-dim: #f1f5f9;
-	--text: #0f172a;
-	--text-muted: #64748b;
+	--navy: #002868;
+	--navy-light: #4e6ab2;
+	--ocean: #3b53a4;
+	--ocean-dark: #002868;
+	--ocean-tint: #e8ecf6;
+	--sand: #4e6ab2;
+	--sand-light: #e8ecf6;
+	--surface: #f5f6f8;
+	--surface-dim: #eceef1;
+	--text: #54595f;
+	--text-muted: #6b6b6b;
 }
 
 body {
-	font-family:
-		'Inter',
-		system-ui,
-		-apple-system,
-		sans-serif;
 	background: var(--surface);
 	color: var(--text);
 }

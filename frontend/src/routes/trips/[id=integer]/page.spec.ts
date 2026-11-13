@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/svelte';
+import { makeCruise, makeTrip } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$app/state', () => ({ page: { params: { id: '50' } } }));
@@ -15,147 +16,84 @@ vi.mock('#lib/api/routes.js', () => ({
 	getCruise: vi.fn(),
 	generateTripEnrollToken: vi.fn(),
 	clearTripEnrollToken: vi.fn(),
-	getTripSignUp: vi.fn(),
+	getTripSignUp: vi.fn(() => Promise.resolve(null)),
 	signUpForTrip: vi.fn(),
 	updateTripSignUpNote: vi.fn(),
 	withdrawTripSignUp: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
-	auth: { isAdmin: false, user: { id: 2, role: 'member', membership: 'czlonek' } }
+	auth: { isAdmin: false, user: { id: 2, role: 'member' } }
 }));
 
-import {
-	getTrip,
-	listTripCrew,
-	listAssignableCrew,
-	getCruise,
-	getTripSignUp,
-	signUpForTrip,
-	updateTripSignUpNote,
-	withdrawTripSignUp
-} from '#lib/api/routes.js';
-import { makeTrip } from '#lib/test-utils.js';
-import TripPage from './+page.svelte';
+import { auth } from '#lib/stores/auth.svelte.js';
+import { getCruise, getTrip, listAssignableCrew, listTripCrew } from '#lib/api/routes.js';
+import TripDetailPage from './+page.svelte';
 
-const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
+const mockAuth = auth as unknown as { isAdmin: boolean };
 
-function enrollment(overrides: Record<string, unknown> = {}) {
-	return {
-		id: 9,
-		trip_id: 50,
-		user_id: 2,
-		status: 'pending',
-		created_at: '2026-01-01T00:00:00Z',
-		updated_at: '2026-01-01T00:00:00Z',
-		...overrides
-	};
+function serve(trip: ReturnType<typeof makeTrip>, cruise = makeCruise({ id: 1 })) {
+	vi.mocked(getTrip).mockResolvedValue(trip);
+	vi.mocked(getCruise).mockResolvedValue(cruise);
 }
 
 beforeEach(() => {
-	fn(getTrip).mockReset().mockResolvedValue(makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8 }));
-	fn(listTripCrew).mockReset().mockResolvedValue([]);
-	fn(listAssignableCrew).mockReset().mockResolvedValue([]);
-	fn(getCruise).mockReset().mockResolvedValue({ id: 7, name: 'WSEX 2026' });
-	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3 });
-	for (const f of [signUpForTrip, updateTripSignUpNote, withdrawTripSignUp]) fn(f).mockReset();
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
+	mockAuth.isAdmin = false;
+	vi.mocked(listTripCrew).mockResolvedValue([]);
+	vi.mocked(listAssignableCrew).mockResolvedValue([]);
 });
 
-describe('trip page sign-up', () => {
-	it('shows free places and a one-click sign-up button', async () => {
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).getByTestId('free-places')).toHaveTextContent('wolne 5 z 8');
-		expect(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' })).toBeEnabled();
-		expect(within(card).queryByRole('textbox')).not.toBeInTheDocument();
+afterEach(() => {
+	vi.useRealTimers();
+});
+
+describe('trip page status', () => {
+	it('flags a past planned leg and prompts an admin to complete it', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', embark_date: '2026-08-01', disembark_date: '2026-08-09' }));
+		render(TripDetailPage);
+
+		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
+		expect(screen.queryByText('Planowany')).not.toBeInTheDocument();
+		expect(screen.getByRole('status')).toHaveTextContent('czeka na rozliczenie');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Zrealizuj teraz' }));
+		expect(await screen.findByRole('heading', { name: 'Zrealizuj rejs' })).toBeInTheDocument();
 	});
 
-	it('signs up and shows the pending status without a reload', async () => {
-		fn(signUpForTrip).mockResolvedValue({ trip_id: 50, result: 'created', enrollment: enrollment() });
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
+	it('uses the cruise end when the leg has no dates', async () => {
+		mockAuth.isAdmin = true;
+		serve(
+			makeTrip({ id: 50, embark_date: undefined, disembark_date: undefined }),
+			makeCruise({ id: 1, disembark_date: '2026-08-09' })
+		);
+		render(TripDetailPage);
 
-		await fireEvent.click(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' }));
+		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Zrealizuj teraz' })).toBeInTheDocument();
+	});
 
-		await waitFor(() => expect(signUpForTrip).toHaveBeenCalledWith(50));
-		expect(await within(card).findByText('oczekujący')).toBeInTheDocument();
-		expect(within(card).getByRole('button', { name: 'Wycofaj zapis: Jacht A' })).toBeInTheDocument();
-		expect(getTripSignUp).toHaveBeenCalledTimes(1);
+	it('shows the status but no prompt to a member', async () => {
+		serve(makeTrip({ id: 50, disembark_date: '2026-08-09' }));
+		render(TripDetailPage);
+
+		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
+		expect(screen.queryByRole('status')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /Zrealizuj/ })).not.toBeInTheDocument();
 	});
 
 	it.each([
-		['accepted', 'zaakceptowany'],
-		['waitlisted', 'lista rezerwowa'],
-		['rejected', 'odrzucony']
-	])('shows a reviewed (%s) sign-up without withdraw', async (status, label) => {
-		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3, enrollment: enrollment({ status }) });
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).getByText(label)).toBeInTheDocument();
-		expect(within(card).queryByRole('button', { name: /Wycofaj/ })).not.toBeInTheDocument();
-	});
+		{ name: 'in progress', trip: { embark_date: '2026-11-10', disembark_date: '2026-11-20' }, want: 'Planowany' },
+		{ name: 'ending today', trip: { embark_date: '2026-11-10', disembark_date: '2026-11-13' }, want: 'Planowany' },
+		{ name: 'cancelled after it ended', trip: { status: 'cancelled' as const, disembark_date: '2026-08-09' }, want: 'Anulowany' }
+	])('keeps a leg $name as $want with no prompt', async ({ trip, want }) => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, ...trip }));
+		render(TripDetailPage);
 
-	it('withdraws a pending sign-up', async () => {
-		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3, enrollment: enrollment() });
-		fn(withdrawTripSignUp).mockResolvedValue(undefined);
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-
-		await fireEvent.click(within(card).getByRole('button', { name: 'Wycofaj zapis: Jacht A' }));
-
-		await waitFor(() => expect(withdrawTripSignUp).toHaveBeenCalledWith(50));
-		expect(await within(card).findByRole('button', { name: 'Zapisz się: Jacht A' })).toBeInTheDocument();
-	});
-
-	it('edits the note after signing up', async () => {
-		fn(getTripSignUp).mockResolvedValue({
-			trip_id: 50,
-			open: true,
-			accepted_count: 3,
-			enrollment: enrollment({ note: 'stara' })
-		});
-		fn(updateTripSignUpNote).mockResolvedValue(enrollment({ note: 'nowa' }));
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).getByTestId('sign-up-note')).toHaveTextContent('stara');
-
-		await fireEvent.click(within(card).getByRole('button', { name: 'Edytuj notatkę' }));
-		const box = within(card).getByLabelText('Notatka dla organizatora');
-		expect(box).toHaveValue('stara');
-		await fireEvent.input(box, { target: { value: 'nowa' } });
-		await fireEvent.click(within(card).getByRole('button', { name: 'Zapisz notatkę' }));
-
-		await waitFor(() => expect(updateTripSignUpNote).toHaveBeenCalledWith(50, 'nowa'));
-		expect(await within(card).findByTestId('sign-up-note')).toHaveTextContent('nowa');
-	});
-
-	it('shows closed sign-ups instead of the button', async () => {
-		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).getByText('Zapisy zamknięte')).toBeInTheDocument();
-		expect(within(card).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
-	});
-
-	it('shows a cancelled leg without free places or a button', async () => {
-		fn(getTrip).mockResolvedValue(makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8, status: 'cancelled' }));
-		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).getByText('Etap odwołany')).toBeInTheDocument();
-		expect(within(card).queryByTestId('free-places')).not.toBeInTheDocument();
-	});
-
-	it('omits free places when the leg has no crew limit', async () => {
-		fn(getTrip).mockResolvedValue(makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A' }));
-		render(TripPage);
-		const card = await screen.findByTestId('my-sign-up');
-		expect(within(card).queryByTestId('free-places')).not.toBeInTheDocument();
-	});
-
-	it('hides the sign-up card when the sign-up state cannot load', async () => {
-		fn(getTripSignUp).mockRejectedValue(new Error('boom'));
-		render(TripPage);
-		await screen.findByRole('heading', { name: 'Jacht A' });
-		expect(screen.queryByTestId('my-sign-up')).not.toBeInTheDocument();
+		expect(await screen.findByText(want)).toBeInTheDocument();
+		expect(screen.queryByText('Do rozliczenia')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Zrealizuj teraz' })).not.toBeInTheDocument();
 	});
 });
