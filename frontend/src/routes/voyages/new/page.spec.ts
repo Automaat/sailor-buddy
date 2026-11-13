@@ -88,6 +88,25 @@ describe('new voyage page', () => {
 		});
 	});
 
+	it('saves the voyage with the yacht still being added', async () => {
+		pageState.url = new URL('http://localhost/voyages/new?cruise_id=13');
+		let resolveYacht!: (y: unknown) => void;
+		fn(createYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
+		render(NewVoyagePage);
+		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+
+		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
+		expect(createVoyage).not.toHaveBeenCalled();
+
+		resolveYacht({ id: 21, name: 'Selma', created_at: '', updated_at: '' });
+		await waitFor(() => expect(createVoyage).toHaveBeenCalledTimes(1));
+		expect(fn(createVoyage).mock.calls[0][0]).toMatchObject({ yacht_id: 21 });
+	});
+
 	it('keeps the form open when the yacht name is missing', async () => {
 		render(NewVoyagePage);
 		await fireEvent.click(await screen.findByRole('button', { name: '+ Nowy jacht spoza listy' }));
