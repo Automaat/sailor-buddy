@@ -42,7 +42,7 @@
 </script>
 
 <div>
-	<div class="mb-6 flex items-center justify-between">
+	<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Załoga</h1>
 		{#if auth.isAdmin}
 			<button
@@ -56,7 +56,7 @@
 
 	{#if showForm && auth.isAdmin}
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<div class="grid grid-cols-3 gap-4">
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 				<div>
 					<label for="name" class="mb-1 block text-sm font-medium">Imię i nazwisko *</label>
 					<input id="name" type="text" bind:value={form.full_name} required class="w-full rounded-lg border px-3 py-2" />

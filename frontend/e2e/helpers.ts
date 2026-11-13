@@ -125,3 +125,14 @@ let userCounter = 0;
 export function uniqueEmail(prefix = 'e2e'): string {
 	return `${prefix}-${Date.now()}-${++userCounter}@test.local`;
 }
+
+// The club admin of this suite run. The backend makes the first account it
+// provisions the admin, so persona-access.spec.ts registers this account
+// first and later specs sign in as it. playwright.config.ts fixes the run ID
+// for every worker.
+const SUITE_ID = process.env.E2E_SUITE_ID || Date.now().toString(36);
+export const TEST_PASSWORD = 'TestPass123!';
+export const SUITE_ADMIN = {
+	email: `pa-admin-${SUITE_ID}@test.local`,
+	name: 'Persona Admin'
+};

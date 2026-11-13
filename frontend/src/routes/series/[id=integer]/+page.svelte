@@ -98,7 +98,7 @@
 				</div>
 			</form>
 		{:else}
-			<div class="mb-6 flex items-start justify-between">
+			<div class="mb-6 flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h1 class="text-3xl font-bold text-[var(--navy)]">{series.name}</h1>
 					{#if series.description}
@@ -121,41 +121,43 @@
 			{#if editions.length === 0}
 				<p class="text-sm text-[var(--text-muted)]">Brak edycji. Przypisz wydarzenie do serii w jego edycji.</p>
 			{:else}
-				<table class="w-full text-left text-sm">
-					<thead class="text-[var(--text-muted)]">
-						<tr>
-							<th class="py-2">Edycja</th>
-							<th class="py-2">Wydarzenie</th>
-							<th class="py-2">Rodzaj</th>
-							<th class="py-2">Termin</th>
-							<th class="py-2 text-right">Mile</th>
-							<th class="py-2 text-right">Godziny</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each editions as e (e.cruise_id)}
-							<tr class="border-t" data-testid="edition-row">
-								<td class="py-2 font-medium">{e.edition ?? '—'}</td>
-								<td class="py-2"><a href="/cruises/{e.cruise_id}" class="text-[var(--ocean)] hover:underline">{e.name}</a></td>
-								<td class="py-2">{cruiseKindLabels[e.kind]}</td>
-								<td class="py-2">
-									{#if e.embark_date}
-										{e.embark_date}{#if e.disembark_date}&nbsp;– {e.disembark_date}{/if}
-									{/if}
-								</td>
-								<td class="py-2 text-right">{formatNumber(e.total_miles)}</td>
-								<td class="py-2 text-right">{formatNumber(e.total_hours)}</td>
+				<div class="overflow-x-auto">
+					<table class="w-full min-w-[32rem] text-left text-sm">
+						<thead class="text-[var(--text-muted)]">
+							<tr>
+								<th class="py-2">Edycja</th>
+								<th class="py-2">Wydarzenie</th>
+								<th class="py-2">Rodzaj</th>
+								<th class="py-2">Termin</th>
+								<th class="py-2 text-right">Mile</th>
+								<th class="py-2 text-right">Godziny</th>
 							</tr>
-						{/each}
-					</tbody>
-					<tfoot>
-						<tr class="border-t font-semibold" data-testid="series-totals">
-							<td class="py-2" colspan="4">Razem</td>
-							<td class="py-2 text-right">{formatNumber(totalMiles)}</td>
-							<td class="py-2 text-right">{formatNumber(totalHours)}</td>
-						</tr>
-					</tfoot>
-				</table>
+						</thead>
+						<tbody>
+							{#each editions as e (e.cruise_id)}
+								<tr class="border-t" data-testid="edition-row">
+									<td class="py-2 font-medium">{e.edition ?? '—'}</td>
+									<td class="py-2"><a href="/cruises/{e.cruise_id}" class="text-[var(--ocean)] hover:underline">{e.name}</a></td>
+									<td class="py-2">{cruiseKindLabels[e.kind]}</td>
+									<td class="py-2">
+										{#if e.embark_date}
+											{e.embark_date}{#if e.disembark_date}&nbsp;– {e.disembark_date}{/if}
+										{/if}
+									</td>
+									<td class="py-2 text-right">{formatNumber(e.total_miles)}</td>
+									<td class="py-2 text-right">{formatNumber(e.total_hours)}</td>
+								</tr>
+							{/each}
+						</tbody>
+						<tfoot>
+							<tr class="border-t font-semibold" data-testid="series-totals">
+								<td class="py-2" colspan="4">Razem</td>
+								<td class="py-2 text-right">{formatNumber(totalMiles)}</td>
+								<td class="py-2 text-right">{formatNumber(totalHours)}</td>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
 			{/if}
 		</div>
 	</div>

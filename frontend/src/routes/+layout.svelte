@@ -12,6 +12,8 @@
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import Users from '@lucide/svelte/icons/users';
 	import Repeat from '@lucide/svelte/icons/repeat';
+	import Menu from '@lucide/svelte/icons/menu';
+	import X from '@lucide/svelte/icons/x';
 
 	let { children } = $props();
 
@@ -31,6 +33,19 @@
 		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
 		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true }
 	];
+
+	// Phone navigation drawer (below md). It closes on every navigation so a
+	// tapped link lands on the page, not behind the open menu.
+	let menuOpen = $state(false);
+
+	$effect(() => {
+		void page.url.pathname;
+		menuOpen = false;
+	});
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') menuOpen = false;
+	}
 
 	async function handleLogout() {
 		await auth.logout();
@@ -92,6 +107,8 @@
 	});
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 {#if auth.loading}
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 		<ClubLogo inverted class="h-14 w-auto" />
@@ -99,32 +116,96 @@
 {:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname) || page.url.pathname === ONBOARDING_PATH}
 	{@render children()}
 {:else}
-	<div class="flex min-h-screen">
-		<nav class="flex w-60 flex-col bg-[var(--navy)] text-white">
+	{#snippet navLinks(itemClass: string)}
+		{#each navItems as item}
+			{#if !item.adminOnly || auth.isAdmin}
+				{@const active =
+					page.url.pathname === item.href ||
+					(item.href !== '/' && page.url.pathname.startsWith(item.href)) ||
+					(item.alsoActiveUnder ?? []).some((p) => page.url.pathname.startsWith(p))}
+				{@const Icon = item.icon}
+				<a
+					href={item.href}
+					aria-current={active ? 'page' : undefined}
+					class="flex items-center gap-3 rounded-lg px-3 text-sm transition-colors hover:bg-white/10 {itemClass} {active
+						? 'bg-white/15'
+						: ''}"
+				>
+					<Icon class="h-5 w-5" />
+					<span>{item.label}</span>
+				</a>
+			{/if}
+		{/each}
+	{/snippet}
+
+	<div class="flex min-h-screen flex-col md:flex-row">
+		<header
+			class="sticky top-0 z-30 flex h-14 items-center justify-between bg-[var(--navy)] px-2 text-white md:hidden"
+		>
+			<a href="/" class="flex min-h-11 items-center gap-2 px-2">
+				<ClubLogo inverted alt="" class="h-8 w-auto" />
+				<span class="font-bold">AKŻ AGH</span>
+			</a>
+			<button
+				type="button"
+				onclick={() => (menuOpen = !menuOpen)}
+				aria-expanded={menuOpen}
+				aria-controls="mobile-menu"
+				aria-label={menuOpen ? 'Zamknij menu' : 'Otwórz menu'}
+				class="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10"
+			>
+				{#if menuOpen}
+					<X class="h-6 w-6" />
+				{:else}
+					<Menu class="h-6 w-6" />
+				{/if}
+			</button>
+		</header>
+
+		{#if menuOpen}
+			<div class="fixed inset-0 top-14 z-20 md:hidden">
+				<button
+					type="button"
+					tabindex="-1"
+					aria-label="Zamknij menu"
+					onclick={() => (menuOpen = false)}
+					class="absolute inset-0 h-full w-full bg-black/40"
+				></button>
+				<nav
+					id="mobile-menu"
+					aria-label="Menu główne"
+					class="relative flex max-h-full flex-col overflow-y-auto bg-[var(--navy)] px-2 pb-4 text-white shadow-lg"
+				>
+					<div class="flex flex-col gap-1 pt-2">
+						{@render navLinks('min-h-11 py-2')}
+					</div>
+					<div class="mt-2 flex flex-col border-t border-white/10 pt-2">
+						<a
+							href="/profile"
+							class="flex min-h-11 items-center rounded-lg px-3 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+						>
+							{auth.user?.name || auth.firebaseUser?.displayName || 'Profil'}
+						</a>
+						<button
+							type="button"
+							onclick={handleLogout}
+							class="flex min-h-11 items-center rounded-lg px-3 text-left text-sm text-white/60 hover:bg-white/10 hover:text-white"
+						>
+							Wyloguj
+						</button>
+					</div>
+				</nav>
+			</div>
+		{/if}
+
+		<nav class="hidden w-60 shrink-0 flex-col bg-[var(--navy)] text-white md:flex">
 			<a href="/" class="flex items-center gap-3 border-b border-white/10 p-4">
 				<ClubLogo inverted alt="" class="h-9 w-auto" />
 				<span class="text-lg font-bold">AKŻ AGH</span>
 			</a>
 
 			<div class="mt-4 flex flex-1 flex-col gap-1 px-2">
-				{#each navItems as item}
-					{#if !item.adminOnly || auth.isAdmin}
-						{@const active =
-							page.url.pathname === item.href ||
-							(item.href !== '/' && page.url.pathname.startsWith(item.href)) ||
-							(item.alsoActiveUnder ?? []).some((p) => page.url.pathname.startsWith(p))}
-						{@const Icon = item.icon}
-						<a
-							href={item.href}
-							class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/10 {active
-								? 'bg-white/15'
-								: ''}"
-						>
-							<Icon class="h-5 w-5" />
-							<span>{item.label}</span>
-						</a>
-					{/if}
-				{/each}
+				{@render navLinks('py-2')}
 			</div>
 			<div class="border-t border-white/10 p-4">
 				<a
@@ -141,7 +222,7 @@
 				</button>
 			</div>
 		</nav>
-		<main class="flex-1 overflow-auto p-8">
+		<main class="min-w-0 flex-1 overflow-auto p-4 md:p-8">
 			{@render children()}
 		</main>
 	</div>

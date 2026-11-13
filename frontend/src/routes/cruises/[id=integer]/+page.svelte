@@ -255,7 +255,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if cruise}
 	<div class="mx-auto max-w-5xl">
-		<div class="mb-6 flex items-center justify-between">
+		<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
 				{#if series}
@@ -280,7 +280,7 @@
 			</div>
 			{#if isAdmin}
 				<div class="flex gap-2">
-					<a href="/cruises/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+					<a href="/cruises/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
 					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
 						Usuń
 					</button>
@@ -328,7 +328,7 @@
 				{#if isAdmin}
 					<a
 						href="/trips/new?cruise_id={id}"
-						class="rounded-lg bg-[var(--ocean)] px-3 py-1.5 text-sm text-white hover:bg-[var(--ocean-dark)]"
+						class="tap-target rounded-lg bg-[var(--ocean)] px-3 py-1.5 text-sm text-white hover:bg-[var(--ocean-dark)]"
 					>
 						+ Dodaj jacht
 					</a>
@@ -450,7 +450,7 @@
 				<div class="mb-3 flex items-center justify-between">
 					<h2 class="font-semibold text-[var(--navy)]">Zrealizowane etapy ({voyages.length})</h2>
 					{#if isAdmin}
-						<a href="/voyages/new?cruise_id={id}" class="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50">
+						<a href="/voyages/new?cruise_id={id}" class="tap-target rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50">
 							+ Wpisz zrealizowany
 						</a>
 					{/if}

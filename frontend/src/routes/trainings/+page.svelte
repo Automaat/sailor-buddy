@@ -43,7 +43,7 @@
 </script>
 
 <div>
-	<div class="mb-6 flex items-center justify-between">
+	<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Szkolenia</h1>
 		<button onclick={() => (showForm = !showForm)} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]">
 			{showForm ? 'Anuluj' : '+ Dodaj szkolenie'}
@@ -52,7 +52,7 @@
 
 	{#if showForm}
 		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
@@ -69,7 +69,7 @@
 					<label for="cost" class="mb-1 block text-sm font-medium">Koszt</label>
 					<input id="cost" type="number" step="0.01" bind:value={form.cost} class="w-full rounded-lg border px-3 py-2" />
 				</div>
-				<div class="col-span-2">
+				<div class="sm:col-span-2">
 					<label for="url" class="mb-1 block text-sm font-medium">URL</label>
 					<input id="url" type="url" bind:value={form.url} class="w-full rounded-lg border px-3 py-2" />
 				</div>

@@ -162,7 +162,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if trip}
 	<div class="mx-auto max-w-4xl">
-		<div class="mb-6 flex items-center justify-between">
+		<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
 			<div>
 				{#if cruise}
 					<a href="/cruises/{cruise.id}" class="text-xs text-[var(--ocean)] hover:underline">
@@ -183,7 +183,7 @@
 				</p>
 			</div>
 			{#if canManageCrew}
-				<div class="flex gap-2">
+				<div class="flex flex-wrap gap-2">
 					{#if trip.status === 'planned'}
 						<button
 							onclick={() => (showCompleteModal = true)}
@@ -200,7 +200,7 @@
 							Anuluj
 						</button>
 					{/if}
-					<a href="/trips/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+					<a href="/trips/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
 					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
 						Usuń
 					</button>
@@ -224,7 +224,7 @@
 		{#if trip.embark_date || trip.captain_name || trip.cost_total}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Szczegóły</h2>
-				<dl class="grid grid-cols-2 gap-2 text-sm">
+				<dl class="grid grid-cols-1 text-sm sm:grid-cols-2 sm:gap-2 max-sm:[&>dd]:mb-2">
 					{#if trip.embark_date}
 						<dt class="text-[var(--text-muted)]">Daty</dt>
 						<dd>{trip.embark_date} – {trip.disembark_date ?? '?'}</dd>
@@ -294,7 +294,7 @@
 							Kopiuj link
 						</button>
 					{/if}
-					<a href="/trips/{id}/enrollments" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+					<a href="/trips/{id}/enrollments" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
 						Zarządzaj zapisami
 					</a>
 				</div>

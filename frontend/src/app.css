@@ -31,3 +31,26 @@ body {
 	background: var(--surface);
 	color: var(--text);
 }
+
+/*
+ * Phones: every button gets a 44px tap target (WCAG 2.5.5). Buttons center
+ * their content natively, so the extra height needs no layout change.
+ * Links styled as buttons opt in with the tap-target utility.
+ */
+@layer base {
+	@media (width < 48rem) {
+		button {
+			min-width: 2.75rem;
+			min-height: 2.75rem;
+		}
+	}
+}
+
+@utility tap-target {
+	@media (width < 48rem) {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 2.75rem;
+	}
+}

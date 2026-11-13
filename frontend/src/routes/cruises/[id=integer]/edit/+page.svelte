@@ -106,12 +106,12 @@
 		{/if}
 
 		<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
-			<div class="grid grid-cols-2 gap-4">
-				<div class="col-span-2">
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div class="sm:col-span-2">
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa wydarzenia *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 				</div>
-				<div class="col-span-2">
+				<div class="sm:col-span-2">
 					<label for="kind" class="mb-1 block text-sm font-medium">Rodzaj rejsu</label>
 					<select id="kind" bind:value={form.kind} class="w-full rounded-lg border px-3 py-2">
 						{#each cruiseKinds as kind (kind)}
@@ -136,7 +136,7 @@
 					<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
 					<input id="end_port" type="text" bind:value={form.end_port} class="w-full rounded-lg border px-3 py-2" />
 				</div>
-				<div class="col-span-2">
+				<div class="sm:col-span-2">
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
 					<input id="countries" type="text" bind:value={form.countries} class="w-full rounded-lg border px-3 py-2" />
 				</div>
@@ -161,7 +161,7 @@
 				<button type="submit" disabled={saving} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 					{saving ? 'Zapisywanie...' : 'Zapisz zmiany'}
 				</button>
-				<a href="/cruises/{id}" class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+				<a href="/cruises/{id}" class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
 			</div>
 		</form>
 	</div>

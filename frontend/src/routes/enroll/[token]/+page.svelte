@@ -123,7 +123,7 @@
 					<PriceInfo priced={data.trip} membership={auth.user?.membership} />
 				</div>
 
-				<div class="mb-6 flex gap-4 text-sm">
+				<div class="mb-6 flex flex-wrap gap-4 text-sm">
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zapisanych:</span>
 						<span class="font-semibold">{data.total_count}</span>
@@ -231,7 +231,7 @@
 					</fieldset>
 				{/if}
 
-				<div class="mb-6 flex gap-4 text-sm">
+				<div class="mb-6 flex flex-wrap gap-4 text-sm">
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zapisanych:</span>
 						<span class="font-semibold">{data.total_count}</span>
@@ -268,7 +268,7 @@
 					</p>
 					<a
 						href={loginHref}
-						class="inline-block rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)]"
+						class="tap-target inline-block rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)]"
 					>
 						Zapisz się
 					</a>

@@ -12,7 +12,7 @@
 	} = $props();
 </script>
 
-<fieldset class="col-span-2 grid grid-cols-2 gap-4">
+<fieldset class="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
 	<legend class="mb-2 text-sm font-semibold text-[var(--navy)]">Cena</legend>
 	<div>
 		<label for="currency" class="mb-1 block text-sm font-medium">Waluta</label>
@@ -22,7 +22,7 @@
 			{/each}
 		</select>
 	</div>
-	<div></div>
+	<div class="hidden sm:block"></div>
 	<div>
 		<label for="cost_pp" class="mb-1 block text-sm font-medium">Cena dla członków i sympatyków / os.</label>
 		<input id="cost_pp" type="number" min="0" step="0.01" bind:value={price.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
