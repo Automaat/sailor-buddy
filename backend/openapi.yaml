@@ -469,6 +469,13 @@ components:
           type: integer
         note:
           type: string
+        payment_status:
+          description: "Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"
+          enum:
+            - unpaid
+            - deposit
+            - paid
+          type: string
         status:
           type: string
         trip_id:
@@ -951,6 +958,13 @@ components:
           format: int64
           type: integer
         note:
+          type: string
+        payment_status:
+          description: "Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"
+          enum:
+            - unpaid
+            - deposit
+            - paid
           type: string
         status:
           type: string
@@ -1526,6 +1540,26 @@ components:
         - offset
         - has_more
       type: object
+    PaymentStatusBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PaymentStatusBody.json
+          format: uri
+          readOnly: true
+          type: string
+        payment_status:
+          description: unpaid, deposit (first payment received) or paid (in full)
+          enum:
+            - unpaid
+            - deposit
+            - paid
+          type: string
+      required:
+        - payment_status
+      type: object
     PersonalSeaTime:
       additionalProperties: false
       properties:
@@ -1944,6 +1978,13 @@ components:
           format: int64
           type: integer
         note:
+          type: string
+        payment_status:
+          description: "Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"
+          enum:
+            - unpaid
+            - deposit
+            - paid
           type: string
         status:
           type: string
@@ -4165,6 +4206,49 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Delete a trip enrollment (admin)
+      tags:
+        - Enrollment
+  /trips/{tripID}/enrollments/{id}/payment-status:
+    put:
+      description: Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. 404 when the trip has no such enrollment.
+      operationId: update-trip-enrollment-payment-status
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Enrollment ID
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Enrollment ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentStatusBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enrollment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Set a trip enrollment's manual payment status (admin)
       tags:
         - Enrollment
   /trips/{tripID}/enrollments/{id}/status:

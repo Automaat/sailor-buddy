@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { signUpForTrip, updateTripSignUpNote, withdrawTripSignUp } from '#lib/api/routes.js';
 	import type { LegSignUp } from '#lib/api/types.js';
-	import { statusLabels } from '#lib/enrollment.js';
+	import { paymentLabels, statusLabels } from '#lib/enrollment.js';
 
 	interface Props {
 		signUp: LegSignUp;
@@ -25,6 +25,12 @@
 		accepted: 'bg-[var(--ocean)] text-white',
 		rejected: 'bg-gray-100 text-gray-600',
 		waitlisted: 'bg-[var(--navy)]/10 text-[var(--navy)]'
+	};
+
+	const paymentColors: Record<string, string> = {
+		unpaid: 'bg-gray-100 text-gray-600',
+		deposit: 'bg-amber-100 text-amber-800',
+		paid: 'bg-green-100 text-green-800'
 	};
 
 	async function run(action: () => Promise<void>, failure: string) {
@@ -78,6 +84,14 @@
 			>
 				{statusLabels[enrollment.status] ?? enrollment.status}
 			</span>
+			{#if enrollment.payment_status}
+				<span
+					class="rounded-full px-2 py-0.5 text-xs font-medium {paymentColors[enrollment.payment_status] ?? 'bg-gray-100'}"
+					data-testid="sign-up-payment"
+				>
+					{paymentLabels[enrollment.payment_status]}
+				</span>
+			{/if}
 			{#if cruiseLevel}
 				<span class="text-xs text-[var(--text-muted)]" data-testid="cruise-level">zapis na wydarzenie</span>
 			{/if}

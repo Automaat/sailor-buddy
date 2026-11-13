@@ -9,14 +9,17 @@ import (
 // Enrollment is a user's enrollment in a trip or cruise. Exactly one of
 // trip_id / cruise_id identifies the target.
 type Enrollment struct {
-	ID        int64     `json:"id"`
-	TripID    *int64    `json:"trip_id,omitempty"`
-	CruiseID  *int64    `json:"cruise_id,omitempty"`
-	UserID    int64     `json:"user_id"`
-	Note      *string   `json:"note,omitempty"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID       int64   `json:"id"`
+	TripID   *int64  `json:"trip_id,omitempty"`
+	CruiseID *int64  `json:"cruise_id,omitempty"`
+	UserID   int64   `json:"user_id"`
+	Note     *string `json:"note,omitempty"`
+	Status   string  `json:"status"`
+	// PaymentStatus is set on trip (leg) enrollments only; cruise-level
+	// enrollments carry no payment status.
+	PaymentStatus string    `json:"payment_status,omitempty" enum:"unpaid,deposit,paid" doc:"Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // TripEnrollmentDetail is a trip enrollment joined with the enrolled user.
@@ -183,6 +186,11 @@ type EnrollmentStatusBody struct {
 	Status string `json:"status" enum:"accepted,rejected,waitlisted,pending" doc:"Enrollment status"`
 }
 
+// PaymentStatusBody sets a leg sign-up's manual payment status.
+type PaymentStatusBody struct {
+	PaymentStatus string `json:"payment_status" enum:"unpaid,deposit,paid" doc:"unpaid, deposit (first payment received) or paid (in full)"`
+}
+
 // AssignTripBody assigns a cruise enrollment to a trip; a null trip_id unassigns.
 type AssignTripBody struct {
 	TripID *int64 `json:"trip_id,omitempty" doc:"Trip ID, or null to unassign"`
@@ -192,13 +200,14 @@ type AssignTripBody struct {
 func TripEnrollmentToDTO(e sqlcdb.TripEnrollment) Enrollment {
 	tid := e.TripID
 	return Enrollment{
-		ID:        e.ID,
-		TripID:    &tid,
-		UserID:    e.UserID,
-		Note:      strPtr(e.Note),
-		Status:    e.Status,
-		CreatedAt: timeVal(e.CreatedAt),
-		UpdatedAt: timeVal(e.UpdatedAt),
+		ID:            e.ID,
+		TripID:        &tid,
+		UserID:        e.UserID,
+		Note:          strPtr(e.Note),
+		Status:        e.Status,
+		PaymentStatus: e.PaymentStatus,
+		CreatedAt:     timeVal(e.CreatedAt),
+		UpdatedAt:     timeVal(e.UpdatedAt),
 	}
 }
 
@@ -233,15 +242,16 @@ func TripEnrollmentsFromDB(rows []sqlcdb.ListTripEnrollmentsRow) []TripEnrollmen
 		r := rows[i]
 		tid := r.TripID
 		out[i] = TripEnrollmentDetail{
-			ID:        r.ID,
-			TripID:    &tid,
-			UserID:    r.UserID,
-			Note:      strPtr(r.Note),
-			Status:    r.Status,
-			CreatedAt: timeVal(r.CreatedAt),
-			UpdatedAt: timeVal(r.UpdatedAt),
-			UserName:  r.UserName,
-			UserEmail: r.UserEmail,
+			ID:            r.ID,
+			TripID:        &tid,
+			UserID:        r.UserID,
+			Note:          strPtr(r.Note),
+			Status:        r.Status,
+			PaymentStatus: r.PaymentStatus,
+			CreatedAt:     timeVal(r.CreatedAt),
+			UpdatedAt:     timeVal(r.UpdatedAt),
+			UserName:      r.UserName,
+			UserEmail:     r.UserEmail,
 		}
 	}
 	return out
@@ -349,17 +359,17 @@ func CruiseTripEnrollmentsFromDB(rows []sqlcdb.ListCruiseTripEnrollmentsRow) []T
 		r := rows[i]
 		tid := r.TripID
 		out[i] = TripEnrollmentDetail{
-			ID:        r.ID,
-			TripID:    &tid,
-			UserID:    r.UserID,
-			Note:      strPtr(r.Note),
-			Status:    r.Status,
-			CreatedAt: timeVal(r.CreatedAt),
-			UpdatedAt: timeVal(r.UpdatedAt),
-			UserName:  r.UserName,
-			UserEmail: r.UserEmail,
+			ID:            r.ID,
+			TripID:        &tid,
+			UserID:        r.UserID,
+			Note:          strPtr(r.Note),
+			Status:        r.Status,
+			PaymentStatus: r.PaymentStatus,
+			CreatedAt:     timeVal(r.CreatedAt),
+			UpdatedAt:     timeVal(r.UpdatedAt),
+			UserName:      r.UserName,
+			UserEmail:     r.UserEmail,
 		}
-
 	}
 	return out
 }

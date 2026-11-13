@@ -298,6 +298,7 @@ Assignment body — `crew_member_id` and `role` required:
 | DELETE | `/api/trips/{tripID}/enroll-token` | **admin** | Clear share token, 204 |
 | GET | `/api/trips/{tripID}/enrollments` | **admin** | List enrollments |
 | PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204 |
+| PUT | `/api/trips/{tripID}/enrollments/{id}/payment-status` | **admin** | Set payment status → `Enrollment`, 200 |
 | DELETE | `/api/trips/{tripID}/enrollments/{id}` | **admin** | Delete enrollment, 204 |
 | GET | `/api/enroll/{token}` | public | Resolve token → trip or cruise |
 | POST | `/api/enroll/{token}` | member | Enroll self via a trip token, 201; a cruise token returns `422` |
@@ -326,6 +327,14 @@ token no longer takes a whole-cruise sign-up, so `POST /api/enroll/{token}`
 with a cruise token returns `422` and writes nothing; legs are picked through
 `POST /api/enroll/{token}/legs`. Existing `cruise_enrollments` rows stay and
 are still managed through the cruise enrollment routes.
+
+Payment status: every trip enrollment carries `payment_status`, set by hand
+by an admin after checking transfers: `unpaid` (default for a new sign-up),
+`deposit` (first payment received) or `paid` (paid in full). No amounts are
+stored. Body: `{ "payment_status": "deposit" }`. It is independent of
+`status`: changing one leaves the other unchanged. `404 enrollment not
+found` when the trip has no enrollment with that id. Cruise-level
+enrollments omit `payment_status`.
 
 ### Leg sign-up (one click)
 
@@ -448,7 +457,8 @@ Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 `max_crew`, the price fields below, `series_id`, `edition` (see Cruise
 series), and the logistics fields below.
 
-Cruise prices are shown only; nothing tracks payments. All amounts are per
+Cruise prices are shown only; payments are not computed (admins record a
+sign-up's payment status by hand, see Trip enrollment). All amounts are per
 person, optional and `>= 0`, in `currency` (`PLN` or `EUR`, `PLN` when
 omitted):
 

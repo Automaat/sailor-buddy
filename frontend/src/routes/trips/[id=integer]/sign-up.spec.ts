@@ -94,6 +94,36 @@ describe('trip page sign-up', () => {
 		expect(within(card).queryByRole('button', { name: /Wycofaj/ })).not.toBeInTheDocument();
 	});
 
+	it.each([
+		['unpaid', 'Brak wpłaty'],
+		['deposit', 'Zaliczka wpłacona'],
+		['paid', 'Opłacone']
+	])('shows the %s payment status next to the sign-up status', async (payment, label) => {
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ payment_status: payment })
+		});
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('oczekujący');
+		expect(within(card).getByTestId('sign-up-payment')).toHaveTextContent(label);
+	});
+
+	it('shows no payment status for a cruise-level enrollment', async () => {
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ cruise_id: 7 })
+		});
+		render(TripPage);
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-status')).toBeInTheDocument();
+		expect(within(card).queryByTestId('sign-up-payment')).not.toBeInTheDocument();
+	});
+
 	it('withdraws a pending sign-up', async () => {
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3, enrollment: enrollment() });
 		fn(withdrawTripSignUp).mockResolvedValue(undefined);
