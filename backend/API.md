@@ -146,8 +146,8 @@ Club attributes on `users`, both set by admins and not access roles:
   group can be assigned as a trip/voyage captain. Joining requires
   `membership = czlonek` and a `patent_number` on the account (`422`
   otherwise).
-- `membership` — `czlonek` (AGH student member, default), `sympatyk`
-  (student of another university) or `gosc` (guest). A captain must stay
+- `membership` — `czlonek` (AGH student member), `sympatyk`
+  (student of another university) or `gosc` (guest, the default for new accounts). A captain must stay
   `czlonek`.
 
 Captain assignment: trip/voyage bodies take `captain_user_id`. When set, the
@@ -179,9 +179,17 @@ require the caller to be an `admin` (marked **admin** below).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/auth/me` | Current user: `{id, email, name, avatar_url, role, is_captain, membership, patent_type, patent_number}` |
-| PUT | `/api/auth/me` | Update the caller's sailing patent |
+| GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number}` |
+| PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
 | GET | `/api/dashboard` | Club sailing stats + per-year breakdown |
+
+`PUT /api/auth/me` body — `first_name` and `last_name` required (non-blank);
+optional `phone` (`+48 600 100 200` style), `patent_type` and
+`patent_number`. A `patent_type` requires a `patent_number` (`422`); a
+number without a type is dropped. A captain can't clear their patent number
+(`422`). `name` becomes `first_name last_name`, and the first save sets
+`onboarded`. After onboarding, sign-in no longer overwrites `name` with the
+Firebase display name.
 
 ### Members
 

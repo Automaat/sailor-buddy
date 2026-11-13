@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getMe } from '#lib/api/routes.js';
+	import { ONBOARDING_PATH, onboardingRedirect } from '#lib/onboarding.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
@@ -53,6 +54,15 @@
 		}
 	});
 
+	// Onboarding gate: a signed-in user who has not filled in the profile form
+	// is sent there first, and returned to the original page once the saved
+	// profile marks them onboarded.
+	$effect(() => {
+		if (!auth.user) return;
+		const target = onboardingRedirect(auth.user.onboarded, page.url);
+		if (target) goto(target, { replaceState: true });
+	});
+
 	$effect(() => {
 		if (auth.isAuthenticated && !auth.user) {
 			const currentUid = auth.firebaseUser?.uid;
@@ -85,7 +95,7 @@
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 		<Anchor class="h-10 w-10 text-white" />
 	</div>
-{:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname)}
+{:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname) || page.url.pathname === ONBOARDING_PATH}
 	{@render children()}
 {:else}
 	<div class="flex min-h-screen">

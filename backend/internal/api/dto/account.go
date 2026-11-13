@@ -7,6 +7,10 @@ type Me struct {
 	ID           int64   `json:"id"`
 	Email        string  `json:"email"`
 	Name         string  `json:"name"`
+	FirstName    string  `json:"first_name"`
+	LastName     string  `json:"last_name"`
+	Phone        *string `json:"phone,omitempty"`
+	Onboarded    bool    `json:"onboarded" doc:"Whether the user completed the onboarding form"`
 	AvatarURL    string  `json:"avatar_url"`
 	Role         string  `json:"role"`
 	IsCaptain    bool    `json:"is_captain"`
@@ -21,6 +25,10 @@ func MeFromUser(u sqlcdb.User) Me {
 		ID:           u.ID,
 		Email:        u.Email,
 		Name:         u.Name,
+		FirstName:    u.FirstName,
+		LastName:     u.LastName,
+		Phone:        strPtr(u.Phone),
+		Onboarded:    u.OnboardedAt.Valid,
 		AvatarURL:    u.AvatarUrl.String,
 		Role:         u.Role,
 		IsCaptain:    u.IsCaptain,
@@ -30,9 +38,13 @@ func MeFromUser(u sqlcdb.User) Me {
 	}
 }
 
-// UpdatePatentBody is the request body for setting the user's sailing patent.
-// PatentType is one of the three Polish patent grades, or omitted for none.
-type UpdatePatentBody struct {
+// UpdateProfileBody is the onboarding and profile form. Saving it marks the
+// user as onboarded. PatentType is one of the three Polish patent grades, or
+// omitted for none; a patent type requires a patent number.
+type UpdateProfileBody struct {
+	FirstName    string  `json:"first_name" minLength:"1" maxLength:"100" doc:"Given name"`
+	LastName     string  `json:"last_name" minLength:"1" maxLength:"100" doc:"Family name"`
+	Phone        *string `json:"phone,omitempty" maxLength:"30" pattern:"^\\+?[0-9 ()-]{6,29}$" doc:"Contact phone number"`
 	PatentType   *string `json:"patent_type,omitempty" enum:"zeglarz_jachtowy,jachtowy_sternik_morski,kapitan_jachtowy" doc:"Polish sailing patent grade"`
 	PatentNumber *string `json:"patent_number,omitempty" doc:"Patent registration number"`
 }

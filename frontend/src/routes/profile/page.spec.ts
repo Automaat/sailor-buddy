@@ -47,6 +47,10 @@ function seededUser(patentType: string | undefined, patentNumber: string | undef
 		id: 1,
 		email: 'jan@example.com',
 		name: 'Jan Kowalski',
+		first_name: 'Jan',
+		last_name: 'Kowalski',
+		phone: '+48 600 100 200',
+		onboarded: true,
 		avatar_url: '',
 		patent_type: patentType,
 		patent_number: patentNumber
@@ -79,11 +83,17 @@ describe('profile page', () => {
 
 		await waitFor(() =>
 			expect(updateMeMock).toHaveBeenCalledWith({
+				first_name: 'Jan',
+				last_name: 'Kowalski',
+				phone: '+48 600 100 200',
 				patent_type: 'kapitan_jachtowy',
 				patent_number: 'PL-9'
 			})
 		);
-		expect(updateProfileMock).toHaveBeenCalled();
+		expect(updateProfileMock).toHaveBeenCalledWith(h.fbUser, {
+			displayName: 'Jan Kowalski',
+			photoURL: null
+		});
 	});
 
 	it('drops the patent number when the type is cleared', async () => {
@@ -95,11 +105,35 @@ describe('profile page', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz' }));
 
 		await waitFor(() =>
-			expect(updateMeMock).toHaveBeenCalledWith({
-				patent_type: undefined,
-				patent_number: undefined
-			})
+			expect(updateMeMock).toHaveBeenCalledWith(
+				expect.objectContaining({ patent_type: undefined, patent_number: undefined })
+			)
 		);
+	});
+
+	it('saves edited name and phone', async () => {
+		render(ProfilePage);
+		const first = (await screen.findByLabelText('Imię *')) as HTMLInputElement;
+		await waitFor(() => expect(first.value).toBe('Jan'));
+		await fireEvent.input(first, { target: { value: 'Janusz' } });
+		await fireEvent.input(screen.getByLabelText('Telefon'), { target: { value: '' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz' }));
+
+		await waitFor(() =>
+			expect(updateMeMock).toHaveBeenCalledWith(
+				expect.objectContaining({ first_name: 'Janusz', last_name: 'Kowalski', phone: undefined })
+			)
+		);
+	});
+
+	it('shows the API error and skips the Firebase update when saving fails', async () => {
+		updateMeMock.mockRejectedValueOnce(new Error('patent number is required'));
+		render(ProfilePage);
+		await screen.findByLabelText('Patent żeglarski');
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz' }));
+
+		expect(await screen.findByText(/patent number is required/)).toBeTruthy();
+		expect(updateProfileMock).not.toHaveBeenCalled();
 	});
 
 	it('hides the password section for non-password accounts', async () => {

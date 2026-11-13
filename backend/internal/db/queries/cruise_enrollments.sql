@@ -5,6 +5,8 @@ VALUES ($1, $2, $3) RETURNING *;
 -- name: ListCruiseEnrollments :many
 SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
        u.name AS user_name, u.email AS user_email,
+       u.phone AS user_phone, u.patent_type AS user_patent_type,
+       u.patent_number AS user_patent_number,
        t.name AS trip_name
 FROM cruise_enrollments ce
 JOIN users u ON u.id = ce.user_id

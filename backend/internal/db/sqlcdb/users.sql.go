@@ -40,7 +40,7 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
+INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 `
 
 type CreateUserParams struct {
@@ -51,7 +51,7 @@ type CreateUserParams struct {
 
 // CreateUser
 //
-//	INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
+//	INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Name, arg.FirebaseUid)
 	var i User
@@ -69,17 +69,21 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.IsCaptain,
 		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users WHERE email = $1
+SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE email = $1
 `
 
 // GetUserByEmail
 //
-//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users WHERE email = $1
+//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE email = $1
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
 	var i User
@@ -97,17 +101,21 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.IsCaptain,
 		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
 
 const getUserByFirebaseUID = `-- name: GetUserByFirebaseUID :one
-SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users WHERE firebase_uid = $1
+SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE firebase_uid = $1
 `
 
 // GetUserByFirebaseUID
 //
-//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users WHERE firebase_uid = $1
+//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE firebase_uid = $1
 func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByFirebaseUID, firebaseUid)
 	var i User
@@ -125,17 +133,21 @@ func (q *Queries) GetUserByFirebaseUID(ctx context.Context, firebaseUid types.Nu
 		&i.UpdatedAt,
 		&i.IsCaptain,
 		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users WHERE id = $1
+SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE id = $1
 `
 
 // GetUserByID
 //
-//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users WHERE id = $1
+//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE id = $1
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
@@ -153,6 +165,10 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.UpdatedAt,
 		&i.IsCaptain,
 		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
@@ -160,11 +176,12 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 const linkFirebaseUIDByEmail = `-- name: LinkFirebaseUIDByEmail :one
 UPDATE users SET
   firebase_uid = $1,
-  name = COALESCE(NULLIF($2::TEXT, ''), name),
+  name = CASE WHEN onboarded_at IS NOT NULL THEN name
+    ELSE COALESCE(NULLIF($2::TEXT, ''), name) END,
   updated_at = CURRENT_TIMESTAMP
 WHERE email = $3
   AND (firebase_uid IS NULL OR firebase_uid = $1)
-RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
+RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 `
 
 type LinkFirebaseUIDByEmailParams struct {
@@ -177,11 +194,12 @@ type LinkFirebaseUIDByEmailParams struct {
 //
 //	UPDATE users SET
 //	  firebase_uid = $1,
-//	  name = COALESCE(NULLIF($2::TEXT, ''), name),
+//	  name = CASE WHEN onboarded_at IS NOT NULL THEN name
+//	    ELSE COALESCE(NULLIF($2::TEXT, ''), name) END,
 //	  updated_at = CURRENT_TIMESTAMP
 //	WHERE email = $3
 //	  AND (firebase_uid IS NULL OR firebase_uid = $1)
-//	RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
+//	RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, linkFirebaseUIDByEmail, arg.FirebaseUid, arg.NewName, arg.Email)
 	var i User
@@ -199,17 +217,21 @@ func (q *Queries) LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUI
 		&i.UpdatedAt,
 		&i.IsCaptain,
 		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users ORDER BY role, name, id
+SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users ORDER BY role, name, id
 `
 
 // ListUsers
 //
-//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership FROM users ORDER BY role, name, id
+//	SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users ORDER BY role, name, id
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, listUsers)
 	if err != nil {
@@ -233,6 +255,10 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.UpdatedAt,
 			&i.IsCaptain,
 			&i.Membership,
+			&i.FirstName,
+			&i.LastName,
+			&i.Phone,
+			&i.OnboardedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -305,22 +331,72 @@ func (q *Queries) UpdateUserMembership(ctx context.Context, arg UpdateUserMember
 	return err
 }
 
-const updateUserPatent = `-- name: UpdateUserPatent :exec
-UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET
+  first_name = $1,
+  last_name = $2,
+  name = $1::TEXT || ' ' || $2::TEXT,
+  phone = $3,
+  patent_type = $4,
+  patent_number = $5,
+  onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = $6
+RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 `
 
-type UpdateUserPatentParams struct {
+type UpdateUserProfileParams struct {
+	FirstName    string           `json:"first_name"`
+	LastName     string           `json:"last_name"`
+	Phone        types.NullString `json:"phone"`
 	PatentType   types.NullString `json:"patent_type"`
 	PatentNumber types.NullString `json:"patent_number"`
 	ID           int64            `json:"id"`
 }
 
-// UpdateUserPatent
+// UpdateUserProfile
 //
-//	UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3
-func (q *Queries) UpdateUserPatent(ctx context.Context, arg UpdateUserPatentParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserPatent, arg.PatentType, arg.PatentNumber, arg.ID)
-	return err
+//	UPDATE users SET
+//	  first_name = $1,
+//	  last_name = $2,
+//	  name = $1::TEXT || ' ' || $2::TEXT,
+//	  phone = $3,
+//	  patent_type = $4,
+//	  patent_number = $5,
+//	  onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
+//	  updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $6
+//	RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserProfile,
+		arg.FirstName,
+		arg.LastName,
+		arg.Phone,
+		arg.PatentType,
+		arg.PatentNumber,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.AvatarUrl,
+		&i.FirebaseUid,
+		&i.Role,
+		&i.PatentType,
+		&i.PatentNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsCaptain,
+		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
+	)
+	return i, err
 }
 
 const updateUserRole = `-- name: UpdateUserRole :exec
@@ -345,9 +421,10 @@ INSERT INTO users (email, name, password_hash, firebase_uid)
 VALUES ($1, $2, '', $3)
 ON CONFLICT(firebase_uid) DO UPDATE SET
   email = EXCLUDED.email,
-  name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
+  name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
+    THEN users.name ELSE EXCLUDED.name END,
   updated_at = CURRENT_TIMESTAMP
-RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
+RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 `
 
 type UpsertUserByFirebaseUIDParams struct {
@@ -362,9 +439,10 @@ type UpsertUserByFirebaseUIDParams struct {
 //	VALUES ($1, $2, '', $3)
 //	ON CONFLICT(firebase_uid) DO UPDATE SET
 //	  email = EXCLUDED.email,
-//	  name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
+//	  name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
+//	    THEN users.name ELSE EXCLUDED.name END,
 //	  updated_at = CURRENT_TIMESTAMP
-//	RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership
+//	RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserByFirebaseUID, arg.Email, arg.Name, arg.FirebaseUid)
 	var i User
@@ -382,6 +460,10 @@ func (q *Queries) UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByF
 		&i.UpdatedAt,
 		&i.IsCaptain,
 		&i.Membership,
+		&i.FirstName,
+		&i.LastName,
+		&i.Phone,
+		&i.OnboardedAt,
 	)
 	return i, err
 }

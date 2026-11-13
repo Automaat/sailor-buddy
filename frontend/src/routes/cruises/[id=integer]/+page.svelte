@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
+	import { patentSummary } from '#lib/profile.js';
 	import {
 		getCruise,
 		getSeries,
@@ -250,6 +251,12 @@
 								<div class="flex items-center gap-2">
 									<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
 									<span class="text-sm text-[var(--text-muted)]">{enrollment.user_email ?? ''}</span>
+									{#if enrollment.user_phone}
+										<a href="tel:{enrollment.user_phone}" class="text-sm text-[var(--ocean)] hover:underline">{enrollment.user_phone}</a>
+									{/if}
+									<span class="text-xs text-[var(--text-muted)]">
+										{patentSummary(enrollment.user_patent_type, enrollment.user_patent_number)}
+									</span>
 									<span class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}">
 										{statusLabels[enrollment.status] ?? enrollment.status}
 									</span>

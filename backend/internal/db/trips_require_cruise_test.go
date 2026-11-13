@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"io/fs"
 	"testing"
@@ -14,27 +15,7 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
 
-	if _, err := conn.Exec(`CREATE TABLE schema_migrations (
-		version TEXT PRIMARY KEY,
-		applied_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-	)`); err != nil {
-		t.Fatalf("create schema_migrations: %v", err)
-	}
-	for _, name := range embeddedMigrations(t) {
-		if name >= requireCruiseMigration {
-			break
-		}
-		body, err := fs.ReadFile(migrationsFS, "migrations/"+name)
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		if _, err := conn.Exec(string(body)); err != nil {
-			t.Fatalf("apply %s: %v", name, err)
-		}
-		if _, err := conn.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", name); err != nil {
-			t.Fatalf("record %s: %v", name, err)
-		}
-	}
+	applyMigrationsBefore(t, conn, requireCruiseMigration)
 
 	var eventID, linkedTrip, standaloneTrip, standaloneVoyage int64
 	mustScan(t, conn.QueryRow(`INSERT INTO cruises (name) VALUES ('NNE 2025') RETURNING id`), &eventID)
@@ -88,6 +69,33 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 }
 
 type scanner interface{ Scan(dest ...any) error }
+
+// applyMigrationsBefore applies and records every embedded migration that
+// sorts before stop, leaving the database one step short of it.
+func applyMigrationsBefore(t *testing.T, conn *sql.DB, stop string) {
+	t.Helper()
+	if _, err := conn.Exec(`CREATE TABLE schema_migrations (
+		version TEXT PRIMARY KEY,
+		applied_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		t.Fatalf("create schema_migrations: %v", err)
+	}
+	for _, name := range embeddedMigrations(t) {
+		if name >= stop {
+			break
+		}
+		body, err := fs.ReadFile(migrationsFS, "migrations/"+name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if _, err := conn.Exec(string(body)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if _, err := conn.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", name); err != nil {
+			t.Fatalf("record %s: %v", name, err)
+		}
+	}
+}
 
 func mustScan(t *testing.T, row scanner, dest ...any) {
 	t.Helper()

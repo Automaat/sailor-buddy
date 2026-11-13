@@ -13,7 +13,7 @@ export interface paths {
         };
         /** Current authenticated user */
         get: operations["get-me"];
-        /** Update the current user's sailing patent */
+        /** Save the current user's profile and finish onboarding */
         put: operations["update-me"];
         post?: never;
         delete?: never;
@@ -1172,6 +1172,9 @@ export interface components {
             /** Format: int64 */
             user_id: number;
             user_name: string;
+            user_patent_number?: string;
+            user_patent_type?: string;
+            user_phone?: string;
         };
         CruiseSeries: {
             /**
@@ -1541,14 +1544,19 @@ export interface components {
             readonly $schema?: string;
             avatar_url: string;
             email: string;
+            first_name: string;
             /** Format: int64 */
             id: number;
             is_captain: boolean;
+            last_name: string;
             /** @enum {string} */
             membership: "czlonek" | "sympatyk" | "gosc";
             name: string;
+            /** @description Whether the user completed the onboarding form */
+            onboarded: boolean;
             patent_number?: string;
             patent_type?: string;
+            phone?: string;
             role: string;
         };
         Member: {
@@ -1564,6 +1572,7 @@ export interface components {
             name: string;
             patent_number?: string;
             patent_type?: string;
+            phone?: string;
             role: string;
         };
         MembershipBody: {
@@ -1971,13 +1980,17 @@ export interface components {
             user_id: number;
             user_name: string;
         };
-        UpdatePatentBody: {
+        UpdateProfileBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example /api/UpdatePatentBody.json
+             * @example /api/UpdateProfileBody.json
              */
             readonly $schema?: string;
+            /** @description Given name */
+            first_name: string;
+            /** @description Family name */
+            last_name: string;
             /** @description Patent registration number */
             patent_number?: string;
             /**
@@ -1985,6 +1998,8 @@ export interface components {
              * @enum {string}
              */
             patent_type?: "zeglarz_jachtowy" | "jachtowy_sternik_morski" | "kapitan_jachtowy";
+            /** @description Contact phone number */
+            phone?: string;
         };
         UploadURLOutputBody: {
             /**
@@ -2317,7 +2332,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdatePatentBody"];
+                "application/json": components["schemas"]["UpdateProfileBody"];
             };
         };
         responses: {

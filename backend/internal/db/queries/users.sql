@@ -15,14 +15,16 @@ INSERT INTO users (email, name, password_hash, firebase_uid)
 VALUES ($1, $2, '', $3)
 ON CONFLICT(firebase_uid) DO UPDATE SET
   email = EXCLUDED.email,
-  name = CASE WHEN EXCLUDED.name = '' THEN users.name ELSE EXCLUDED.name END,
+  name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
+    THEN users.name ELSE EXCLUDED.name END,
   updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
 -- name: LinkFirebaseUIDByEmail :one
 UPDATE users SET
   firebase_uid = sqlc.arg(firebase_uid),
-  name = COALESCE(NULLIF(sqlc.arg(new_name)::TEXT, ''), name),
+  name = CASE WHEN onboarded_at IS NOT NULL THEN name
+    ELSE COALESCE(NULLIF(sqlc.arg(new_name)::TEXT, ''), name) END,
   updated_at = CURRENT_TIMESTAMP
 WHERE email = sqlc.arg(email)
   AND (firebase_uid IS NULL OR firebase_uid = sqlc.arg(firebase_uid))
@@ -31,8 +33,18 @@ RETURNING *;
 -- name: UpdateUser :exec
 UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4;
 
--- name: UpdateUserPatent :exec
-UPDATE users SET patent_type = $1, patent_number = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3;
+-- name: UpdateUserProfile :one
+UPDATE users SET
+  first_name = sqlc.arg(first_name),
+  last_name = sqlc.arg(last_name),
+  name = sqlc.arg(first_name)::TEXT || ' ' || sqlc.arg(last_name)::TEXT,
+  phone = sqlc.narg(phone),
+  patent_type = sqlc.narg(patent_type),
+  patent_number = sqlc.narg(patent_number),
+  onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = sqlc.arg(id)
+RETURNING *;
 
 -- name: CountUsers :one
 SELECT COUNT(*)::BIGINT FROM users;

@@ -138,6 +138,9 @@ const enrollmentRow = {
 	user_id: 4,
 	user_name: 'Ala Kowalska',
 	user_email: 'ala@example.com',
+	user_phone: '+48 600 100 200',
+	user_patent_type: 'jachtowy_sternik_morski',
+	user_patent_number: 'JSM-7',
 	status: 'accepted',
 	note: 'Mogę być kukiem',
 	trip_id: 50,
@@ -173,6 +176,8 @@ describe('cruise page admin flows', () => {
 		expect(await screen.findByRole('link', { name: 'May I Sail' })).toHaveAttribute('href', '/series/3');
 		expect(screen.getByText('Ala Kowalska')).toBeInTheDocument();
 		expect(screen.getByText('Nieznany')).toBeInTheDocument();
+		expect(screen.getAllByRole('link', { name: '+48 600 100 200' })[0]).toHaveAttribute('href', 'tel:+48 600 100 200');
+		expect(screen.getAllByText('Jachtowy Sternik Morski · JSM-7')).toHaveLength(2);
 		expect(screen.getByText('Mogę być kukiem')).toBeInTheDocument();
 		expect(screen.getByText('1 / 2 zaakceptowanych')).toBeInTheDocument();
 		expect(screen.getByText('Planowane etapy (2)')).toBeInTheDocument();

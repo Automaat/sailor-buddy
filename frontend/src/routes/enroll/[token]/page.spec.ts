@@ -18,7 +18,15 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 			return h.authenticated;
 		},
 		get user() {
-			return h.membership ? { membership: h.membership } : null;
+			return h.membership
+				? {
+						membership: h.membership,
+						name: 'Jan Kowalski',
+						phone: '+48 600 100 200',
+						patent_type: 'zeglarz_jachtowy',
+						patent_number: 'ZJ-1'
+					}
+				: null;
 		}
 	}
 }));
@@ -65,6 +73,16 @@ beforeEach(() => {
 	resolveMock.mockReset().mockResolvedValue(cruiseData());
 	enrollMock.mockReset().mockResolvedValue({});
 	enrollLegsMock.mockReset().mockResolvedValue({ results: [] });
+});
+
+describe('enroll page — profile summary', () => {
+	it('shows who is enrolling with a link to edit the profile', async () => {
+		render(EnrollPage);
+		const summary = await screen.findByTestId('enroll-as');
+		expect(summary).toHaveTextContent('Jan Kowalski');
+		expect(summary).toHaveTextContent('+48 600 100 200 · Żeglarz Jachtowy · ZJ-1');
+		expect(screen.getByRole('link', { name: 'Edytuj' })).toHaveAttribute('href', '/profile');
+	});
 });
 
 describe('enroll page — cruise legs', () => {

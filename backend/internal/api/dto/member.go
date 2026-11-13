@@ -11,6 +11,7 @@ type Member struct {
 	ID           int64     `json:"id"`
 	Name         string    `json:"name"`
 	Email        string    `json:"email"`
+	Phone        *string   `json:"phone,omitempty"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
 	Role         string    `json:"role"`
 	IsCaptain    bool      `json:"is_captain"`
@@ -43,6 +44,7 @@ func MemberFromUser(u sqlcdb.User) Member {
 		ID:           u.ID,
 		Name:         u.Name,
 		Email:        u.Email,
+		Phone:        strPtr(u.Phone),
 		AvatarURL:    strPtr(u.AvatarUrl),
 		Role:         u.Role,
 		IsCaptain:    u.IsCaptain,

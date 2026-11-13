@@ -7,36 +7,25 @@
 	} from 'firebase/auth';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { updateMe } from '#lib/api/routes.js';
+	import { errorMessage } from '#lib/api/errors.js';
+	import ProfileFields from '#lib/components/ProfileFields.svelte';
+	import { profileBody, profileFormFromUser, type ProfileForm } from '#lib/profile.js';
 
 	const fbUser = auth.firebaseUser;
 
-	type PatentType = 'zeglarz_jachtowy' | 'jachtowy_sternik_morski' | 'kapitan_jachtowy';
-
-	const PATENT_OPTIONS: { value: '' | PatentType; label: string }[] = [
-		{ value: '', label: '— brak —' },
-		{ value: 'zeglarz_jachtowy', label: 'Żeglarz Jachtowy' },
-		{ value: 'jachtowy_sternik_morski', label: 'Jachtowy Sternik Morski' },
-		{ value: 'kapitan_jachtowy', label: 'Kapitan Jachtowy' }
-	];
-
-	let profileForm = $state({
-		displayName: fbUser?.displayName ?? '',
-		photoURL: fbUser?.photoURL ?? '',
-		patentType: '' as '' | PatentType,
-		patentNumber: ''
-	});
+	let profileForm = $state<ProfileForm>(profileFormFromUser(auth.user, fbUser?.displayName ?? ''));
+	let photoURL = $state(fbUser?.photoURL ?? '');
 	let profileSaving = $state(false);
 	let profileError = $state('');
 	let profileSuccess = $state('');
 
-	// Patent fields come from the DB user (/auth/me), which the layout fetches
-	// asynchronously. Seed the form once it arrives, before the user edits it.
-	let patentLoaded = $state(false);
+	// The DB profile (/auth/me) loads asynchronously in the layout. Seed the
+	// form once it arrives, before the user edits it.
+	let profileLoaded = $state(!!auth.user);
 	$effect(() => {
-		if (!patentLoaded && auth.user) {
-			profileForm.patentType = (auth.user.patent_type as PatentType) ?? '';
-			profileForm.patentNumber = auth.user.patent_number ?? '';
-			patentLoaded = true;
+		if (!profileLoaded && auth.user) {
+			profileForm = profileFormFromUser(auth.user, fbUser?.displayName ?? '');
+			profileLoaded = true;
 		}
 	});
 
@@ -75,23 +64,14 @@
 		if (!fbUser) return;
 		profileSaving = true;
 		try {
+			auth.user = await updateMe(profileBody(profileForm));
 			await updateProfile(fbUser, {
-				displayName: profileForm.displayName,
-				photoURL: profileForm.photoURL || null
-			});
-			// Force a fresh ID token so the next request carries the updated
-			// `name` claim; the auth middleware upsert then syncs the DB.
-			await fbUser.getIdToken(true);
-			const patentType = profileForm.patentType || undefined;
-			auth.user = await updateMe({
-				patent_type: patentType,
-				// Drop the number when no type is set so clearing the patent
-				// does not leave a stale number behind.
-				patent_number: patentType ? profileForm.patentNumber || undefined : undefined
+				displayName: auth.user.name,
+				photoURL: photoURL || null
 			});
 			profileSuccess = 'Zapisano';
 		} catch (err: unknown) {
-			profileError = fbError(err);
+			profileError = (err as { code?: string }).code ? fbError(err) : errorMessage(err);
 		} finally {
 			profileSaving = false;
 		}
@@ -147,18 +127,7 @@
 					class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
 				/>
 			</div>
-			<div>
-				<label class="mb-1 block text-sm font-medium text-gray-700" for="displayName"
-					>Imię i nazwisko *</label
-				>
-				<input
-					id="displayName"
-					type="text"
-					bind:value={profileForm.displayName}
-					required
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-				/>
-			</div>
+			<ProfileFields bind:form={profileForm} />
 			<div>
 				<label class="mb-1 block text-sm font-medium text-gray-700" for="photoURL"
 					>Adres zdjęcia (URL)</label
@@ -166,46 +135,18 @@
 				<input
 					id="photoURL"
 					type="url"
-					bind:value={profileForm.photoURL}
+					bind:value={photoURL}
 					placeholder="https://..."
 					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
 				/>
 			</div>
-			{#if profileForm.photoURL}
+			{#if photoURL}
 				<img
-					src={profileForm.photoURL}
+					src={photoURL}
 					alt="Podgląd zdjęcia"
 					class="h-20 w-20 rounded-full object-cover"
 				/>
 			{/if}
-			<div class="grid grid-cols-2 gap-4">
-				<div>
-					<label class="mb-1 block text-sm font-medium text-gray-700" for="patentType"
-						>Patent żeglarski</label
-					>
-					<select
-						id="patentType"
-						bind:value={profileForm.patentType}
-						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-					>
-						{#each PATENT_OPTIONS as opt}
-							<option value={opt.value}>{opt.label}</option>
-						{/each}
-					</select>
-				</div>
-				<div>
-					<label class="mb-1 block text-sm font-medium text-gray-700" for="patentNumber"
-						>Numer patentu</label
-					>
-					<input
-						id="patentNumber"
-						type="text"
-						bind:value={profileForm.patentNumber}
-						disabled={!profileForm.patentType}
-						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
-					/>
-				</div>
-			</div>
 			<button
 				type="submit"
 				disabled={profileSaving}

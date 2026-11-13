@@ -30,9 +30,12 @@ type TripEnrollmentDetail struct {
 // and, when assigned, the trip it was placed on.
 type CruiseEnrollmentDetail struct {
 	Enrollment
-	UserName  string  `json:"user_name"`
-	UserEmail string  `json:"user_email"`
-	TripName  *string `json:"trip_name,omitempty"`
+	UserName         string  `json:"user_name"`
+	UserEmail        string  `json:"user_email"`
+	UserPhone        *string `json:"user_phone,omitempty"`
+	UserPatentType   *string `json:"user_patent_type,omitempty"`
+	UserPatentNumber *string `json:"user_patent_number,omitempty"`
+	TripName         *string `json:"trip_name,omitempty"`
 }
 
 // CruiseEnrollmentsFromDB maps the joined cruise-enrollment rows.
@@ -42,17 +45,20 @@ func CruiseEnrollmentsFromDB(rows []sqlcdb.ListCruiseEnrollmentsRow) []CruiseEnr
 		r := rows[i]
 		cid := r.CruiseID
 		out[i] = CruiseEnrollmentDetail{
-			ID:        r.ID,
-			CruiseID:  &cid,
-			TripID:    intPtr(r.TripID),
-			UserID:    r.UserID,
-			Note:      strPtr(r.Note),
-			Status:    r.Status,
-			CreatedAt: timeVal(r.CreatedAt),
-			UpdatedAt: timeVal(r.UpdatedAt),
-			UserName:  r.UserName,
-			UserEmail: r.UserEmail,
-			TripName:  strPtr(r.TripName),
+			ID:               r.ID,
+			CruiseID:         &cid,
+			TripID:           intPtr(r.TripID),
+			UserID:           r.UserID,
+			Note:             strPtr(r.Note),
+			Status:           r.Status,
+			CreatedAt:        timeVal(r.CreatedAt),
+			UpdatedAt:        timeVal(r.UpdatedAt),
+			UserName:         r.UserName,
+			UserEmail:        r.UserEmail,
+			UserPhone:        strPtr(r.UserPhone),
+			UserPatentType:   strPtr(r.UserPatentType),
+			UserPatentNumber: strPtr(r.UserPatentNumber),
+			TripName:         strPtr(r.TripName),
 		}
 	}
 	return out

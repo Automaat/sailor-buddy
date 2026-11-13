@@ -342,7 +342,7 @@ export function getMe() {
 	return api.get('/auth/me');
 }
 
-export function updateMe(body: Schemas['UpdatePatentBody']) {
+export function updateMe(body: Schemas['UpdateProfileBody']) {
 	return api.put('/auth/me', { body });
 }
 

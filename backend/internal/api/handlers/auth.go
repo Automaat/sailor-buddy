@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -25,7 +26,7 @@ type meOutput struct {
 }
 
 type updateMeInput struct {
-	Body dto.UpdatePatentBody
+	Body dto.UpdateProfileBody
 }
 
 // RegisterAuthRoutes wires the current-user endpoints onto the API.
@@ -37,7 +38,7 @@ func RegisterAuthRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.me)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-me", Method: http.MethodPut, Path: "/auth/me",
-		Summary: "Update the current user's sailing patent", Tags: []string{"Auth"},
+		Summary: "Save the current user's profile and finish onboarding", Tags: []string{"Auth"},
 	}, h.updateMe)
 }
 
@@ -59,18 +60,62 @@ func (h *AuthHandler) updateMe(ctx context.Context, in *updateMeInput) (*meOutpu
 	if claims == nil {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.q.UpdateUserPatent(ctx, sqlcdb.UpdateUserPatentParams{
-		PatentType:   nullString(in.Body.PatentType),
-		PatentNumber: nullString(in.Body.PatentNumber),
-		ID:           claims.UserID,
-	}); err != nil {
-		slog.Error("update user patent", "user_id", claims.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to update patent")
-	}
-	user, err := h.q.GetUserByID(ctx, claims.UserID)
+	params, err := profileParams(claims.UserID, in.Body)
 	if err != nil {
-		slog.Error("get current user", "user_id", claims.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to load profile")
+		return nil, err
+	}
+	if !params.PatentNumber.Valid {
+		current, err := h.q.GetUserByID(ctx, claims.UserID)
+		if err != nil {
+			slog.Error("get current user", "user_id", claims.UserID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to load profile")
+		}
+		if current.IsCaptain {
+			return nil, huma.Error422UnprocessableEntity("captains must keep a patent number")
+		}
+	}
+	user, err := h.q.UpdateUserProfile(ctx, params)
+	if err != nil {
+		slog.Error("update user profile", "user_id", claims.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update profile")
 	}
 	return &meOutput{Body: dto.MeFromUser(user)}, nil
+}
+
+// profileParams trims the form and enforces the cross-field rules: names
+// must not be blank, a patent type needs a number, and a number without a
+// type is dropped.
+func profileParams(userID int64, b dto.UpdateProfileBody) (sqlcdb.UpdateUserProfileParams, error) {
+	first := strings.TrimSpace(b.FirstName)
+	last := strings.TrimSpace(b.LastName)
+	if first == "" || last == "" {
+		return sqlcdb.UpdateUserProfileParams{}, huma.Error422UnprocessableEntity("first and last name are required")
+	}
+	phone := trimmedPtr(b.Phone)
+	patentType := b.PatentType
+	number := trimmedPtr(b.PatentNumber)
+	if patentType == nil {
+		number = nil
+	} else if number == nil {
+		return sqlcdb.UpdateUserProfileParams{}, huma.Error422UnprocessableEntity("patent number is required for the selected patent")
+	}
+	return sqlcdb.UpdateUserProfileParams{
+		ID:           userID,
+		FirstName:    first,
+		LastName:     last,
+		Phone:        nullString(phone),
+		PatentType:   nullString(patentType),
+		PatentNumber: nullString(number),
+	}, nil
+}
+
+func trimmedPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	t := strings.TrimSpace(*s)
+	if t == "" {
+		return nil
+	}
+	return &t
 }
