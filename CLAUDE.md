@@ -17,7 +17,7 @@ backend/
   cmd/migrate/main.go       # standalone migration runner
   internal/
     api/router.go           # chi router setup
-    api/handlers/            # HTTP handlers (auth, members, cruises, trips, voyages, crew, yachts, trainings, dashboard, import)
+    api/handlers/            # HTTP handlers (auth, members, cruises, trips, voyages, crew, yachts, trainings, dashboard)
     api/handlers/authz.go    # requireAdmin role gate
     api/middleware/auth.go   # Firebase auth middleware + first-user-admin
     auth/firebase.go         # Firebase client + Claims
