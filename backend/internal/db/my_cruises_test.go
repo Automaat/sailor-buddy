@@ -76,6 +76,12 @@ func TestListUserCruiseIDs(t *testing.T) {
 		voyage(othersCruise, other), crew(other, "ola@example.dev"))
 	exec(`INSERT INTO cruise_enrollments (cruise_id, user_id, status) VALUES ($1, $2, 'accepted')`, othersCruise, other)
 
+	var previousOwner int64
+	mustScan(t, conn.QueryRow(`INSERT INTO users (email, name) VALUES ('ex-jan@example.dev', 'Ex') RETURNING id`), &previousOwner)
+	staleEmailCruise := cruise("another account's person with my email")
+	exec(`INSERT INTO crew_assignments (voyage_id, crew_member_id) VALUES ($1, $2)`,
+		voyage(staleEmailCruise, nil), crew(previousOwner, "jan@example.dev"))
+
 	got, err := sqlcdb.New(conn).ListUserCruiseIDs(context.Background(), me)
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -83,6 +89,7 @@ func TestListUserCruiseIDs(t *testing.T) {
 	want := []int64{acceptedCruise, acceptedTrip, captainedTrip, captainedVoyage, linkedCrew, emailCrew}
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
-		t.Fatalf("cruise ids = %v, want %v (pending %d, others %d excluded)", got, want, pendingCruise, othersCruise)
+		t.Fatalf("cruise ids = %v, want %v (pending %d, others %d, stale e-mail %d excluded)",
+			got, want, pendingCruise, othersCruise, staleEmailCruise)
 	}
 }

@@ -192,7 +192,7 @@ require the caller to be an `admin` (marked **admin** below).
 |--------|------|-------------|
 | GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number}` |
 | PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
-| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise or trip enrollment, captained leg, or crew-list entry linked to the account or its email |
+| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise or trip enrollment, captained leg, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
 | GET | `/api/dashboard` | Caller's sea time; club totals for admins |
 
 `PUT /api/auth/me` body — `first_name` and `last_name` required (non-blank);
