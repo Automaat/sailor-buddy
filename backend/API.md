@@ -471,8 +471,8 @@ sign-ups add no crew.
 Every status change, leg move and delete of a sign-up locks the legs it
 touches before the enrollment row, so concurrent changes for one leg apply
 one at a time. A cruise enrollment change that finds the enrollment moved
-to another leg meanwhile reads it again; after three such moves it returns
-`409`.
+to another leg meanwhile rolls back and starts again; after three such
+moves it returns `409`.
 
 ### Voyages
 

@@ -467,3 +467,61 @@ func TestAcceptedCrew_StatusChangeRacesOnCruiseEnrollment(t *testing.T) {
 		})
 	}
 }
+
+// TestAcceptedCrew_ConcurrentMovesAndChanges fires moves between two legs,
+// moves off the legs and status changes at one accepted cruise enrollment
+// at once. None may fail with a server error, and the crew list must end in
+// step with where the enrollment ends up.
+func TestAcceptedCrew_ConcurrentMovesAndChanges(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	legA, legB, user, cruise, enrollment := legacyLegs(t, conn)
+	api := acceptedCrewAPI(t, conn)
+	admin := userCtx(ctx)
+	base := fmt.Sprintf("/cruises/%d/enrollments/%d", cruise, enrollment)
+	if code := api.PutCtx(admin, base+"/status", map[string]any{"status": "accepted"}).Code; code != http.StatusNoContent {
+		t.Fatalf("accept: got %d", code)
+	}
+
+	type change struct {
+		path string
+		body map[string]any
+	}
+	changes := make([]change, 0, 40)
+	for range 8 {
+		changes = append(changes,
+			change{"/trip", map[string]any{"trip_id": legA}},
+			change{"/trip", map[string]any{"trip_id": legB}},
+			change{"/trip", map[string]any{"trip_id": nil}},
+			change{"/status", map[string]any{"status": "accepted"}},
+			change{"/status", map[string]any{"status": "rejected"}},
+		)
+	}
+	codes := make([]int, len(changes))
+	var wg sync.WaitGroup
+	for i, c := range changes {
+		wg.Go(func() { codes[i] = api.PutCtx(admin, base+c.path, c.body).Code })
+	}
+	wg.Wait()
+	for i, code := range codes {
+		if code != http.StatusNoContent && code != http.StatusConflict {
+			t.Errorf("change %d: got %d, want 204 or 409", i, code)
+		}
+	}
+
+	var status string
+	var trip types.NullInt64
+	if err := conn.QueryRowContext(ctx, "SELECT status, trip_id FROM cruise_enrollments WHERE id = $1", enrollment).
+		Scan(&status, &trip); err != nil {
+		t.Fatalf("read enrollment: %v", err)
+	}
+	for _, leg := range []int64{legA, legB} {
+		want := 0
+		if status == enrollmentAccepted && trip.Valid && trip.Int64 == leg {
+			want = 1
+		}
+		if got := len(tripCrew(t, conn, leg, user)); got != want {
+			t.Errorf("leg %d crew = %d, want %d (enrollment %s on %+v)", leg, got, want, status, trip)
+		}
+	}
+}
