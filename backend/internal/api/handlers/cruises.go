@@ -25,11 +25,12 @@ import (
 )
 
 type CruiseHandler struct {
-	q sqlcdb.Querier
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewCruiseHandler(q sqlcdb.Querier) *CruiseHandler {
-	return &CruiseHandler{q: q}
+func NewCruiseHandler(q sqlcdb.Querier, db *sql.DB) *CruiseHandler {
+	return &CruiseHandler{q: q, runTx: sqlTxRunner(db)}
 }
 
 type cruiseIDParam struct {
@@ -80,8 +81,11 @@ type cruiseEnrollmentsOutput struct {
 
 // RegisterCruiseRoutes wires the club cruise operations onto the API. Reads are
 // open to any member; mutations require an admin.
-func RegisterCruiseRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewCruiseHandler(q)
+func RegisterCruiseRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	registerCruiseRoutes(api, NewCruiseHandler(q, db))
+}
+
+func registerCruiseRoutes(api huma.API, h *CruiseHandler) {
 	tag := []string{"Cruises"}
 
 	huma.Register(api, huma.Operation{
@@ -129,12 +133,18 @@ func RegisterCruiseRoutes(api huma.API, q sqlcdb.Querier) {
 	huma.Register(api, huma.Operation{
 		OperationID: "update-cruise-enrollment-status", Method: http.MethodPut,
 		Path:    "/cruises/{cruiseID}/enrollments/{enrollmentID}/status",
-		Summary: "Update a cruise enrollment's status (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Update a cruise enrollment's status (admin)",
+		Description: "Accepting an enrollment assigned to a leg needs a free place on it: 409 when the " +
+			"leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.",
+		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateEnrollmentStatus)
 	huma.Register(api, huma.Operation{
 		OperationID: "assign-cruise-enrollment-trip", Method: http.MethodPut,
 		Path:    "/cruises/{cruiseID}/enrollments/{enrollmentID}/trip",
-		Summary: "Assign a cruise enrollment to a trip (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Assign a cruise enrollment to a trip (admin)",
+		Description: "Moving an accepted enrollment onto a leg needs a free place on it: 409 when the " +
+			"leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.",
+		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.assignEnrollmentToTrip)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-cruise-enrollment", Method: http.MethodDelete,
@@ -360,32 +370,138 @@ func (h *CruiseHandler) listEnrollments(ctx context.Context, in *cruiseEnrollmen
 	return &cruiseEnrollmentsOutput{Body: dto.CruiseEnrollmentsFromDB(enrollments)}, nil
 }
 
+// errEnrollmentChanged aborts a capacity-checked cruise enrollment change
+// when the enrollment moved to another leg or changed status between the
+// first read and the lock.
+var errEnrollmentChanged = errors.New("enrollment changed")
+
+// errLegGone aborts a capacity-checked change whose leg was completed or
+// deleted meanwhile.
+var errLegGone = errors.New("leg gone")
+
+// lockForPlace locks the leg a cruise enrollment is to take a place on, then
+// re-reads the enrollment under its row lock, in the same trip-then-
+// enrollment order as trip completion and the trip enrollment accept. It
+// returns errEnrollmentChanged when the enrollment no longer matches before,
+// and a legFullError when the leg has no free place for its user.
+func lockForPlace(ctx context.Context, q sqlcdb.Querier, before sqlcdb.CruiseEnrollment, tripID int64) error {
+	trip, err := q.LockTripForSignUp(ctx, tripID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errLegGone
+		}
+		return &QueryError{Op: "LockTripForSignUp", Err: err}
+	}
+	now, err := q.LockCruiseEnrollmentOfCruise(ctx, sqlcdb.LockCruiseEnrollmentOfCruiseParams{ID: before.ID, CruiseID: before.CruiseID})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errEnrollmentNotFound
+		}
+		return &QueryError{Op: "LockCruiseEnrollmentOfCruise", Err: err}
+	}
+	if now.TripID != before.TripID || now.Status != before.Status {
+		return errEnrollmentChanged
+	}
+	return checkPlaceFree(ctx, q, trip.ID, before.UserID, trip.MaxCrew)
+}
+
+// cruiseEnrollmentTxError maps a capacity-checked cruise enrollment change
+// error to its HTTP response; ok is false for unexpected errors.
+func cruiseEnrollmentTxError(err error) (resp error, ok bool) {
+	if errors.Is(err, errEnrollmentNotFound) {
+		return huma.Error404NotFound("enrollment not found"), true
+	}
+	if errors.Is(err, errLegGone) {
+		return huma.Error409Conflict("trip is no longer open: it was completed or deleted"), true
+	}
+	if errors.Is(err, errEnrollmentChanged) {
+		return huma.Error409Conflict("enrollment changed meanwhile: reload and try again"), true
+	}
+	if full, isFull := errors.AsType[*legFullError](err); isFull {
+		return huma.Error409Conflict(full.Error()), true
+	}
+	return nil, false
+}
+
+// getCruiseEnrollment reads one enrollment of the cruise, or errEnrollmentNotFound.
+func getCruiseEnrollment(ctx context.Context, q sqlcdb.Querier, cruiseID, id int64) (sqlcdb.CruiseEnrollment, error) {
+	e, err := q.GetCruiseEnrollmentOfCruise(ctx, sqlcdb.GetCruiseEnrollmentOfCruiseParams{ID: id, CruiseID: cruiseID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return e, errEnrollmentNotFound
+	}
+	if err != nil {
+		return e, &QueryError{Op: "GetCruiseEnrollmentOfCruise", Err: err}
+	}
+	return e, nil
+}
+
+// updateEnrollmentStatus sets a cruise enrollment's status. Accepting one
+// assigned to a leg takes one of the leg's max_crew places, checked under
+// the leg's lock like a trip enrollment accept (409 when full).
 func (h *CruiseHandler) updateEnrollmentStatus(ctx context.Context, in *cruiseEnrollmentStatusInput) (*noContentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.q.UpdateCruiseEnrollmentStatus(ctx, sqlcdb.UpdateCruiseEnrollmentStatusParams{
-		Status: in.Body.Status,
-		ID:     in.EnrollmentID,
-	}); err != nil {
-		slog.Error("update cruise enrollment status", "enrollment_id", in.EnrollmentID, "err", err)
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		e, err := getCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
+		if err != nil {
+			return err
+		}
+		if in.Body.Status == enrollmentAccepted && e.Status != enrollmentAccepted && e.TripID.Valid {
+			if err := lockForPlace(ctx, q, e, e.TripID.Int64); err != nil {
+				return err
+			}
+		}
+		if err := q.UpdateCruiseEnrollmentStatus(ctx, sqlcdb.UpdateCruiseEnrollmentStatusParams{
+			Status: in.Body.Status,
+			ID:     e.ID,
+		}); err != nil {
+			return &QueryError{Op: "UpdateCruiseEnrollmentStatus", Err: err}
+		}
+		return nil
+	})
+	if txErr != nil {
+		if resp, ok := cruiseEnrollmentTxError(txErr); ok {
+			return nil, resp
+		}
+		slog.Error("update cruise enrollment status", "enrollment_id", in.EnrollmentID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to update status")
 	}
 	return &noContentOutput{}, nil
 }
 
+// assignEnrollmentToTrip moves a cruise enrollment to a leg (or off one).
+// Moving an accepted enrollment onto a new leg takes one of that leg's
+// max_crew places, checked under the leg's lock (409 when full).
 func (h *CruiseHandler) assignEnrollmentToTrip(ctx context.Context, in *cruiseEnrollmentTripInput) (*noContentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.q.AssignCruiseEnrollmentToTrip(ctx, sqlcdb.AssignCruiseEnrollmentToTripParams{
-		TripID: nullInt64(in.Body.TripID),
-		ID:     in.EnrollmentID,
-	}); err != nil {
-		if isForeignKeyViolation(err, "cruise_enrollments_trip_id_fkey") {
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		e, err := getCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
+		if err != nil {
+			return err
+		}
+		target := in.Body.TripID
+		moving := target != nil && (!e.TripID.Valid || e.TripID.Int64 != *target)
+		if moving && e.Status == enrollmentAccepted {
+			if err := lockForPlace(ctx, q, e, *target); err != nil {
+				return err
+			}
+		}
+		return q.AssignCruiseEnrollmentToTrip(ctx, sqlcdb.AssignCruiseEnrollmentToTripParams{
+			TripID: nullInt64(target),
+			ID:     e.ID,
+		})
+	})
+	if txErr != nil {
+		if isForeignKeyViolation(txErr, "cruise_enrollments_trip_id_fkey") {
 			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
 		}
-		slog.Error("assign cruise enrollment to trip", "enrollment_id", in.EnrollmentID, "err", err)
+		if resp, ok := cruiseEnrollmentTxError(txErr); ok {
+			return nil, resp
+		}
+		slog.Error("assign cruise enrollment to trip", "enrollment_id", in.EnrollmentID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to assign enrollment")
 	}
 	return &noContentOutput{}, nil

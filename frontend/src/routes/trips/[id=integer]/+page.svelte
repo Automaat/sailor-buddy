@@ -32,8 +32,8 @@
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
-	import { freePlacesLabel } from '#lib/enrollment.js';
-	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
+	import { freePlacesLabel, signUpClosedByDeadline, signUpDeadlineLabel } from '#lib/enrollment.js';
+	import { legStatus, legStatusBadges, legStatusLabels, warsawToday } from '#lib/rejsy.js';
 
 	let trip = $state<Trip | null>(null);
 	let cruise = $state<Cruise | null>(null);
@@ -97,7 +97,15 @@
 				const res = await generateTripEnrollToken(id);
 				enrollToken = res.token;
 			}
-			if (signUp) signUp = { ...signUp, open: enrollToken !== null && trip?.status === 'planned' };
+			if (signUp) {
+				signUp = {
+					...signUp,
+					open:
+						enrollToken !== null &&
+						trip?.status === 'planned' &&
+						!signUpClosedByDeadline(trip?.sign_up_deadline, warsawToday())
+				};
+			}
 		} catch (err) {
 			console.error('Failed to toggle enrollment:', err);
 		} finally {
@@ -285,6 +293,11 @@
 					<h2 class="font-semibold text-[var(--navy)]">Twój zapis</h2>
 					{#if places && trip.status !== 'cancelled'}
 						<p class="mt-1 text-sm text-[var(--text-muted)]" data-testid="free-places">{places}</p>
+					{/if}
+					{#if trip.sign_up_deadline && trip.status !== 'cancelled'}
+						<p class="mt-1 text-sm text-[var(--text-muted)]" data-testid="sign-up-deadline">
+							{signUpDeadlineLabel(trip.sign_up_deadline)}
+						</p>
 					{/if}
 				</div>
 				<LegSignUpControl

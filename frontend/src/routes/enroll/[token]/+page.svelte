@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
-	import { freePlaces, numberLegs, statusLabels } from '#lib/enrollment.js';
+	import {
+		freePlaces,
+		numberLegs,
+		signUpClosedByDeadline,
+		signUpDeadlineLabel,
+		statusLabels
+	} from '#lib/enrollment.js';
+	import { warsawToday } from '#lib/rejsy.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { patentSummary } from '#lib/profile.js';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
@@ -27,10 +34,20 @@
 		}
 		return numberLegs(data.trips).map((l) => ({ ...l, enrollment: byTrip.get(l.trip.id) }));
 	});
+	const today = warsawToday();
 	const pickableLegs = $derived(
-		legs.filter((l) => l.trip.status === 'planned' && !l.enrollment)
+		legs.filter(
+			(l) => l.trip.status === 'planned' && !l.enrollment && !signUpClosedByDeadline(l.trip.sign_up_deadline, today)
+		)
 	);
-	const showForm = $derived(data?.kind === 'trip' ? !data.enrolled : pickableLegs.length > 0);
+	// A trip link past its sign-up deadline shows "Zapisy zamknięte" instead
+	// of the form; cruise legs past theirs are simply not pickable.
+	const tripClosed = $derived(
+		data?.kind === 'trip' && !data.enrolled && signUpClosedByDeadline(data.trip.sign_up_deadline, today)
+	);
+	const showForm = $derived(
+		data?.kind === 'trip' ? !data.enrolled && !tripClosed : pickableLegs.length > 0
+	);
 
 	const token = $derived((page.params as Record<string, string>).token);
 	const tripAccepted = $derived(
@@ -105,6 +122,12 @@
 					<div class="mb-4 text-sm">
 						<span class="text-[var(--text-muted)]">Daty:</span>
 						{data.trip.embark_date} – {data.trip.disembark_date ?? '?'}
+					</div>
+				{/if}
+
+				{#if data.trip.sign_up_deadline}
+					<div class="mb-4 text-sm" data-testid="sign-up-deadline">
+						{signUpDeadlineLabel(data.trip.sign_up_deadline)}
 					</div>
 				{/if}
 
@@ -184,12 +207,13 @@
 						<div class="space-y-1">
 							{#each legs as leg (leg.trip.id)}
 								{@const cancelled = leg.trip.status === 'cancelled'}
+								{@const closed = !cancelled && signUpClosedByDeadline(leg.trip.sign_up_deadline, today)}
 								{@const free = placesLeft(leg.trip.id, leg.trip.max_crew)}
 								<label
 									class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
 									class:opacity-60={cancelled}
 								>
-									{#if auth.isAuthenticated && !leg.enrollment && !cancelled && showForm && !success}
+									{#if auth.isAuthenticated && !leg.enrollment && !cancelled && !closed && showForm && !success}
 										<input
 											type="checkbox"
 											class="mt-1"
@@ -214,6 +238,11 @@
 										{#if free !== null && !cancelled}
 											<span class="block text-xs text-[var(--text-muted)]" data-testid="free-places">wolne miejsca: {free}</span>
 										{/if}
+										{#if leg.trip.sign_up_deadline && !cancelled}
+											<span class="block text-xs text-[var(--text-muted)]" data-testid="sign-up-deadline">
+												{signUpDeadlineLabel(leg.trip.sign_up_deadline)}
+											</span>
+										{/if}
 									</span>
 									{#if cancelled}
 										<span class="text-xs font-medium text-[var(--text-muted)]">odwołany — niedostępny</span>
@@ -221,6 +250,8 @@
 										<span class="text-xs font-medium text-[var(--ocean)]">
 											zapisany: {statusLabels[leg.enrollment.status] ?? leg.enrollment.status}
 										</span>
+									{:else if closed}
+										<span class="text-xs font-medium text-[var(--text-muted)]">Zapisy zamknięte</span>
 									{/if}
 								</label>
 							{/each}
@@ -253,6 +284,10 @@
 			{#if success}
 				<div class="rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-4 text-center text-sm">
 					Zostałeś zapisany! Organizator rozpatrzy Twoje zgłoszenie.
+				</div>
+			{:else if tripClosed}
+				<div class="rounded-lg bg-gray-50 p-4 text-center text-sm text-[var(--text-muted)]" data-testid="sign-up-closed">
+					Zapisy zamknięte
 				</div>
 			{:else if data.enrolled && !showForm}
 				<div class="rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-4 text-center text-sm">

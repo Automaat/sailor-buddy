@@ -95,3 +95,29 @@ describe('trip edit page', () => {
 		expect(await screen.findByText('cruise not found')).toBeInTheDocument();
 	});
 });
+
+describe('trip edit page — sign-up deadline', () => {
+	it('keeps the saved deadline on a no-change save', async () => {
+		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01', sign_up_deadline: '2026-06-01' }));
+		render(EditTripPage);
+		expect(await screen.findByLabelText('Zapisy do (włącznie)')).toHaveValue('2026-06-01');
+		expect((await save()).sign_up_deadline).toBe('2026-06-01');
+	});
+
+	it('sets a deadline no later than the embark date', async () => {
+		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01' }));
+		render(EditTripPage);
+		const input = await screen.findByLabelText('Zapisy do (włącznie)');
+		expect(input).toHaveAttribute('max', '2026-07-01');
+		await fireEvent.input(input, { target: { value: '2026-06-15' } });
+		expect((await save()).sign_up_deadline).toBe('2026-06-15');
+	});
+
+	it('clears the deadline by leaving the field empty', async () => {
+		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01', sign_up_deadline: '2026-06-01' }));
+		render(EditTripPage);
+		await fireEvent.input(await screen.findByLabelText('Zapisy do (włącznie)'), { target: { value: '' } });
+		const body = await save();
+		expect(body.sign_up_deadline).toBeUndefined();
+	});
+});

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { signUpForTrip, updateTripSignUpNote, withdrawTripSignUp } from '#lib/api/routes.js';
 	import type { LegSignUp } from '#lib/api/types.js';
-	import { statusLabels } from '#lib/enrollment.js';
+	import { paymentLabels, statusLabels, waitlistLabel } from '#lib/enrollment.js';
 
 	interface Props {
 		signUp: LegSignUp;
@@ -19,12 +19,29 @@
 
 	const enrollment = $derived(signUp.enrollment);
 	const cruiseLevel = $derived(enrollment?.cruise_id != null);
+	const statusText = $derived(
+		enrollment?.status === 'waitlisted'
+			? waitlistLabel(signUp.waitlist_position)
+			: (statusLabels[enrollment?.status ?? ''] ?? enrollment?.status)
+	);
+	// A member may leave the queue (pending or waitlisted) until a payment is recorded.
+	const canWithdraw = $derived(
+		!cruiseLevel &&
+			(enrollment?.status === 'pending' || enrollment?.status === 'waitlisted') &&
+			(enrollment?.payment_status ?? 'unpaid') === 'unpaid'
+	);
 
 	const statusColors: Record<string, string> = {
 		pending: 'bg-[var(--ocean-tint)] text-[var(--ocean)]',
 		accepted: 'bg-[var(--ocean)] text-white',
 		rejected: 'bg-gray-100 text-gray-600',
 		waitlisted: 'bg-[var(--navy)]/10 text-[var(--navy)]'
+	};
+
+	const paymentColors: Record<string, string> = {
+		unpaid: 'bg-gray-100 text-gray-600',
+		deposit: 'bg-amber-100 text-amber-800',
+		paid: 'bg-green-100 text-green-800'
 	};
 
 	async function run(action: () => Promise<void>, failure: string) {
@@ -42,7 +59,7 @@
 	function signUpNow() {
 		return run(async () => {
 			const res = await signUpForTrip(signUp.trip_id);
-			onchange({ ...signUp, enrollment: res.enrollment });
+			onchange({ ...signUp, enrollment: res.enrollment, waitlist_position: res.waitlist_position });
 		}, 'Nie udało się zapisać');
 	}
 
@@ -50,7 +67,7 @@
 		return run(async () => {
 			await withdrawTripSignUp(signUp.trip_id);
 			editingNote = false;
-			onchange({ ...signUp, enrollment: undefined });
+			onchange({ ...signUp, enrollment: undefined, waitlist_position: undefined });
 		}, 'Nie udało się wycofać zapisu');
 	}
 
@@ -76,12 +93,20 @@
 				class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}"
 				data-testid="sign-up-status"
 			>
-				{statusLabels[enrollment.status] ?? enrollment.status}
+				{statusText}
 			</span>
+			{#if enrollment.payment_status}
+				<span
+					class="rounded-full px-2 py-0.5 text-xs font-medium {paymentColors[enrollment.payment_status] ?? 'bg-gray-100'}"
+					data-testid="sign-up-payment"
+				>
+					{paymentLabels[enrollment.payment_status]}
+				</span>
+			{/if}
 			{#if cruiseLevel}
 				<span class="text-xs text-[var(--text-muted)]" data-testid="cruise-level">zapis na wydarzenie</span>
 			{/if}
-			{#if enrollment.status === 'pending' && !cruiseLevel}
+			{#if canWithdraw}
 				<button
 					type="button"
 					onclick={withdraw}

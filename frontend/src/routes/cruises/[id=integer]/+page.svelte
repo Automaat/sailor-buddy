@@ -32,7 +32,7 @@
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { isHttpUrl } from '#lib/cruise.js';
-	import { freePlacesLabel, numberLegs, statusLabels } from '#lib/enrollment.js';
+	import { freePlacesLabel, numberLegs, signUpDeadlineLabel, statusLabels } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -116,6 +116,15 @@
 	});
 
 	let deleteError = $state('');
+	let enrollmentError = $state('');
+
+	// A 409 from a cruise enrollment change means the leg has no free place.
+	function enrollmentFailure(err: unknown, fallback: string) {
+		enrollmentError =
+			err instanceof ApiError && err.status === 409
+				? 'Etap jest pełny albo zapis się zmienił. Odśwież stronę i zwolnij miejsce, zanim zaakceptujesz kolejną osobę.'
+				: fallback;
+	}
 
 	async function handleDelete() {
 		if (trips.length > 0 || voyages.length > 0) {
@@ -155,19 +164,23 @@
 	}
 
 	async function setEnrollmentStatus(enrollmentId: number, status: EnrollStatus) {
+		enrollmentError = '';
 		try {
 			await updateCruiseEnrollmentStatus(id, enrollmentId, status);
 			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
+			enrollmentFailure(err, 'Nie udało się zmienić statusu.');
 			console.error('Failed to set status:', err);
 		}
 	}
 
 	async function assignEnrollmentToTrip(enrollmentId: number, tripId: number | null) {
+		enrollmentError = '';
 		try {
 			await assignCruiseEnrollmentTrip(id, enrollmentId, tripId ?? undefined);
 			await reloadEnrollments();
 		} catch (err) {
+			enrollmentFailure(err, 'Nie udało się przypisać zapisu do etapu.');
 			console.error('Failed to assign to trip:', err);
 		}
 	}
@@ -362,6 +375,9 @@
 									{/if}
 									{#if price !== null}<span>{formatPrice(price, trip.currency)}</span>{/if}
 									{#if places && trip.status !== 'cancelled'}<span data-testid="free-places">{places}</span>{/if}
+									{#if trip.sign_up_deadline && trip.status !== 'cancelled'}
+										<span data-testid="sign-up-deadline">{signUpDeadlineLabel(trip.sign_up_deadline)}</span>
+									{/if}
 								</div>
 							</div>
 							{#if signUp}
@@ -399,6 +415,9 @@
 					<span class="text-xs text-[var(--text-muted)]">Link do podglądu wydarzenia, z którego można zapisać się na etapy.</span>
 				</div>
 
+				{#if enrollmentError}
+					<p role="alert" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{enrollmentError}</p>
+				{/if}
 				{#if legGroups.length === 0 && unassigned.length === 0}
 					<p class="text-sm text-[var(--text-muted)]">Brak zapisów.</p>
 				{/if}

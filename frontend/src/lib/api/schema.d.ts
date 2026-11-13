@@ -173,7 +173,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update a cruise enrollment's status (admin) */
+        /**
+         * Update a cruise enrollment's status (admin)
+         * @description Accepting an enrollment assigned to a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.
+         */
         put: operations["update-cruise-enrollment-status"];
         post?: never;
         delete?: never;
@@ -190,7 +193,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Assign a cruise enrollment to a trip (admin) */
+        /**
+         * Assign a cruise enrollment to a trip (admin)
+         * @description Moving an accepted enrollment onto a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.
+         */
         put: operations["assign-cruise-enrollment-trip"];
         post?: never;
         delete?: never;
@@ -668,6 +674,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripID}/enrollments/{id}/payment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a trip enrollment's manual payment status (admin)
+         * @description Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. 404 when the trip has no such enrollment.
+         */
+        put: operations["update-trip-enrollment-payment-status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{tripID}/enrollments/{id}/status": {
         parameters: {
             query?: never;
@@ -676,7 +702,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update a trip enrollment's status (admin) */
+        /**
+         * Update a trip enrollment's status (admin)
+         * @description Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. 404 when the enrollment does not exist or belongs to another trip.
+         */
         put: operations["update-trip-enrollment-status"];
         post?: never;
         delete?: never;
@@ -700,12 +729,12 @@ export interface paths {
         put?: never;
         /**
          * Sign the caller up for a leg with one click
-         * @description Creates a pending trip enrollment for the caller (201, result created). Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete.
+         * @description Creates a trip enrollment for the caller (201, result created). It starts pending, or waitlisted when accepted plus pending sign-ups already hold all of the leg's max_crew places; a waitlisted result carries its waitlist_position. Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete.
          */
         post: operations["sign-up-for-trip"];
         /**
-         * Withdraw the caller's pending leg sign-up
-         * @description Deletes the caller's sign-up while it is pending. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted).
+         * Withdraw the caller's pending or waitlisted leg sign-up
+         * @description Deletes the caller's sign-up while it is pending or on the waiting list and unpaid. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it or recorded a payment on it (deposit or paid).
          */
         delete: operations["withdraw-trip-sign-up"];
         options?: never;
@@ -1277,6 +1306,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             note?: string;
+            /**
+             * @description Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only
+             * @enum {string}
+             */
+            payment_status?: "unpaid" | "deposit" | "paid";
             status: string;
             /** Format: int64 */
             trip_id?: number;
@@ -1457,6 +1491,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -1478,6 +1517,11 @@ export interface components {
             result: "created" | "already_enrolled";
             /** Format: int64 */
             trip_id: number;
+            /**
+             * Format: int64
+             * @description 1-based waiting-list position by sign-up time; omitted unless the enrollment is waitlisted
+             */
+            waitlist_position?: number;
         };
         EnrollLegsBody: {
             /**
@@ -1530,6 +1574,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /**
              * Format: double
@@ -1551,6 +1600,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             note?: string;
+            /**
+             * @description Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only
+             * @enum {string}
+             */
+            payment_status?: "unpaid" | "deposit" | "paid";
             status: string;
             /** Format: int64 */
             trip_id?: number;
@@ -1660,10 +1714,15 @@ export interface components {
             accepted_count: number;
             /** @description The caller's sign-up for this leg; omitted when not signed up */
             enrollment?: components["schemas"]["Enrollment"];
-            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) */
+            /** @description Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed */
             open: boolean;
             /** Format: int64 */
             trip_id: number;
+            /**
+             * Format: int64
+             * @description 1-based position of the caller's sign-up on the leg's waiting list, by sign-up time; omitted unless it is waitlisted
+             */
+            waitlist_position?: number;
         };
         Me: {
             /**
@@ -1912,6 +1971,19 @@ export interface components {
              */
             total: number;
         };
+        PaymentStatusBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PaymentStatusBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description unpaid, deposit (first payment received) or paid (in full)
+             * @enum {string}
+             */
+            payment_status: "unpaid" | "deposit" | "paid";
+        };
         PersonalSeaTime: {
             as_captain: components["schemas"]["SeaTime"];
             as_crew: components["schemas"]["SeaTime"];
@@ -2075,6 +2147,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /** @enum {string} */
             status: "planned" | "cancelled";
@@ -2147,6 +2224,11 @@ export interface components {
             max_crew?: number;
             /** @description Trip name */
             name: string;
+            /**
+             * Format: date
+             * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
+             */
+            sign_up_deadline?: string;
             start_port?: string;
             /**
              * Format: double
@@ -2164,6 +2246,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             note?: string;
+            /**
+             * @description Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only
+             * @enum {string}
+             */
+            payment_status?: "unpaid" | "deposit" | "paid";
             status: string;
             /** Format: int64 */
             trip_id?: number;
@@ -4330,6 +4417,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-trip-enrollment-payment-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+                /** @description Enrollment ID */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentStatusBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
             };
             /** @description Error */
             default: {

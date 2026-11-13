@@ -9,14 +9,17 @@ import (
 // Enrollment is a user's enrollment in a trip or cruise. Exactly one of
 // trip_id / cruise_id identifies the target.
 type Enrollment struct {
-	ID        int64     `json:"id"`
-	TripID    *int64    `json:"trip_id,omitempty"`
-	CruiseID  *int64    `json:"cruise_id,omitempty"`
-	UserID    int64     `json:"user_id"`
-	Note      *string   `json:"note,omitempty"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID       int64   `json:"id"`
+	TripID   *int64  `json:"trip_id,omitempty"`
+	CruiseID *int64  `json:"cruise_id,omitempty"`
+	UserID   int64   `json:"user_id"`
+	Note     *string `json:"note,omitempty"`
+	Status   string  `json:"status"`
+	// PaymentStatus is set on trip (leg) enrollments only; cruise-level
+	// enrollments carry no payment status.
+	PaymentStatus string    `json:"payment_status,omitempty" enum:"unpaid,deposit,paid" doc:"Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // TripEnrollmentDetail is a trip enrollment joined with the enrolled user.
@@ -82,6 +85,7 @@ type EnrollTrip struct {
 	CostPerPersonNonMember *float64 `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
 	YachtFund              *float64 `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person"`
 	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
+	SignUpDeadline         *string  `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none"`
 }
 
 // EnrollLeg is the public summary of one cruise trip (leg) on the enroll
@@ -165,12 +169,14 @@ type EnrollLegsBody struct {
 	Note    *string `json:"note,omitempty" doc:"Optional note to the organizer, copied to every leg enrollment"`
 }
 
-// EnrollLegResult is the outcome of one requested leg: a new pending
-// enrollment, or the user's existing enrollment for that leg.
+// EnrollLegResult is the outcome of one requested leg: a new pending or
+// waitlisted enrollment, or the user's existing enrollment for that leg.
 type EnrollLegResult struct {
 	TripID     int64      `json:"trip_id"`
 	Result     string     `json:"result" enum:"created,already_enrolled"`
 	Enrollment Enrollment `json:"enrollment"`
+	// WaitlistPosition is set when the enrollment is on the leg's waiting list.
+	WaitlistPosition *int64 `json:"waitlist_position,omitempty" doc:"1-based waiting-list position by sign-up time; omitted unless the enrollment is waitlisted"`
 }
 
 // EnrollLegsResponse lists one result per requested leg, in request order.
@@ -183,6 +189,11 @@ type EnrollmentStatusBody struct {
 	Status string `json:"status" enum:"accepted,rejected,waitlisted,pending" doc:"Enrollment status"`
 }
 
+// PaymentStatusBody sets a leg sign-up's manual payment status.
+type PaymentStatusBody struct {
+	PaymentStatus string `json:"payment_status" enum:"unpaid,deposit,paid" doc:"unpaid, deposit (first payment received) or paid (in full)"`
+}
+
 // AssignTripBody assigns a cruise enrollment to a trip; a null trip_id unassigns.
 type AssignTripBody struct {
 	TripID *int64 `json:"trip_id,omitempty" doc:"Trip ID, or null to unassign"`
@@ -192,13 +203,14 @@ type AssignTripBody struct {
 func TripEnrollmentToDTO(e sqlcdb.TripEnrollment) Enrollment {
 	tid := e.TripID
 	return Enrollment{
-		ID:        e.ID,
-		TripID:    &tid,
-		UserID:    e.UserID,
-		Note:      strPtr(e.Note),
-		Status:    e.Status,
-		CreatedAt: timeVal(e.CreatedAt),
-		UpdatedAt: timeVal(e.UpdatedAt),
+		ID:            e.ID,
+		TripID:        &tid,
+		UserID:        e.UserID,
+		Note:          strPtr(e.Note),
+		Status:        e.Status,
+		PaymentStatus: e.PaymentStatus,
+		CreatedAt:     timeVal(e.CreatedAt),
+		UpdatedAt:     timeVal(e.UpdatedAt),
 	}
 }
 
@@ -233,15 +245,16 @@ func TripEnrollmentsFromDB(rows []sqlcdb.ListTripEnrollmentsRow) []TripEnrollmen
 		r := rows[i]
 		tid := r.TripID
 		out[i] = TripEnrollmentDetail{
-			ID:        r.ID,
-			TripID:    &tid,
-			UserID:    r.UserID,
-			Note:      strPtr(r.Note),
-			Status:    r.Status,
-			CreatedAt: timeVal(r.CreatedAt),
-			UpdatedAt: timeVal(r.UpdatedAt),
-			UserName:  r.UserName,
-			UserEmail: r.UserEmail,
+			ID:            r.ID,
+			TripID:        &tid,
+			UserID:        r.UserID,
+			Note:          strPtr(r.Note),
+			Status:        r.Status,
+			PaymentStatus: r.PaymentStatus,
+			CreatedAt:     timeVal(r.CreatedAt),
+			UpdatedAt:     timeVal(r.UpdatedAt),
+			UserName:      r.UserName,
+			UserEmail:     r.UserEmail,
 		}
 	}
 	return out
@@ -266,6 +279,7 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 		CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
 		YachtFund:              floatPtr(t.YachtFund),
 		Deposit:                floatPtr(t.Deposit),
+		SignUpDeadline:         strPtr(t.SignUpDeadline),
 	}
 }
 
@@ -322,6 +336,7 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 			CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
 			YachtFund:              floatPtr(t.YachtFund),
 			Deposit:                floatPtr(t.Deposit),
+			SignUpDeadline:         strPtr(t.SignUpDeadline),
 		}
 	}
 	return out
@@ -332,9 +347,11 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 // own sign-up, if any.
 type LegSignUp struct {
 	TripID        int64       `json:"trip_id"`
-	Open          bool        `json:"open" doc:"Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"`
+	Open          bool        `json:"open" doc:"Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed"`
 	AcceptedCount int64       `json:"accepted_count" doc:"Accepted crew: direct leg sign-ups plus cruise enrollments assigned to the leg"`
 	Enrollment    *Enrollment `json:"enrollment,omitempty" doc:"The caller's sign-up for this leg; omitted when not signed up"`
+	// WaitlistPosition is set when the caller's sign-up is on the waiting list.
+	WaitlistPosition *int64 `json:"waitlist_position,omitempty" doc:"1-based position of the caller's sign-up on the leg's waiting list, by sign-up time; omitted unless it is waitlisted"`
 }
 
 // SignUpNoteBody sets the note on the caller's own leg sign-up.
@@ -349,17 +366,17 @@ func CruiseTripEnrollmentsFromDB(rows []sqlcdb.ListCruiseTripEnrollmentsRow) []T
 		r := rows[i]
 		tid := r.TripID
 		out[i] = TripEnrollmentDetail{
-			ID:        r.ID,
-			TripID:    &tid,
-			UserID:    r.UserID,
-			Note:      strPtr(r.Note),
-			Status:    r.Status,
-			CreatedAt: timeVal(r.CreatedAt),
-			UpdatedAt: timeVal(r.UpdatedAt),
-			UserName:  r.UserName,
-			UserEmail: r.UserEmail,
+			ID:            r.ID,
+			TripID:        &tid,
+			UserID:        r.UserID,
+			Note:          strPtr(r.Note),
+			Status:        r.Status,
+			PaymentStatus: r.PaymentStatus,
+			CreatedAt:     timeVal(r.CreatedAt),
+			UpdatedAt:     timeVal(r.UpdatedAt),
+			UserName:      r.UserName,
+			UserEmail:     r.UserEmail,
 		}
-
 	}
 	return out
 }

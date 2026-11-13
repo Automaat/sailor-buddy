@@ -221,6 +221,17 @@ describe('cruise page admin flows', () => {
 		await waitFor(() => expect(screen.queryByText('Nieznany')).not.toBeInTheDocument());
 	});
 
+	it('explains a full leg when accepting a cruise enrollment is refused', async () => {
+		fn(updateCruiseEnrollmentStatus).mockRejectedValueOnce(new ApiError(409, 'leg is full: all 1 places are taken'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		render(CruiseDetailPage);
+		await screen.findByText('Ala Kowalska');
+
+		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('Etap jest pełny');
+	});
+
 	it('toggles enrollment off and on and copies the link', async () => {
 		const writeText = vi.fn();
 		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
@@ -407,7 +418,12 @@ describe('cruise page leg sign-up', () => {
 		['open, not signed up', signUp(50), 'button', 'Zapisz się: Jacht A'],
 		['pending', signUp(50, { enrollment: pending(50) }), 'text', 'oczekujący'],
 		['accepted', signUp(50, { enrollment: pending(50, { status: 'accepted' }) }), 'text', 'zaakceptowany'],
-		['waitlisted', signUp(50, { enrollment: pending(50, { status: 'waitlisted' }) }), 'text', 'lista rezerwowa'],
+		[
+			'waitlisted',
+			signUp(50, { enrollment: pending(50, { status: 'waitlisted' }), waitlist_position: 1 }),
+			'text',
+			'lista rezerwowa (1.)'
+		],
 		['rejected', signUp(50, { enrollment: pending(50, { status: 'rejected' }) }), 'text', 'odrzucony'],
 		['closed', signUp(50, { open: false }), 'text', 'Zapisy zamknięte']
 	] as const)('shows the %s state', async (_name, state, kind, want) => {
@@ -423,7 +439,47 @@ describe('cruise page leg sign-up', () => {
 			expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 		}
 		const withdraw = within(row).queryByRole('button', { name: 'Wycofaj zapis: Jacht A' });
-		expect(withdraw !== null).toBe(want === 'oczekujący');
+		// A member may withdraw while pending or on the waiting list.
+		expect(withdraw !== null).toBe(want === 'oczekujący' || want === 'lista rezerwowa (1.)');
+	});
+
+	it('shows the sign-up deadline on the leg row', async () => {
+		fn(listCruiseTrips).mockResolvedValue([
+			legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' }),
+			legTrip(51, 'Jacht B')
+		]);
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(rowOf('Jacht B')).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
+	});
+
+	it('shows Zapisy zamknięte instead of the button once the deadline has passed', async () => {
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' })]);
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { open: false })]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		const row = rowOf('Jacht A');
+		expect(within(row).getByText('Zapisy zamknięte')).toBeInTheDocument();
+		expect(within(row).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 01.06.2026');
+		expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
+	});
+
+	it.each([
+		['unpaid', 'Brak wpłaty'],
+		['deposit', 'Zaliczka wpłacona'],
+		['paid', 'Opłacone']
+	] as const)('shows the %s payment status next to the sign-up status', async (payment, label) => {
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
+		fn(listCruiseLegSignUps).mockResolvedValue([
+			signUp(50, { enrollment: pending(50, { status: 'accepted', payment_status: payment }) })
+		]);
+		render(CruiseDetailPage);
+		await screen.findByRole('link', { name: 'Jacht A' });
+		const row = rowOf('Jacht A');
+		expect(within(row).getByTestId('sign-up-status')).toHaveTextContent('zaakceptowany');
+		expect(within(row).getByTestId('sign-up-payment')).toHaveTextContent(label);
 	});
 
 	it('shows a cruise-level enrollment assigned to the leg as the status, without withdraw or note', async () => {

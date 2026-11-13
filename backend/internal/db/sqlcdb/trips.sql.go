@@ -13,13 +13,13 @@ import (
 
 const cancelTrip = `-- name: CancelTrip :one
 UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit
+WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 `
 
 // CancelTrip
 //
 //	UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit
+//	WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 func (q *Queries) CancelTrip(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, cancelTrip, id)
 	var i Trip
@@ -51,6 +51,7 @@ func (q *Queries) CancelTrip(ctx context.Context, id int64) (Trip, error) {
 		&i.CostPerPersonNonMember,
 		&i.YachtFund,
 		&i.Deposit,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -86,11 +87,11 @@ INSERT INTO trips (
     created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
     captain_name, yacht_id, cost_total, cost_per_person, max_crew,
     image_logo_url, image_photo_url, image_route_url, description, status, captain_user_id,
-    currency, cost_per_person_non_member, yacht_fund, deposit
+    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-    $20, $21, $22, $23
-) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit
+    $20, $21, $22, $23, $24
+) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 `
 
 type CreateTripParams struct {
@@ -117,6 +118,7 @@ type CreateTripParams struct {
 	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
 	YachtFund              types.NullFloat64 `json:"yacht_fund"`
 	Deposit                types.NullFloat64 `json:"deposit"`
+	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 }
 
 // CreateTrip
@@ -125,11 +127,11 @@ type CreateTripParams struct {
 //	    created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
 //	    captain_name, yacht_id, cost_total, cost_per_person, max_crew,
 //	    image_logo_url, image_photo_url, image_route_url, description, status, captain_user_id,
-//	    currency, cost_per_person_non_member, yacht_fund, deposit
+//	    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 //	) VALUES (
 //	    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-//	    $20, $21, $22, $23
-//	) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit
+//	    $20, $21, $22, $23, $24
+//	) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
 func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, createTrip,
 		arg.CreatedBy,
@@ -155,6 +157,7 @@ func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, e
 		arg.CostPerPersonNonMember,
 		arg.YachtFund,
 		arg.Deposit,
+		arg.SignUpDeadline,
 	)
 	var i Trip
 	err := row.Scan(
@@ -185,6 +188,7 @@ func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, e
 		&i.CostPerPersonNonMember,
 		&i.YachtFund,
 		&i.Deposit,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -202,12 +206,12 @@ func (q *Queries) DeleteTrip(ctx context.Context, id int64) error {
 }
 
 const getTrip = `-- name: GetTrip :one
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1
 `
 
 // GetTrip
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1
 func (q *Queries) GetTrip(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, getTrip, id)
 	var i Trip
@@ -239,6 +243,7 @@ func (q *Queries) GetTrip(ctx context.Context, id int64) (Trip, error) {
 		&i.CostPerPersonNonMember,
 		&i.YachtFund,
 		&i.Deposit,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -246,7 +251,8 @@ func (q *Queries) GetTrip(ctx context.Context, id int64) (Trip, error) {
 const getTripByEnrollToken = `-- name: GetTripByEnrollToken :one
 SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, max_crew, captain_name, image_photo_url,
-       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit
+       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit,
+       sign_up_deadline
 FROM trips WHERE enroll_token = $1
 `
 
@@ -267,13 +273,15 @@ type GetTripByEnrollTokenRow struct {
 	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
 	YachtFund              types.NullFloat64 `json:"yacht_fund"`
 	Deposit                types.NullFloat64 `json:"deposit"`
+	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 }
 
 // GetTripByEnrollToken
 //
 //	SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
 //	       description, max_crew, captain_name, image_photo_url,
-//	       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit
+//	       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit,
+//	       sign_up_deadline
 //	FROM trips WHERE enroll_token = $1
 func (q *Queries) GetTripByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetTripByEnrollTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getTripByEnrollToken, enrollToken)
@@ -295,19 +303,20 @@ func (q *Queries) GetTripByEnrollToken(ctx context.Context, enrollToken types.Nu
 		&i.CostPerPersonNonMember,
 		&i.YachtFund,
 		&i.Deposit,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
 
 const getTripForUpdate = `-- name: GetTripForUpdate :one
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1 FOR UPDATE
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1 FOR UPDATE
 `
 
 // Row-locks the trip for the rest of the transaction. Trip completion takes
-// it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
+// it first, so a concurrent leg enrollment waits on its trip lock and
 // then sees the trip gone instead of deadlocking with the deletes.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE id = $1 FOR UPDATE
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1 FOR UPDATE
 func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, getTripForUpdate, id)
 	var i Trip
@@ -339,6 +348,7 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) 
 		&i.CostPerPersonNonMember,
 		&i.YachtFund,
 		&i.Deposit,
+		&i.SignUpDeadline,
 	)
 	return i, err
 }
@@ -358,7 +368,7 @@ func (q *Queries) GetTripStatus(ctx context.Context, id int64) (TripStatus, erro
 }
 
 const listTrips = `-- name: ListTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 `
 
 type ListTripsParams struct {
@@ -368,7 +378,7 @@ type ListTripsParams struct {
 
 // ListTrips
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 func (q *Queries) ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, listTrips, arg.Limit, arg.Offset)
 	if err != nil {
@@ -406,6 +416,7 @@ func (q *Queries) ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, e
 			&i.CostPerPersonNonMember,
 			&i.YachtFund,
 			&i.Deposit,
+			&i.SignUpDeadline,
 		); err != nil {
 			return nil, err
 		}
@@ -466,8 +477,9 @@ UPDATE trips SET
     image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
     cruise_id = $16, captain_user_id = $17,
     currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
+    sign_up_deadline = $22,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $22
+WHERE id = $23
 `
 
 type UpdateTripParams struct {
@@ -492,6 +504,7 @@ type UpdateTripParams struct {
 	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
 	YachtFund              types.NullFloat64 `json:"yacht_fund"`
 	Deposit                types.NullFloat64 `json:"deposit"`
+	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 	ID                     int64             `json:"id"`
 }
 
@@ -504,8 +517,9 @@ type UpdateTripParams struct {
 //	    image_logo_url = $12, image_photo_url = $13, image_route_url = $14, description = $15,
 //	    cruise_id = $16, captain_user_id = $17,
 //	    currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
+//	    sign_up_deadline = $22,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $22
+//	WHERE id = $23
 func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
 	_, err := q.db.ExecContext(ctx, updateTrip,
 		arg.Name,
@@ -529,6 +543,7 @@ func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
 		arg.CostPerPersonNonMember,
 		arg.YachtFund,
 		arg.Deposit,
+		arg.SignUpDeadline,
 		arg.ID,
 	)
 	return err

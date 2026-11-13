@@ -29,6 +29,7 @@
 		name: '',
 		embark_date: '',
 		disembark_date: '',
+		sign_up_deadline: '',
 		countries: '',
 		start_port: '',
 		end_port: '',
@@ -60,6 +61,7 @@
 				name: trip.name,
 				embark_date: trip.embark_date ?? '',
 				disembark_date: trip.disembark_date ?? '',
+				sign_up_deadline: trip.sign_up_deadline ?? '',
 				countries: trip.countries ?? '',
 				start_port: trip.start_port ?? '',
 				end_port: trip.end_port ?? '',
@@ -94,6 +96,7 @@
 				...form,
 				...priceBody(price),
 				yacht_id: form.yacht_id || undefined,
+				sign_up_deadline: form.sign_up_deadline || undefined,
 				image_logo_url: form.image_logo_url || undefined,
 				image_photo_url: form.image_photo_url || undefined,
 				image_route_url: form.image_route_url || undefined,
@@ -152,6 +155,17 @@
 				<div>
 					<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
 					<input id="disembark" type="date" bind:value={form.disembark_date} class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div class="col-span-2">
+					<label for="sign_up_deadline" class="mb-1 block text-sm font-medium">Zapisy do (włącznie)</label>
+					<input
+						id="sign_up_deadline"
+						type="date"
+						bind:value={form.sign_up_deadline}
+						max={form.embark_date || undefined}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
+					<p class="mt-1 text-xs text-[var(--text-muted)]">Puste — zapisy otwarte, dopóki ich nie wyłączysz.</p>
 				</div>
 				<div>
 					<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>

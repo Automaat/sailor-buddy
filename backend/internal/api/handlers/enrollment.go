@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -23,6 +24,8 @@ import (
 type EnrollmentHandler struct {
 	q     sqlcdb.Querier
 	runTx txRunner
+	// now is the clock for sign-up deadlines; nil means time.Now.
+	now func() time.Time
 }
 
 func NewEnrollmentHandler(q sqlcdb.Querier, db *sql.DB) *EnrollmentHandler {
@@ -69,6 +72,12 @@ type tripEnrollmentStatusInput struct {
 	TripID int64 `path:"tripID" doc:"Trip ID"`
 	ID     int64 `path:"id" doc:"Enrollment ID"`
 	Body   dto.EnrollmentStatusBody
+}
+
+type tripEnrollmentPaymentInput struct {
+	TripID int64 `path:"tripID" doc:"Trip ID"`
+	ID     int64 `path:"id" doc:"Enrollment ID"`
+	Body   dto.PaymentStatusBody
 }
 
 type tripEnrollmentParam struct {
@@ -119,8 +128,21 @@ func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 	}, h.listEnrollments)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-trip-enrollment-status", Method: http.MethodPut, Path: "/trips/{tripID}/enrollments/{id}/status",
-		Summary: "Update a trip enrollment's status (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Update a trip enrollment's status (admin)",
+		Description: "Accepting needs a free place: 409 when the leg's accepted crew already fills " +
+			"max_crew (no limit when max_crew is unset or 0). Other status changes always apply. " +
+			"Promotion from the waiting list is this manual accept. 404 when the enrollment does " +
+			"not exist or belongs to another trip.",
+		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateStatus)
+	huma.Register(api, huma.Operation{
+		OperationID: "update-trip-enrollment-payment-status", Method: http.MethodPut,
+		Path:    "/trips/{tripID}/enrollments/{id}/payment-status",
+		Summary: "Set a trip enrollment's manual payment status (admin)",
+		Description: "Records whether the sign-up is unpaid, has its first payment (deposit) or is paid " +
+			"in full. The review status is left unchanged. 404 when the trip has no such enrollment.",
+		Tags: tag,
+	}, h.updatePaymentStatus)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-trip-enrollment", Method: http.MethodDelete, Path: "/trips/{tripID}/enrollments/{id}",
 		Summary: "Delete a trip enrollment (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
@@ -221,10 +243,22 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 		if status != sqlcdb.TripStatusPlanned {
 			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
 		}
+		if deadlinePassed(trip.SignUpDeadline, h.today()) {
+			return nil, huma.Error422UnprocessableEntity("sign-up closed: the sign-up deadline has passed")
+		}
+		// Unlike the leg sign-up, this legacy share-link path takes no trip
+		// lock, so two concurrent enrollments may both start pending. Accepts
+		// still enforce max_crew under the lock.
+		initial, err := initialSignUpStatus(ctx, h.q, trip.ID, trip.MaxCrew)
+		if err != nil {
+			slog.Error("count taken places for trip enrollment", "trip_id", trip.ID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to enroll")
+		}
 		e, err := h.q.CreateTripEnrollment(ctx, sqlcdb.CreateTripEnrollmentParams{
 			TripID: trip.ID,
 			UserID: user.UserID,
 			Note:   nullString(in.Body.Note),
+			Status: initial,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -292,25 +326,34 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		if err != nil {
 			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
 		}
-		status := make(map[int64]sqlcdb.TripStatus, len(trips))
+		legs := make(map[int64]sqlcdb.LockCruiseTripStatusesRow, len(trips))
 		for i := range trips {
-			status[trips[i].ID] = trips[i].Status
+			legs[trips[i].ID] = trips[i]
 		}
+		today := h.today()
 		for _, id := range in.Body.TripIDs {
-			st, ok := status[id]
+			leg, ok := legs[id]
 			if !ok {
 				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not a leg of this cruise", id)}
 			}
-			if st != sqlcdb.TripStatusPlanned {
+			if leg.Status != sqlcdb.TripStatusPlanned {
 				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not open for enrollment", id)}
+			}
+			if deadlinePassed(leg.SignUpDeadline, today) {
+				return &invalidLegsError{msg: fmt.Sprintf("trip %d: the sign-up deadline has passed", id)}
 			}
 		}
 
 		for _, id := range insertOrder {
+			initial, err := initialSignUpStatus(ctx, q, id, legs[id].MaxCrew)
+			if err != nil {
+				return err
+			}
 			e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
 				TripID: id,
 				UserID: user.UserID,
 				Note:   nullString(in.Body.Note),
+				Status: initial,
 			})
 			result := "created"
 			if errors.Is(err, sql.ErrNoRows) {
@@ -320,11 +363,15 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 			if err != nil {
 				return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
 			}
-			byTrip[id] = dto.EnrollLegResult{
+			r := dto.EnrollLegResult{
 				TripID:     id,
 				Result:     result,
 				Enrollment: dto.TripEnrollmentToDTO(e),
 			}
+			if err := setWaitlistPosition(ctx, q, &r.Enrollment, &r.WaitlistPosition); err != nil {
+				return err
+			}
+			byTrip[id] = r
 		}
 		return nil
 	})
@@ -395,18 +442,80 @@ func (h *EnrollmentHandler) listEnrollments(ctx context.Context, in *tripIDParam
 	return &tripEnrollmentsOutput{Body: dto.TripEnrollmentsFromDB(enrollments)}, nil
 }
 
+// errEnrollmentNotFound marks a status change for an enrollment that does
+// not exist or belongs to another trip.
+var errEnrollmentNotFound = errors.New("enrollment not found")
+
+// updateStatus sets a trip enrollment's status. Accepting it takes one of the
+// leg's max_crew places: the trip row is locked first, as in sign-up, so
+// concurrent accepts of the last place serialize and the second gets 409.
+// Every other status change, including from accepted, needs no free place.
 func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollmentStatusInput) (*noContentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.q.UpdateTripEnrollmentStatus(ctx, sqlcdb.UpdateTripEnrollmentStatusParams{
-		Status: in.Body.Status,
-		ID:     in.ID,
-	}); err != nil {
-		slog.Error("update trip enrollment status", "enrollment_id", in.ID, "status", in.Body.Status, "err", err)
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		trip, err := q.LockTripForSignUp(ctx, in.TripID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return errEnrollmentNotFound
+			}
+			return &QueryError{Op: "LockTripForSignUp", Err: err}
+		}
+		e, err := q.LockTripEnrollmentOfTrip(ctx, sqlcdb.LockTripEnrollmentOfTripParams{ID: in.ID, TripID: trip.ID})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return errEnrollmentNotFound
+			}
+			return &QueryError{Op: "LockTripEnrollmentOfTrip", Err: err}
+		}
+		if in.Body.Status == enrollmentAccepted && e.Status != enrollmentAccepted {
+			if err := checkPlaceFree(ctx, q, trip.ID, e.UserID, trip.MaxCrew); err != nil {
+				return err
+			}
+		}
+		if err := q.UpdateTripEnrollmentStatus(ctx, sqlcdb.UpdateTripEnrollmentStatusParams{
+			Status: in.Body.Status,
+			ID:     e.ID,
+		}); err != nil {
+			return &QueryError{Op: "UpdateTripEnrollmentStatus", Err: err}
+		}
+		return nil
+	})
+	if txErr != nil {
+		if errors.Is(txErr, errEnrollmentNotFound) {
+			return nil, huma.Error404NotFound("enrollment not found")
+		}
+		if full, ok := errors.AsType[*legFullError](txErr); ok {
+			return nil, huma.Error409Conflict(full.Error())
+		}
+		slog.Error("update trip enrollment status", "enrollment_id", in.ID, "status", in.Body.Status, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to update status")
 	}
 	return &noContentOutput{}, nil
+}
+
+// updatePaymentStatus sets the manual payment status of one sign-up of the
+// trip. The update is scoped to the trip, so an enrollment of another trip
+// is a 404.
+func (h *EnrollmentHandler) updatePaymentStatus(ctx context.Context, in *tripEnrollmentPaymentInput) (*enrollmentBodyOutput, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	e, err := h.q.UpdateTripEnrollmentPaymentStatus(ctx, sqlcdb.UpdateTripEnrollmentPaymentStatusParams{
+		PaymentStatus: in.Body.PaymentStatus,
+		ID:            in.ID,
+		TripID:        in.TripID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("enrollment not found")
+		}
+		slog.Error("update trip enrollment payment status", "trip_id", in.TripID, "enrollment_id", in.ID,
+			"payment_status", in.Body.PaymentStatus, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update payment status")
+	}
+	return &enrollmentBodyOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
 }
 
 func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnrollmentParam) (*noContentOutput, error) {

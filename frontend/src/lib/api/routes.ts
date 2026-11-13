@@ -78,6 +78,17 @@ export function updateTripEnrollmentStatus(
 	});
 }
 
+export function updateTripEnrollmentPaymentStatus(
+	tripID: number,
+	enrollmentID: number,
+	paymentStatus: Schemas['PaymentStatusBody']['payment_status']
+) {
+	return api.put('/trips/{tripID}/enrollments/{id}/payment-status', {
+		path: { tripID, id: enrollmentID },
+		body: { payment_status: paymentStatus }
+	});
+}
+
 export function deleteTripEnrollment(tripID: number, enrollmentID: number) {
 	return api.del('/trips/{tripID}/enrollments/{id}', { path: { tripID, id: enrollmentID } });
 }
