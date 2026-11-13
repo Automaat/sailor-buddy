@@ -20,7 +20,8 @@
 
 	let entries = $state<RejsEntry[]>([]);
 	let loading = $state(true);
-	let myCruiseIds = $state<ReadonlySet<number>>(new Set());
+	/** null when the user's cruises could not be loaded. */
+	let myCruiseIds = $state<ReadonlySet<number> | null>(new Set());
 	let tab = $state<RejsTab>(parseRejsTab(page.url.searchParams.get('tab')));
 	let mine = $state(isMineFilter(page.url.searchParams.get('mine')));
 	$effect(() => {
@@ -29,7 +30,10 @@
 	});
 	let kindFilter = $state<CruiseKind | 'all'>('all');
 
-	const inTab = $derived(filterRejsEntries(mine ? onlyMine(entries, myCruiseIds) : entries, tab));
+	const mineUnavailable = $derived(mine && myCruiseIds === null);
+	const inTab = $derived(
+		filterRejsEntries(mine && myCruiseIds ? onlyMine(entries, myCruiseIds) : entries, tab)
+	);
 	const visible = $derived(
 		kindFilter === 'all' ? inTab : inTab.filter((e) => e.kind === kindFilter)
 	);
@@ -77,11 +81,11 @@
 				listVoyages(),
 				listMyCruiseIds().catch((err) => {
 					console.error('Failed to load your cruises:', err);
-					return [];
+					return null;
 				})
 			]);
 			entries = buildRejsEntries(cruises ?? [], trips ?? [], voyages ?? []);
-			myCruiseIds = new Set(mineIds);
+			myCruiseIds = mineIds ? new Set(mineIds) : null;
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {
@@ -158,6 +162,13 @@
 
 	{#if loading}
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
+	{:else if mineUnavailable}
+		<div class="rounded-2xl bg-white py-16 text-center shadow-sm" role="alert">
+			<p class="text-lg text-red-600">Nie udało się wczytać Twoich rejsów</p>
+			<button type="button" onclick={load} class="mt-2 text-[var(--ocean)] hover:underline">
+				Spróbuj ponownie
+			</button>
+		</div>
 	{:else if inTab.length > 0 && visible.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<p class="text-lg text-[var(--text-muted)]">Brak rejsów tego rodzaju</p>

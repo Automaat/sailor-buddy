@@ -223,5 +223,20 @@ describe('rejsy page', () => {
 			expect(await screen.findByText('Cudzy rejs')).toBeInTheDocument();
 			expect(screen.getByText('Mój rejs')).toBeInTheDocument();
 		});
+
+		it('reports a failed load instead of claiming the user has no cruises', async () => {
+			serve({ cruises, trips, voyages, mine: [1] });
+			apiGet.mockRejectedValueOnce(new Error('boom'));
+			render(RejsyPage);
+			await screen.findByText('Cudzy rejs');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Moje rejsy' }));
+			expect(screen.getByRole('alert')).toHaveTextContent('Nie udało się wczytać Twoich rejsów');
+			expect(screen.queryByText('Nie masz nadchodzących rejsów')).not.toBeInTheDocument();
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Spróbuj ponownie' }));
+			expect(await screen.findByText('Mój rejs')).toBeInTheDocument();
+			expect(screen.queryByText('Cudzy rejs')).not.toBeInTheDocument();
+		});
 	});
 });
