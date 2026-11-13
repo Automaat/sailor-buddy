@@ -53,17 +53,21 @@
 		return keptID === person.id ? (other?.id ?? 0) : person.id;
 	}
 
+	let previewRequest = 0;
+
 	async function loadPreview() {
+		const request = ++previewRequest;
 		preview = null;
 		error = '';
 		if (!other || bothAccounts) return;
 		busy = true;
 		try {
-			preview = await previewCrewMerge(keptID, duplicateID());
+			const result = await previewCrewMerge(keptID, duplicateID());
+			if (request === previewRequest) preview = result;
 		} catch (err) {
-			error = mergeError(err);
+			if (request === previewRequest) error = mergeError(err);
 		} finally {
-			busy = false;
+			if (request === previewRequest) busy = false;
 		}
 	}
 
@@ -91,6 +95,8 @@
 	}
 
 	function reset() {
+		previewRequest++;
+		busy = false;
 		other = null;
 		preview = null;
 		error = '';
@@ -196,11 +202,11 @@
 			>
 				{busy ? 'Łączenie...' : 'Połącz'}
 			</button>
-			<button type="button" onclick={reset} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+			<button type="button" onclick={reset} disabled={busy} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50">
 				Wybierz inną osobę
 			</button>
 		{/if}
-		<button type="button" onclick={oncancel} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+		<button type="button" onclick={oncancel} disabled={busy} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50">
 			Anuluj
 		</button>
 	</div>

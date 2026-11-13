@@ -204,4 +204,19 @@ describe('person page', () => {
 			'Połączono: Mira Member → Zofia Duplikat. Imię i nazwisko z konta: Mira Member.'
 		);
 	});
+
+	it('keeps the selection fixed while a preview is loading', async () => {
+		const current = makePerson({ id: 4, full_name: 'Ewa Maj' });
+		const first = makePerson({ id: 7, full_name: 'Ewa Pierwsza' });
+		getMock.mockResolvedValue(current);
+		listMock.mockResolvedValue([current, first]);
+		previewMock.mockImplementationOnce(() => new Promise(() => {}));
+
+		render(PersonPage);
+		await screen.findByRole('heading', { name: 'Ewa Maj' });
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz z…' }));
+		await fireEvent.click(await screen.findByRole('button', { name: /Ewa Pierwsza/ }));
+		expect(screen.getByRole('button', { name: 'Wybierz inną osobę' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Anuluj' })).toBeDisabled();
+	});
 });
