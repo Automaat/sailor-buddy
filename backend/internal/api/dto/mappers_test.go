@@ -605,3 +605,24 @@ func TestCruiseSeriesEditionsFromDB(t *testing.T) {
 		t.Fatalf("want non-nil slice")
 	}
 }
+
+func TestPersonalSeaTimeFromDB_YearOrder(t *testing.T) {
+	got := PersonalSeaTimeFromDB([]sqlcdb.ListUserSeaTimeVoyagesRow{
+		{ID: 1, Year: nint(2025), Miles: 10},
+		{ID: 2, Miles: 5},
+		{ID: 3, Year: nint(2023), Miles: 7},
+		{ID: 4, Year: nint(2025), Miles: 1},
+	})
+	if len(got.ByYear) != 3 {
+		t.Fatalf("by_year = %+v, want 3 buckets", got.ByYear)
+	}
+	if *got.ByYear[0].Year != 2023 || *got.ByYear[1].Year != 2025 || got.ByYear[2].Year != nil {
+		t.Errorf("order = %+v, want 2023, 2025, unknown", got.ByYear)
+	}
+	if got.ByYear[1].VoyageCount != 2 || got.ByYear[1].TotalMiles != 11 {
+		t.Errorf("2025 bucket = %+v", got.ByYear[1])
+	}
+	if got.AsCrew.VoyageCount != 4 || got.AsCaptain.VoyageCount != 0 {
+		t.Errorf("roles: captain %+v crew %+v", got.AsCaptain, got.AsCrew)
+	}
+}

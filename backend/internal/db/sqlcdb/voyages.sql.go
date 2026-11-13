@@ -291,6 +291,91 @@ func (q *Queries) GetVoyagesByYear(ctx context.Context) ([]GetVoyagesByYearRow, 
 	return items, nil
 }
 
+const listUserSeaTimeVoyages = `-- name: ListUserSeaTimeVoyages :many
+SELECT
+    v.id, v.name, v.year, v.embark_date, v.disembark_date,
+    y.name AS yacht_name,
+    COALESCE(v.captain_user_id = $1::BIGINT, FALSE)::BOOLEAN AS as_captain,
+    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+FROM voyages v
+LEFT JOIN yachts y ON y.id = v.yacht_id
+WHERE v.captain_user_id = $1::BIGINT
+   OR EXISTS (
+       SELECT 1 FROM crew_assignments ca
+       JOIN crew_members cm ON cm.id = ca.crew_member_id
+       WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
+   )
+ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
+`
+
+type ListUserSeaTimeVoyagesRow struct {
+	ID            int64            `json:"id"`
+	Name          string           `json:"name"`
+	Year          types.NullInt64  `json:"year"`
+	EmbarkDate    types.NullString `json:"embark_date"`
+	DisembarkDate types.NullString `json:"disembark_date"`
+	YachtName     types.NullString `json:"yacht_name"`
+	AsCaptain     bool             `json:"as_captain"`
+	HoursTotal    float64          `json:"hours_total"`
+	HoursSail     float64          `json:"hours_sail"`
+	HoursEngine   float64          `json:"hours_engine"`
+	Miles         float64          `json:"miles"`
+	Days          int64            `json:"days"`
+}
+
+// Voyages the user sailed: as the assigned captain or through a crew record
+// linked to their account. One row per voyage; captain wins on overlap.
+//
+//	SELECT
+//	    v.id, v.name, v.year, v.embark_date, v.disembark_date,
+//	    y.name AS yacht_name,
+//	    COALESCE(v.captain_user_id = $1::BIGINT, FALSE)::BOOLEAN AS as_captain,
+//	    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+//	FROM voyages v
+//	LEFT JOIN yachts y ON y.id = v.yacht_id
+//	WHERE v.captain_user_id = $1::BIGINT
+//	   OR EXISTS (
+//	       SELECT 1 FROM crew_assignments ca
+//	       JOIN crew_members cm ON cm.id = ca.crew_member_id
+//	       WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
+//	   )
+//	ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
+func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]ListUserSeaTimeVoyagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSeaTimeVoyages, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserSeaTimeVoyagesRow
+	for rows.Next() {
+		var i ListUserSeaTimeVoyagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Year,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.YachtName,
+			&i.AsCaptain,
+			&i.HoursTotal,
+			&i.HoursSail,
+			&i.HoursEngine,
+			&i.Miles,
+			&i.Days,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVoyages = `-- name: ListVoyages :many
 SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
 `

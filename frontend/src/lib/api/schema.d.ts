@@ -240,7 +240,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Club sailing summary */
+        /**
+         * Caller's sea time, plus club totals for admins
+         * @description Personal totals count voyages where the caller is the assigned captain or on the crew list through a crew record linked to their account.
+         */
         get: operations["get-dashboard"];
         put?: never;
         post?: never;
@@ -913,6 +916,10 @@ export interface components {
             /** @description Whether the member belongs to the captain group */
             is_captain: boolean;
         };
+        ClubSeaTime: {
+            by_year: components["schemas"]["VoyagesByYear"][] | null;
+            total: components["schemas"]["SeaTime"];
+        };
         CompleteTripBody: {
             /**
              * Format: uri
@@ -1245,19 +1252,9 @@ export interface components {
              * @example /api/Dashboard.json
              */
             readonly $schema?: string;
-            by_year: components["schemas"]["VoyagesByYear"][] | null;
-            /** Format: int64 */
-            total_days: number;
-            /** Format: double */
-            total_hours: number;
-            /** Format: double */
-            total_hours_engine: number;
-            /** Format: double */
-            total_hours_sail: number;
-            /** Format: double */
-            total_miles: number;
-            /** Format: int64 */
-            voyage_count: number;
+            /** @description Club-wide totals; present for admins only */
+            club?: components["schemas"]["ClubSeaTime"];
+            personal: components["schemas"]["PersonalSeaTime"];
         };
         EnrollBody: {
             /**
@@ -1797,6 +1794,13 @@ export interface components {
              */
             total: number;
         };
+        PersonalSeaTime: {
+            as_captain: components["schemas"]["SeaTime"];
+            as_crew: components["schemas"]["SeaTime"];
+            by_year: components["schemas"]["VoyagesByYear"][] | null;
+            total: components["schemas"]["SeaTime"];
+            voyages: components["schemas"]["SeaTimeVoyage"][] | null;
+        };
         RoleBody: {
             /**
              * Format: uri
@@ -1809,6 +1813,41 @@ export interface components {
              * @enum {string}
              */
             role: "admin" | "member";
+        };
+        SeaTime: {
+            /** Format: int64 */
+            total_days: number;
+            /** Format: double */
+            total_hours: number;
+            /** Format: double */
+            total_hours_engine: number;
+            /** Format: double */
+            total_hours_sail: number;
+            /** Format: double */
+            total_miles: number;
+            /** Format: int64 */
+            voyage_count: number;
+        };
+        SeaTimeVoyage: {
+            /** Format: int64 */
+            days: number;
+            disembark_date?: string;
+            embark_date?: string;
+            /** Format: double */
+            hours_total: number;
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            miles: number;
+            name: string;
+            /**
+             * @description captain when the user is the voyage's assigned captain, else crew
+             * @enum {string}
+             */
+            role: "captain" | "crew";
+            yacht_name?: string;
+            /** Format: int64 */
+            year?: number;
         };
         TokenOutputBody: {
             /**
