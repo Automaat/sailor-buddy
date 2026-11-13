@@ -806,6 +806,11 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Holds the requested person while a request is created, so a concurrent
+	// link or merge either finishes first and is seen, or waits for the request.
+	//
+	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1 FOR SHARE
+	LockCrewMemberForShare(ctx context.Context, id int64) (CrewMember, error)
 	// Locks both people in id order, so two merges cannot deadlock and no crew
 	// assignment or opinion can be added for either until the merge ends.
 	//

@@ -84,3 +84,8 @@ WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id);
 -- merged, so a pending request survives the duplicate's deletion.
 UPDATE person_link_requests SET person_id = sqlc.arg(kept_id)::BIGINT
 WHERE person_id = sqlc.arg(duplicate_id)::BIGINT;
+
+-- name: LockCrewMemberForShare :one
+-- Holds the requested person while a request is created, so a concurrent
+-- link or merge either finishes first and is seen, or waits for the request.
+SELECT * FROM crew_members WHERE id = $1 FOR SHARE;

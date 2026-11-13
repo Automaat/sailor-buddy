@@ -174,28 +174,31 @@ func (h *PersonLinkHandler) create(ctx context.Context, in *createLinkRequestInp
 	if u == nil {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	person, err := h.q.GetCrewMember(ctx, in.Body.PersonID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("person not found")
-	}
-	if err != nil {
-		slog.Error("get requested person", "person_id", in.Body.PersonID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to send the request")
-	}
-	if person.UserID.Valid {
-		return nil, huma.Error409Conflict("person already has an account")
-	}
-	req, err := h.q.CreatePersonLinkRequest(ctx, sqlcdb.CreatePersonLinkRequestParams{
-		UserID: u.UserID, PersonID: person.ID, PersonName: person.FullName,
+	var req sqlcdb.PersonLinkRequest
+	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		person, err := q.LockCrewMemberForShare(ctx, in.Body.PersonID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return linkNotFoundError("person not found")
+			}
+			return &QueryError{Op: "LockCrewMemberForShare", Err: err}
+		}
+		if person.UserID.Valid {
+			return linkConflictError("person already has an account")
+		}
+		req, err = q.CreatePersonLinkRequest(ctx, sqlcdb.CreatePersonLinkRequestParams{
+			UserID: u.UserID, PersonID: person.ID, PersonName: person.FullName,
+		})
+		switch {
+		case isUniqueViolation(err):
+			return linkConflictError("you already have a pending request; cancel it first")
+		case err != nil:
+			return &QueryError{Op: "CreatePersonLinkRequest", Err: err}
+		}
+		return nil
 	})
-	switch {
-	case isUniqueViolation(err):
-		return nil, huma.Error409Conflict("you already have a pending request; cancel it first")
-	case isForeignKeyViolation(err, "person_link_requests_person_id_fkey"):
-		return nil, huma.Error404NotFound("person not found")
-	case err != nil:
-		slog.Error("create person link request", "user_id", u.UserID, "person_id", person.ID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to send the request")
+	if err != nil {
+		return nil, linkHTTPError(err, "send the request", in.Body.PersonID)
 	}
 	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req)}, nil
 }
@@ -401,9 +404,17 @@ func decideRequest(ctx context.Context, q sqlcdb.Querier, id int64, status strin
 }
 
 // linkAccount links the account to the person by merging the account's own
-// person into it. The person must not have an account; ErrMergeChanged and
+// person into it. It locks the account first, so an unlink or profile save
+// cannot change which person carries the account before the merge. The
+// person must not have an account; ErrMergeChanged and
 // ErrMergeAccountConflict report one that got an account meanwhile.
 func linkAccount(ctx context.Context, q sqlcdb.Querier, userID, personID int64) (PersonMergeResult, error) {
+	if _, err := q.LockUserForUpdate(ctx, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return PersonMergeResult{}, linkNotFoundError("account not found")
+		}
+		return PersonMergeResult{}, &QueryError{Op: "LockUserForUpdate", Err: err}
+	}
 	target, err := q.GetCrewMember(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

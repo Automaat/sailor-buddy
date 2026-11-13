@@ -318,6 +318,36 @@ func (q *Queries) ListPersonClaimCandidates(ctx context.Context, arg ListPersonC
 	return items, nil
 }
 
+const lockCrewMemberForShare = `-- name: LockCrewMemberForShare :one
+SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1 FOR SHARE
+`
+
+// Holds the requested person while a request is created, so a concurrent
+// link or merge either finishes first and is seen, or waits for the request.
+//
+//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1 FOR SHARE
+func (q *Queries) LockCrewMemberForShare(ctx context.Context, id int64) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, lockCrewMemberForShare, id)
+	var i CrewMember
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.UserID,
+		&i.FullName,
+		&i.Email,
+		&i.PatentNumber,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OtherNames,
+	)
+	return i, err
+}
+
 const lockPersonLinkRequest = `-- name: LockPersonLinkRequest :one
 SELECT id, user_id, person_id, person_name, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
 `

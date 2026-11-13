@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
@@ -402,5 +403,120 @@ func TestPersonLinks_MergeKeepsPendingRequest(t *testing.T) {
 	f.decide(admin, req.ID, "approve", http.StatusOK)
 	if got := f.userIDOf(kept); got.Int64 != user {
 		t.Errorf("kept person account after approval: %+v", got)
+	}
+}
+
+// linkPauser stops a link transaction at one query until released, so a
+// test can run a competing request against the held locks.
+type linkPauser struct {
+	sqlcdb.Querier
+	at      string
+	reached chan<- struct{}
+	release <-chan struct{}
+}
+
+func (p linkPauser) pause(op string) {
+	if op == p.at {
+		close(p.reached)
+		<-p.release
+	}
+}
+
+func (p linkPauser) GetCrewMemberByUserID(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error) {
+	row, err := p.Querier.GetCrewMemberByUserID(ctx, userID)
+	p.pause("GetCrewMemberByUserID")
+	return row, err
+}
+
+func (p linkPauser) CloseUserPendingLinkRequests(ctx context.Context, arg sqlcdb.CloseUserPendingLinkRequestsParams) error {
+	err := p.Querier.CloseUserPendingLinkRequests(ctx, arg)
+	p.pause("CloseUserPendingLinkRequests")
+	return err
+}
+
+// pausedAPI serves the person link routes with link transactions that stop
+// at the named query.
+func (f *linkFixture) pausedAPI(at string) (api humatest.TestAPI, reached <-chan struct{}, release chan<- struct{}) {
+	f.t.Helper()
+	r := make(chan struct{})
+	rel := make(chan struct{})
+	base := sqlTxRunner(f.conn)
+	runTx := func(ctx context.Context, fn func(sqlcdb.Querier) error) error {
+		return base(ctx, func(q sqlcdb.Querier) error {
+			return fn(linkPauser{Querier: q, at: at, reached: r, release: rel})
+		})
+	}
+	_, api = humatest.New(f.t)
+	registerPersonLinkRoutes(api, &PersonLinkHandler{q: f.q, runTx: runTx})
+	return api, r, rel
+}
+
+func TestPersonLinks_UnlinkWaitsForApproval(t *testing.T) {
+	f := newLinkFixture(t)
+	admin, _ := f.account("admin@example.dev", "Admin")
+	user, own := f.account("u@example.dev", "U")
+	past := f.person("Ewa Lis", nil)
+	req := f.request(user, past, http.StatusCreated)
+
+	paused, reached, release := f.pausedAPI("GetCrewMemberByUserID")
+	approved := make(chan int, 1)
+	go func() {
+		approved <- paused.PostCtx(callerCtx(admin, "admin"), fmt.Sprintf("/person-link-requests/%d/approve", req.ID)).Code
+	}()
+	<-reached
+	unlinked := make(chan int, 1)
+	go func() {
+		unlinked <- f.api.PostCtx(callerCtx(admin, "admin"), fmt.Sprintf("/crew/%d/unlink", own)).Code
+	}()
+	select {
+	case code := <-unlinked:
+		t.Fatalf("unlink finished with %d while the approval held the account", code)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	if code := <-approved; code != http.StatusOK {
+		t.Fatalf("approve: got %d", code)
+	}
+	if code := <-unlinked; code != http.StatusConflict {
+		t.Errorf("unlink of the merged-away person: got %d, want 409", code)
+	}
+	if got := f.userIDOf(past); got.Int64 != user {
+		t.Errorf("requested person account: %+v, want %d", got, user)
+	}
+	if n := f.scalar(`SELECT COUNT(*) FROM crew_members WHERE user_id = $1`, user); n != 1 {
+		t.Errorf("account has %d people, want 1", n)
+	}
+}
+
+func TestPersonLinks_RequestWaitsForDirectLink(t *testing.T) {
+	f := newLinkFixture(t)
+	admin, _ := f.account("admin@example.dev", "Admin")
+	user, _ := f.account("u@example.dev", "U")
+	target := f.person("Ewa Lis", nil)
+
+	paused, reached, release := f.pausedAPI("CloseUserPendingLinkRequests")
+	linked := make(chan int, 1)
+	go func() {
+		linked <- paused.PostCtx(callerCtx(admin, "admin"), fmt.Sprintf("/crew/%d/link", target), map[string]any{"user_id": user}).Code
+	}()
+	<-reached
+	created := make(chan int, 1)
+	go func() {
+		created <- f.api.PostCtx(callerCtx(user, "member"), "/auth/me/person-link-request", map[string]any{"person_id": target}).Code
+	}()
+	select {
+	case code := <-created:
+		t.Fatalf("request finished with %d while the link held the person", code)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	if code := <-linked; code != http.StatusOK {
+		t.Fatalf("link: got %d", code)
+	}
+	if code := <-created; code != http.StatusConflict {
+		t.Errorf("request for the just-linked person: got %d, want 409", code)
+	}
+	if n := f.scalar(`SELECT COUNT(*) FROM person_link_requests WHERE status = 'pending'`); n != 0 {
+		t.Errorf("%d pending requests left, want 0", n)
 	}
 }
