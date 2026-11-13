@@ -52,6 +52,9 @@ func TestAssignToCompletedTrip_Conflict(t *testing.T) {
 			m := &mockQuerier{
 				getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
 				assignCruiseEnrollmentFn:      func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error { return tt.err },
+				lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+					return sqlcdb.LockTripForSignUpRow{ID: id}, nil
+				},
 			}
 			resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()),
 				"/cruises/1/enrollments/2/trip", map[string]any{"trip_id": 5})
