@@ -207,6 +207,16 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		slog.Error("get trip for update", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update trip")
 	}
+	if in.Body.CruiseID != current.CruiseID {
+		linked, err := h.q.CountTripLinkedEnrollments(ctx, in.ID)
+		if err != nil {
+			slog.Error("count trip enrollments for cruise move", "trip_id", in.ID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to update trip")
+		}
+		if linked > 0 {
+			return nil, huma.Error409Conflict("trip has enrollments; remove them before moving it to another cruise")
+		}
+	}
 	captainID, captainName, err := captainAssignment(ctx, h.q, current.CaptainUserID, in.Body.CaptainUserID, in.Body.CaptainName)
 	if err != nil {
 		return nil, err

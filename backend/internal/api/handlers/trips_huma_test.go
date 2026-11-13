@@ -84,7 +84,7 @@ func TestCreateTrip_Huma_MissingName(t *testing.T) {
 func TestUpdateTrip_Huma(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getTripFn:    func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
+			getTripFn:    func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
 			updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error { return nil },
 		}
 		resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/1", map[string]any{"cruise_id": 1, "name": "Renamed"})

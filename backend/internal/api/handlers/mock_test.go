@@ -125,6 +125,7 @@ type mockQuerier struct {
 	listCruisesFn          func(ctx context.Context, arg sqlcdb.ListCruisesParams) ([]sqlcdb.Cruise, error)
 	countCruisesFn         func(ctx context.Context) (int64, error)
 	getCruiseFn            func(ctx context.Context, id int64) (sqlcdb.Cruise, error)
+	countTripLinkedFn      func(ctx context.Context, tripID int64) (int64, error)
 	createCruiseFn         func(ctx context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error)
 	updateCruiseFn         func(ctx context.Context, arg sqlcdb.UpdateCruiseParams) error
 	deleteCruiseFn         func(ctx context.Context, id int64) error
@@ -941,4 +942,11 @@ func (m *mockQuerier) LockCruiseTripStatuses(ctx context.Context, cruiseID int64
 		panic("unexpected call to LockCruiseTripStatuses")
 	}
 	return m.lockCruiseTripStatusesFn(ctx, cruiseID)
+}
+
+func (m *mockQuerier) CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error) {
+	if m.countTripLinkedFn == nil {
+		panic("unexpected call to CountTripLinkedEnrollments")
+	}
+	return m.countTripLinkedFn(ctx, tripID)
 }

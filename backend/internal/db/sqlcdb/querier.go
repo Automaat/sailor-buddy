@@ -91,6 +91,13 @@ type Querier interface {
 	//  FROM trip_enrollments
 	//  WHERE trip_id = $1
 	CountTripEnrollments(ctx context.Context, tripID int64) (CountTripEnrollmentsRow, error)
+	//CountTripLinkedEnrollments
+	//
+	//  SELECT (
+	//      (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+	//      + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+	//  )::BIGINT AS linked
+	CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error)
 	//CountTrips
 	//
 	//  SELECT COUNT(*)::BIGINT FROM trips

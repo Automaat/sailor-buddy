@@ -223,7 +223,7 @@ func TestTripPricing_CreateStoresAndReturnsPrices(t *testing.T) {
 func TestTripPricing_UpdatePassesPricesAndDefaultsCurrency(t *testing.T) {
 	var got sqlcdb.UpdateTripParams
 	m := &mockQuerier{
-		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
+		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
 		updateTripFn: func(_ context.Context, arg sqlcdb.UpdateTripParams) error {
 			got = arg
 			return nil
@@ -256,7 +256,7 @@ func TestTripPricing_Rejects(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.body["name"] = "X"
 			m := &mockQuerier{
-				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
+				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
 			}
 			for _, method := range []string{http.MethodPost, http.MethodPut} {
 				path := "/trips"

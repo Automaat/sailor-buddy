@@ -85,7 +85,7 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('admin: creates a cruise', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
-		await page.getByRole('link', { name: 'Wydarzenia' }).click();
+		await page.getByRole('link', { name: 'Rejsy' }).click();
 		await page.waitForURL('/cruises');
 		await page.getByRole('link', { name: '+ Nowe wydarzenie' }).click();
 		await page.waitForURL('/cruises/new');

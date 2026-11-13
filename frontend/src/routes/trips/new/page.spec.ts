@@ -47,3 +47,21 @@ describe('new trip page', () => {
 		expect(goto).toHaveBeenCalledWith('/trips/77');
 	});
 });
+
+describe('new trip page event switch', () => {
+	it('replaces untouched prefilled fields but keeps edited ones', async () => {
+		fn(listCruises).mockResolvedValue([
+			makeCruise({ id: 13, name: 'NNE', start_port: 'Turku', end_port: 'Vaasa', cost_per_person: 900 }),
+			makeCruise({ id: 14, name: 'WRM', start_port: 'Giżycko', end_port: 'Mikołajki', cost_per_person: 870 })
+		]);
+		pageState.url = new URL('http://localhost/trips/new?cruise_id=13');
+		render(NewTripPage);
+		await waitFor(() => expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Turku'));
+		await fireEvent.input(screen.getByLabelText('Port docelowy'), { target: { value: 'Sztokholm' } });
+
+		await fireEvent.change(screen.getByLabelText('Wydarzenie klubu *'), { target: { value: '14' } });
+
+		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Giżycko');
+		expect(screen.getByLabelText('Port docelowy')).toHaveValue('Sztokholm');
+	});
+});

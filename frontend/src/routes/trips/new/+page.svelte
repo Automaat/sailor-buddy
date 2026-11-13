@@ -50,15 +50,28 @@
 		if (auth.user.is_captain) form.captain_user_id = auth.user.id;
 	});
 
+	type Prefillable = 'embark_date' | 'disembark_date' | 'countries' | 'start_port' | 'end_port';
+	const prefillable: Prefillable[] = ['embark_date', 'disembark_date', 'countries', 'start_port', 'end_port'];
+	let prefilled: Partial<Record<Prefillable, string>> = {};
+	let prefilledPrice = JSON.stringify(priceFormFrom());
+
+	/** Copies the event's defaults into fields the admin has not edited since the last prefill. */
 	function prefillFromCruise(cruiseID: number) {
 		const c = cruises.find((x) => x.id === cruiseID);
 		if (!c) return;
-		if (!form.embark_date) form.embark_date = c.embark_date ?? '';
-		if (!form.disembark_date) form.disembark_date = c.disembark_date ?? '';
-		if (!form.countries) form.countries = c.countries ?? '';
-		if (!form.start_port) form.start_port = c.start_port ?? '';
-		if (!form.end_port) form.end_port = c.end_port ?? '';
-		price = priceFormFrom(c);
+		const next: Partial<Record<Prefillable, string>> = {};
+		for (const field of prefillable) {
+			const untouched = !form[field] || form[field] === prefilled[field];
+			if (untouched) {
+				form[field] = c[field] ?? '';
+				next[field] = form[field];
+			}
+		}
+		prefilled = next;
+		if (JSON.stringify(price) === prefilledPrice) {
+			price = priceFormFrom(c);
+			prefilledPrice = JSON.stringify(price);
+		}
 	}
 
 	onMount(async () => {

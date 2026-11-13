@@ -112,6 +112,26 @@ func (q *Queries) CountTripEnrollments(ctx context.Context, tripID int64) (Count
 	return i, err
 }
 
+const countTripLinkedEnrollments = `-- name: CountTripLinkedEnrollments :one
+SELECT (
+    (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+    + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+)::BIGINT AS linked
+`
+
+// CountTripLinkedEnrollments
+//
+//	SELECT (
+//	    (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+//	    + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+//	)::BIGINT AS linked
+func (q *Queries) CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTripLinkedEnrollments, tripID)
+	var linked int64
+	err := row.Scan(&linked)
+	return linked, err
+}
+
 const createTripEnrollment = `-- name: CreateTripEnrollment :one
 INSERT INTO trip_enrollments (trip_id, user_id, note)
 VALUES ($1, $2, $3) RETURNING id, trip_id, user_id, note, status, created_at, updated_at

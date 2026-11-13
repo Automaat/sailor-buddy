@@ -68,3 +68,46 @@ func TestCruiseDelete_RefusedWhileLegsRemain(t *testing.T) {
 		})
 	}
 }
+
+func TestTripUpdate_MoveToAnotherCruise(t *testing.T) {
+	tests := []struct {
+		name       string
+		cruiseID   int64
+		linked     int64
+		countErr   error
+		want       int
+		wantCount  bool
+		wantUpdate bool
+	}{
+		{name: "same cruise skips the check", cruiseID: 1, want: http.StatusNoContent, wantUpdate: true},
+		{name: "move without enrollments", cruiseID: 2, want: http.StatusNoContent, wantCount: true, wantUpdate: true},
+		{name: "move with enrollments refused", cruiseID: 2, linked: 3, want: http.StatusConflict, wantCount: true},
+		{name: "count failure", cruiseID: 2, countErr: errors.New("db down"), want: http.StatusInternalServerError, wantCount: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			counted, updated := false, false
+			m := &mockQuerier{
+				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
+					return sqlcdb.Trip{ID: id, CruiseID: 1}, nil
+				},
+				countTripLinkedFn: func(context.Context, int64) (int64, error) {
+					counted = true
+					return tt.linked, tt.countErr
+				},
+				updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error {
+					updated = true
+					return nil
+				},
+			}
+			resp := tripTestAPI(t, m).PutCtx(userCtx(context.Background()), "/trips/5",
+				map[string]any{"name": "Etap", "cruise_id": tt.cruiseID})
+			if resp.Code != tt.want {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			}
+			if counted != tt.wantCount || updated != tt.wantUpdate {
+				t.Fatalf("counted=%v updated=%v, want %v %v", counted, updated, tt.wantCount, tt.wantUpdate)
+			}
+		})
+	}
+}
