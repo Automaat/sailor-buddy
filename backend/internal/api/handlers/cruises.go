@@ -477,11 +477,13 @@ var whatwgIDNA = idna.New(
 )
 
 // browserHost maps host the way a browser does before its IPv4 check, so
-// full-width digits or U+3002 dots read as ASCII. When mapping fails the
-// host is returned as is; IDNA errors are not grounds for rejection here.
+// full-width digits or U+3002 dots read as ASCII. IDNA errors are not
+// grounds for rejection here: idna may flag labels a browser accepts (e.g.
+// newer Unicode), so its best-effort mapping is still used, and the raw
+// host only when it yields nothing.
 func browserHost(host string) string {
-	mapped, err := whatwgIDNA.ToASCII(host)
-	if err != nil {
+	mapped, _ := whatwgIDNA.ToASCII(host)
+	if mapped == "" {
 		return host
 	}
 	return mapped
