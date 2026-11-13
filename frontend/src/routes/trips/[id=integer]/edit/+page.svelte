@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { getTrip, updateTrip, listYachts } from '#lib/api/routes.js';
-	import type { Yacht } from '#lib/api/types.js';
+	import { getTrip, updateTrip, listYachts, listCruises } from '#lib/api/routes.js';
+	import type { Cruise, Yacht } from '#lib/api/types.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
+	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 
@@ -13,6 +14,7 @@
 	let loading = $state(true);
 	let saving = $state(false);
 	let yachts = $state<Yacht[]>([]);
+	let cruises = $state<Cruise[]>([]);
 
 	// Editing trips is an admin task; redirect regular members away.
 	$effect(() => {
@@ -30,11 +32,15 @@
 		countries: '',
 		start_port: '',
 		end_port: '',
+		cruise_id: 0,
 		captain_user_id: 0,
 		yacht_id: 0,
 		cost_total: 0,
 		max_crew: 0,
-		description: ''
+		description: '',
+		image_logo_url: '',
+		image_photo_url: '',
+		image_route_url: ''
 	});
 	let price = $state(priceFormFrom());
 
@@ -42,8 +48,13 @@
 
 	onMount(async () => {
 		try {
-			const [trip, y] = await Promise.all([getTrip(id), listYachts()]);
+			const [trip, y, c] = await Promise.all([
+				getTrip(id),
+				listYachts(),
+				listCruises().catch(() => [])
+			]);
 			yachts = y;
+			cruises = c ?? [];
 			legacyCaptainName = trip.captain_user_id ? '' : (trip.captain_name ?? '');
 			form = {
 				name: trip.name,
@@ -52,11 +63,15 @@
 				countries: trip.countries ?? '',
 				start_port: trip.start_port ?? '',
 				end_port: trip.end_port ?? '',
+				cruise_id: trip.cruise_id,
 				captain_user_id: trip.captain_user_id ?? 0,
 				yacht_id: trip.yacht_id ?? 0,
 				cost_total: trip.cost_total ?? 0,
 				max_crew: trip.max_crew ?? 0,
-				description: trip.description ?? ''
+				description: trip.description ?? '',
+				image_logo_url: trip.image_logo_url ?? '',
+				image_photo_url: trip.image_photo_url ?? '',
+				image_route_url: trip.image_route_url ?? ''
 			};
 			price = priceFormFrom(trip);
 		} catch (err) {
@@ -68,6 +83,10 @@
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		if (!form.cruise_id) {
+			error = 'Wybierz wydarzenie, do którego należy rejs';
+			return;
+		}
 		saving = true;
 		error = '';
 		try {
@@ -75,6 +94,9 @@
 				...form,
 				...priceBody(price),
 				yacht_id: form.yacht_id || undefined,
+				image_logo_url: form.image_logo_url || undefined,
+				image_photo_url: form.image_photo_url || undefined,
+				image_route_url: form.image_route_url || undefined,
 				// captain_name of a linked captain is the server's snapshot, so only a
 				// legacy free-text name survives clearing the captain.
 				captain_user_id: form.captain_user_id || undefined,
@@ -105,6 +127,10 @@
 				<div class="col-span-2">
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+				</div>
+				<div class="col-span-2">
+					<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
+					<CruiseSelect bind:value={form.cruise_id} {cruises} />
 				</div>
 				<div>
 					<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>

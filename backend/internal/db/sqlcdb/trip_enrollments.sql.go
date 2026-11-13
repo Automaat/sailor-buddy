@@ -40,7 +40,7 @@ type CountAcceptedByCruiseTripRow struct {
 //	FROM trips t
 //	WHERE t.cruise_id = $1
 //	ORDER BY t.id
-func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error) {
+func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID int64) ([]CountAcceptedByCruiseTripRow, error) {
 	rows, err := q.db.QueryContext(ctx, countAcceptedByCruiseTrip, cruiseID)
 	if err != nil {
 		return nil, err
@@ -110,6 +110,26 @@ func (q *Queries) CountTripEnrollments(ctx context.Context, tripID int64) (Count
 	var i CountTripEnrollmentsRow
 	err := row.Scan(&i.Accepted, &i.Total)
 	return i, err
+}
+
+const countTripLinkedEnrollments = `-- name: CountTripLinkedEnrollments :one
+SELECT (
+    (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+    + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+)::BIGINT AS linked
+`
+
+// CountTripLinkedEnrollments
+//
+//	SELECT (
+//	    (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+//	    + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+//	)::BIGINT AS linked
+func (q *Queries) CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTripLinkedEnrollments, tripID)
+	var linked int64
+	err := row.Scan(&linked)
+	return linked, err
 }
 
 const createTripEnrollment = `-- name: CreateTripEnrollment :one
@@ -301,8 +321,8 @@ ORDER BY t.embark_date ASC, t.id ASC
 `
 
 type ListUserCruiseTripEnrollmentsParams struct {
-	CruiseID types.NullInt64 `json:"cruise_id"`
-	UserID   int64           `json:"user_id"`
+	CruiseID int64 `json:"cruise_id"`
+	UserID   int64 `json:"user_id"`
 }
 
 // A user's trip (leg) enrollments across the trips of one cruise, in leg order.
@@ -362,7 +382,7 @@ type LockCruiseTripStatusesRow struct {
 //	WHERE cruise_id = $1
 //	ORDER BY id
 //	FOR SHARE
-func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error) {
+func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error) {
 	rows, err := q.db.QueryContext(ctx, lockCruiseTripStatuses, cruiseID)
 	if err != nil {
 		return nil, err

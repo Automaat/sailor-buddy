@@ -1,19 +1,22 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { listYachts, createVoyage } from '#lib/api/routes.js';
-	import type { Yacht } from '#lib/api/types.js';
+	import { listYachts, listCruises, createVoyage } from '#lib/api/routes.js';
+	import type { Cruise, Yacht } from '#lib/api/types.js';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
+	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 
 	let yachts = $state<Yacht[]>([]);
+	let cruises = $state<Cruise[]>([]);
 	let error = $state('');
 	let loading = $state(false);
 
 	// Logging voyages is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/voyages');
+			goto('/cruises?tab=completed');
 		}
 	});
 
@@ -25,6 +28,7 @@
 		countries: '',
 		start_port: '',
 		end_port: '',
+		cruise_id: 0,
 		hours_total: 0,
 		hours_sail: 0,
 		hours_engine: 0,
@@ -40,11 +44,21 @@
 	});
 
 	onMount(async () => {
-		yachts = await listYachts();
+		const [y, c] = await Promise.all([listYachts(), listCruises().catch(() => [])]);
+		yachts = y;
+		cruises = c ?? [];
+		const fromQuery = Number(page.url.searchParams.get('cruise_id') ?? 0);
+		if (Number.isInteger(fromQuery) && fromQuery > 0) form.cruise_id = fromQuery;
 	});
+
+	const cancelHref = $derived(form.cruise_id ? `/cruises/${form.cruise_id}` : '/cruises?tab=completed');
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		if (!form.cruise_id) {
+			error = 'Wybierz wydarzenie, do którego należy rejs';
+			return;
+		}
 		loading = true;
 		error = '';
 		try {
@@ -73,6 +87,10 @@
 
 	<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
 		<div class="grid grid-cols-2 gap-4">
+			<div class="col-span-2">
+				<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
+				<CruiseSelect bind:value={form.cruise_id} {cruises} />
+			</div>
 			<div class="col-span-2">
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
@@ -173,7 +191,7 @@
 			<button type="submit" disabled={loading} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 				{loading ? 'Tworzenie...' : 'Dodaj rejs'}
 			</button>
-			<a href="/voyages" class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+			<a href={cancelHref} class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
 		</div>
 	</form>
 </div>

@@ -95,7 +95,7 @@ INSERT INTO trips (
 
 type CreateTripParams struct {
 	CreatedBy              types.NullInt64   `json:"created_by"`
-	CruiseID               types.NullInt64   `json:"cruise_id"`
+	CruiseID               int64             `json:"cruise_id"`
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
@@ -465,7 +465,7 @@ type UpdateTripParams struct {
 	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
 	ImageRouteUrl          types.NullString  `json:"image_route_url"`
 	Description            types.NullString  `json:"description"`
-	CruiseID               types.NullInt64   `json:"cruise_id"`
+	CruiseID               int64             `json:"cruise_id"`
 	CaptainUserID          types.NullInt64   `json:"captain_user_id"`
 	Currency               string            `json:"currency"`
 	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`

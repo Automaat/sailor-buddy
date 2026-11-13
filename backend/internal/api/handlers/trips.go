@@ -130,6 +130,9 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
+		return nil, err
+	}
 	captainID, captainName, err := captainAssignment(ctx, h.q, types.NullInt64{}, in.Body.CaptainUserID, in.Body.CaptainName)
 	if err != nil {
 		return nil, err
@@ -141,7 +144,7 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	user := middleware.GetUser(ctx)
 	trip, err := h.q.CreateTrip(ctx, sqlcdb.CreateTripParams{
 		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
-		CruiseID:               nullInt64(in.Body.CruiseID),
+		CruiseID:               in.Body.CruiseID,
 		Name:                   in.Body.Name,
 		EmbarkDate:             nullString(in.Body.EmbarkDate),
 		DisembarkDate:          nullString(in.Body.DisembarkDate),
@@ -193,6 +196,9 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
+		return nil, err
+	}
 	current, err := h.q.GetTrip(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -200,6 +206,16 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		}
 		slog.Error("get trip for update", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update trip")
+	}
+	if in.Body.CruiseID != current.CruiseID {
+		linked, err := h.q.CountTripLinkedEnrollments(ctx, in.ID)
+		if err != nil {
+			slog.Error("count trip enrollments for cruise move", "trip_id", in.ID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to update trip")
+		}
+		if linked > 0 {
+			return nil, huma.Error409Conflict("trip has enrollments; remove them before moving it to another cruise")
+		}
 	}
 	captainID, captainName, err := captainAssignment(ctx, h.q, current.CaptainUserID, in.Body.CaptainUserID, in.Body.CaptainName)
 	if err != nil {
@@ -226,7 +242,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
 		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
 		Description:            nullString(in.Body.Description),
-		CruiseID:               nullInt64(in.Body.CruiseID),
+		CruiseID:               in.Body.CruiseID,
 		ID:                     in.ID,
 	}); err != nil {
 		slog.Error("update trip", "trip_id", in.ID, "err", err)

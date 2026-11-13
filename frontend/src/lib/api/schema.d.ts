@@ -1848,7 +1848,7 @@ export interface components {
             /** Format: int64 */
             created_by?: number;
             /** Format: int64 */
-            cruise_id?: number;
+            cruise_id: number;
             /**
              * @description Currency of every price on the trip
              * @enum {string}
@@ -1918,8 +1918,11 @@ export interface components {
             /** Format: double */
             cost_total?: number;
             countries?: string;
-            /** Format: int64 */
-            cruise_id?: number;
+            /**
+             * Format: int64
+             * @description Club event (cruise) this trip is a leg of
+             */
+            cruise_id: number;
             /**
              * @description Currency of every price on the trip; PLN when omitted
              * @enum {string}
@@ -2013,7 +2016,7 @@ export interface components {
             /** Format: int64 */
             created_by?: number;
             /** Format: int64 */
-            cruise_id?: number;
+            cruise_id: number;
             /** Format: int64 */
             days: number;
             description?: string;
@@ -2065,8 +2068,11 @@ export interface components {
             /** Format: double */
             cost_total?: number;
             countries?: string;
-            /** Format: int64 */
-            cruise_id?: number;
+            /**
+             * Format: int64
+             * @description Club event (cruise) this voyage was a leg of
+             */
+            cruise_id: number;
             /** Format: int64 */
             days?: number;
             description?: string;

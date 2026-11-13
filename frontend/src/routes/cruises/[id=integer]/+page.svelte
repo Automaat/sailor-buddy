@@ -70,10 +70,21 @@
 		}
 	});
 
+	let deleteError = $state('');
+
 	async function handleDelete() {
-		if (!confirm('Usunąć wydarzenie? Trips/voyages stracą powiązanie ale zostaną.')) return;
-		await deleteCruise(id);
-		goto('/cruises');
+		if (trips.length > 0 || voyages.length > 0) {
+			deleteError = 'Nie można usunąć wydarzenia, które ma etapy. Najpierw usuń jego rejsy.';
+			return;
+		}
+		if (!confirm('Usunąć wydarzenie?')) return;
+		deleteError = '';
+		try {
+			await deleteCruise(id);
+			goto('/cruises');
+		} catch (err) {
+			deleteError = err instanceof Error ? err.message : 'Nie udało się usunąć wydarzenia';
+		}
 	}
 
 	async function toggleEnrollment() {
@@ -170,6 +181,10 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if deleteError}
+			<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
+		{/if}
 
 		{#if cruise.description}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
@@ -296,7 +311,7 @@
 
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">
-				<h2 class="font-semibold text-[var(--navy)]">Planowane rejsy ({trips.length})</h2>
+				<h2 class="font-semibold text-[var(--navy)]">Planowane etapy ({trips.length})</h2>
 				{#if isAdmin}
 					<a
 						href="/trips/new?cruise_id={id}"
@@ -307,7 +322,7 @@
 				{/if}
 			</div>
 			{#if trips.length === 0}
-				<p class="text-sm text-[var(--text-muted)]">Brak rejsów. Dodaj jachty, którymi popłyną uczestnicy.</p>
+				<p class="text-sm text-[var(--text-muted)]">Brak planowanych etapów. Dodaj jachty, którymi popłyną uczestnicy.</p>
 			{:else}
 				<div class="space-y-2">
 					{#each trips as trip}
@@ -329,9 +344,19 @@
 			{/if}
 		</div>
 
-		{#if voyages.length > 0}
+		{#if voyages.length > 0 || isAdmin}
 			<div class="rounded-2xl bg-white p-6 shadow-sm">
-				<h2 class="mb-3 font-semibold text-[var(--navy)]">Zrealizowane rejsy ({voyages.length})</h2>
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="font-semibold text-[var(--navy)]">Zrealizowane etapy ({voyages.length})</h2>
+					{#if isAdmin}
+						<a href="/voyages/new?cruise_id={id}" class="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50">
+							+ Wpisz zrealizowany
+						</a>
+					{/if}
+				</div>
+				{#if voyages.length === 0}
+					<p class="text-sm text-[var(--text-muted)]">Brak zrealizowanych etapów.</p>
+				{/if}
 				<div class="space-y-2">
 					{#each voyages as voyage}
 						<a href="/voyages/{voyage.id}" class="block rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100">
@@ -352,13 +377,13 @@
 		title="Nie znaleziono wydarzenia"
 		message="To wydarzenie nie istnieje lub nie masz do niego dostępu."
 		backHref="/cruises"
-		backLabel="Wszystkie wydarzenia"
+		backLabel="Wszystkie rejsy"
 	/>
 {:else}
 	<NotFound
 		title="Nie udało się wczytać wydarzenia"
 		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
 		backHref="/cruises"
-		backLabel="Wszystkie wydarzenia"
+		backLabel="Wszystkie rejsy"
 	/>
 {/if}

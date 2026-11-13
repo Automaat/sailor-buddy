@@ -11,7 +11,6 @@ import (
 	"github.com/danielgtaylor/huma/v2/humatest"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 func cruiseTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
@@ -246,7 +245,7 @@ func TestCruiseHandler_ListChildTrips(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil },
-			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+			listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) {
 				return []sqlcdb.Trip{{ID: 1, Name: "Leg 1"}}, nil
 			},
 		}
@@ -269,7 +268,7 @@ func TestCruiseHandler_ListChildTrips(t *testing.T) {
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil },
-			listCruiseTripsFn: func(context.Context, types.NullInt64) ([]sqlcdb.Trip, error) {
+			listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) {
 				return nil, errors.New("fail")
 			},
 		}
@@ -296,7 +295,7 @@ func TestCruiseHandler_ListChildVoyages(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil },
-			listCruiseVoyagesFn: func(context.Context, types.NullInt64) ([]sqlcdb.Voyage, error) {
+			listCruiseVoyagesFn: func(context.Context, int64) ([]sqlcdb.Voyage, error) {
 				return []sqlcdb.Voyage{{ID: 1, Name: "Logged leg"}}, nil
 			},
 		}
@@ -309,7 +308,7 @@ func TestCruiseHandler_ListChildVoyages(t *testing.T) {
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil },
-			listCruiseVoyagesFn: func(context.Context, types.NullInt64) ([]sqlcdb.Voyage, error) {
+			listCruiseVoyagesFn: func(context.Context, int64) ([]sqlcdb.Voyage, error) {
 				return nil, errors.New("fail")
 			},
 		}

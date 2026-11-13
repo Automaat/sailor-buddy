@@ -23,7 +23,7 @@ backend/
     auth/firebase.go         # Firebase client + Claims
     config/config.go         # env-based config
     db/db.go                # PostgreSQL connection + migration runner
-    db/migrations/           # SQL migration files (001-013)
+    db/migrations/           # SQL migration files (001-020)
     db/queries/              # sqlc SQL query files
     db/sqlcdb/               # generated sqlc Go code (DO NOT EDIT)
 frontend/
@@ -86,6 +86,10 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - All API routes under `/api/` - frontend proxies via vite config
 - Single club: all sailing data (cruises, trips, voyages, yachts, crew) is
   club-wide and shared. No per-user/per-org scoping.
+- Every trip and voyage belongs to a cruise (club event): `cruise_id` is
+  NOT NULL. The UI has one "Rejsy" list (`/cruises`) of events with
+  Nadchodzące/Zrealizowane/Wszystkie tabs; trips and voyages are legs shown
+  on the event page. There are no standalone trip/voyage list pages.
 - Roles on `users.role` (`admin`|`member`); first registered user becomes
   admin. Admins are the board (Zarząd) and the Opiekun. Reads open to any
   member; mutations require admin (`requireAdmin`).

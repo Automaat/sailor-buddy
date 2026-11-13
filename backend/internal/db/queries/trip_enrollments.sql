@@ -74,3 +74,9 @@ SELECT id, status FROM trips
 WHERE cruise_id = $1
 ORDER BY id
 FOR SHARE;
+
+-- name: CountTripLinkedEnrollments :one
+SELECT (
+    (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = sqlc.arg(trip_id)::BIGINT)
+    + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = sqlc.arg(trip_id)::BIGINT)
+)::BIGINT AS linked;

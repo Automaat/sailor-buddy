@@ -46,7 +46,7 @@ type Querier interface {
 	//  FROM trips t
 	//  WHERE t.cruise_id = $1
 	//  ORDER BY t.id
-	CountAcceptedByCruiseTrip(ctx context.Context, cruiseID types.NullInt64) ([]CountAcceptedByCruiseTripRow, error)
+	CountAcceptedByCruiseTrip(ctx context.Context, cruiseID int64) ([]CountAcceptedByCruiseTripRow, error)
 	// Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 	//
 	//  SELECT COUNT(*)::BIGINT AS accepted FROM (
@@ -91,6 +91,13 @@ type Querier interface {
 	//  FROM trip_enrollments
 	//  WHERE trip_id = $1
 	CountTripEnrollments(ctx context.Context, tripID int64) (CountTripEnrollmentsRow, error)
+	//CountTripLinkedEnrollments
+	//
+	//  SELECT (
+	//      (SELECT COUNT(*) FROM cruise_enrollments ce WHERE ce.trip_id = $1::BIGINT)
+	//      + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
+	//  )::BIGINT AS linked
+	CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error)
 	//CountTrips
 	//
 	//  SELECT COUNT(*)::BIGINT FROM trips
@@ -448,11 +455,11 @@ type Querier interface {
 	//ListCruiseTrips
 	//
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
-	ListCruiseTrips(ctx context.Context, cruiseID types.NullInt64) ([]Trip, error)
+	ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error)
 	//ListCruiseVoyages
 	//
 	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_user_id, captain_notes FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
-	ListCruiseVoyages(ctx context.Context, cruiseID types.NullInt64) ([]Voyage, error)
+	ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error)
 	//ListCruises
 	//
 	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
@@ -531,7 +538,7 @@ type Querier interface {
 	//  WHERE cruise_id = $1
 	//  ORDER BY id
 	//  FOR SHARE
-	LockCruiseTripStatuses(ctx context.Context, cruiseID types.NullInt64) ([]LockCruiseTripStatusesRow, error)
+	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
 	//RepointCrewAssignmentsToVoyage
 	//
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
