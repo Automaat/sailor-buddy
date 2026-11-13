@@ -173,7 +173,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update a cruise enrollment's status (admin) */
+        /**
+         * Update a cruise enrollment's status (admin)
+         * @description Accepting an enrollment assigned to a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.
+         */
         put: operations["update-cruise-enrollment-status"];
         post?: never;
         delete?: never;
@@ -190,7 +193,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Assign a cruise enrollment to a trip (admin) */
+        /**
+         * Assign a cruise enrollment to a trip (admin)
+         * @description Moving an accepted enrollment onto a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise.
+         */
         put: operations["assign-cruise-enrollment-trip"];
         post?: never;
         delete?: never;
@@ -696,7 +702,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update a trip enrollment's status (admin) */
+        /**
+         * Update a trip enrollment's status (admin)
+         * @description Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. 404 when the enrollment does not exist or belongs to another trip.
+         */
         put: operations["update-trip-enrollment-status"];
         post?: never;
         delete?: never;
@@ -720,12 +729,12 @@ export interface paths {
         put?: never;
         /**
          * Sign the caller up for a leg with one click
-         * @description Creates a pending trip enrollment for the caller (201, result created). Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete.
+         * @description Creates a trip enrollment for the caller (201, result created). It starts pending, or waitlisted when accepted plus pending sign-ups already hold all of the leg's max_crew places; a waitlisted result carries its waitlist_position. Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete.
          */
         post: operations["sign-up-for-trip"];
         /**
-         * Withdraw the caller's pending leg sign-up
-         * @description Deletes the caller's sign-up while it is pending and unpaid. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted) or recorded a payment on it (deposit or paid).
+         * Withdraw the caller's pending or waitlisted leg sign-up
+         * @description Deletes the caller's sign-up while it is pending or on the waiting list and unpaid. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it or recorded a payment on it (deposit or paid).
          */
         delete: operations["withdraw-trip-sign-up"];
         options?: never;
@@ -1508,6 +1517,11 @@ export interface components {
             result: "created" | "already_enrolled";
             /** Format: int64 */
             trip_id: number;
+            /**
+             * Format: int64
+             * @description 1-based waiting-list position by sign-up time; omitted unless the enrollment is waitlisted
+             */
+            waitlist_position?: number;
         };
         EnrollLegsBody: {
             /**
@@ -1704,6 +1718,11 @@ export interface components {
             open: boolean;
             /** Format: int64 */
             trip_id: number;
+            /**
+             * Format: int64
+             * @description 1-based position of the caller's sign-up on the leg's waiting list, by sign-up time; omitted unless it is waitlisted
+             */
+            waitlist_position?: number;
         };
         Me: {
             /**

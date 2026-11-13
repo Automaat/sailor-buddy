@@ -5,6 +5,7 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$app/state', () => ({ page: { params: { id: '50' } } }));
 vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
+	getTripSignUp: vi.fn(),
 	listTripEnrollments: vi.fn(),
 	updateTripEnrollmentStatus: vi.fn(),
 	updateTripEnrollmentPaymentStatus: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 
 import {
 	getTrip,
+	getTripSignUp,
 	listTripEnrollments,
 	updateTripEnrollmentStatus,
 	updateTripEnrollmentPaymentStatus
@@ -42,6 +44,7 @@ function row(id: number, name: string, overrides: Record<string, unknown> = {}) 
 
 beforeEach(() => {
 	fn(getTrip).mockReset().mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 8 }));
+	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 1 });
 	fn(listTripEnrollments)
 		.mockReset()
 		.mockResolvedValue([

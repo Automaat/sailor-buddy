@@ -313,7 +313,7 @@ SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, 
 `
 
 // Row-locks the trip for the rest of the transaction. Trip completion takes
-// it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
+// it first, so a concurrent leg enrollment waits on its trip lock and
 // then sees the trip gone instead of deadlocking with the deletes.
 //
 //	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips WHERE id = $1 FOR UPDATE

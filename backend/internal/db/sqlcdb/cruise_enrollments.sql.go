@@ -79,6 +79,37 @@ func (q *Queries) DeleteCruiseEnrollment(ctx context.Context, id int64) error {
 	return err
 }
 
+const getCruiseEnrollmentOfCruise = `-- name: GetCruiseEnrollmentOfCruise :one
+SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+WHERE id = $1 AND cruise_id = $2
+`
+
+type GetCruiseEnrollmentOfCruiseParams struct {
+	ID       int64 `json:"id"`
+	CruiseID int64 `json:"cruise_id"`
+}
+
+// One enrollment of a cruise. No row when it does not exist or belongs to
+// another cruise.
+//
+//	SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+//	WHERE id = $1 AND cruise_id = $2
+func (q *Queries) GetCruiseEnrollmentOfCruise(ctx context.Context, arg GetCruiseEnrollmentOfCruiseParams) (CruiseEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, getCruiseEnrollmentOfCruise, arg.ID, arg.CruiseID)
+	var i CruiseEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.CruiseID,
+		&i.UserID,
+		&i.TripID,
+		&i.Note,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUserCruiseEnrollment = `-- name: GetUserCruiseEnrollment :one
 SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
 WHERE cruise_id = $1 AND user_id = $2
@@ -223,6 +254,40 @@ func (q *Queries) ListCruiseEnrollments(ctx context.Context, cruiseID int64) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockCruiseEnrollmentOfCruise = `-- name: LockCruiseEnrollmentOfCruise :one
+SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+WHERE id = $1 AND cruise_id = $2
+FOR UPDATE
+`
+
+type LockCruiseEnrollmentOfCruiseParams struct {
+	ID       int64 `json:"id"`
+	CruiseID int64 `json:"cruise_id"`
+}
+
+// Row-locks one enrollment of a cruise for a capacity-checked change, taken
+// after the leg's trip lock. No row when it does not exist or belongs to
+// another cruise.
+//
+//	SELECT id, cruise_id, user_id, trip_id, note, status, created_at, updated_at FROM cruise_enrollments
+//	WHERE id = $1 AND cruise_id = $2
+//	FOR UPDATE
+func (q *Queries) LockCruiseEnrollmentOfCruise(ctx context.Context, arg LockCruiseEnrollmentOfCruiseParams) (CruiseEnrollment, error) {
+	row := q.db.QueryRowContext(ctx, lockCruiseEnrollmentOfCruise, arg.ID, arg.CruiseID)
+	var i CruiseEnrollment
+	err := row.Scan(
+		&i.ID,
+		&i.CruiseID,
+		&i.UserID,
+		&i.TripID,
+		&i.Note,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateCruiseEnrollmentStatus = `-- name: UpdateCruiseEnrollmentStatus :exec

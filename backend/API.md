@@ -303,7 +303,7 @@ Assignment body — `crew_member_id` and `role` required:
 | POST | `/api/trips/{tripID}/enroll-token` | **admin** | Generate share token → `{token}` |
 | DELETE | `/api/trips/{tripID}/enroll-token` | **admin** | Clear share token, 204 |
 | GET | `/api/trips/{tripID}/enrollments` | **admin** | List enrollments |
-| PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204 |
+| PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204; `409` when accepting on a full leg (see Leg capacity) |
 | PUT | `/api/trips/{tripID}/enrollments/{id}/payment-status` | **admin** | Set payment status → `Enrollment`, 200 |
 | DELETE | `/api/trips/{tripID}/enrollments/{id}` | **admin** | Delete enrollment, 204 |
 | GET | `/api/enroll/{token}` | public | Resolve token → trip or cruise |
@@ -359,20 +359,23 @@ without a valid token get `401` from the auth middleware.
 | GET | `/api/trips/{tripID}/sign-up` | member | Caller's sign-up state for the leg → `LegSignUp` | 200 |
 | POST | `/api/trips/{tripID}/sign-up` | member | Sign up, no body → `{trip_id, result, enrollment}` | 201 / 200 |
 | PUT | `/api/trips/{tripID}/sign-up/note` | member | Set the note on the caller's sign-up → `Enrollment` | 200 |
-| DELETE | `/api/trips/{tripID}/sign-up` | member | Withdraw the caller's pending sign-up | 204 |
+| DELETE | `/api/trips/{tripID}/sign-up` | member | Withdraw the caller's pending or waitlisted sign-up | 204 |
 | GET | `/api/cruises/{cruiseID}/leg-sign-ups` | member | `LegSignUp` for every trip of the cruise | 200 |
 | GET | `/api/cruises/{cruiseID}/trip-enrollments` | **admin** | Every leg sign-up of the cruise with the user, by leg then sign-up time | 200 |
 
-`LegSignUp` is `{trip_id, open, accepted_count, enrollment?}`: `open` is
-true while the leg is `planned`, its sign-ups are switched on (the trip
-has an enroll token, set with `POST /api/trips/{tripID}/enroll-token`) and
-its `sign_up_deadline`, if any, is today or later in Europe/Warsaw;
+`LegSignUp` is `{trip_id, open, accepted_count, enrollment?,
+waitlist_position?}`: `open` is true while the leg is `planned`, its
+sign-ups are switched on (the trip has an enroll token, set with
+`POST /api/trips/{tripID}/enroll-token`) and its `sign_up_deadline`, if
+any, is today or later in Europe/Warsaw;
 `accepted_count` counts the same way as `trip_accepted` above; `enrollment`
-is the caller's own sign-up and is omitted when there is none.
+is the caller's own sign-up and is omitted when there is none;
+`waitlist_position` is set only while that sign-up is `waitlisted`.
 
-`POST /api/trips/{tripID}/sign-up` creates a `pending` enrollment with no
-note (`201`, `result: "created"`). Signing up again returns the existing
-enrollment (`200`, `result: "already_enrolled"`), whatever its status and
+`POST /api/trips/{tripID}/sign-up` creates an enrollment with no note
+(`201`, `result: "created"`). It starts `pending`, or `waitlisted` with its
+`waitlist_position` when the leg is full (see Leg capacity). Signing up
+again returns the existing enrollment (`200`, `result: "already_enrolled"`), whatever its status and
 even after the leg closed. A new sign-up on a leg that is not open returns
 `422` and writes nothing. An unknown trip returns `404`; completing a leg
 turns it into a voyage, so completed legs also return `404`.
@@ -381,9 +384,9 @@ The note is added after signing up: `PUT .../sign-up/note` with
 `{ "note": "message" }` (up to 2000 characters, trimmed; blank or omitted
 clears it). `404 not signed up for this leg` without a sign-up.
 
-`DELETE .../sign-up` withdraws only a `pending` sign-up with no recorded
-payment. `404` when the caller has none, `409` once an admin has accepted,
-rejected or waitlisted it, or set its payment status to `deposit` or `paid`.
+`DELETE .../sign-up` withdraws a `pending` or `waitlisted` sign-up with no
+recorded payment. `404` when the caller has none, `409` once an admin has
+accepted or rejected it, or set its payment status to `deposit` or `paid`.
 
 A cruise enrollment made before per-leg sign-up and assigned to a leg counts
 as the user's sign-up for that leg: both reads return it as `enrollment`
@@ -393,6 +396,40 @@ the cruise enrollment routes, so the note and withdraw operations return
 `409` for it.
 
 Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
+
+### Leg capacity and waiting list
+
+A leg's `max_crew` caps its accepted crew; `max_crew` unset or `0` means no
+limit. Accepted crew counts distinct users with an accepted trip enrollment
+or an accepted cruise enrollment assigned to the leg, as `accepted_count`.
+
+- Accept: `PUT /api/trips/{tripID}/enrollments/{id}/status` with
+  `accepted` returns `409 leg is full: all N places are taken` when other
+  users' accepted crew already fills `max_crew`, and changes nothing. The
+  trip row is locked for the change, so concurrent accepts for the last
+  place serialize and the later one gets `409`. Other status changes,
+  including from `accepted`, always apply. `404` when the enrollment does
+  not exist or belongs to another trip.
+- Waitlist threshold: a new leg sign-up (`POST .../sign-up`,
+  `POST /api/enroll/{token}/legs`, `POST /api/enroll/{token}` with a trip
+  token) starts `waitlisted` when accepted plus pending users already hold
+  `max_crew` places, or when anyone is already waitlisted on the leg, so a
+  newcomer never gets ahead of an earlier sign-up. Otherwise it starts
+  `pending`. Pending sign-ups count because they are the queue an admin
+  reviews first; rejected and waitlisted ones hold no place. The one-click and legs paths lock the leg, so concurrent
+  sign-ups count one another; the legacy trip-token path does not.
+- Position: `waitlist_position` (1, 2, ...) orders a leg's waitlisted trip
+  enrollments by sign-up time, then id. Payment does not change it.
+- Promotion is manual: when a place frees up (an accepted sign-up is
+  rejected or deleted), the admin accepts the first waitlisted person. No
+  one is accepted automatically.
+
+Cruise enrollments made before leg sign-ups follow the same limit: setting
+one assigned to a leg to `accepted` (`PUT /api/cruises/{id}/enrollments/
+{enrollmentID}/status`), or assigning an accepted one to another leg
+(`PUT .../trip`), returns `409 leg is full` when the leg has no free place.
+Both lock the leg like the trip enrollment accept; `404` when the
+enrollment belongs to another cruise.
 
 ### Voyages
 
@@ -461,8 +498,8 @@ value is rejected with 422.
 | POST | `/api/cruises/{id}/enroll-token` | **admin** | Generate token → `{token}` | 200 |
 | DELETE | `/api/cruises/{id}/enroll-token` | **admin** | Clear token, 204 | 204 |
 | GET | `/api/cruises/{id}/enrollments` | **admin** | List cruise enrollments | 200 |
-| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/status` | **admin** | Set status, 204 | 204 |
-| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip, 204 | 204 |
+| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/status` | **admin** | Set status; `409` when accepting on a full leg | 204 |
+| PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip; `409` when an accepted one moves to a full leg | 204 |
 | DELETE | `/api/cruises/{id}/enrollments/{enrollmentID}` | **admin** | Delete enrollment, 204 | 204 |
 
 Cruise body — `name` required, plus `embark_date`, `disembark_date`,

@@ -14,7 +14,7 @@ SELECT * FROM trips WHERE id = $1;
 
 -- name: GetTripForUpdate :one
 -- Row-locks the trip for the rest of the transaction. Trip completion takes
--- it first, so a concurrent leg enrollment waits on its FOR SHARE lock and
+-- it first, so a concurrent leg enrollment waits on its trip lock and
 -- then sees the trip gone instead of deadlocking with the deletes.
 SELECT * FROM trips WHERE id = $1 FOR UPDATE;
 

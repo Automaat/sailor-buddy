@@ -840,6 +840,10 @@ components:
         trip_id:
           format: int64
           type: integer
+        waitlist_position:
+          description: 1-based waiting-list position by sign-up time; omitted unless the enrollment is waitlisted
+          format: int64
+          type: integer
       required:
         - trip_id
         - result
@@ -1136,6 +1140,10 @@ components:
           description: "Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed"
           type: boolean
         trip_id:
+          format: int64
+          type: integer
+        waitlist_position:
+          description: 1-based position of the caller's sign-up on the leg's waiting list, by sign-up time; omitted unless it is waitlisted
           format: int64
           type: integer
       required:
@@ -3020,6 +3028,7 @@ paths:
         - Cruises
   /cruises/{cruiseID}/enrollments/{enrollmentID}/status:
     put:
+      description: "Accepting an enrollment assigned to a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise."
       operationId: update-cruise-enrollment-status
       parameters:
         - description: Cruise ID
@@ -3058,6 +3067,7 @@ paths:
         - Cruises
   /cruises/{cruiseID}/enrollments/{enrollmentID}/trip:
     put:
+      description: "Moving an accepted enrollment onto a leg needs a free place on it: 409 when the leg's accepted crew already fills max_crew. 404 when the enrollment belongs to another cruise."
       operationId: assign-cruise-enrollment-trip
       parameters:
         - description: Cruise ID
@@ -4269,6 +4279,7 @@ paths:
         - Enrollment
   /trips/{tripID}/enrollments/{id}/status:
     put:
+      description: "Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. 404 when the enrollment does not exist or belongs to another trip."
       operationId: update-trip-enrollment-status
       parameters:
         - description: Trip ID
@@ -4307,7 +4318,7 @@ paths:
         - Enrollment
   /trips/{tripID}/sign-up:
     delete:
-      description: Deletes the caller's sign-up while it is pending and unpaid. 404 when the caller has not signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted) or recorded a payment on it (deposit or paid).
+      description: Deletes the caller's sign-up while it is pending or on the waiting list and unpaid. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it or recorded a payment on it (deposit or paid).
       operationId: withdraw-trip-sign-up
       parameters:
         - description: Trip ID
@@ -4327,7 +4338,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Withdraw the caller's pending leg sign-up
+      summary: Withdraw the caller's pending or waitlisted leg sign-up
       tags:
         - Sign-up
     get:
@@ -4359,7 +4370,7 @@ paths:
       tags:
         - Sign-up
     post:
-      description: "Creates a pending trip enrollment for the caller (201, result created). Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete."
+      description: "Creates a trip enrollment for the caller (201, result created). It starts pending, or waitlisted when accepted plus pending sign-ups already hold all of the leg's max_crew places; a waitlisted result carries its waitlist_position. Signing up again returns the existing enrollment (200, result already_enrolled). Open only while the leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and nothing is written. 404 when the trip does not exist; completed legs are voyages, not trips, so they also return 404. Any signed-in user may sign up; the profile need not be complete."
       operationId: sign-up-for-trip
       parameters:
         - description: Trip ID

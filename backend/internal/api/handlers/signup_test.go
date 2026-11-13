@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
@@ -57,7 +58,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			if !ok {
 				return sqlcdb.LockTripForSignUpRow{}, sql.ErrNoRows
 			}
-			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, SignUpDeadline: t.SignUpDeadline}, nil
+			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, MaxCrew: t.MaxCrew, SignUpDeadline: t.SignUpDeadline}, nil
 		},
 		getUserTripEnrollmentFn: func(_ context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 			if i, ok := s.find(arg.TripID, arg.UserID); ok {
@@ -71,7 +72,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			}
 			s.inserts++
 			s.nextID++
-			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, UserID: arg.UserID, Note: arg.Note, Status: "pending", PaymentStatus: "unpaid"}
+			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, UserID: arg.UserID, Note: arg.Note, Status: arg.Status, PaymentStatus: "unpaid"}
 			s.rows = append(s.rows, row)
 			return row, nil
 		},
@@ -83,9 +84,9 @@ func (s *signUpStore) mock() *mockQuerier {
 			s.rows[i].Note = arg.Note
 			return s.rows[i], nil
 		},
-		deletePendingUserTripEnrollFn: func(_ context.Context, arg sqlcdb.DeletePendingUserTripEnrollmentParams) (int64, error) {
+		deletePendingUserTripEnrollFn: func(_ context.Context, arg sqlcdb.WithdrawUserTripEnrollmentParams) (int64, error) {
 			i, ok := s.find(arg.TripID, arg.UserID)
-			if !ok || s.rows[i].Status != "pending" || s.rows[i].PaymentStatus != "unpaid" {
+			if !ok || (s.rows[i].Status != "pending" && s.rows[i].Status != "waitlisted") || s.rows[i].PaymentStatus != "unpaid" {
 				return 0, sql.ErrNoRows
 			}
 			id := s.rows[i].ID
@@ -101,15 +102,70 @@ func (s *signUpStore) mock() *mockQuerier {
 			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
 		},
 		countAcceptedForTripFn: func(_ context.Context, tripID int64) (int64, error) {
-			var n int64
+			return s.count(tripID, 0, "accepted"), nil
+		},
+		countOtherAcceptedForTripFn: func(_ context.Context, arg sqlcdb.CountOtherAcceptedForTripParams) (int64, error) {
+			return s.count(arg.TripID, arg.UserID, "accepted"), nil
+		},
+		countTripPlaceUseFn: func(_ context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error) {
+			var waiting int64
 			for i := range s.rows {
-				if s.rows[i].TripID == tripID && s.rows[i].Status == "accepted" {
-					n++
+				if s.rows[i].TripID == tripID && s.rows[i].Status == "waitlisted" {
+					waiting++
 				}
 			}
-			return n, nil
+			return sqlcdb.CountTripPlaceUseRow{Taken: s.count(tripID, 0, "accepted", "pending"), Waitlisted: waiting}, nil
+		},
+		getWaitlistPositionFn: func(_ context.Context, id int64) (int64, error) {
+			// Rows are kept in sign-up order, like ORDER BY created_at, id.
+			var pos int64
+			for i := range s.rows {
+				if s.rows[i].Status == "waitlisted" {
+					pos++
+				}
+				if s.rows[i].ID == id {
+					return pos, nil
+				}
+			}
+			return 0, sql.ErrNoRows
+		},
+		lockTripEnrollmentOfTripFn: func(_ context.Context, arg sqlcdb.LockTripEnrollmentOfTripParams) (sqlcdb.TripEnrollment, error) {
+			for i := range s.rows {
+				if s.rows[i].ID == arg.ID && s.rows[i].TripID == arg.TripID {
+					return s.rows[i], nil
+				}
+			}
+			return sqlcdb.TripEnrollment{}, sql.ErrNoRows
+		},
+		updateTripEnrollmentStatusFn: func(_ context.Context, arg sqlcdb.UpdateTripEnrollmentStatusParams) error {
+			for i := range s.rows {
+				if s.rows[i].ID == arg.ID {
+					s.rows[i].Status = arg.Status
+				}
+			}
+			return nil
 		},
 	}
+}
+
+// count returns the distinct users of a trip's sign-ups in one of statuses,
+// skipping exceptUser (0 skips no one). Users are unique per trip, as in
+// UNIQUE(trip_id, user_id); cruise enrollments assigned to the trip count too.
+func (s *signUpStore) count(tripID, exceptUser int64, statuses ...string) int64 {
+	users := map[int64]bool{}
+	for i := range s.rows {
+		r := &s.rows[i]
+		if r.TripID == tripID && r.UserID != exceptUser && slices.Contains(statuses, r.Status) {
+			users[r.UserID] = true
+		}
+	}
+	for i := range s.legacy {
+		r := &s.legacy[i]
+		if r.TripID.Valid && r.TripID.Int64 == tripID && r.UserID != exceptUser && slices.Contains(statuses, r.Status) {
+			users[r.UserID] = true
+		}
+	}
+	return int64(len(users))
 }
 
 func openTrip(id int64) sqlcdb.Trip {
@@ -369,9 +425,11 @@ func TestWithdrawTripSignUp(t *testing.T) {
 	}{
 		{"pending is withdrawn", "pending", "unpaid", http.StatusNoContent, 0},
 		{"accepted stays", "accepted", "unpaid", http.StatusConflict, 1},
-		{"waitlisted stays", "waitlisted", "unpaid", http.StatusConflict, 1},
+		{"waitlisted is withdrawn", "waitlisted", "unpaid", http.StatusNoContent, 0},
+		{"rejected stays", "rejected", "unpaid", http.StatusConflict, 1},
 		{"pending with deposit stays", "pending", "deposit", http.StatusConflict, 1},
 		{"pending and paid stays", "pending", "paid", http.StatusConflict, 1},
+		{"waitlisted with deposit stays", "waitlisted", "deposit", http.StatusConflict, 1},
 		{"not signed up", "", "", http.StatusNotFound, 0},
 	}
 	for _, c := range cases {
@@ -425,6 +483,12 @@ func TestListCruiseLegSignUps(t *testing.T) {
 			}
 			return []sqlcdb.TripEnrollment{{ID: 9, TripID: 12, UserID: 42, Status: "waitlisted"}}, nil
 		},
+		getWaitlistPositionFn: func(_ context.Context, id int64) (int64, error) {
+			if id != 9 {
+				t.Fatalf("waitlist position asked for enrollment %d, want 9", id)
+			}
+			return 2, nil
+		},
 	}
 	api := enrollTestAPI(t, m)
 	resp := api.GetCtx(guestCtx(42), "/cruises/7/leg-sign-ups")
@@ -441,8 +505,12 @@ func TestListCruiseLegSignUps(t *testing.T) {
 	if e := got[0].Enrollment; !got[0].Open || got[0].AcceptedCount != 3 || e == nil || e.CruiseID == nil || e.Status != "accepted" {
 		t.Errorf("leg 11 = %+v, want open with 3 accepted and the caller's cruise enrollment assigned to it", got[0])
 	}
-	if got[1].Open || got[1].Enrollment == nil || got[1].Enrollment.Status != "waitlisted" {
-		t.Errorf("leg 12 = %+v, want closed with the caller's waitlisted sign-up", got[1])
+	if got[1].Open || got[1].Enrollment == nil || got[1].Enrollment.Status != "waitlisted" ||
+		got[1].WaitlistPosition == nil || *got[1].WaitlistPosition != 2 {
+		t.Errorf("leg 12 = %+v, want closed with the caller's waitlisted sign-up at position 2", got[1])
+	}
+	if got[0].WaitlistPosition != nil {
+		t.Errorf("leg 11 position = %d, want none for an accepted sign-up", *got[0].WaitlistPosition)
 	}
 	if got[2].Open {
 		t.Errorf("leg 13 = %+v, want cancelled leg closed", got[2])

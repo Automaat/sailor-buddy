@@ -221,6 +221,17 @@ describe('cruise page admin flows', () => {
 		await waitFor(() => expect(screen.queryByText('Nieznany')).not.toBeInTheDocument());
 	});
 
+	it('explains a full leg when accepting a cruise enrollment is refused', async () => {
+		fn(updateCruiseEnrollmentStatus).mockRejectedValueOnce(new ApiError(409, 'leg is full: all 1 places are taken'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		render(CruiseDetailPage);
+		await screen.findByText('Ala Kowalska');
+
+		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('Etap jest pełny');
+	});
+
 	it('toggles enrollment off and on and copies the link', async () => {
 		const writeText = vi.fn();
 		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
@@ -407,7 +418,12 @@ describe('cruise page leg sign-up', () => {
 		['open, not signed up', signUp(50), 'button', 'Zapisz się: Jacht A'],
 		['pending', signUp(50, { enrollment: pending(50) }), 'text', 'oczekujący'],
 		['accepted', signUp(50, { enrollment: pending(50, { status: 'accepted' }) }), 'text', 'zaakceptowany'],
-		['waitlisted', signUp(50, { enrollment: pending(50, { status: 'waitlisted' }) }), 'text', 'lista rezerwowa'],
+		[
+			'waitlisted',
+			signUp(50, { enrollment: pending(50, { status: 'waitlisted' }), waitlist_position: 1 }),
+			'text',
+			'lista rezerwowa (1.)'
+		],
 		['rejected', signUp(50, { enrollment: pending(50, { status: 'rejected' }) }), 'text', 'odrzucony'],
 		['closed', signUp(50, { open: false }), 'text', 'Zapisy zamknięte']
 	] as const)('shows the %s state', async (_name, state, kind, want) => {
@@ -423,7 +439,8 @@ describe('cruise page leg sign-up', () => {
 			expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 		}
 		const withdraw = within(row).queryByRole('button', { name: 'Wycofaj zapis: Jacht A' });
-		expect(withdraw !== null).toBe(want === 'oczekujący');
+		// A member may withdraw while pending or on the waiting list.
+		expect(withdraw !== null).toBe(want === 'oczekujący' || want === 'lista rezerwowa (1.)');
 	});
 
 	it('shows the sign-up deadline on the leg row', async () => {
