@@ -93,7 +93,10 @@
 			const point: [number, number] = [p.latitude, p.longitude];
 			points.push(point);
 			L!.marker(point)
-				.bindTooltip(`${i + 1}. ${p.anchorage ? '⚓ ' : ''}${p.name}`, { permanent: true, direction: 'top' })
+				.bindTooltip(tooltipLabel(`${i + 1}. ${p.anchorage ? '⚓ ' : ''}${p.name}`), {
+					permanent: true,
+					direction: 'top'
+				})
 				.addTo(layer!);
 		});
 		if (points.length > 1) {
@@ -102,6 +105,14 @@
 		if (points.length > 0) {
 			map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 9 });
 		}
+	}
+
+	// Leaflet inserts string tooltip content as HTML; port names are
+	// user-entered, so they go in as a text node.
+	function tooltipLabel(text: string): HTMLElement {
+		const el = document.createElement('span');
+		el.textContent = text;
+		return el;
 	}
 
 	function hasCoords(p: PortLike): p is PortLike & { latitude: number; longitude: number } {

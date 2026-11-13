@@ -30,6 +30,7 @@
 	}
 
 	async function save() {
+		if (saving) return;
 		const name = draft.name.trim();
 		if (!name) {
 			error = 'Podaj nazwę jachtu';

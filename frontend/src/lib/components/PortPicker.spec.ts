@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import PortPicker from './PortPicker.svelte';
 
 const geocodeMock = vi.fn();
@@ -35,6 +35,16 @@ describe('PortPicker', () => {
 
 		expect(geocodeMock).toHaveBeenCalledWith('Split');
 		expect(onAdd).toHaveBeenCalledWith({ name: 'Split', latitude: 43.5, longitude: 16.4 });
+	});
+
+	it('renders a port name in the map tooltip as text, not HTML', async () => {
+		const { container } = render(PortPicker, {
+			props: { ports: [{ name: '<img src=x onerror=alert(1)>', latitude: 43.5, longitude: 16.4 }], readonly: true }
+		});
+		await waitFor(() => expect(container.querySelector('.leaflet-tooltip')).not.toBeNull());
+		const tooltip = container.querySelector('.leaflet-tooltip')!;
+		expect(tooltip.querySelector('img')).toBeNull();
+		expect(tooltip.textContent).toBe('1. <img src=x onerror=alert(1)>');
 	});
 
 	it('calls onRemove with the port index', async () => {
