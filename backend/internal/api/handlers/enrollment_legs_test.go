@@ -35,6 +35,9 @@ func (s *legStore) find(tripID, userID int64) (int, bool) {
 
 func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 	return &mockQuerier{
+		ensureUserPersonFn:                 func(context.Context, int64) error { return nil },
+		addAcceptedTripCrewAssignmentFn:    func(context.Context, sqlcdb.AddAcceptedTripCrewAssignmentParams) error { return nil },
+		removeAcceptedTripCrewAssignmentFn: func(context.Context, sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error { return nil },
 		getTripByEnrollFn: func(context.Context, types.NullString) (sqlcdb.GetTripByEnrollTokenRow, error) {
 			return sqlcdb.GetTripByEnrollTokenRow{}, sql.ErrNoRows
 		},

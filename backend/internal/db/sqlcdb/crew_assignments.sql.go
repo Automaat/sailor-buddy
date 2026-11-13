@@ -11,9 +11,36 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const addAcceptedTripCrewAssignment = `-- name: AddAcceptedTripCrewAssignment :exec
+INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
+SELECT $1::BIGINT, cm.id, TRUE
+FROM crew_members cm
+WHERE cm.user_id = $2::BIGINT
+ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
+`
+
+type AddAcceptedTripCrewAssignmentParams struct {
+	TripID int64 `json:"trip_id"`
+	UserID int64 `json:"user_id"`
+}
+
+// Puts a user's person on a trip's crew as a załogant after their sign-up
+// for it was accepted. An existing crew entry for that person is kept as is,
+// so a hand-added entry stays hand-added.
+//
+//	INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
+//	SELECT $1::BIGINT, cm.id, TRUE
+//	FROM crew_members cm
+//	WHERE cm.user_id = $2::BIGINT
+//	ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
+func (q *Queries) AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcceptedTripCrewAssignmentParams) error {
+	_, err := q.db.ExecContext(ctx, addAcceptedTripCrewAssignment, arg.TripID, arg.UserID)
+	return err
+}
+
 const createTripCrewAssignment = `-- name: CreateTripCrewAssignment :one
 INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at
+VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
 `
 
 type CreateTripCrewAssignmentParams struct {
@@ -26,7 +53,7 @@ type CreateTripCrewAssignmentParams struct {
 // CreateTripCrewAssignment
 //
 //	INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at
+//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
 func (q *Queries) CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error) {
 	row := q.db.QueryRowContext(ctx, createTripCrewAssignment,
 		arg.TripID,
@@ -43,13 +70,14 @@ func (q *Queries) CreateTripCrewAssignment(ctx context.Context, arg CreateTripCr
 		&i.Role,
 		&i.PatentNumber,
 		&i.CreatedAt,
+		&i.AddedByAcceptance,
 	)
 	return i, err
 }
 
 const createVoyageCrewAssignment = `-- name: CreateVoyageCrewAssignment :one
 INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
-VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at
+VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
 `
 
 type CreateVoyageCrewAssignmentParams struct {
@@ -62,7 +90,7 @@ type CreateVoyageCrewAssignmentParams struct {
 // CreateVoyageCrewAssignment
 //
 //	INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
-//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at
+//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
 func (q *Queries) CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoyageCrewAssignmentParams) (CrewAssignment, error) {
 	row := q.db.QueryRowContext(ctx, createVoyageCrewAssignment,
 		arg.VoyageID,
@@ -79,6 +107,7 @@ func (q *Queries) CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoya
 		&i.Role,
 		&i.PatentNumber,
 		&i.CreatedAt,
+		&i.AddedByAcceptance,
 	)
 	return i, err
 }
@@ -142,34 +171,6 @@ type DeleteVoyageCrewAssignmentParams struct {
 //	DELETE FROM crew_assignments WHERE id = $1 AND voyage_id = $2
 func (q *Queries) DeleteVoyageCrewAssignment(ctx context.Context, arg DeleteVoyageCrewAssignmentParams) error {
 	_, err := q.db.ExecContext(ctx, deleteVoyageCrewAssignment, arg.ID, arg.VoyageID)
-	return err
-}
-
-const fillSharedCrewAssignmentPatents = `-- name: FillSharedCrewAssignmentPatents :exec
-UPDATE crew_assignments k SET patent_number = d.patent_number
-FROM crew_assignments d
-WHERE k.crew_member_id = $1::BIGINT
-  AND d.crew_member_id = $2::BIGINT
-  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
-  AND k.patent_number IS NULL
-`
-
-type FillSharedCrewAssignmentPatentsParams struct {
-	KeptID      int64 `json:"kept_id"`
-	DuplicateID int64 `json:"duplicate_id"`
-}
-
-// On a leg or voyage both people are on, the kept person's assignment stays;
-// it takes the duplicate's patent number when it has none.
-//
-//	UPDATE crew_assignments k SET patent_number = d.patent_number
-//	FROM crew_assignments d
-//	WHERE k.crew_member_id = $1::BIGINT
-//	  AND d.crew_member_id = $2::BIGINT
-//	  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
-//	  AND k.patent_number IS NULL
-func (q *Queries) FillSharedCrewAssignmentPatents(ctx context.Context, arg FillSharedCrewAssignmentPatentsParams) error {
-	_, err := q.db.ExecContext(ctx, fillSharedCrewAssignmentPatents, arg.KeptID, arg.DuplicateID)
 	return err
 }
 
@@ -420,7 +421,7 @@ func (q *Queries) GetCrewMemberVoyages(ctx context.Context, crewMemberID int64) 
 }
 
 const getVoyageCrewAssignmentByMember = `-- name: GetVoyageCrewAssignmentByMember :one
-SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.patent_number AS member_patent
+SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, ca.added_by_acceptance, cm.full_name, cm.patent_number AS member_patent
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
 WHERE ca.voyage_id = $1 AND ca.crew_member_id = $2
@@ -432,20 +433,21 @@ type GetVoyageCrewAssignmentByMemberParams struct {
 }
 
 type GetVoyageCrewAssignmentByMemberRow struct {
-	ID           int64            `json:"id"`
-	TripID       types.NullInt64  `json:"trip_id"`
-	VoyageID     types.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64            `json:"crew_member_id"`
-	Role         string           `json:"role"`
-	PatentNumber types.NullString `json:"patent_number"`
-	CreatedAt    types.NullTime   `json:"created_at"`
-	FullName     string           `json:"full_name"`
-	MemberPatent types.NullString `json:"member_patent"`
+	ID                int64            `json:"id"`
+	TripID            types.NullInt64  `json:"trip_id"`
+	VoyageID          types.NullInt64  `json:"voyage_id"`
+	CrewMemberID      int64            `json:"crew_member_id"`
+	Role              string           `json:"role"`
+	PatentNumber      types.NullString `json:"patent_number"`
+	CreatedAt         types.NullTime   `json:"created_at"`
+	AddedByAcceptance bool             `json:"added_by_acceptance"`
+	FullName          string           `json:"full_name"`
+	MemberPatent      types.NullString `json:"member_patent"`
 }
 
 // GetVoyageCrewAssignmentByMember
 //
-//	SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.patent_number AS member_patent
+//	SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, ca.added_by_acceptance, cm.full_name, cm.patent_number AS member_patent
 //	FROM crew_assignments ca
 //	JOIN crew_members cm ON cm.id = ca.crew_member_id
 //	WHERE ca.voyage_id = $1 AND ca.crew_member_id = $2
@@ -460,6 +462,7 @@ func (q *Queries) GetVoyageCrewAssignmentByMember(ctx context.Context, arg GetVo
 		&i.Role,
 		&i.PatentNumber,
 		&i.CreatedAt,
+		&i.AddedByAcceptance,
 		&i.FullName,
 		&i.MemberPatent,
 	)
@@ -590,6 +593,38 @@ func (q *Queries) ListVoyageCrewAssignments(ctx context.Context, voyageID types.
 	return items, nil
 }
 
+const mergeSharedCrewAssignments = `-- name: MergeSharedCrewAssignments :exec
+UPDATE crew_assignments k SET
+    patent_number = COALESCE(k.patent_number, d.patent_number),
+    added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+FROM crew_assignments d
+WHERE k.crew_member_id = $1::BIGINT
+  AND d.crew_member_id = $2::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+`
+
+type MergeSharedCrewAssignmentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// On a leg or voyage both people are on, the kept person's assignment stays.
+// It takes the duplicate's patent number when it has none, and counts as
+// added by an accepted sign-up only when both entries did, so a hand-added
+// entry is never removed when the sign-up is withdrawn.
+//
+//	UPDATE crew_assignments k SET
+//	    patent_number = COALESCE(k.patent_number, d.patent_number),
+//	    added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+//	FROM crew_assignments d
+//	WHERE k.crew_member_id = $1::BIGINT
+//	  AND d.crew_member_id = $2::BIGINT
+//	  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+func (q *Queries) MergeSharedCrewAssignments(ctx context.Context, arg MergeSharedCrewAssignmentsParams) error {
+	_, err := q.db.ExecContext(ctx, mergeSharedCrewAssignments, arg.KeptID, arg.DuplicateID)
+	return err
+}
+
 const moveCrewAssignments = `-- name: MoveCrewAssignments :execrows
 UPDATE crew_assignments SET crew_member_id = $1::BIGINT
 WHERE crew_member_id = $2::BIGINT
@@ -610,6 +645,51 @@ func (q *Queries) MoveCrewAssignments(ctx context.Context, arg MoveCrewAssignmen
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const removeAcceptedTripCrewAssignment = `-- name: RemoveAcceptedTripCrewAssignment :exec
+DELETE FROM crew_assignments ca
+USING crew_members cm
+WHERE ca.trip_id = $1::BIGINT
+  AND ca.added_by_acceptance
+  AND cm.id = ca.crew_member_id
+  AND cm.user_id = $2::BIGINT
+  AND NOT EXISTS (
+      SELECT 1 FROM trip_enrollments te
+      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM cruise_enrollments ce
+      WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
+  )
+`
+
+type RemoveAcceptedTripCrewAssignmentParams struct {
+	TripID int64 `json:"trip_id"`
+	UserID int64 `json:"user_id"`
+}
+
+// Takes a user's person off a trip's crew when the entry came from an
+// accepted sign-up and the user no longer has any accepted sign-up for the
+// trip, direct or through a cruise enrollment assigned to it.
+//
+//	DELETE FROM crew_assignments ca
+//	USING crew_members cm
+//	WHERE ca.trip_id = $1::BIGINT
+//	  AND ca.added_by_acceptance
+//	  AND cm.id = ca.crew_member_id
+//	  AND cm.user_id = $2::BIGINT
+//	  AND NOT EXISTS (
+//	      SELECT 1 FROM trip_enrollments te
+//	      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+//	  )
+//	  AND NOT EXISTS (
+//	      SELECT 1 FROM cruise_enrollments ce
+//	      WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
+//	  )
+func (q *Queries) RemoveAcceptedTripCrewAssignment(ctx context.Context, arg RemoveAcceptedTripCrewAssignmentParams) error {
+	_, err := q.db.ExecContext(ctx, removeAcceptedTripCrewAssignment, arg.TripID, arg.UserID)
+	return err
 }
 
 const repointCrewAssignmentsToVoyage = `-- name: RepointCrewAssignmentsToVoyage :exec

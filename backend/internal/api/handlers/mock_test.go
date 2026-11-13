@@ -129,23 +129,27 @@ type mockQuerier struct {
 	countCrewMembersFn func(ctx context.Context, search types.NullString) (int64, error)
 	getCrewMemberFn    func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
 	// person merge
-	lockCrewMembersForMergeFn         func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
-	countCrewMergeRowsFn              func(ctx context.Context, arg sqlcdb.CountCrewMergeRowsParams) (sqlcdb.CountCrewMergeRowsRow, error)
-	fillSharedCrewAssignmentPatentsFn func(ctx context.Context, arg sqlcdb.FillSharedCrewAssignmentPatentsParams) error
-	deleteSharedCrewAssignmentsFn     func(ctx context.Context, arg sqlcdb.DeleteSharedCrewAssignmentsParams) (int64, error)
-	moveCrewAssignmentsFn             func(ctx context.Context, arg sqlcdb.MoveCrewAssignmentsParams) (int64, error)
-	deleteSharedVoyageOpinionsFn      func(ctx context.Context, arg sqlcdb.DeleteSharedVoyageOpinionsParams) ([]string, error)
-	moveVoyageOpinionsFn              func(ctx context.Context, arg sqlcdb.MoveVoyageOpinionsParams) (int64, error)
-	deleteMergedCrewMemberFn          func(ctx context.Context, id int64) (int64, error)
-	updateMergedCrewMemberFn          func(ctx context.Context, arg sqlcdb.UpdateMergedCrewMemberParams) (sqlcdb.CrewMember, error)
-	lockUserForUpdateFn               func(ctx context.Context, id int64) (int64, error)
-	lockCrewMergeTripsFn              func(ctx context.Context, arg sqlcdb.LockCrewMergeTripsParams) error
-	lockCrewMergeVoyagesFn            func(ctx context.Context, arg sqlcdb.LockCrewMergeVoyagesParams) error
-	createCrewMemberFn                func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
-	updateCrewMemberFn                func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
-	deleteCrewMemberFn                func(ctx context.Context, id int64) (int64, error)
-	ensureUserPersonFn                func(ctx context.Context, userID int64) error
-	getUserPersonFn                   func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
+	lockCrewMembersForMergeFn     func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
+	countCrewMergeRowsFn          func(ctx context.Context, arg sqlcdb.CountCrewMergeRowsParams) (sqlcdb.CountCrewMergeRowsRow, error)
+	mergeSharedCrewAssignmentsFn  func(ctx context.Context, arg sqlcdb.MergeSharedCrewAssignmentsParams) error
+	deleteSharedCrewAssignmentsFn func(ctx context.Context, arg sqlcdb.DeleteSharedCrewAssignmentsParams) (int64, error)
+	moveCrewAssignmentsFn         func(ctx context.Context, arg sqlcdb.MoveCrewAssignmentsParams) (int64, error)
+	deleteSharedVoyageOpinionsFn  func(ctx context.Context, arg sqlcdb.DeleteSharedVoyageOpinionsParams) ([]string, error)
+	moveVoyageOpinionsFn          func(ctx context.Context, arg sqlcdb.MoveVoyageOpinionsParams) (int64, error)
+	deleteMergedCrewMemberFn      func(ctx context.Context, id int64) (int64, error)
+	updateMergedCrewMemberFn      func(ctx context.Context, arg sqlcdb.UpdateMergedCrewMemberParams) (sqlcdb.CrewMember, error)
+	lockUserForUpdateFn           func(ctx context.Context, id int64) (int64, error)
+	lockCrewMergeTripsFn          func(ctx context.Context, arg sqlcdb.LockCrewMergeTripsParams) error
+	lockCrewMergeVoyagesFn        func(ctx context.Context, arg sqlcdb.LockCrewMergeVoyagesParams) error
+	createCrewMemberFn            func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
+	updateCrewMemberFn            func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
+	deleteCrewMemberFn            func(ctx context.Context, id int64) (int64, error)
+	ensureUserPersonFn            func(ctx context.Context, userID int64) error
+	getUserPersonFn               func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
+
+	// crew entries added by accepted sign-ups
+	addAcceptedTripCrewAssignmentFn    func(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error
+	removeAcceptedTripCrewAssignmentFn func(ctx context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error
 
 	// cruises
 	listCruisesFn          func(ctx context.Context, arg sqlcdb.ListCruisesParams) ([]sqlcdb.Cruise, error)
@@ -1099,11 +1103,11 @@ func (m *mockQuerier) CountCrewMergeRows(ctx context.Context, arg sqlcdb.CountCr
 	return m.countCrewMergeRowsFn(ctx, arg)
 }
 
-func (m *mockQuerier) FillSharedCrewAssignmentPatents(ctx context.Context, arg sqlcdb.FillSharedCrewAssignmentPatentsParams) error {
-	if m.fillSharedCrewAssignmentPatentsFn == nil {
-		panic("unexpected call to FillSharedCrewAssignmentPatents")
+func (m *mockQuerier) MergeSharedCrewAssignments(ctx context.Context, arg sqlcdb.MergeSharedCrewAssignmentsParams) error {
+	if m.mergeSharedCrewAssignmentsFn == nil {
+		panic("unexpected call to MergeSharedCrewAssignments")
 	}
-	return m.fillSharedCrewAssignmentPatentsFn(ctx, arg)
+	return m.mergeSharedCrewAssignmentsFn(ctx, arg)
 }
 
 func (m *mockQuerier) DeleteSharedCrewAssignments(ctx context.Context, arg sqlcdb.DeleteSharedCrewAssignmentsParams) (int64, error) {
@@ -1167,4 +1171,18 @@ func (m *mockQuerier) LockCrewMergeVoyages(ctx context.Context, arg sqlcdb.LockC
 		panic("unexpected call to LockCrewMergeVoyages")
 	}
 	return m.lockCrewMergeVoyagesFn(ctx, arg)
+}
+
+func (m *mockQuerier) AddAcceptedTripCrewAssignment(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error {
+	if m.addAcceptedTripCrewAssignmentFn == nil {
+		panic("unexpected call to AddAcceptedTripCrewAssignment")
+	}
+	return m.addAcceptedTripCrewAssignmentFn(ctx, arg)
+}
+
+func (m *mockQuerier) RemoveAcceptedTripCrewAssignment(ctx context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {
+	if m.removeAcceptedTripCrewAssignmentFn == nil {
+		panic("unexpected call to RemoveAcceptedTripCrewAssignment")
+	}
+	return m.removeAcceptedTripCrewAssignmentFn(ctx, arg)
 }

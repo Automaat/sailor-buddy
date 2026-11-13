@@ -105,8 +105,11 @@ func MergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int6
 	return plan, nil
 }
 
-// lockMergePeople locks, in order, the account whose link moves, both people
-// and every leg and voyage either is on, and returns both people as locked.
+// lockMergePeople locks, in order, the account whose link moves, every leg
+// and voyage either person is on, and both people, and returns both people
+// as locked. Legs come before people because sign-up acceptance locks the leg
+// and then adds the account's person to its crew. The legs are locked again
+// after the people, for crew entries that committed in between.
 func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) (kept, duplicate sqlcdb.CrewMember, err error) {
 	if keptID == duplicateID {
 		return kept, duplicate, ErrMergeSamePerson
@@ -126,6 +129,9 @@ func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID 
 		if _, err := q.LockUserForUpdate(ctx, seenDuplicate.UserID.Int64); err != nil {
 			return kept, duplicate, &QueryError{Op: "LockUserForUpdate", Err: err}
 		}
+	}
+	if err := lockMergeLegs(ctx, q, keptID, duplicateID); err != nil {
+		return kept, duplicate, err
 	}
 	locked, err := q.LockCrewMembersForMerge(ctx, sqlcdb.LockCrewMembersForMergeParams{
 		FirstID: keptID, SecondID: duplicateID,
@@ -150,24 +156,28 @@ func lockMergePeople(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID 
 	if kept.UserID != seenKept.UserID || duplicate.UserID != seenDuplicate.UserID {
 		return kept, duplicate, ErrMergeChanged
 	}
+	return kept, duplicate, lockMergeLegs(ctx, q, keptID, duplicateID)
+}
+
+func lockMergeLegs(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) error {
 	legs := sqlcdb.LockCrewMergeTripsParams{FirstID: keptID, SecondID: duplicateID}
 	if err := q.LockCrewMergeTrips(ctx, legs); err != nil {
-		return kept, duplicate, &QueryError{Op: "LockCrewMergeTrips", Err: err}
+		return &QueryError{Op: "LockCrewMergeTrips", Err: err}
 	}
 	if err := q.LockCrewMergeVoyages(ctx, sqlcdb.LockCrewMergeVoyagesParams(legs)); err != nil {
-		return kept, duplicate, &QueryError{Op: "LockCrewMergeVoyages", Err: err}
+		return &QueryError{Op: "LockCrewMergeVoyages", Err: err}
 	}
-	return kept, duplicate, nil
+	return nil
 }
 
 // moveMergeRows moves the duplicate's crew assignments and voyage opinions to
 // the kept person, dropping the ones the kept person already has. It returns
 // the files of the dropped opinions.
 func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) ([]string, error) {
-	if err := q.FillSharedCrewAssignmentPatents(ctx, sqlcdb.FillSharedCrewAssignmentPatentsParams{
+	if err := q.MergeSharedCrewAssignments(ctx, sqlcdb.MergeSharedCrewAssignmentsParams{
 		KeptID: keptID, DuplicateID: duplicateID,
 	}); err != nil {
-		return nil, &QueryError{Op: "FillSharedCrewAssignmentPatents", Err: err}
+		return nil, &QueryError{Op: "MergeSharedCrewAssignments", Err: err}
 	}
 	if _, err := q.DeleteSharedCrewAssignments(ctx, sqlcdb.DeleteSharedCrewAssignmentsParams{
 		KeptID: keptID, DuplicateID: duplicateID,

@@ -11,6 +11,16 @@ import (
 )
 
 type Querier interface {
+	// Puts a user's person on a trip's crew as a załogant after their sign-up
+	// for it was accepted. An existing crew entry for that person is kept as is,
+	// so a hand-added entry stays hand-added.
+	//
+	//  INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
+	//  SELECT $1::BIGINT, cm.id, TRUE
+	//  FROM crew_members cm
+	//  WHERE cm.user_id = $2::BIGINT
+	//  ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
+	AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcceptedTripCrewAssignmentParams) error
 	//AssignCruiseEnrollmentToTrip
 	//
 	//  UPDATE cruise_enrollments ce SET
@@ -211,7 +221,7 @@ type Querier interface {
 	//CreateTripCrewAssignment
 	//
 	//  INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at
+	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
 	CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error)
 	// status is 'pending', or 'waitlisted' when the leg's places are taken.
 	//
@@ -245,7 +255,7 @@ type Querier interface {
 	//CreateVoyageCrewAssignment
 	//
 	//  INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
-	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at
+	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
 	CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoyageCrewAssignmentParams) (CrewAssignment, error)
 	//CreateVoyageOpinion
 	//
@@ -350,16 +360,6 @@ type Querier interface {
 	//    AND NOT EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = u.id)
 	//  ON CONFLICT (user_id) DO NOTHING
 	EnsureUserPerson(ctx context.Context, id int64) error
-	// On a leg or voyage both people are on, the kept person's assignment stays;
-	// it takes the duplicate's patent number when it has none.
-	//
-	//  UPDATE crew_assignments k SET patent_number = d.patent_number
-	//  FROM crew_assignments d
-	//  WHERE k.crew_member_id = $1::BIGINT
-	//    AND d.crew_member_id = $2::BIGINT
-	//    AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
-	//    AND k.patent_number IS NULL
-	FillSharedCrewAssignmentPatents(ctx context.Context, arg FillSharedCrewAssignmentPatentsParams) error
 	//GetCrewMember
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1
@@ -487,7 +487,7 @@ type Querier interface {
 	GetVoyage(ctx context.Context, id int64) (Voyage, error)
 	//GetVoyageCrewAssignmentByMember
 	//
-	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, cm.full_name, cm.patent_number AS member_patent
+	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at, ca.added_by_acceptance, cm.full_name, cm.patent_number AS member_patent
 	//  FROM crew_assignments ca
 	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
 	//  WHERE ca.voyage_id = $1 AND ca.crew_member_id = $2
@@ -820,6 +820,19 @@ type Querier interface {
 	//
 	//  SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
 	LockUserForUpdate(ctx context.Context, id int64) (int64, error)
+	// On a leg or voyage both people are on, the kept person's assignment stays.
+	// It takes the duplicate's patent number when it has none, and counts as
+	// added by an accepted sign-up only when both entries did, so a hand-added
+	// entry is never removed when the sign-up is withdrawn.
+	//
+	//  UPDATE crew_assignments k SET
+	//      patent_number = COALESCE(k.patent_number, d.patent_number),
+	//      added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+	//  FROM crew_assignments d
+	//  WHERE k.crew_member_id = $1::BIGINT
+	//    AND d.crew_member_id = $2::BIGINT
+	//    AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+	MergeSharedCrewAssignments(ctx context.Context, arg MergeSharedCrewAssignmentsParams) error
 	//MoveCrewAssignments
 	//
 	//  UPDATE crew_assignments SET crew_member_id = $1::BIGINT
@@ -830,6 +843,25 @@ type Querier interface {
 	//  UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
 	//  WHERE crew_member_id = $2::BIGINT
 	MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinionsParams) (int64, error)
+	// Takes a user's person off a trip's crew when the entry came from an
+	// accepted sign-up and the user no longer has any accepted sign-up for the
+	// trip, direct or through a cruise enrollment assigned to it.
+	//
+	//  DELETE FROM crew_assignments ca
+	//  USING crew_members cm
+	//  WHERE ca.trip_id = $1::BIGINT
+	//    AND ca.added_by_acceptance
+	//    AND cm.id = ca.crew_member_id
+	//    AND cm.user_id = $2::BIGINT
+	//    AND NOT EXISTS (
+	//        SELECT 1 FROM trip_enrollments te
+	//        WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+	//    )
+	//    AND NOT EXISTS (
+	//        SELECT 1 FROM cruise_enrollments ce
+	//        WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
+	//    )
+	RemoveAcceptedTripCrewAssignment(ctx context.Context, arg RemoveAcceptedTripCrewAssignmentParams) error
 	//RepointCrewAssignmentsToVoyage
 	//
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL

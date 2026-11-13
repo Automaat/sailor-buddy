@@ -455,6 +455,25 @@ one assigned to a leg to `accepted` (`PUT /api/cruises/{id}/enrollments/
 Both lock the leg like the trip enrollment accept; `404` when the
 enrollment belongs to another cruise.
 
+### Crew from accepted sign-ups
+
+Accepting a sign-up for a leg, a trip enrollment or a cruise enrollment
+assigned to the leg, puts the user's person on the leg's crew list
+(`/api/trips/{tripID}/crew`) with role `zalogant`, in the same transaction
+as the status change. A person already on the list keeps their entry. The
+entry carries `crew_assignments.added_by_acceptance`, which is not exposed
+in the API. Setting the sign-up to any other status, deleting it, or moving
+an accepted cruise enrollment off the leg removes that entry once the user
+holds no other accepted sign-up for the leg. Crew the admin added by hand
+stays. A refused accept (`409`) changes nothing. Pending and waitlisted
+sign-ups add no crew.
+
+Every status change, leg move and delete of a sign-up locks the legs it
+touches before the enrollment row, so concurrent changes for one leg apply
+one at a time. A cruise enrollment change that finds the enrollment moved
+to another leg meanwhile rolls back and starts again; after three such
+moves it returns `409`.
+
 ### Voyages
 
 | Method | Path | Auth | Description | Success |
@@ -688,9 +707,11 @@ account owner overwrite its person's name, phone and patent number.
   kept person's own name then joins its `other_names`. Both linked to
   different accounts → `409`, nothing changes. `users` rows are never
   merged.
-- The merge locks the moving account, both people and every leg and voyage
-  either is on, so a concurrent profile save, leg completion or new crew
-  assignment waits for it.
+- The merge locks the moving account, every leg and voyage either person
+  is on, then both people, so a concurrent profile save, leg completion,
+  sign-up acceptance or new crew assignment waits for it.
+- Where both are on the same leg, the kept entry counts as added by an
+  accepted sign-up (`added_by_acceptance`) only when both entries did.
 - The same ID twice, or merged `other_names` over the 20 × 200 limit →
   `422`; an unknown person → `404`.
 

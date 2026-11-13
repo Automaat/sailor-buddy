@@ -744,7 +744,7 @@ export interface paths {
         get?: never;
         /**
          * Update a trip enrollment's status (admin)
-         * @description Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. 404 when the enrollment does not exist or belongs to another trip.
+         * @description Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. Accepting puts the user's person on the leg's crew list as zalogant; any other status removes the entry the acceptance added, while crew added by hand stays. 404 when the enrollment does not exist or belongs to another trip.
          */
         put: operations["update-trip-enrollment-status"];
         post?: never;

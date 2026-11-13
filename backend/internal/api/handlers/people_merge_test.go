@@ -208,6 +208,14 @@ func TestCrewMerge_DB(t *testing.T) {
 	api := f.api(t, sqlTxRunner(f.conn))
 	admin := callerCtx(1, "admin")
 	keptPath := "/crew/" + strconv.FormatInt(f.keptID, 10)
+	if _, err := f.conn.ExecContext(ctx, `UPDATE crew_assignments SET added_by_acceptance = (crew_member_id = $1)
+		WHERE trip_id = $2`, f.keptID, f.trip1); err != nil {
+		t.Fatalf("mark accepted entry: %v", err)
+	}
+	if _, err := f.conn.ExecContext(ctx, `UPDATE crew_assignments SET added_by_acceptance = TRUE
+		WHERE trip_id = $1 AND crew_member_id = $2`, f.trip2, f.duplicateID); err != nil {
+		t.Fatalf("mark accepted entry: %v", err)
+	}
 	before := f.snapshot(t)
 
 	resp := api.GetCtx(admin, keptPath+"/merge-preview?duplicate_id="+strconv.FormatInt(f.duplicateID, 10))
@@ -275,6 +283,23 @@ func TestCrewMerge_DB(t *testing.T) {
 	slices.Sort(want)
 	if got := f.snapshot(t); !slices.Equal(got, want) {
 		t.Errorf("after merge:\ngot  %q\nwant %q", got, want)
+	}
+	accepted := map[int64]bool{}
+	rows, err := f.conn.QueryContext(ctx, "SELECT trip_id, added_by_acceptance FROM crew_assignments WHERE trip_id IS NOT NULL")
+	if err != nil {
+		t.Fatalf("list leg crew: %v", err)
+	}
+	for rows.Next() {
+		var trip int64
+		var flag bool
+		if err := rows.Scan(&trip, &flag); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		accepted[trip] = flag
+	}
+	_ = rows.Close()
+	if accepted[f.trip1] || !accepted[f.trip2] {
+		t.Errorf("added_by_acceptance = %v: leg 1 must stay hand-added, leg 2 keeps its accepted flag", accepted)
 	}
 	if _, err := os.Stat(f.sharedOpinionFile); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("shared duplicate opinion file kept: err=%v", err)
@@ -484,5 +509,66 @@ func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
 	}
 	if code := <-done; code != http.StatusOK {
 		t.Fatalf("merge: got %d, want 200", code)
+	}
+}
+
+// TestCrewMerge_DBAcceptanceDuringMerge accepts the duplicate's account onto
+// a leg the kept person is on while the merge waits for that leg: accepting
+// adds the duplicate's person to the leg crew, which must not deadlock with
+// the merge's lock on the people.
+func TestCrewMerge_DBAcceptanceDuringMerge(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	var trip3 int64
+	if err := f.conn.QueryRowContext(ctx, `INSERT INTO trips (cruise_id, name, currency)
+		SELECT cruise_id, 'Leg 3', 'PLN' FROM trips WHERE id = $1 RETURNING id`, f.trip1).Scan(&trip3); err != nil {
+		t.Fatalf("create leg 3: %v", err)
+	}
+	if _, err := f.conn.ExecContext(ctx, "INSERT INTO crew_assignments (trip_id, crew_member_id) VALUES ($1, $2)", trip3, f.keptID); err != nil {
+		t.Fatalf("assign kept person: %v", err)
+	}
+	accept, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin acceptance: %v", err)
+	}
+	defer func() { _ = accept.Rollback() }()
+	if _, err := accept.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR NO KEY UPDATE", trip3); err != nil {
+		t.Fatalf("lock leg: %v", err)
+	}
+
+	done := make(chan int, 1)
+	api := f.api(t, sqlTxRunner(f.conn))
+	go func() {
+		resp := api.PostCtx(callerCtx(1, "admin"),
+			"/crew/"+strconv.FormatInt(f.keptID, 10)+"/merge", map[string]any{"duplicate_id": f.duplicateID})
+		done <- resp.Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	if err := sqlcdb.New(accept).AddAcceptedTripCrewAssignment(ctx, sqlcdb.AddAcceptedTripCrewAssignmentParams{
+		TripID: trip3, UserID: f.userID,
+	}); err != nil {
+		t.Fatalf("add accepted crew: %v", err)
+	}
+	if err := accept.Commit(); err != nil {
+		t.Fatalf("commit acceptance: %v", err)
+	}
+	if code := <-done; code != http.StatusOK {
+		t.Fatalf("merge: got %d, want 200", code)
+	}
+	var crew []int64
+	rows, err := f.conn.QueryContext(ctx, "SELECT crew_member_id FROM crew_assignments WHERE trip_id = $1", trip3)
+	if err != nil {
+		t.Fatalf("list crew: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		crew = append(crew, id)
+	}
+	if !slices.Equal(crew, []int64{f.keptID}) {
+		t.Errorf("leg 3 crew = %v, want only the kept person %d", crew, f.keptID)
 	}
 }

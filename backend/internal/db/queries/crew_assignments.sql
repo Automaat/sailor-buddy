@@ -62,15 +62,47 @@ WHERE ca.crew_member_id = $1;
 UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
 WHERE trip_id = $2;
 
--- name: FillSharedCrewAssignmentPatents :exec
--- On a leg or voyage both people are on, the kept person's assignment stays;
--- it takes the duplicate's patent number when it has none.
-UPDATE crew_assignments k SET patent_number = d.patent_number
+-- name: AddAcceptedTripCrewAssignment :exec
+-- Puts a user's person on a trip's crew as a załogant after their sign-up
+-- for it was accepted. An existing crew entry for that person is kept as is,
+-- so a hand-added entry stays hand-added.
+INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
+SELECT sqlc.arg(trip_id)::BIGINT, cm.id, TRUE
+FROM crew_members cm
+WHERE cm.user_id = sqlc.arg(user_id)::BIGINT
+ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING;
+
+-- name: RemoveAcceptedTripCrewAssignment :exec
+-- Takes a user's person off a trip's crew when the entry came from an
+-- accepted sign-up and the user no longer has any accepted sign-up for the
+-- trip, direct or through a cruise enrollment assigned to it.
+DELETE FROM crew_assignments ca
+USING crew_members cm
+WHERE ca.trip_id = sqlc.arg(trip_id)::BIGINT
+  AND ca.added_by_acceptance
+  AND cm.id = ca.crew_member_id
+  AND cm.user_id = sqlc.arg(user_id)::BIGINT
+  AND NOT EXISTS (
+      SELECT 1 FROM trip_enrollments te
+      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM cruise_enrollments ce
+      WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
+  );
+
+-- name: MergeSharedCrewAssignments :exec
+-- On a leg or voyage both people are on, the kept person's assignment stays.
+-- It takes the duplicate's patent number when it has none, and counts as
+-- added by an accepted sign-up only when both entries did, so a hand-added
+-- entry is never removed when the sign-up is withdrawn.
+UPDATE crew_assignments k SET
+    patent_number = COALESCE(k.patent_number, d.patent_number),
+    added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
 FROM crew_assignments d
 WHERE k.crew_member_id = sqlc.arg(kept_id)::BIGINT
   AND d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
-  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
-  AND k.patent_number IS NULL;
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id);
 
 -- name: DeleteSharedCrewAssignments :execrows
 DELETE FROM crew_assignments d
