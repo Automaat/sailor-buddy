@@ -100,8 +100,9 @@ RETURNING *;
 -- name: LockUserForUpdate :one
 -- Serializes a profile save with a merge that moves the account's person
 -- link. Both lock the account first; the save's update then runs on a fresh
--- snapshot and finds the person the merge kept.
-SELECT id FROM users WHERE id = $1 FOR UPDATE;
+-- snapshot and finds the person the merge kept. NO KEY keeps foreign-key
+-- checks on the account (sign-ups, captains) from waiting on the merge.
+SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: LockCrewMergeTrips :exec
 -- Share-locks every leg either person is on, so completing a leg waits for

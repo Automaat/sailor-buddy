@@ -451,3 +451,38 @@ func TestCrewMerge_DBProfileSaveDuringMerge(t *testing.T) {
 		t.Errorf("kept person after profile save = %q / %q, want the saved name and phone", p.FullName, p.Phone.String)
 	}
 }
+
+// TestCrewMerge_DBLegSignUpDuringMerge signs the duplicate's account up for a
+// leg the duplicate is on while a merge waits for that leg: the sign-up's
+// reference to the account must not wait on the merge's account lock.
+func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	signUp, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin sign-up: %v", err)
+	}
+	defer func() { _ = signUp.Rollback() }()
+	if _, err := signUp.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR NO KEY UPDATE", f.trip1); err != nil {
+		t.Fatalf("lock leg: %v", err)
+	}
+
+	done := make(chan int, 1)
+	api := f.api(t, sqlTxRunner(f.conn))
+	go func() {
+		resp := api.PostCtx(callerCtx(1, "admin"),
+			"/crew/"+strconv.FormatInt(f.keptID, 10)+"/merge", map[string]any{"duplicate_id": f.duplicateID})
+		done <- resp.Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	if _, err := signUp.ExecContext(ctx,
+		"INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'pending')", f.trip1, f.userID); err != nil {
+		t.Fatalf("sign up: %v", err)
+	}
+	if err := signUp.Commit(); err != nil {
+		t.Fatalf("commit sign-up: %v", err)
+	}
+	if code := <-done; code != http.StatusOK {
+		t.Fatalf("merge: got %d, want 200", code)
+	}
+}

@@ -462,14 +462,15 @@ func (q *Queries) LockCrewMergeVoyages(ctx context.Context, arg LockCrewMergeVoy
 }
 
 const lockUserForUpdate = `-- name: LockUserForUpdate :one
-SELECT id FROM users WHERE id = $1 FOR UPDATE
+SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
 `
 
 // Serializes a profile save with a merge that moves the account's person
 // link. Both lock the account first; the save's update then runs on a fresh
-// snapshot and finds the person the merge kept.
+// snapshot and finds the person the merge kept. NO KEY keeps foreign-key
+// checks on the account (sign-ups, captains) from waiting on the merge.
 //
-//	SELECT id FROM users WHERE id = $1 FOR UPDATE
+//	SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
 func (q *Queries) LockUserForUpdate(ctx context.Context, id int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, lockUserForUpdate, id)
 	var id_2 int64

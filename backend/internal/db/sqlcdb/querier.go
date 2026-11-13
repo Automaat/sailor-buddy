@@ -815,9 +815,10 @@ type Querier interface {
 	LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error)
 	// Serializes a profile save with a merge that moves the account's person
 	// link. Both lock the account first; the save's update then runs on a fresh
-	// snapshot and finds the person the merge kept.
+	// snapshot and finds the person the merge kept. NO KEY keeps foreign-key
+	// checks on the account (sign-ups, captains) from waiting on the merge.
 	//
-	//  SELECT id FROM users WHERE id = $1 FOR UPDATE
+	//  SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
 	LockUserForUpdate(ctx context.Context, id int64) (int64, error)
 	//MoveCrewAssignments
 	//
