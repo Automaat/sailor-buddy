@@ -342,6 +342,12 @@ export function getMe() {
 	return api.get('/auth/me');
 }
 
+/** listMyCruiseIds returns the cruises the current user took part in. */
+export async function listMyCruiseIds(): Promise<number[]> {
+	const res = await api.get('/auth/me/cruises');
+	return res?.cruise_ids ?? [];
+}
+
 export function updateMe(body: Schemas['UpdateProfileBody']) {
 	return api.put('/auth/me', { body });
 }

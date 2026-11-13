@@ -17,6 +17,7 @@ export const rejsStatusLabels: Record<RejsStatus, string> = {
 
 export type RejsEntry = {
 	key: string;
+	cruiseId: number;
 	href: string;
 	name: string;
 	status: RejsStatus;
@@ -33,6 +34,25 @@ export type RejsEntry = {
 	hoursTotal: number;
 	miles: number;
 };
+
+/** isMineFilter reads the "only my cruises" toggle from the ?mine= param. */
+export function isMineFilter(value: string | null): boolean {
+	return value === '1';
+}
+
+/** rejsListUrl keeps the Rejsy tab and the "only mine" toggle in the URL. */
+export function rejsListUrl(tab: RejsTab, mine: boolean): string {
+	const params = new URLSearchParams();
+	if (tab !== 'upcoming') params.set('tab', tab);
+	if (mine) params.set('mine', '1');
+	const query = params.toString();
+	return query ? `/cruises?${query}` : '/cruises';
+}
+
+/** onlyMine keeps the entries for cruises the user took part in. */
+export function onlyMine(entries: RejsEntry[], myCruiseIds: ReadonlySet<number>): RejsEntry[] {
+	return entries.filter((e) => myCruiseIds.has(e.cruiseId));
+}
 
 export function parseRejsTab(value: string | null): RejsTab {
 	return value === 'completed' || value === 'all' ? value : 'upcoming';
@@ -58,6 +78,7 @@ export function buildRejsEntries(cruises: Cruise[], trips: Trip[], voyages: Voya
 			.sort();
 		return {
 			key: `cruise-${c.id}`,
+			cruiseId: c.id,
 			href: `/cruises/${c.id}`,
 			name: c.name,
 			status: cruiseStatus(planned, cancelled, sailed.length),

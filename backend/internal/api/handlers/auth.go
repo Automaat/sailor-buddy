@@ -25,6 +25,10 @@ type meOutput struct {
 	Body dto.Me
 }
 
+type myCruisesOutput struct {
+	Body dto.MyCruises
+}
+
 type updateMeInput struct {
 	Body dto.UpdateProfileBody
 }
@@ -40,6 +44,26 @@ func RegisterAuthRoutes(api huma.API, q sqlcdb.Querier) {
 		OperationID: "update-me", Method: http.MethodPut, Path: "/auth/me",
 		Summary: "Save the current user's profile and finish onboarding", Tags: []string{"Auth"},
 	}, h.updateMe)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-cruises", Method: http.MethodGet, Path: "/auth/me/cruises",
+		Summary: "Cruises the current user took part in", Tags: []string{"Auth"},
+	}, h.myCruises)
+}
+
+func (h *AuthHandler) myCruises(ctx context.Context, _ *struct{}) (*myCruisesOutput, error) {
+	claims := middleware.GetUser(ctx)
+	if claims == nil {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	ids, err := h.q.ListUserCruiseIDs(ctx, claims.UserID)
+	if err != nil {
+		slog.Error("list user cruises", "user_id", claims.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list your cruises")
+	}
+	if ids == nil {
+		ids = []int64{}
+	}
+	return &myCruisesOutput{Body: dto.MyCruises{CruiseIDs: ids}}, nil
 }
 
 func (h *AuthHandler) me(ctx context.Context, _ *struct{}) (*meOutput, error) {

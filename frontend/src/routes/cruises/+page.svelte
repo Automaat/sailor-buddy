@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { listCruises, listTrips, listVoyages } from '#lib/api/routes.js';
+	import { listCruises, listMyCruiseIds, listTrips, listVoyages } from '#lib/api/routes.js';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import {
 		buildRejsEntries,
 		filterRejsEntries,
+		isMineFilter,
+		onlyMine,
 		parseRejsTab,
+		rejsListUrl,
 		rejsStatusLabels,
 		rejsTabs,
 		type RejsEntry,
@@ -17,13 +20,20 @@
 
 	let entries = $state<RejsEntry[]>([]);
 	let loading = $state(true);
+	/** null when the user's cruises could not be loaded. */
+	let myCruiseIds = $state<ReadonlySet<number> | null>(new Set());
 	let tab = $state<RejsTab>(parseRejsTab(page.url.searchParams.get('tab')));
+	let mine = $state(isMineFilter(page.url.searchParams.get('mine')));
 	$effect(() => {
 		tab = parseRejsTab(page.url.searchParams.get('tab'));
+		mine = isMineFilter(page.url.searchParams.get('mine'));
 	});
 	let kindFilter = $state<CruiseKind | 'all'>('all');
 
-	const inTab = $derived(filterRejsEntries(entries, tab));
+	const mineUnavailable = $derived(mine && myCruiseIds === null);
+	const inTab = $derived(
+		filterRejsEntries(mine && myCruiseIds ? onlyMine(entries, myCruiseIds) : entries, tab)
+	);
 	const visible = $derived(
 		kindFilter === 'all' ? inTab : inTab.filter((e) => e.kind === kindFilter)
 	);
@@ -36,10 +46,24 @@
 		completed: 'Brak zrealizowanych rejsów',
 		all: 'Brak rejsów'
 	};
+	const mineEmptyLabels: Record<RejsTab, string> = {
+		upcoming: 'Nie masz nadchodzących rejsów',
+		completed: 'Nie masz jeszcze zrealizowanych rejsów',
+		all: 'Nie masz jeszcze żadnych rejsów'
+	};
+
+	function navigate() {
+		goto(rejsListUrl(tab, mine), { replace: true, shallow: true });
+	}
 
 	function selectTab(next: RejsTab) {
 		tab = next;
-		goto(next === 'upcoming' ? '/cruises' : `/cruises?tab=${next}`, { replace: true, shallow: true });
+		navigate();
+	}
+
+	function toggleMine() {
+		mine = !mine;
+		navigate();
 	}
 
 	function statusBadge(status: RejsEntry['status']) {
@@ -51,12 +75,17 @@
 	async function load() {
 		loading = true;
 		try {
-			const [cruises, trips, voyages] = await Promise.all([
+			const [cruises, trips, voyages, mineIds] = await Promise.all([
 				listCruises(),
 				listTrips(),
-				listVoyages()
+				listVoyages(),
+				listMyCruiseIds().catch((err) => {
+					console.error('Failed to load your cruises:', err);
+					return null;
+				})
 			]);
 			entries = buildRejsEntries(cruises ?? [], trips ?? [], voyages ?? []);
+			myCruiseIds = mineIds ? new Set(mineIds) : null;
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
 		} finally {
@@ -103,23 +132,43 @@
 		{/each}
 	</div>
 
-	<div class="mb-4 flex gap-2" role="group" aria-label="Rodzaj rejsu">
-		{#each kindFilters as f (f.value)}
-			<button
-				type="button"
-				aria-pressed={kindFilter === f.value}
-				onclick={() => (kindFilter = f.value)}
-				class="rounded-full border px-3 py-1 text-sm transition-colors {kindFilter === f.value
-					? 'border-[var(--ocean)] bg-[var(--ocean)] text-white'
-					: 'bg-white text-[var(--text-muted)] hover:bg-gray-50'}"
-			>
-				{f.label}
-			</button>
-		{/each}
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<button
+			type="button"
+			aria-pressed={mine}
+			onclick={toggleMine}
+			class="rounded-full border px-3 py-1 text-sm font-medium transition-colors {mine
+				? 'border-[var(--navy)] bg-[var(--navy)] text-white'
+				: 'bg-white text-[var(--navy)] hover:bg-gray-50'}"
+		>
+			Moje rejsy
+		</button>
+		<span class="h-5 w-px bg-gray-200" aria-hidden="true"></span>
+		<div class="flex flex-wrap gap-2" role="group" aria-label="Rodzaj rejsu">
+			{#each kindFilters as f (f.value)}
+				<button
+					type="button"
+					aria-pressed={kindFilter === f.value}
+					onclick={() => (kindFilter = f.value)}
+					class="rounded-full border px-3 py-1 text-sm transition-colors {kindFilter === f.value
+						? 'border-[var(--ocean)] bg-[var(--ocean)] text-white'
+						: 'bg-white text-[var(--text-muted)] hover:bg-gray-50'}"
+				>
+					{f.label}
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	{#if loading}
 		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
+	{:else if mineUnavailable}
+		<div class="rounded-2xl bg-white py-16 text-center shadow-sm" role="alert">
+			<p class="text-lg text-red-600">Nie udało się wczytać Twoich rejsów</p>
+			<button type="button" onclick={load} class="mt-2 text-[var(--ocean)] hover:underline">
+				Spróbuj ponownie
+			</button>
+		</div>
 	{:else if inTab.length > 0 && visible.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<p class="text-lg text-[var(--text-muted)]">Brak rejsów tego rodzaju</p>
@@ -127,7 +176,9 @@
 	{:else if visible.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<Sailboat class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
-			<p class="mt-4 text-lg text-[var(--text-muted)]">{emptyLabels[tab]}</p>
+			<p class="mt-4 text-lg text-[var(--text-muted)]">
+				{mine ? mineEmptyLabels[tab] : emptyLabels[tab]}
+			</p>
 			{#if auth.isAdmin && entries.length === 0}
 				<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
 					Utwórz pierwsze wydarzenie
