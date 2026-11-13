@@ -110,7 +110,7 @@
 		{#if auth.isAdmin}
 			<a
 				href="/cruises/new"
-				class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
+				class="tap-target rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
 			>
 				+ Nowe wydarzenie
 			</a>

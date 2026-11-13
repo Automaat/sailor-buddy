@@ -223,7 +223,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if voyage}
 	<div class="mx-auto max-w-4xl">
-		<div class="mb-6 flex items-center justify-between">
+		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				{#if cruise}
 					<a href="/cruises/{cruise.id}" class="text-xs text-[var(--ocean)] hover:underline">
@@ -240,8 +240,8 @@
 				</p>
 			</div>
 			{#if canManageCrew}
-				<div class="flex gap-2">
-					<a href="/voyages/{id}/edit" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+				<div class="flex gap-2 max-md:flex-wrap">
+					<a href="/voyages/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
 					<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
 						Usuń
 					</button>
@@ -274,7 +274,7 @@
 		{#if voyage.embark_date || voyage.captain_name || voyage.tidal_waters || voyage.cost_total}
 			<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 				<h2 class="mb-3 font-semibold text-[var(--navy)]">Szczegóły</h2>
-				<dl class="grid grid-cols-2 gap-2 text-sm">
+				<dl class="grid grid-cols-1 text-sm sm:grid-cols-2 sm:gap-2 max-sm:[&>dd]:mb-2">
 					{#if voyage.embark_date}
 						<dt class="text-[var(--text-muted)]">Daty</dt>
 						<dd>{voyage.embark_date} – {voyage.disembark_date ?? '?'}</dd>
@@ -382,9 +382,9 @@
 
 				{#if allCrewMembers.length > 0}
 					<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
-						<div>
+						<div class="min-w-0 max-w-full">
 							<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-							<select id="assign-crew" bind:value={assignCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+							<select id="assign-crew" bind:value={assignCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
 								<option value="">Wybierz...</option>
 								{#each allCrewMembers as member}
 									<option value={member.id}>{member.full_name}</option>
@@ -427,9 +427,9 @@
 
 				{#if crew.length > 0}
 					<div class="mb-4 flex flex-wrap items-end gap-2">
-						<div>
+						<div class="min-w-0 max-w-full">
 							<label for="gen-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-							<select id="gen-crew" bind:value={genCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+							<select id="gen-crew" bind:value={genCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
 								<option value="">Wybierz...</option>
 								{#each crew as member}
 									<option value={member.crew_member_id}>{member.full_name}</option>

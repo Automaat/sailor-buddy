@@ -22,7 +22,7 @@
 	<p class="mt-2 text-sm text-[var(--text-muted)]">{message}</p>
 	<a
 		href={backHref}
-		class="mt-6 inline-block rounded-lg bg-[var(--ocean)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
+		class="tap-target mt-6 inline-block rounded-lg bg-[var(--ocean)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
 	>
 		{backLabel}
 	</a>

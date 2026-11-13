@@ -86,12 +86,12 @@
 	{/if}
 
 	<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
-		<div class="grid grid-cols-2 gap-4">
-			<div class="col-span-2">
+		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<div class="sm:col-span-2">
 				<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
 				<CruiseSelect bind:value={form.cruise_id} {cruises} />
 			</div>
-			<div class="col-span-2">
+			<div class="sm:col-span-2">
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
 				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
 			</div>
@@ -171,7 +171,7 @@
 
 		<hr />
 		<h3 class="font-semibold text-[var(--navy)]">Koszty</h3>
-		<div class="grid grid-cols-2 gap-4">
+		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			<div>
 				<label for="cost_total" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
 				<input id="cost_total" type="number" step="0.01" bind:value={form.cost_total} class="w-full rounded-lg border px-3 py-2" />
@@ -191,7 +191,7 @@
 			<button type="submit" disabled={loading} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
 				{loading ? 'Tworzenie...' : 'Dodaj rejs'}
 			</button>
-			<a href={cancelHref} class="rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+			<a href={cancelHref} class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
 		</div>
 	</form>
 </div>

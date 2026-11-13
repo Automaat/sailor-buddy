@@ -131,7 +131,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else}
 	<div class="mx-auto max-w-4xl">
-		<div class="mb-6 flex items-center justify-between">
+		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
 				{#if trip}
@@ -143,7 +143,7 @@
 					</p>
 				{/if}
 			</div>
-			<a href="/trips/{id}" class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+			<a href="/trips/{id}" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
 				Wróć do rejsu
 			</a>
 		</div>
@@ -172,8 +172,8 @@
 			<div class="space-y-3">
 				{#each enrollments as enrollment}
 					<div class="rounded-xl bg-white p-4 shadow-sm">
-						<div class="flex items-center justify-between">
-							<div>
+						<div class="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
+							<div class="min-w-0 break-words">
 								<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
 								<span class="ml-2 text-sm text-[var(--text-muted)]">{enrollment.user_email ?? ''}</span>
 								<span class="ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}">
@@ -185,7 +185,7 @@
 									</span>
 								{/if}
 							</div>
-							<div class="flex items-center gap-1">
+							<div class="flex items-center gap-1 max-md:flex-wrap">
 								<label class="sr-only" for={`payment-${enrollment.id}`}>
 									Płatność: {enrollment.user_name ?? 'Nieznany'}
 								</label>

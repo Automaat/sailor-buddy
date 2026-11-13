@@ -5,7 +5,9 @@ import {
 	loginViaUI,
 	clearFirebaseUsers,
 	apiRequest,
-	completeOnboarding
+	completeOnboarding,
+	SUITE_ADMIN,
+	TEST_PASSWORD
 } from './helpers';
 
 // Single-club role model. The first account ever provisioned auto-becomes the
@@ -17,9 +19,9 @@ import {
 // Runs against a freshly migrated database (no seed) — see .github/workflows/e2e.yml.
 
 const RUN_ID = Date.now().toString(36);
-const PASSWORD = 'TestPass123!';
-const adminEmail = `pa-admin-${RUN_ID}@test.local`;
-const adminName = 'Persona Admin';
+const PASSWORD = TEST_PASSWORD;
+const adminEmail = SUITE_ADMIN.email;
+const adminName = SUITE_ADMIN.name;
 const memberEmail = `pa-member-${RUN_ID}@test.local`;
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5173/api';
