@@ -500,12 +500,14 @@ var errEnrollmentNotFound = errors.New("enrollment not found")
 // concurrent accepts of the last place serialize and the second gets 409.
 // Every other status change, including from accepted, needs no free place.
 // Accepting puts the user's person on the leg's crew list; any other status
-// takes off the entry an acceptance added.
+// takes off the entry an acceptance added. A person merge that holds the
+// person and waits for the leg deadlocks with the accept; the losing side
+// runs again.
 func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollmentStatusInput) (*noContentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+	txErr := retryDeadlock(h.runTx)(ctx, func(q sqlcdb.Querier) error {
 		trip, err := q.LockTripForSignUp(ctx, in.TripID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -542,6 +544,9 @@ func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollment
 		}
 		if full, ok := errors.AsType[*legFullError](txErr); ok {
 			return nil, huma.Error409Conflict(full.Error())
+		}
+		if errors.Is(txErr, errPersonChanged) || isDeadlock(txErr) {
+			return nil, huma.Error409Conflict(errPersonChangedMessage)
 		}
 		slog.Error("update trip enrollment status", "enrollment_id", in.ID, "status", in.Body.Status, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to update status")

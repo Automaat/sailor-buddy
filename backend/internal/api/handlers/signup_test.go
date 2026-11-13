@@ -51,8 +51,9 @@ func newSignUpStore(trips ...sqlcdb.Trip) *signUpStore {
 func (s *signUpStore) mock() *mockQuerier {
 	return &mockQuerier{
 		ensureUserPersonFn: func(context.Context, int64) error { return nil },
+		lockUserPersonFn:   func(_ context.Context, u types.NullInt64) (int64, error) { return u.Int64, nil },
 		addAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error {
-			s.crewCalls = append(s.crewCalls, fmt.Sprintf("add %d/%d", arg.TripID, arg.UserID))
+			s.crewCalls = append(s.crewCalls, fmt.Sprintf("add %d/%d", arg.TripID, arg.CrewMemberID))
 			return nil
 		},
 		removeAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {

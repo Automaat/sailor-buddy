@@ -11,14 +11,12 @@ import (
 )
 
 type Querier interface {
-	// Puts a user's person on a trip's crew as a załogant after their sign-up
-	// for it was accepted. An existing crew entry for that person is kept as is,
-	// so a hand-added entry stays hand-added.
+	// Puts an accepted sign-up's person on a trip's crew as a załogant. An
+	// existing crew entry for that person is kept as is, so a hand-added entry
+	// stays hand-added.
 	//
 	//  INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
-	//  SELECT $1::BIGINT, cm.id, TRUE
-	//  FROM crew_members cm
-	//  WHERE cm.user_id = $2::BIGINT
+	//  VALUES ($1::BIGINT, $2::BIGINT, TRUE)
 	//  ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
 	AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcceptedTripCrewAssignmentParams) error
 	//AssignCruiseEnrollmentToTrip
@@ -925,6 +923,13 @@ type Querier interface {
 	//
 	//  SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
 	LockUserForUpdate(ctx context.Context, id int64) (int64, error)
+	// Key-share-locks the account's person, so a merge or delete of it waits
+	// for the caller's transaction. No row when the person was deleted, for
+	// example merged away, before the lock was granted.
+	//
+	//  SELECT id FROM crew_members WHERE user_id = $1
+	//  FOR KEY SHARE
+	LockUserPerson(ctx context.Context, userID types.NullInt64) (int64, error)
 	// On a leg or voyage both people are on, the kept person's assignment stays.
 	// It takes the duplicate's patent number when it has none, and counts as
 	// added by an accepted sign-up only when both entries did, so a hand-added

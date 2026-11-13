@@ -555,9 +555,7 @@ func TestCrewMerge_DBAcceptanceDuringMerge(t *testing.T) {
 		done <- resp.Code
 	}()
 	waitForLockWaiters(t, f.conn, 1)
-	if err := sqlcdb.New(accept).AddAcceptedTripCrewAssignment(ctx, sqlcdb.AddAcceptedTripCrewAssignmentParams{
-		TripID: trip3, UserID: f.userID,
-	}); err != nil {
+	if err := addAcceptedCrew(ctx, sqlcdb.New(accept), trip3, f.userID); err != nil {
 		t.Fatalf("add accepted crew: %v", err)
 	}
 	if err := accept.Commit(); err != nil {
