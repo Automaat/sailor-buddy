@@ -414,3 +414,56 @@ func TestAcceptedCrew_ConcurrentRejects(t *testing.T) {
 		t.Fatalf("both sign-ups rejected, crew = %+v, want none", got)
 	}
 }
+
+// TestAcceptedCrew_StatusChangeRacesOnCruiseEnrollment runs a second change
+// on an accepted cruise enrollment while a reject of it still holds its
+// locks. A repeated reject and a delete both still succeed, as they did
+// before leg locking, and leave no crew entry.
+func TestAcceptedCrew_StatusChangeRacesOnCruiseEnrollment(t *testing.T) {
+	for _, second := range []string{"reject again", "delete"} {
+		t.Run(second, func(t *testing.T) {
+			conn := lockTestDB(t)
+			ctx := context.Background()
+			legA, _, user, cruise, enrollment := legacyLegs(t, conn)
+			api := acceptedCrewAPI(t, conn)
+			admin := userCtx(ctx)
+			base := fmt.Sprintf("/cruises/%d/enrollments/%d", cruise, enrollment)
+			if code := api.PutCtx(admin, base+"/status", map[string]any{"status": "accepted"}).Code; code != http.StatusNoContent {
+				t.Fatalf("accept: got %d", code)
+			}
+			if _, err := conn.ExecContext(ctx, `
+				CREATE FUNCTION slow_enrollment() RETURNS trigger LANGUAGE plpgsql AS $$
+				BEGIN PERFORM pg_sleep(1); RETURN NULL; END $$;
+				CREATE TRIGGER slow_enrollment AFTER UPDATE ON cruise_enrollments
+				FOR EACH STATEMENT EXECUTE FUNCTION slow_enrollment();`); err != nil {
+				t.Fatalf("slow enrollment updates: %v", err)
+			}
+
+			var wg sync.WaitGroup
+			var first, next int
+			wg.Go(func() { first = api.PutCtx(admin, base+"/status", map[string]any{"status": "rejected"}).Code })
+			wg.Go(func() {
+				time.Sleep(300 * time.Millisecond)
+				if second == "delete" {
+					next = api.DeleteCtx(admin, base).Code
+				} else {
+					next = api.PutCtx(admin, base+"/status", map[string]any{"status": "rejected"}).Code
+				}
+			})
+			wg.Wait()
+			if first != http.StatusNoContent || next != http.StatusNoContent {
+				t.Fatalf("reject then %s: got %d and %d, want 204 both", second, first, next)
+			}
+			var rows int
+			if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM cruise_enrollments WHERE id = $1", enrollment).Scan(&rows); err != nil {
+				t.Fatalf("count enrollments: %v", err)
+			}
+			if wantRows := map[bool]int{true: 0, false: 1}[second == "delete"]; rows != wantRows {
+				t.Fatalf("enrollment rows = %d, want %d", rows, wantRows)
+			}
+			if got := tripCrew(t, conn, legA, user); len(got) != 0 {
+				t.Fatalf("crew = %+v, want none", got)
+			}
+		})
+	}
+}
