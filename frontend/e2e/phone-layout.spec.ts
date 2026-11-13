@@ -58,7 +58,7 @@ async function pageWidth(page: Page, path: string): Promise<number> {
 
 async function smallTapTargets(page: Page): Promise<string[]> {
 	return page.evaluate((min) => {
-		const els = document.querySelectorAll<HTMLElement>('button, a.tap-target, header a, #mobile-menu a');
+		const els = document.querySelectorAll<HTMLElement>('button, a.tap-target, header a, #mobile-menu a, main a.inline-block, main a[class*="px-"]');
 		const small: string[] = [];
 		for (const el of els) {
 			const r = el.getBoundingClientRect();
@@ -82,7 +82,8 @@ test.describe.serial('Phone layout', () => {
 			disembark_date: '2027-07-14',
 			start_port: 'Gdańsk',
 			end_port: 'Visby',
-			description: 'Opis wydarzenia, który jest na tyle długi, że musi się zawinąć.'
+			description: 'Opis wydarzenia, który jest na tyle długi, że musi się zawinąć.',
+			deposit: 50000
 		});
 		const trip = await post<{ id: number }>(token, '/trips', {
 			cruise_id: cruise.id,
@@ -93,11 +94,14 @@ test.describe.serial('Phone layout', () => {
 			end_port: 'Bornholm',
 			captain_name: 'Kapitan Bardzo-Długie-Nazwisko',
 			max_crew: 8,
-			cost_total: 1234500
+			cost_total: 1234500,
+			deposit: 50000
 		});
 		const leg = await post<{ id: number }>(token, '/trips', {
 			cruise_id: cruise.id,
 			name: 'Etap drugi',
+			embark_date: '2027-07-07',
+			disembark_date: '2027-07-14',
 			start_port: 'Bornholm',
 			end_port: 'Visby'
 		});
@@ -214,12 +218,21 @@ test.describe.serial('Phone layout', () => {
 	test('detail rows stack label above value', async ({ page }) => {
 		await page.setViewportSize(PHONE);
 		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
-		await page.goto(`/trips/${ids.trip}`);
-		const label = await page.locator('dt', { hasText: 'Daty' }).boundingBox();
-		const value = await page.locator('dt:has-text("Daty") + dd').boundingBox();
-		expect(label).not.toBeNull();
-		expect(value).not.toBeNull();
-		expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height);
+		const rows: [string, string][] = [
+			[`/trips/${ids.trip}`, 'Daty'],
+			[`/trips/${ids.trip}`, 'Kaucja (zwrotna)'],
+			[`/voyages/${ids.voyage}`, 'Daty'],
+			[`/cruises/${ids.cruise}`, 'Kaucja (zwrotna)']
+		];
+		for (const [path, term] of rows) {
+			await page.goto(path);
+			const dt = page.locator('dt', { hasText: term }).first();
+			const label = await dt.boundingBox();
+			const value = await dt.locator('xpath=following-sibling::dd[1]').boundingBox();
+			expect(label, `${path} ${term}`).not.toBeNull();
+			expect(value, `${path} ${term}`).not.toBeNull();
+			expect(value!.y, `${path} ${term}`).toBeGreaterThanOrEqual(label!.y + label!.height);
+		}
 	});
 
 	test('desktop keeps the sidebar', async ({ page }) => {
