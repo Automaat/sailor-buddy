@@ -392,6 +392,9 @@ func TestCruiseHandler_AssignEnrollmentToTrip(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
 			assignCruiseEnrollmentFn:      func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error { return nil },
+			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+				return sqlcdb.LockTripForSignUpRow{ID: id}, nil
+			},
 		}
 		resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()),
 			"/cruises/1/enrollments/2/trip", map[string]any{"trip_id": 5})
@@ -406,6 +409,9 @@ func TestCruiseHandler_AssignEnrollmentToTrip(t *testing.T) {
 			assignCruiseEnrollmentFn: func(context.Context, sqlcdb.AssignCruiseEnrollmentToTripParams) error {
 				return errors.New("fail")
 			},
+			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+				return sqlcdb.LockTripForSignUpRow{ID: id}, nil
+			},
 		}
 		resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()),
 			"/cruises/1/enrollments/2/trip", map[string]any{"trip_id": 5})
@@ -417,9 +423,10 @@ func TestCruiseHandler_AssignEnrollmentToTrip(t *testing.T) {
 
 func TestCruiseHandler_DeleteEnrollment(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		m := &mockQuerier{deleteCruiseEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteCruiseEnrollmentRow, error) {
-			return sqlcdb.DeleteCruiseEnrollmentRow{}, sql.ErrNoRows
-		}}
+		m := &mockQuerier{
+			getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
+			deleteCruiseEnrollmentFn:      func(context.Context, int64) error { return nil },
+		}
 		resp := cruiseTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/cruises/1/enrollments/2")
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
@@ -428,13 +435,21 @@ func TestCruiseHandler_DeleteEnrollment(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			deleteCruiseEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteCruiseEnrollmentRow, error) {
-				return sqlcdb.DeleteCruiseEnrollmentRow{}, errors.New("fail")
-			},
+			getCruiseEnrollmentOfCruiseFn: unassignedCruiseEnrollment,
+			deleteCruiseEnrollmentFn:      func(context.Context, int64) error { return errors.New("fail") },
 		}
 		resp := cruiseTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/cruises/1/enrollments/2")
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
+		}
+	})
+	t.Run("missing enrollment is a no-op", func(t *testing.T) {
+		m := &mockQuerier{getCruiseEnrollmentOfCruiseFn: func(context.Context, sqlcdb.GetCruiseEnrollmentOfCruiseParams) (sqlcdb.CruiseEnrollment, error) {
+			return sqlcdb.CruiseEnrollment{}, sql.ErrNoRows
+		}}
+		resp := cruiseTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/cruises/1/enrollments/2")
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("got %d, want 204", resp.Code)
 		}
 	})
 }

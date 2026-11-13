@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -379,30 +380,49 @@ var errEnrollmentChanged = errors.New("enrollment changed")
 // deleted meanwhile.
 var errLegGone = errors.New("leg gone")
 
-// lockForPlace locks the leg a cruise enrollment is to take a place on, then
-// re-reads the enrollment under its row lock, in the same trip-then-
-// enrollment order as trip completion and the trip enrollment accept. It
-// returns errEnrollmentChanged when the enrollment no longer matches before,
-// and a legFullError when the leg has no free place for its user.
-func lockForPlace(ctx context.Context, q sqlcdb.Querier, before sqlcdb.CruiseEnrollment, tripID int64) error {
-	trip, err := q.LockTripForSignUp(ctx, tripID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return errLegGone
+// lockCruiseEnrollment locks the legs a cruise enrollment change touches, in
+// ascending id order, then re-reads the enrollment under its row lock, in the
+// same trip-then-enrollment order as trip completion and the trip enrollment
+// accept. Holding the legs serializes the change with every other sign-up
+// change on them, so accepts count places one at a time and crew entries
+// added by acceptance follow the committed sign-ups. It returns the locked
+// legs by id, errLegGone when a leg no longer exists, and
+// errEnrollmentChanged when the enrollment no longer matches before.
+func lockCruiseEnrollment(ctx context.Context, q sqlcdb.Querier, before sqlcdb.CruiseEnrollment, legs ...int64) (map[int64]sqlcdb.LockTripForSignUpRow, error) {
+	legs = slices.Clone(legs)
+	slices.Sort(legs)
+	legs = slices.Compact(legs)
+	locked := make(map[int64]sqlcdb.LockTripForSignUpRow, len(legs))
+	for _, id := range legs {
+		trip, err := q.LockTripForSignUp(ctx, id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, errLegGone
+			}
+			return nil, &QueryError{Op: "LockTripForSignUp", Err: err}
 		}
-		return &QueryError{Op: "LockTripForSignUp", Err: err}
+		locked[id] = trip
 	}
 	now, err := q.LockCruiseEnrollmentOfCruise(ctx, sqlcdb.LockCruiseEnrollmentOfCruiseParams{ID: before.ID, CruiseID: before.CruiseID})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return errEnrollmentNotFound
+			return nil, errEnrollmentNotFound
 		}
-		return &QueryError{Op: "LockCruiseEnrollmentOfCruise", Err: err}
+		return nil, &QueryError{Op: "LockCruiseEnrollmentOfCruise", Err: err}
 	}
 	if now.TripID != before.TripID || now.Status != before.Status {
-		return errEnrollmentChanged
+		return nil, errEnrollmentChanged
 	}
-	return checkPlaceFree(ctx, q, trip.ID, before.UserID, trip.MaxCrew)
+	return locked, nil
+}
+
+// enrollmentLegs lists the leg a cruise enrollment is assigned to, if any,
+// plus the extra legs given.
+func enrollmentLegs(e sqlcdb.CruiseEnrollment, extra ...int64) []int64 {
+	if e.TripID.Valid {
+		return append(extra, e.TripID.Int64)
+	}
+	return extra
 }
 
 // cruiseEnrollmentTxError maps a capacity-checked cruise enrollment change
@@ -447,8 +467,13 @@ func (h *CruiseHandler) updateEnrollmentStatus(ctx context.Context, in *cruiseEn
 		if err != nil {
 			return err
 		}
+		legs, err := lockCruiseEnrollment(ctx, q, e, enrollmentLegs(e)...)
+		if err != nil {
+			return err
+		}
 		if in.Body.Status == enrollmentAccepted && e.Status != enrollmentAccepted && e.TripID.Valid {
-			if err := lockForPlace(ctx, q, e, e.TripID.Int64); err != nil {
+			leg := legs[e.TripID.Int64]
+			if err := checkPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
 				return err
 			}
 		}
@@ -486,8 +511,17 @@ func (h *CruiseHandler) assignEnrollmentToTrip(ctx context.Context, in *cruiseEn
 		}
 		target := in.Body.TripID
 		moving := target != nil && (!e.TripID.Valid || e.TripID.Int64 != *target)
+		var extra []int64
+		if target != nil {
+			extra = append(extra, *target)
+		}
+		legs, err := lockCruiseEnrollment(ctx, q, e, enrollmentLegs(e, extra...)...)
+		if err != nil {
+			return err
+		}
 		if moving && e.Status == enrollmentAccepted {
-			if err := lockForPlace(ctx, q, e, *target); err != nil {
+			leg := legs[*target]
+			if err := checkPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
 				return err
 			}
 		}
@@ -521,16 +555,28 @@ func (h *CruiseHandler) deleteEnrollment(ctx context.Context, in *cruiseEnrollme
 		return nil, err
 	}
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		gone, err := q.DeleteCruiseEnrollment(ctx, in.EnrollmentID)
-		if errors.Is(err, sql.ErrNoRows) || (err == nil && !gone.TripID.Valid) {
+		e, err := getCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
+		if errors.Is(err, errEnrollmentNotFound) {
 			return nil
 		}
 		if err != nil {
+			return err
+		}
+		if _, err := lockCruiseEnrollment(ctx, q, e, enrollmentLegs(e)...); err != nil {
+			return err
+		}
+		if err := q.DeleteCruiseEnrollment(ctx, e.ID); err != nil {
 			return &QueryError{Op: "DeleteCruiseEnrollment", Err: err}
 		}
-		return removeAcceptedCrew(ctx, q, gone.TripID.Int64, gone.UserID)
+		if !e.TripID.Valid {
+			return nil
+		}
+		return removeAcceptedCrew(ctx, q, e.TripID.Int64, e.UserID)
 	})
 	if txErr != nil {
+		if resp, ok := cruiseEnrollmentTxError(txErr); ok {
+			return nil, resp
+		}
 		slog.Error("delete cruise enrollment", "enrollment_id", in.EnrollmentID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to delete enrollment")
 	}

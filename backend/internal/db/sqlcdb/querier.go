@@ -257,12 +257,10 @@ type Querier interface {
 	//
 	//  DELETE FROM cruises WHERE id = $1
 	DeleteCruise(ctx context.Context, id int64) error
-	// Deletes one cruise enrollment and returns its user and assigned trip. No
-	// row when it does not exist.
+	//DeleteCruiseEnrollment
 	//
 	//  DELETE FROM cruise_enrollments WHERE id = $1
-	//  RETURNING trip_id, user_id
-	DeleteCruiseEnrollment(ctx context.Context, id int64) (DeleteCruiseEnrollmentRow, error)
+	DeleteCruiseEnrollment(ctx context.Context, id int64) error
 	//DeleteCruiseSeries
 	//
 	//  DELETE FROM cruise_series WHERE id = $1
@@ -279,12 +277,10 @@ type Querier interface {
 	//
 	//  DELETE FROM crew_assignments WHERE id = $1 AND trip_id = $2
 	DeleteTripCrewAssignment(ctx context.Context, arg DeleteTripCrewAssignmentParams) error
-	// Deletes one trip enrollment and returns whose sign-up for which trip it
-	// was. No row when it does not exist.
+	//DeleteTripEnrollment
 	//
 	//  DELETE FROM trip_enrollments WHERE id = $1
-	//  RETURNING trip_id, user_id
-	DeleteTripEnrollment(ctx context.Context, id int64) (DeleteTripEnrollmentRow, error)
+	DeleteTripEnrollment(ctx context.Context, id int64) error
 	//DeleteTripEnrollmentsForTrip
 	//
 	//  DELETE FROM trip_enrollments WHERE trip_id = $1

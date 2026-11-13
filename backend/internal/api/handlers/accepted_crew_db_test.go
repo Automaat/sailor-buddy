@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
@@ -289,4 +291,126 @@ func TestAcceptedCrew_LegacyCruiseEnrollment(t *testing.T) {
 		t.Fatalf("crew after rejecting the direct sign-up = %d, want 1 (cruise enrollment holds)", got)
 	}
 	step("delete the cruise enrollment", api.DeleteCtx(admin, base), 0, 0)
+}
+
+// slowCrewWrites makes every crew_assignments insert or delete sleep, so a
+// concurrent request lands while the first one still holds its locks.
+func slowCrewWrites(t *testing.T, conn *sql.DB, event string) {
+	t.Helper()
+	stmt := fmt.Sprintf(`
+		CREATE FUNCTION slow_crew() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN PERFORM pg_sleep(1); RETURN NULL; END $$;
+		CREATE TRIGGER slow_crew AFTER %s ON crew_assignments
+		FOR EACH STATEMENT EXECUTE FUNCTION slow_crew();`, event)
+	if _, err := conn.ExecContext(context.Background(), stmt); err != nil {
+		t.Fatalf("slow crew writes: %v", err)
+	}
+}
+
+// legacyLegs seeds a cruise with two legs and one user whose cruise
+// enrollment is assigned to the first leg as pending.
+func legacyLegs(t *testing.T, conn *sql.DB) (legA, legB, user, cruise, enrollment int64) {
+	t.Helper()
+	ctx := context.Background()
+	legA, users := capacityLeg(t, conn, 5, 1)
+	user = users[0]
+	if err := conn.QueryRowContext(ctx, "SELECT cruise_id FROM trips WHERE id = $1", legA).Scan(&cruise); err != nil {
+		t.Fatalf("cruise of leg: %v", err)
+	}
+	trip, err := sqlcdb.New(conn).CreateTrip(ctx, sqlcdb.CreateTripParams{
+		CruiseID: cruise, Name: "Leg 2", Status: sqlcdb.TripStatusPlanned, Currency: "PLN",
+	})
+	if err != nil {
+		t.Fatalf("create leg 2: %v", err)
+	}
+	if err := conn.QueryRowContext(ctx, `
+		INSERT INTO cruise_enrollments (cruise_id, user_id, trip_id, status)
+		VALUES ($1, $2, $3, 'pending') RETURNING id`, cruise, user, legA).Scan(&enrollment); err != nil {
+		t.Fatalf("seed cruise enrollment: %v", err)
+	}
+	return legA, trip.ID, user, cruise, enrollment
+}
+
+// TestAcceptedCrew_MoveRacesReject rejects an accepted cruise enrollment
+// while it moves to another leg. Whatever order wins, an enrollment left
+// rejected has no crew entry and an accepted one has exactly its leg's.
+func TestAcceptedCrew_MoveRacesReject(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	legA, legB, user, cruise, enrollment := legacyLegs(t, conn)
+	api := acceptedCrewAPI(t, conn)
+	admin := userCtx(ctx)
+	base := fmt.Sprintf("/cruises/%d/enrollments/%d", cruise, enrollment)
+	if code := api.PutCtx(admin, base+"/status", map[string]any{"status": "accepted"}).Code; code != http.StatusNoContent {
+		t.Fatalf("accept: got %d", code)
+	}
+	slowCrewWrites(t, conn, "INSERT")
+
+	var wg sync.WaitGroup
+	var move, reject int
+	wg.Go(func() { move = api.PutCtx(admin, base+"/trip", map[string]any{"trip_id": legB}).Code })
+	wg.Go(func() {
+		time.Sleep(300 * time.Millisecond)
+		reject = api.PutCtx(admin, base+"/status", map[string]any{"status": "rejected"}).Code
+	})
+	wg.Wait()
+
+	var status string
+	var trip int64
+	if err := conn.QueryRowContext(ctx, "SELECT status, trip_id FROM cruise_enrollments WHERE id = $1", enrollment).
+		Scan(&status, &trip); err != nil {
+		t.Fatalf("read enrollment: %v", err)
+	}
+	crewA, crewB := len(tripCrew(t, conn, legA, user)), len(tripCrew(t, conn, legB, user))
+	t.Logf("move=%d reject=%d status=%s trip=%d crew A=%d B=%d", move, reject, status, trip, crewA, crewB)
+	if move != http.StatusNoContent || trip != legB {
+		t.Fatalf("move: got %d, trip %d; want 204 onto leg %d", move, trip, legB)
+	}
+	wantB := 0
+	if status == enrollmentAccepted {
+		wantB = 1
+	}
+	if crewA != 0 || crewB != wantB {
+		t.Fatalf("%s enrollment on leg B: crew A=%d B=%d, want 0 and %d", status, crewA, crewB, wantB)
+	}
+}
+
+// TestAcceptedCrew_ConcurrentRejects rejects a user's accepted direct leg
+// sign-up and their accepted cruise enrollment for the same leg at once.
+// With both gone the acceptance-added crew entry must go too.
+func TestAcceptedCrew_ConcurrentRejects(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	legA, _, user, cruise, enrollment := legacyLegs(t, conn)
+	var direct int64
+	if err := conn.QueryRowContext(ctx, `
+		INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'pending') RETURNING id`,
+		legA, user).Scan(&direct); err != nil {
+		t.Fatalf("seed direct sign-up: %v", err)
+	}
+	api := acceptedCrewAPI(t, conn)
+	admin := userCtx(ctx)
+	base := fmt.Sprintf("/cruises/%d/enrollments/%d", cruise, enrollment)
+	if code := api.PutCtx(admin, base+"/status", map[string]any{"status": "accepted"}).Code; code != http.StatusNoContent {
+		t.Fatalf("accept cruise enrollment: got %d", code)
+	}
+	if code := setTripStatus(t, api, legA, direct, "accepted"); code != http.StatusNoContent {
+		t.Fatalf("accept direct sign-up: got %d", code)
+	}
+	slowCrewWrites(t, conn, "DELETE")
+
+	var wg sync.WaitGroup
+	var first, second int
+	wg.Go(func() { first = setTripStatus(t, api, legA, direct, "rejected") })
+	wg.Go(func() {
+		time.Sleep(300 * time.Millisecond)
+		second = api.PutCtx(admin, base+"/status", map[string]any{"status": "rejected"}).Code
+	})
+	wg.Wait()
+	if first != http.StatusNoContent || second != http.StatusNoContent {
+		t.Fatalf("rejects: got %d and %d, want 204 both", first, second)
+	}
+	if got := tripCrew(t, conn, legA, user); len(got) != 0 {
+		t.Fatalf("both sign-ups rejected, crew = %+v, want none", got)
+	}
 }

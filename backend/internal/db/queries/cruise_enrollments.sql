@@ -22,11 +22,8 @@ WHERE ce.id = $2
       SELECT 1 FROM trips t WHERE t.id = $1 AND t.cruise_id = ce.cruise_id
   ));
 
--- name: DeleteCruiseEnrollment :one
--- Deletes one cruise enrollment and returns its user and assigned trip. No
--- row when it does not exist.
-DELETE FROM cruise_enrollments WHERE id = $1
-RETURNING trip_id, user_id;
+-- name: DeleteCruiseEnrollment :exec
+DELETE FROM cruise_enrollments WHERE id = $1;
 
 -- name: CountCruiseEnrollments :one
 SELECT

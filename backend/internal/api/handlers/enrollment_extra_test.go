@@ -463,17 +463,25 @@ func TestEnrollment_ListEnrollments_DBError(t *testing.T) {
 }
 
 func TestEnrollment_DeleteEnrollment(t *testing.T) {
+	lockedEnrollment := func(m *mockQuerier) *mockQuerier {
+		m.lockTripForSignUpFn = func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+			return sqlcdb.LockTripForSignUpRow{ID: id}, nil
+		}
+		m.lockTripEnrollmentOfTripFn = func(_ context.Context, arg sqlcdb.LockTripEnrollmentOfTripParams) (sqlcdb.TripEnrollment, error) {
+			return sqlcdb.TripEnrollment{ID: arg.ID, TripID: arg.TripID, UserID: 4}, nil
+		}
+		return m
+	}
+
 	t.Run("success takes the acceptance crew entry off", func(t *testing.T) {
 		var removed sqlcdb.RemoveAcceptedTripCrewAssignmentParams
-		m := &mockQuerier{
-			deleteTripEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
-				return sqlcdb.DeleteTripEnrollmentRow{TripID: 9, UserID: 4}, nil
-			},
+		m := lockedEnrollment(&mockQuerier{
+			deleteTripEnrollmentFn: func(context.Context, int64) error { return nil },
 			removeAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {
 				removed = arg
 				return nil
 			},
-		}
+		})
 		resp := enrollTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/enrollments/1")
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
@@ -483,10 +491,15 @@ func TestEnrollment_DeleteEnrollment(t *testing.T) {
 		}
 	})
 
-	t.Run("missing enrollment is a no-op", func(t *testing.T) {
-		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
-			return sqlcdb.DeleteTripEnrollmentRow{}, sql.ErrNoRows
-		}}
+	t.Run("enrollment not on the trip is a no-op", func(t *testing.T) {
+		m := &mockQuerier{
+			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
+				return sqlcdb.LockTripForSignUpRow{ID: id}, nil
+			},
+			lockTripEnrollmentOfTripFn: func(context.Context, sqlcdb.LockTripEnrollmentOfTripParams) (sqlcdb.TripEnrollment, error) {
+				return sqlcdb.TripEnrollment{}, sql.ErrNoRows
+			},
+		}
 		resp := enrollTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/enrollments/1")
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
@@ -494,9 +507,7 @@ func TestEnrollment_DeleteEnrollment(t *testing.T) {
 	})
 
 	t.Run("db error", func(t *testing.T) {
-		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
-			return sqlcdb.DeleteTripEnrollmentRow{}, errors.New("fail")
-		}}
+		m := lockedEnrollment(&mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) error { return errors.New("fail") }})
 		resp := enrollTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/enrollments/1")
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)

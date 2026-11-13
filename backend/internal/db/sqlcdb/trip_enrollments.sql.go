@@ -284,26 +284,16 @@ func (q *Queries) CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTr
 	return i, err
 }
 
-const deleteTripEnrollment = `-- name: DeleteTripEnrollment :one
+const deleteTripEnrollment = `-- name: DeleteTripEnrollment :exec
 DELETE FROM trip_enrollments WHERE id = $1
-RETURNING trip_id, user_id
 `
 
-type DeleteTripEnrollmentRow struct {
-	TripID int64 `json:"trip_id"`
-	UserID int64 `json:"user_id"`
-}
-
-// Deletes one trip enrollment and returns whose sign-up for which trip it
-// was. No row when it does not exist.
+// DeleteTripEnrollment
 //
 //	DELETE FROM trip_enrollments WHERE id = $1
-//	RETURNING trip_id, user_id
-func (q *Queries) DeleteTripEnrollment(ctx context.Context, id int64) (DeleteTripEnrollmentRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteTripEnrollment, id)
-	var i DeleteTripEnrollmentRow
-	err := row.Scan(&i.TripID, &i.UserID)
-	return i, err
+func (q *Queries) DeleteTripEnrollment(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteTripEnrollment, id)
+	return err
 }
 
 const deleteTripEnrollmentsForTrip = `-- name: DeleteTripEnrollmentsForTrip :exec

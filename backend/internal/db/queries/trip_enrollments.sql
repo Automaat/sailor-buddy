@@ -29,11 +29,8 @@ UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
 WHERE id = $2 AND trip_id = $3
 RETURNING *;
 
--- name: DeleteTripEnrollment :one
--- Deletes one trip enrollment and returns whose sign-up for which trip it
--- was. No row when it does not exist.
-DELETE FROM trip_enrollments WHERE id = $1
-RETURNING trip_id, user_id;
+-- name: DeleteTripEnrollment :exec
+DELETE FROM trip_enrollments WHERE id = $1;
 
 -- name: CountTripEnrollments :one
 SELECT

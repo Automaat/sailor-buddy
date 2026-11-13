@@ -468,6 +468,11 @@ holds no other accepted sign-up for the leg. Crew the admin added by hand
 stays. A refused accept (`409`) changes nothing. Pending and waitlisted
 sign-ups add no crew.
 
+Every status change, leg move and delete of a sign-up locks the legs it
+touches before the enrollment row, so concurrent changes for one leg apply
+one at a time. A cruise enrollment change that finds the enrollment moved
+or re-statused since it was read returns `409`; retry it.
+
 ### Voyages
 
 | Method | Path | Auth | Description | Success |

@@ -577,14 +577,24 @@ func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnroll
 		return nil, err
 	}
 	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		gone, err := q.DeleteTripEnrollment(ctx, in.ID)
+		trip, err := q.LockTripForSignUp(ctx, in.TripID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		if err != nil {
+			return &QueryError{Op: "LockTripForSignUp", Err: err}
+		}
+		e, err := q.LockTripEnrollmentOfTrip(ctx, sqlcdb.LockTripEnrollmentOfTripParams{ID: in.ID, TripID: trip.ID})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return &QueryError{Op: "LockTripEnrollmentOfTrip", Err: err}
+		}
+		if err := q.DeleteTripEnrollment(ctx, e.ID); err != nil {
 			return &QueryError{Op: "DeleteTripEnrollment", Err: err}
 		}
-		return removeAcceptedCrew(ctx, q, gone.TripID, gone.UserID)
+		return removeAcceptedCrew(ctx, q, trip.ID, e.UserID)
 	})
 	if txErr != nil {
 		slog.Error("delete trip enrollment", "enrollment_id", in.ID, "err", txErr)
