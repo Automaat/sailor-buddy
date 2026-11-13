@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { freePlacesLabel, numberLegs, paymentCounts } from './enrollment';
+import { freePlacesLabel, numberLegs, paymentCounts, signUpClosedByDeadline, signUpDeadlineLabel } from './enrollment';
 
 describe('numberLegs', () => {
 	it('orders by embark date, undated trips last, ties by id', () => {
@@ -38,6 +38,29 @@ describe('freePlacesLabel', () => {
 		[undefined, 2, null]
 	] as const)('max %s with %s accepted is %s', (max, accepted, want) => {
 		expect(freePlacesLabel(max, accepted)).toBe(want);
+	});
+});
+
+describe('signUpClosedByDeadline', () => {
+	it.each([
+		['2027-05-10', '2027-05-09', false],
+		['2027-05-10', '2027-05-10', false],
+		['2027-05-10', '2027-05-11', true],
+		[undefined, '2099-01-01', false],
+		[null, '2099-01-01', false]
+	] as const)('deadline %s on %s is closed: %s', (deadline, today, want) => {
+		expect(signUpClosedByDeadline(deadline, today)).toBe(want);
+	});
+});
+
+describe('signUpDeadlineLabel', () => {
+	it('formats the date the Polish way', () => {
+		expect(signUpDeadlineLabel('2027-05-10')).toBe('Zapisy do 10.05.2027');
+	});
+
+	it('is null without a deadline', () => {
+		expect(signUpDeadlineLabel(undefined)).toBeNull();
+		expect(signUpDeadlineLabel('')).toBeNull();
 	});
 });
 

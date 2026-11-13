@@ -33,6 +33,7 @@ type Trip struct {
 	ImageRouteUrl          *string   `json:"image_route_url,omitempty"`
 	Description            *string   `json:"description,omitempty"`
 	EnrollToken            *string   `json:"enroll_token,omitempty"`
+	SignUpDeadline         *string   `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none"`
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
 }
@@ -59,6 +60,7 @@ type TripBody struct {
 	ImagePhotoUrl          *string  `json:"image_photo_url,omitempty"`
 	ImageRouteUrl          *string  `json:"image_route_url,omitempty"`
 	Description            *string  `json:"description,omitempty"`
+	SignUpDeadline         *string  `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline"`
 	CruiseID               int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this trip is a leg of"`
 }
 
@@ -104,6 +106,7 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 		ImageRouteUrl:          strPtr(t.ImageRouteUrl),
 		Description:            strPtr(t.Description),
 		EnrollToken:            strPtr(t.EnrollToken),
+		SignUpDeadline:         strPtr(t.SignUpDeadline),
 		CreatedAt:              timeVal(t.CreatedAt),
 		UpdatedAt:              timeVal(t.UpdatedAt),
 	}

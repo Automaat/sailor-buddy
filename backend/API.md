@@ -249,9 +249,15 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
   "image_photo_url": null,
   "image_route_url": null,
   "description": null,
+  "sign_up_deadline": "2026-05-15",
   "cruise_id": null
 }
 ```
+
+`sign_up_deadline` is the last day (`YYYY-MM-DD`, Europe/Warsaw, inclusive)
+the leg takes sign-ups; omit it for no deadline. A deadline after
+`embark_date` returns `422`, as does a value that is not a date. `PUT`
+replaces the whole trip, so omitting it clears the deadline.
 
 `complete` body (all optional; `year` falls back to the embark date):
 
@@ -328,6 +334,11 @@ with a cruise token returns `422` and writes nothing; legs are picked through
 `POST /api/enroll/{token}/legs`. Existing `cruise_enrollments` rows stay and
 are still managed through the cruise enrollment routes.
 
+Both token previews carry each trip's `sign_up_deadline`. After it, both
+token sign-ups return `422` and write nothing: `POST /api/enroll/{token}`
+for that trip, and `POST /api/enroll/{token}/legs` when any picked leg is
+past its deadline.
+
 Payment status: every trip enrollment carries `payment_status`, set by hand
 by an admin after checking transfers: `unpaid` (default for a new sign-up),
 `deposit` (first payment received) or `paid` (paid in full). No amounts are
@@ -353,8 +364,9 @@ without a valid token get `401` from the auth middleware.
 | GET | `/api/cruises/{cruiseID}/trip-enrollments` | **admin** | Every leg sign-up of the cruise with the user, by leg then sign-up time | 200 |
 
 `LegSignUp` is `{trip_id, open, accepted_count, enrollment?}`: `open` is
-true while the leg is `planned` and its sign-ups are switched on (the trip
-has an enroll token, set with `POST /api/trips/{tripID}/enroll-token`);
+true while the leg is `planned`, its sign-ups are switched on (the trip
+has an enroll token, set with `POST /api/trips/{tripID}/enroll-token`) and
+its `sign_up_deadline`, if any, is today or later in Europe/Warsaw;
 `accepted_count` counts the same way as `trip_accepted` above; `enrollment`
 is the caller's own sign-up and is omitted when there is none.
 

@@ -85,6 +85,7 @@ type EnrollTrip struct {
 	CostPerPersonNonMember *float64 `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
 	YachtFund              *float64 `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person"`
 	Deposit                *float64 `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
+	SignUpDeadline         *string  `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none"`
 }
 
 // EnrollLeg is the public summary of one cruise trip (leg) on the enroll
@@ -276,6 +277,7 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 		CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
 		YachtFund:              floatPtr(t.YachtFund),
 		Deposit:                floatPtr(t.Deposit),
+		SignUpDeadline:         strPtr(t.SignUpDeadline),
 	}
 }
 
@@ -332,6 +334,7 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 			CostPerPersonNonMember: floatPtr(t.CostPerPersonNonMember),
 			YachtFund:              floatPtr(t.YachtFund),
 			Deposit:                floatPtr(t.Deposit),
+			SignUpDeadline:         strPtr(t.SignUpDeadline),
 		}
 	}
 	return out
@@ -342,7 +345,7 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 // own sign-up, if any.
 type LegSignUp struct {
 	TripID        int64       `json:"trip_id"`
-	Open          bool        `json:"open" doc:"Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"`
+	Open          bool        `json:"open" doc:"Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token) and its sign-up deadline not passed"`
 	AcceptedCount int64       `json:"accepted_count" doc:"Accepted crew: direct leg sign-ups plus cruise enrollments assigned to the leg"`
 	Enrollment    *Enrollment `json:"enrollment,omitempty" doc:"The caller's sign-up for this leg; omitted when not signed up"`
 }

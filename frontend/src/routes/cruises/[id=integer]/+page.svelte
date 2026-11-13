@@ -32,7 +32,7 @@
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { isHttpUrl } from '#lib/cruise.js';
-	import { freePlacesLabel, numberLegs, statusLabels } from '#lib/enrollment.js';
+	import { freePlacesLabel, numberLegs, signUpDeadlineLabel, statusLabels } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -362,6 +362,9 @@
 									{/if}
 									{#if price !== null}<span>{formatPrice(price, trip.currency)}</span>{/if}
 									{#if places && trip.status !== 'cancelled'}<span data-testid="free-places">{places}</span>{/if}
+									{#if trip.sign_up_deadline && trip.status !== 'cancelled'}
+										<span data-testid="sign-up-deadline">{signUpDeadlineLabel(trip.sign_up_deadline)}</span>
+									{/if}
 								</div>
 							</div>
 							{#if signUp}

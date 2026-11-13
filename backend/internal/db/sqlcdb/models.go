@@ -182,6 +182,7 @@ type Trip struct {
 	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
 	YachtFund              types.NullFloat64 `json:"yacht_fund"`
 	Deposit                types.NullFloat64 `json:"deposit"`
+	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 }
 
 type TripEnrollment struct {

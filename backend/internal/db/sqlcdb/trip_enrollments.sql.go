@@ -466,21 +466,22 @@ func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUse
 }
 
 const lockCruiseTripStatuses = `-- name: LockCruiseTripStatuses :many
-SELECT id, status FROM trips
+SELECT id, status, sign_up_deadline FROM trips
 WHERE cruise_id = $1
 ORDER BY id
 FOR SHARE
 `
 
 type LockCruiseTripStatusesRow struct {
-	ID     int64      `json:"id"`
-	Status TripStatus `json:"status"`
+	ID             int64            `json:"id"`
+	Status         TripStatus       `json:"status"`
+	SignUpDeadline types.NullString `json:"sign_up_deadline"`
 }
 
 // Share-locks a cruise's trips for the rest of the transaction, in id order,
 // so a leg cannot be cancelled or removed between validation and insert.
 //
-//	SELECT id, status FROM trips
+//	SELECT id, status, sign_up_deadline FROM trips
 //	WHERE cruise_id = $1
 //	ORDER BY id
 //	FOR SHARE
@@ -493,7 +494,7 @@ func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([
 	var items []LockCruiseTripStatusesRow
 	for rows.Next() {
 		var i LockCruiseTripStatusesRow
-		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+		if err := rows.Scan(&i.ID, &i.Status, &i.SignUpDeadline); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -508,31 +509,38 @@ func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([
 }
 
 const lockTripForSignUp = `-- name: LockTripForSignUp :one
-SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, sign_up_deadline
 FROM trips
 WHERE id = $1
 FOR SHARE
 `
 
 type LockTripForSignUpRow struct {
-	ID     int64      `json:"id"`
-	Status TripStatus `json:"status"`
-	Open   bool       `json:"open"`
+	ID             int64            `json:"id"`
+	Status         TripStatus       `json:"status"`
+	Open           bool             `json:"open"`
+	SignUpDeadline types.NullString `json:"sign_up_deadline"`
 }
 
 // Share-locks one trip for the rest of a sign-up transaction, so the leg
 // cannot be cancelled, closed, completed or deleted between the open check
 // and the insert. open is true while the leg's sign-ups are switched on
-// (it has an enroll token). No row when the trip does not exist.
+// (it has an enroll token); sign_up_deadline is the last day it takes them.
+// No row when the trip does not exist.
 //
-//	SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open
+//	SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, sign_up_deadline
 //	FROM trips
 //	WHERE id = $1
 //	FOR SHARE
 func (q *Queries) LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error) {
 	row := q.db.QueryRowContext(ctx, lockTripForSignUp, id)
 	var i LockTripForSignUpRow
-	err := row.Scan(&i.ID, &i.Status, &i.Open)
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.Open,
+		&i.SignUpDeadline,
+	)
 	return i, err
 }
 

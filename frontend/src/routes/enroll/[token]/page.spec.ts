@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 
 const h = vi.hoisted(() => ({
@@ -404,5 +404,76 @@ describe('enroll page — cruise logistics', () => {
 
 		await screen.findByText('Etap 1: Bodø – Tromsø');
 		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
+	});
+});
+
+describe('enroll page — sign-up deadline', () => {
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date('2026-05-10T21:30:00Z'));
+	});
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	function deadlineTrip(deadline: string | undefined) {
+		return {
+			kind: 'trip',
+			trip: { id: 5, name: 'Adriatyk', embark_date: '2026-06-01', sign_up_deadline: deadline },
+			enrolled: false,
+			accepted_count: 0,
+			total_count: 0
+		};
+	}
+
+	it('shows the deadline and keeps the form open on the deadline day in Warsaw', async () => {
+		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
+		render(EnrollPage);
+		expect(await screen.findByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 10.05.2026');
+		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
+	});
+
+	it('shows Zapisy zamknięte instead of the form after the deadline', async () => {
+		vi.setSystemTime(new Date('2026-05-10T22:30:00Z'));
+		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
+		render(EnrollPage);
+		expect(await screen.findByTestId('sign-up-closed')).toHaveTextContent('Zapisy zamknięte');
+		expect(screen.queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
+		expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+	});
+
+	it('shows Zapisy zamknięte to a signed-out visitor after the deadline instead of the login link', async () => {
+		vi.setSystemTime(new Date('2026-05-11T08:00:00Z'));
+		h.authenticated = false;
+		h.membership = undefined;
+		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
+		render(EnrollPage);
+		expect(await screen.findByTestId('sign-up-closed')).toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: 'Zapisz się' })).not.toBeInTheDocument();
+	});
+
+	it('shows no deadline for a trip without one', async () => {
+		resolveMock.mockResolvedValue(deadlineTrip(undefined));
+		render(EnrollPage);
+		await screen.findByText('Adriatyk');
+		expect(screen.queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
+	});
+
+	it('shows each leg deadline and stops offering a leg past it', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				trips: [
+					{ ...trip(11, 'Bodø – Tromsø', '2026-07-01'), sign_up_deadline: '2026-05-09' },
+					{ ...trip(12, 'Tromsø – Longyearbyen', '2026-07-10'), sign_up_deadline: '2026-05-10' }
+				]
+			})
+		);
+		render(EnrollPage);
+		expect(await screen.findByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })).toBeInTheDocument();
+		expect(screen.queryByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })).not.toBeInTheDocument();
+		expect(screen.getByText('Zapisy zamknięte')).toBeInTheDocument();
+		const deadlines = screen.getAllByTestId('sign-up-deadline').map((e) => e.textContent?.trim());
+		expect(deadlines).toEqual(['Zapisy do 09.05.2026', 'Zapisy do 10.05.2026']);
 	});
 });

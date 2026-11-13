@@ -31,6 +31,7 @@
 		name: '',
 		embark_date: '',
 		disembark_date: '',
+		sign_up_deadline: '',
 		countries: '',
 		start_port: '',
 		end_port: '',
@@ -96,6 +97,7 @@
 			const payload = {
 				...form,
 				...priceBody(price),
+				sign_up_deadline: form.sign_up_deadline || undefined,
 				captain_user_id: form.captain_user_id || undefined
 			};
 			const trip = await createTrip(payload);
@@ -136,6 +138,17 @@
 			<div>
 				<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
 				<input id="disembark" type="date" bind:value={form.disembark_date} class="w-full rounded-lg border px-3 py-2" />
+			</div>
+			<div class="col-span-2">
+				<label for="sign_up_deadline" class="mb-1 block text-sm font-medium">Zapisy do (włącznie)</label>
+				<input
+					id="sign_up_deadline"
+					type="date"
+					bind:value={form.sign_up_deadline}
+					max={form.embark_date || undefined}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
+				<p class="mt-1 text-xs text-[var(--text-muted)]">Puste — zapisy otwarte, dopóki ich nie wyłączysz.</p>
 			</div>
 			<div>
 				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
