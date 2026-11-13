@@ -69,6 +69,7 @@
 	function statusBadge(status: RejsEntry['status']) {
 		if (status === 'completed') return 'bg-[var(--navy)]/10 text-[var(--navy)]';
 		if (status === 'cancelled') return 'bg-gray-100 text-gray-500';
+		if (status === 'overdue') return 'bg-[var(--navy)] text-white';
 		return 'bg-[var(--ocean-tint)] text-[var(--ocean)]';
 	}
 

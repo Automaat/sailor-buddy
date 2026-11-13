@@ -22,6 +22,7 @@
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { isHttpUrl } from '#lib/cruise.js';
 	import { statusLabels } from '#lib/enrollment.js';
+	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -333,6 +334,7 @@
 			{:else}
 				<div class="space-y-2">
 					{#each trips as trip}
+						{@const status = legStatus(trip, cruise)}
 						<a href="/trips/{trip.id}" class="block rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100">
 							<div class="flex items-center justify-between">
 								<div>
@@ -341,9 +343,14 @@
 										<span class="ml-2 text-sm text-[var(--text-muted)]">kpt. {trip.captain_name}</span>
 									{/if}
 								</div>
-								<span class="rounded-full px-2 py-0.5 text-xs {trip.status === 'cancelled' ? 'bg-gray-200 text-gray-600' : 'bg-[var(--ocean-tint)] text-[var(--ocean)]'}">
-									{trip.status === 'cancelled' ? 'Anulowany' : 'Planowany'}
-								</span>
+								<div class="flex items-center gap-2">
+									{#if isAdmin && status === 'overdue'}
+										<span class="text-xs font-medium text-[var(--ocean)]">Zrealizuj →</span>
+									{/if}
+									<span class="rounded-full px-2 py-0.5 text-xs {legStatusBadges[status]}">
+										{legStatusLabels[status]}
+									</span>
+								</div>
 							</div>
 						</a>
 					{/each}
