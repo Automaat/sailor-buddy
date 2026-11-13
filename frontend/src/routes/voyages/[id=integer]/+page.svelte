@@ -427,9 +427,9 @@
 
 				{#if crew.length > 0}
 					<div class="mb-4 flex flex-wrap items-end gap-2">
-						<div>
+						<div class="min-w-0 max-w-full">
 							<label for="gen-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-							<select id="gen-crew" bind:value={genCrewId} class="rounded-lg border px-3 py-1.5 text-sm">
+							<select id="gen-crew" bind:value={genCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
 								<option value="">Wybierz...</option>
 								{#each crew as member}
 									<option value={member.crew_member_id}>{member.full_name}</option>

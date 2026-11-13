@@ -237,7 +237,7 @@
 					const v = (e.currentTarget as HTMLSelectElement).value;
 					assignEnrollmentToTrip(enrollment.id, v ? Number(v) : null);
 				}}
-				class="rounded border px-2 py-1 text-sm"
+				class="min-w-0 max-w-full rounded border px-2 py-1 text-sm"
 			>
 				<option value="">— bez etapu —</option>
 				{#each trips as t (t.id)}

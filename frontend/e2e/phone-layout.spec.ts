@@ -105,6 +105,13 @@ test.describe.serial('Phone layout', () => {
 			start_port: 'Bornholm',
 			end_port: 'Visby'
 		});
+		const longCrew = await post<{ id: number }>(token, '/crew', {
+			full_name: 'Aleksandra Konstancja Brzęczyszczykiewicz-Wolańczyk',
+			email: 'konstanty.brzeczyszczykiewicz@student.agh.edu.pl'
+		});
+		// The long name widens the crew selects on trip and voyage pages; the
+		// unbreakable email widens the /crew card.
+		await post(token, `/trips/${leg.id}/crew`, { crew_member_id: longCrew.id, role: 'Załoga' });
 		const voyage = await post<{ id: number }>(token, `/trips/${leg.id}/complete`, {
 			hours_sail: 30,
 			hours_engine: 18,
@@ -115,12 +122,6 @@ test.describe.serial('Phone layout', () => {
 			email: 'zalogant-z-dlugim-adresem@test.local'
 		});
 		await post(token, `/trips/${trip.id}/crew`, { crew_member_id: crew.id, role: 'Sternik' });
-		// Long unassigned crew names widen the assign-crew select on trip and
-		// voyage pages; a long unbreakable email widens the /crew card.
-		await post(token, '/crew', {
-			full_name: 'Aleksandra Konstancja Brzęczyszczykiewicz-Wolańczyk',
-			email: 'konstanty.brzeczyszczykiewicz@student.agh.edu.pl'
-		});
 		await post(token, '/yachts', { name: 'Jacht', yacht_type: 'Slup', length_m: 12 });
 		await post(token, '/trainings', { name: 'Szkolenie', date: '2027-03-01' });
 		const { token: enrollToken } = await post<{ token: string }>(
