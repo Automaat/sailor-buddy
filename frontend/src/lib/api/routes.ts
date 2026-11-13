@@ -367,14 +367,6 @@ export function enrollLegs(token: string, tripIDs: number[], note: string | unde
 	return api.post('/enroll/{token}/legs', { path: { token }, body: { trip_ids: tripIDs, note } });
 }
 
-export function importXlsx(formData: FormData) {
-	return api.upload('/import/xlsx', formData);
-}
-
-export function importConfirm(body: Schemas['ImportData']) {
-	return api.post('/import/confirm', { body });
-}
-
 export function uploadImage(formData: FormData) {
 	return api.upload('/upload/image', formData);
 }

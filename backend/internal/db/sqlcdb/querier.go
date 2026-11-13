@@ -265,10 +265,6 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE id = $1
 	GetCrewMember(ctx context.Context, id int64) (CrewMember, error)
-	//GetCrewMemberByName
-	//
-	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE full_name = $1
-	GetCrewMemberByName(ctx context.Context, fullName string) (CrewMember, error)
 	//GetCrewMemberStats
 	//
 	//  SELECT
@@ -399,10 +395,6 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE id = $1
 	GetYacht(ctx context.Context, id int64) (Yacht, error)
-	//GetYachtByName
-	//
-	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts WHERE name = $1
-	GetYachtByName(ctx context.Context, name string) (Yacht, error)
 	//LinkFirebaseUIDByEmail
 	//
 	//  UPDATE users SET

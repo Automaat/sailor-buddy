@@ -288,40 +288,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/import/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Persist the reviewed import preview */
-        post: operations["import-confirm"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/import/xlsx": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Upload an XLSX file and preview the parsed records */
-        post: operations["import-xlsx"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/members": {
         parameters: {
             query?: never;
@@ -1565,72 +1531,6 @@ export interface components {
             /** Format: double */
             longitude: number;
             name: string;
-        };
-        ImportData: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/ImportData.json
-             */
-            readonly $schema?: string;
-            trainings: components["schemas"]["ImportTrainingRow"][] | null;
-            voyages: components["schemas"]["ImportVoyageRow"][] | null;
-        };
-        ImportResult: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/ImportResult.json
-             */
-            readonly $schema?: string;
-            /** Format: int64 */
-            crew_created: number;
-            /** Format: int64 */
-            trainings_created: number;
-            /** Format: int64 */
-            voyages_created: number;
-            /** Format: int64 */
-            yachts_created: number;
-        };
-        ImportTrainingRow: {
-            /** Format: double */
-            cost?: number;
-            date?: string;
-            name: string;
-            organizer?: string;
-            url?: string;
-        };
-        ImportVoyageRow: {
-            captain_name?: string;
-            /** Format: double */
-            cost_per_person?: number;
-            /** Format: double */
-            cost_total?: number;
-            countries?: string;
-            /** Format: int64 */
-            days?: number;
-            description?: string;
-            disembark_date?: string;
-            embark_date?: string;
-            end_port?: string;
-            /** Format: double */
-            hours_engine?: number;
-            /** Format: double */
-            hours_over_6bf?: number;
-            /** Format: double */
-            hours_sail?: number;
-            /** Format: double */
-            hours_total?: number;
-            /** Format: double */
-            miles?: number;
-            name: string;
-            start_port?: string;
-            /** Format: int64 */
-            tidal_waters?: number;
-            yacht_name?: string;
-            yacht_type?: string;
-            /** Format: int64 */
-            year?: number;
         };
         Me: {
             /**
@@ -3175,78 +3075,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeocodeResult"][] | null;
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "import-confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ImportData"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportResult"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "import-xlsx": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /**
-                     * Format: binary
-                     * @description XLSX spreadsheet to import
-                     */
-                    file: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportData"];
                 };
             };
             /** @description Error */
