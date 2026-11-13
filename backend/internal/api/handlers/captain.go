@@ -12,6 +12,12 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// captainPersonNotFound answers a captain person that is unknown, or was
+// deleted between the lookup and the write.
+func captainPersonNotFound() error {
+	return huma.Error422UnprocessableEntity("captain person not found")
+}
+
 // captainAssignment resolves a trip/voyage captain. With a person ID it
 // snapshots the person's name into captain_name; without one the free-text
 // name is kept (imported history). Any person may captain: the captain group
@@ -23,7 +29,7 @@ func captainAssignment(ctx context.Context, q sqlcdb.Querier, personID *int64, n
 	p, err := q.GetCrewMember(ctx, *personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.NullInt64{}, types.NullString{}, huma.Error422UnprocessableEntity("captain person not found")
+			return types.NullInt64{}, types.NullString{}, captainPersonNotFound()
 		}
 		slog.Error("get captain person", "person_id", *personID, "err", err)
 		return types.NullInt64{}, types.NullString{}, huma.Error500InternalServerError("failed to verify captain")

@@ -172,6 +172,9 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		SignUpDeadline:         nullString(in.Body.SignUpDeadline),
 	})
 	if err != nil {
+		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
+			return nil, captainPersonNotFound()
+		}
 		slog.Error("create trip", "name", in.Body.Name, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
@@ -272,6 +275,9 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 		CruiseID:               in.Body.CruiseID,
 		ID:                     in.ID,
 	}); err != nil {
+		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
+			return nil, captainPersonNotFound()
+		}
 		slog.Error("update trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update trip")
 	}

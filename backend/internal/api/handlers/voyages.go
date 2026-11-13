@@ -200,7 +200,11 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			if err != nil {
 				return sqlcdb.Voyage{}, err
 			}
-			return q.CreateVoyage(ctx, params)
+			voyage, err := q.CreateVoyage(ctx, params)
+			if isForeignKeyViolation(err, "voyages_captain_person_id_fkey") {
+				return sqlcdb.Voyage{}, captainPersonNotFound()
+			}
+			return voyage, err
 		},
 		update: func(ctx context.Context, _ crudScope, in *updateVoyageInput) error {
 			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
@@ -219,7 +223,11 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			if err != nil {
 				return err
 			}
-			return q.UpdateVoyage(ctx, params)
+			err = q.UpdateVoyage(ctx, params)
+			if isForeignKeyViolation(err, "voyages_captain_person_id_fkey") {
+				return captainPersonNotFound()
+			}
+			return err
 		},
 		delete: func(ctx context.Context, _ crudScope, in *voyageIDParam) error {
 			return q.DeleteVoyage(ctx, in.ID)
