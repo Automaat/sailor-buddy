@@ -61,3 +61,32 @@ WHERE ca.crew_member_id = $1;
 -- name: RepointCrewAssignmentsToVoyage :exec
 UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
 WHERE trip_id = $2;
+
+-- name: AddAcceptedTripCrewAssignment :exec
+-- Puts a user's person on a trip's crew as a załogant after their sign-up
+-- for it was accepted. An existing crew entry for that person is kept as is,
+-- so a hand-added entry stays hand-added.
+INSERT INTO crew_assignments (trip_id, crew_member_id, added_by_acceptance)
+SELECT sqlc.arg(trip_id)::BIGINT, cm.id, TRUE
+FROM crew_members cm
+WHERE cm.user_id = sqlc.arg(user_id)::BIGINT
+ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING;
+
+-- name: RemoveAcceptedTripCrewAssignment :exec
+-- Takes a user's person off a trip's crew when the entry came from an
+-- accepted sign-up and the user no longer has any accepted sign-up for the
+-- trip, direct or through a cruise enrollment assigned to it.
+DELETE FROM crew_assignments ca
+USING crew_members cm
+WHERE ca.trip_id = sqlc.arg(trip_id)::BIGINT
+  AND ca.added_by_acceptance
+  AND cm.id = ca.crew_member_id
+  AND cm.user_id = sqlc.arg(user_id)::BIGINT
+  AND NOT EXISTS (
+      SELECT 1 FROM trip_enrollments te
+      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM cruise_enrollments ce
+      WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
+  );

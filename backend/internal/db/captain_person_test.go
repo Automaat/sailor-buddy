@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const captainPersonMigration = "026_captain_person.sql"
+const captainPersonMigration = "027_captain_person.sql"
 
 func TestMigrate_CaptainBecomesPerson(t *testing.T) {
 	conn := testDB(t)

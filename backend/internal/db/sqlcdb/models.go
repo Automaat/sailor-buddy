@@ -56,13 +56,14 @@ func (ns NullTripStatus) Value() (driver.Value, error) {
 }
 
 type CrewAssignment struct {
-	ID           int64            `json:"id"`
-	TripID       types.NullInt64  `json:"trip_id"`
-	VoyageID     types.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64            `json:"crew_member_id"`
-	Role         string           `json:"role"`
-	PatentNumber types.NullString `json:"patent_number"`
-	CreatedAt    types.NullTime   `json:"created_at"`
+	ID                int64            `json:"id"`
+	TripID            types.NullInt64  `json:"trip_id"`
+	VoyageID          types.NullInt64  `json:"voyage_id"`
+	CrewMemberID      int64            `json:"crew_member_id"`
+	Role              string           `json:"role"`
+	PatentNumber      types.NullString `json:"patent_number"`
+	CreatedAt         types.NullTime   `json:"created_at"`
+	AddedByAcceptance bool             `json:"added_by_acceptance"`
 }
 
 type CrewMember struct {

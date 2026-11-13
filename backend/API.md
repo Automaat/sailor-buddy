@@ -460,6 +460,25 @@ one assigned to a leg to `accepted` (`PUT /api/cruises/{id}/enrollments/
 Both lock the leg like the trip enrollment accept; `404` when the
 enrollment belongs to another cruise.
 
+### Crew from accepted sign-ups
+
+Accepting a sign-up for a leg, a trip enrollment or a cruise enrollment
+assigned to the leg, puts the user's person on the leg's crew list
+(`/api/trips/{tripID}/crew`) with role `zalogant`, in the same transaction
+as the status change. A person already on the list keeps their entry. The
+entry carries `crew_assignments.added_by_acceptance`, which is not exposed
+in the API. Setting the sign-up to any other status, deleting it, or moving
+an accepted cruise enrollment off the leg removes that entry once the user
+holds no other accepted sign-up for the leg. Crew the admin added by hand
+stays. A refused accept (`409`) changes nothing. Pending and waitlisted
+sign-ups add no crew.
+
+Every status change, leg move and delete of a sign-up locks the legs it
+touches before the enrollment row, so concurrent changes for one leg apply
+one at a time. A cruise enrollment change that finds the enrollment moved
+to another leg meanwhile rolls back and starts again; after three such
+moves it returns `409`.
+
 ### Voyages
 
 | Method | Path | Auth | Description | Success |

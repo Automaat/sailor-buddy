@@ -14,7 +14,7 @@ vi.mock('#lib/api/routes.js', () => ({
 	listMembers: vi.fn(), listCrew: vi.fn()
 }));
 
-import { getVoyage, updateVoyage, listYachts, listCruises, listMembers, listCrew } from '#lib/api/routes.js';
+import { getVoyage, updateVoyage, listYachts, createYacht, listCruises, listMembers, listCrew } from '#lib/api/routes.js';
 import EditVoyagePage from './+page.svelte';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
@@ -44,6 +44,23 @@ describe('voyage edit page', () => {
 			image_photo_url: '/uploads/photo.png',
 			image_route_url: '/uploads/route.png'
 		});
+	});
+
+	it('saves the voyage with the yacht still being added', async () => {
+		let resolveYacht!: (y: unknown) => void;
+		fn(createYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
+		render(EditVoyagePage);
+		expect(await screen.findByLabelText('Wydarzenie klubu *')).toHaveValue('13');
+
+		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
+		expect(updateVoyage).not.toHaveBeenCalled();
+
+		resolveYacht({ id: 21, name: 'Selma', created_at: '', updated_at: '' });
+		await waitFor(() => expect(updateVoyage).toHaveBeenCalledTimes(1));
+		expect(fn(updateVoyage).mock.calls[0][1]).toMatchObject({ yacht_id: 21 });
 	});
 
 	it('refuses to save without a cruise', async () => {
