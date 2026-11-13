@@ -557,11 +557,11 @@ func isACELabel(raw string) bool {
 }
 
 // validDecodedACE reports whether label, the decoded form of an xn--
-// label, is one UTS46 accepts: punycode that decoded (an undecodable label
-// stays "xn--..."), to non-ASCII text that UTS46 mapping leaves unchanged
-// (no uppercase Ż from "xn--gha").
+// label, is one UTS46 accepts: punycode that decoded (an undecodable label,
+// such as "xn--zz" or "xn--é", stays "xn--..."), to non-ASCII text that
+// UTS46 mapping leaves unchanged (no uppercase Ż from "xn--gha").
 func validDecodedACE(label string) bool {
-	if label == "" || isASCII(label) {
+	if label == "" || isASCII(label) || strings.HasPrefix(label, "xn--") {
 		return false
 	}
 	remapped, _ := whatwgIDNA.ToUnicode(label)

@@ -227,6 +227,8 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 		"https://\u017c.xn--gha.pl/g",
 		"https://\u017c.xn--agle-49a.pl/czat",
 		"https://xn--agle-49a.pl/czat",
+		"https://xn--\u00e9.example.com/g",
+		"https://\u017c.xn--\u00e9.example/g",
 		"https://\u0301abc.example.com/g",
 		"https://chat.\u0301abc/g",
 		"https://[fe80::1%25eth0]/g",
