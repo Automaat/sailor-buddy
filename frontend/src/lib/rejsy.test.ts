@@ -60,6 +60,20 @@ describe('isLegOverdue', () => {
 	});
 });
 
+describe('default today', () => {
+	it('flags a leg just after midnight in Warsaw while UTC is still on the previous day', () => {
+		// 00:30 on 10 Aug in Warsaw (CEST) is 22:30 on 9 Aug in UTC.
+		vi.setSystemTime(new Date('2026-08-09T22:30:00Z'));
+		try {
+			const leg = makeTrip({ cruise_id: 1, embark_date: '2026-08-01', disembark_date: '2026-08-09' });
+			expect(legStatus(leg, null)).toBe('overdue');
+			expect(buildRejsEntries([makeCruise({ id: 1 })], [leg], [])[0].status).toBe('overdue');
+		} finally {
+			vi.setSystemTime(new Date('2025-05-01T12:00:00Z'));
+		}
+	});
+});
+
 describe('legStatus', () => {
 	it.each([
 		[{ status: 'planned', disembark_date: '2026-08-09' }, 'overdue'],
@@ -220,6 +234,34 @@ describe('filterRejsEntries', () => {
 		expect(pick('upcoming')).toEqual(['Now']);
 		expect(pick('completed')).toEqual(['Bornholm 2026', 'Done']);
 		expect(pick('all')).toEqual(['Now', 'Bornholm 2026', 'Done']);
+	});
+
+	it.each([
+		{ name: 'with its own end date', cruise: { disembark_date: '2026-11-20' } },
+		{ name: 'without dates, by its latest leg', cruise: { disembark_date: undefined } }
+	])('keeps a cruise still at sea upcoming, $name, while flagging its past leg', ({ cruise }) => {
+		const listed = buildRejsEntries(
+			[makeCruise({ id: 1, name: 'Baltic', embark_date: '2026-11-01', ...cruise })],
+			[
+				makeTrip({ id: 10, cruise_id: 1, embark_date: '2026-11-01', disembark_date: '2026-11-07' }),
+				makeTrip({ id: 11, cruise_id: 1, embark_date: '2026-11-10', disembark_date: '2026-11-20' })
+			],
+			[],
+			'2026-11-13'
+		);
+		expect(listed[0]).toMatchObject({ status: 'overdue', ended: false });
+		expect(filterRejsEntries(listed, 'upcoming').map((e) => e.name)).toEqual(['Baltic']);
+		expect(filterRejsEntries(listed, 'completed')).toEqual([]);
+	});
+
+	it('moves a past leg\'s cruise to completed once its last leg ended', () => {
+		const listed = buildRejsEntries(
+			[makeCruise({ id: 1, name: 'Baltic', embark_date: '2026-11-01' })],
+			[makeTrip({ id: 10, cruise_id: 1, embark_date: '2026-11-01', disembark_date: '2026-11-07' })],
+			[makeVoyage({ id: 20, cruise_id: 1, disembark_date: '2026-11-12' })],
+			'2026-11-13'
+		);
+		expect(filterRejsEntries(listed, 'completed').map((e) => e.name)).toEqual(['Baltic']);
 	});
 });
 

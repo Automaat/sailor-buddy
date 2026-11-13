@@ -22,6 +22,8 @@ export type RejsEntry = {
 	href: string;
 	name: string;
 	status: RejsStatus;
+	/** True once the cruise's end (its own date, else its latest leg's) is before today. */
+	ended: boolean;
 	kind?: Cruise['kind'];
 	embarkDate?: string;
 	disembarkDate?: string;
@@ -137,12 +139,19 @@ export function buildRejsEntries(
 			.map((l) => l.embark_date)
 			.filter((d): d is string => !!d)
 			.sort();
+		const lastLegEnd = [...legs, ...sailed]
+			.map((l) => (l.disembark_date || '').slice(0, 10))
+			.filter((d) => d !== '')
+			.sort()
+			.at(-1);
+		const end = (c.disembark_date || '').slice(0, 10) || lastLegEnd;
 		return {
 			key: `cruise-${c.id}`,
 			cruiseId: c.id,
 			href: `/cruises/${c.id}`,
 			name: c.name,
 			status: cruiseStatus(planned, overdue, cancelled, sailed.length),
+			ended: !!end && end < today,
 			kind: c.kind,
 			embarkDate: c.embark_date || legDates[0],
 			disembarkDate: c.disembark_date || undefined,
@@ -159,15 +168,18 @@ export function buildRejsEntries(
 	});
 }
 
-const tabStatuses: Record<Exclude<RejsTab, 'all'>, readonly RejsStatus[]> = {
-	upcoming: ['upcoming'],
-	// A past cruise still awaiting completion counts as sailed, not upcoming.
-	completed: ['completed', 'overdue']
-};
+/**
+ * A cruise awaiting completion lists as sailed once it has ended; while it is
+ * still at sea (an earlier leg ended, a later one has not) it stays upcoming.
+ */
+function inTab(e: RejsEntry, tab: Exclude<RejsTab, 'all'>): boolean {
+	if (e.status === 'overdue') return tab === (e.ended ? 'completed' : 'upcoming');
+	return e.status === tab;
+}
 
 /** Upcoming sorts soonest first with undated last; completed and all sort newest first. */
 export function filterRejsEntries(entries: RejsEntry[], tab: RejsTab): RejsEntry[] {
-	const picked = tab === 'all' ? [...entries] : entries.filter((e) => tabStatuses[tab].includes(e.status));
+	const picked = tab === 'all' ? [...entries] : entries.filter((e) => inTab(e, tab));
 	const ascending = tab === 'upcoming';
 	return picked.sort((a, b) => {
 		if (!a.embarkDate && !b.embarkDate) return 0;
