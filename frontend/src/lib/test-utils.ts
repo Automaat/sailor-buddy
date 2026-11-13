@@ -9,6 +9,7 @@ export function makeMember(overrides: Partial<Member> = {}): Member {
 		role: 'admin',
 		is_captain: false,
 		membership: 'czlonek',
+		onboarded: true,
 		created_at: '2026-01-01T00:00:00Z',
 		...overrides
 	};

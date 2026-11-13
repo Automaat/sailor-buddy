@@ -1173,6 +1173,9 @@ components:
           type: string
         name:
           type: string
+        onboarded:
+          description: Whether the user completed the onboarding form
+          type: boolean
         patent_number:
           type: string
         patent_type:
@@ -1188,6 +1191,7 @@ components:
         - role
         - is_captain
         - membership
+        - onboarded
         - created_at
       type: object
     MembershipBody:
