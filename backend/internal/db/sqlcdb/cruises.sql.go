@@ -469,7 +469,7 @@ WITH me AS (
 my_crew AS (
     SELECT cm.id AS crew_id FROM crew_members cm, me
     WHERE cm.user_id = me.me_id
-       OR (cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+       OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
 )
 SELECT ce.cruise_id FROM cruise_enrollments ce, me
 WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
@@ -492,7 +492,9 @@ ORDER BY cruise_id
 `
 
 // Cruises the user took part in: an accepted cruise or trip enrollment, a
-// captained leg, or a crew-list entry linked to the account or its email.
+// captained leg, or a crew-list entry linked to the account, or one without an
+// account that carries its email. Another account's person never matches by
+// email: it keeps the email that account had when the person was created.
 //
 //	WITH me AS (
 //	    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
@@ -500,7 +502,7 @@ ORDER BY cruise_id
 //	my_crew AS (
 //	    SELECT cm.id AS crew_id FROM crew_members cm, me
 //	    WHERE cm.user_id = me.me_id
-//	       OR (cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+//	       OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
 //	)
 //	SELECT ce.cruise_id FROM cruise_enrollments ce, me
 //	WHERE ce.user_id = me.me_id AND ce.status = 'accepted'

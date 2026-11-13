@@ -62,7 +62,14 @@ type Querier interface {
 	//CountCrewMembers
 	//
 	//  SELECT COUNT(*)::BIGINT FROM crew_members
-	CountCrewMembers(ctx context.Context) (int64, error)
+	//  WHERE $1::TEXT IS NULL
+	//     OR strpos(lower(full_name), lower($1::TEXT)) > 0
+	//     OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
+	//     OR EXISTS (
+	//         SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
+	//         WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
+	//     )
+	CountCrewMembers(ctx context.Context, search types.NullString) (int64, error)
 	//CountCruiseEnrollments
 	//
 	//  SELECT
@@ -146,8 +153,8 @@ type Querier interface {
 	//  INSERT INTO crew_members (
 	//      created_by, user_id, full_name, email, patent_number,
 	//      phone, pzz_license_type, pzz_license_number,
-	//      emergency_contact_name, emergency_contact_phone
-	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at
+	//      emergency_contact_name, emergency_contact_phone, other_names
+	//  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::JSONB, '[]'::jsonb)) RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names
 	CreateCrewMember(ctx context.Context, arg CreateCrewMemberParams) (CrewMember, error)
 	//CreateCruise
 	//
@@ -236,10 +243,6 @@ type Querier interface {
 	//  INSERT INTO yachts (created_by, name, registration_no, yacht_type, berths, length_m, build_year, engine, owner_name)
 	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name
 	CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error)
-	//DeleteCrewMember
-	//
-	//  DELETE FROM crew_members WHERE id = $1
-	DeleteCrewMember(ctx context.Context, id int64) error
 	//DeleteCruise
 	//
 	//  DELETE FROM cruises WHERE id = $1
@@ -272,6 +275,11 @@ type Querier interface {
 	//
 	//  DELETE FROM trip_enrollments WHERE trip_id = $1
 	DeleteTripEnrollmentsForTrip(ctx context.Context, tripID int64) error
+	// Deletes a person without an account. A person linked to an account is
+	// kept, so every account keeps exactly one person.
+	//
+	//  DELETE FROM crew_members WHERE id = $1 AND user_id IS NULL
+	DeleteUnlinkedCrewMember(ctx context.Context, id int64) (int64, error)
 	//DeleteVoyage
 	//
 	//  DELETE FROM voyages WHERE id = $1
@@ -292,10 +300,24 @@ type Querier interface {
 	//
 	//  DELETE FROM yachts WHERE id = $1
 	DeleteYacht(ctx context.Context, id int64) error
+	// Gives an account its person on first sign-in. The NOT EXISTS guard keeps
+	// repeat sign-ins read-only; ON CONFLICT covers two concurrent first requests.
+	//
+	//  INSERT INTO crew_members (user_id, full_name, email, phone, patent_number)
+	//  SELECT u.id, COALESCE(NULLIF(btrim(u.name), ''), u.email), u.email, u.phone, u.patent_number
+	//  FROM users u
+	//  WHERE u.id = $1
+	//    AND NOT EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = u.id)
+	//  ON CONFLICT (user_id) DO NOTHING
+	EnsureUserPerson(ctx context.Context, id int64) error
 	//GetCrewMember
 	//
-	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members WHERE id = $1
+	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1
 	GetCrewMember(ctx context.Context, id int64) (CrewMember, error)
+	//GetCrewMemberByUserID
+	//
+	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE user_id = $1
+	GetCrewMemberByUserID(ctx context.Context, userID types.NullInt64) (CrewMember, error)
 	//GetCrewMemberStats
 	//
 	//  SELECT
@@ -459,9 +481,19 @@ type Querier interface {
 	//    AND (firebase_uid IS NULL OR firebase_uid = $1)
 	//  RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
-	//ListCrewMembers
+	// A NULL search lists everyone; otherwise it matches a case-insensitive
+	// substring of the name, any other name, or the e-mail.
 	//
-	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at FROM crew_members ORDER BY full_name, id LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
+	//  WHERE $1::TEXT IS NULL
+	//     OR strpos(lower(full_name), lower($1::TEXT)) > 0
+	//     OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
+	//     OR EXISTS (
+	//         SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
+	//         WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
+	//     )
+	//  ORDER BY full_name, id
+	//  LIMIT $3 OFFSET $2
 	ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error)
 	//ListCruiseEnrollments
 	//
@@ -553,7 +585,9 @@ type Querier interface {
 	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, captain_user_id, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
 	// Cruises the user took part in: an accepted cruise or trip enrollment, a
-	// captained leg, or a crew-list entry linked to the account or its email.
+	// captained leg, or a crew-list entry linked to the account, or one without an
+	// account that carries its email. Another account's person never matches by
+	// email: it keeps the email that account had when the person was created.
 	//
 	//  WITH me AS (
 	//      SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
@@ -561,7 +595,7 @@ type Querier interface {
 	//  my_crew AS (
 	//      SELECT cm.id AS crew_id FROM crew_members cm, me
 	//      WHERE cm.user_id = me.me_id
-	//         OR (cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+	//         OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
 	//  )
 	//  SELECT ce.cruise_id FROM cruise_enrollments ce, me
 	//  WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
@@ -723,8 +757,8 @@ type Querier interface {
 	//      full_name = $1, email = $2, patent_number = $3,
 	//      phone = $4, pzz_license_type = $5, pzz_license_number = $6,
 	//      emergency_contact_name = $7, emergency_contact_phone = $8,
-	//      updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $9
+	//      other_names = $9, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $10
 	UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberParams) error
 	//UpdateCruise
 	//
@@ -789,8 +823,16 @@ type Querier interface {
 	//
 	//  UPDATE users SET membership = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 	UpdateUserMembership(ctx context.Context, arg UpdateUserMembershipParams) error
-	//UpdateUserProfile
+	// The account's person mirrors its name, phone and patent number.
 	//
+	//  WITH person AS (
+	//    UPDATE crew_members SET
+	//      full_name = $1::TEXT || ' ' || $2::TEXT,
+	//      phone = $3,
+	//      patent_number = $5,
+	//      updated_at = CURRENT_TIMESTAMP
+	//    WHERE crew_members.user_id = $6
+	//  )
 	//  UPDATE users SET
 	//    first_name = $1,
 	//    last_name = $2,
@@ -800,7 +842,7 @@ type Querier interface {
 	//    patent_number = $5,
 	//    onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
 	//    updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $6
+	//  WHERE users.id = $6
 	//  RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	//UpdateUserRole

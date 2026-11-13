@@ -126,11 +126,13 @@ type mockQuerier struct {
 
 	// crew members
 	listCrewMembersFn  func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
-	countCrewMembersFn func(ctx context.Context) (int64, error)
+	countCrewMembersFn func(ctx context.Context, search types.NullString) (int64, error)
 	getCrewMemberFn    func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
 	createCrewMemberFn func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
 	updateCrewMemberFn func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
-	deleteCrewMemberFn func(ctx context.Context, id int64) error
+	deleteCrewMemberFn func(ctx context.Context, id int64) (int64, error)
+	ensureUserPersonFn func(ctx context.Context, userID int64) error
+	getUserPersonFn    func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
 
 	// cruises
 	listCruisesFn          func(ctx context.Context, arg sqlcdb.ListCruisesParams) ([]sqlcdb.Cruise, error)
@@ -674,11 +676,11 @@ func (m *mockQuerier) ListCrewMembers(ctx context.Context, arg sqlcdb.ListCrewMe
 	return m.listCrewMembersFn(ctx, arg)
 }
 
-func (m *mockQuerier) CountCrewMembers(ctx context.Context) (int64, error) {
+func (m *mockQuerier) CountCrewMembers(ctx context.Context, search types.NullString) (int64, error) {
 	if m.countCrewMembersFn == nil {
 		panic("unexpected call to CountCrewMembers")
 	}
-	return m.countCrewMembersFn(ctx)
+	return m.countCrewMembersFn(ctx, search)
 }
 
 func (m *mockQuerier) GetCrewMember(ctx context.Context, id int64) (sqlcdb.CrewMember, error) {
@@ -702,11 +704,25 @@ func (m *mockQuerier) UpdateCrewMember(ctx context.Context, arg sqlcdb.UpdateCre
 	return m.updateCrewMemberFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteCrewMember(ctx context.Context, id int64) error {
+func (m *mockQuerier) DeleteUnlinkedCrewMember(ctx context.Context, id int64) (int64, error) {
 	if m.deleteCrewMemberFn == nil {
-		panic("unexpected call to DeleteCrewMember")
+		panic("unexpected call to DeleteUnlinkedCrewMember")
 	}
 	return m.deleteCrewMemberFn(ctx, id)
+}
+
+func (m *mockQuerier) EnsureUserPerson(ctx context.Context, userID int64) error {
+	if m.ensureUserPersonFn == nil {
+		panic("unexpected call to EnsureUserPerson")
+	}
+	return m.ensureUserPersonFn(ctx, userID)
+}
+
+func (m *mockQuerier) GetCrewMemberByUserID(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error) {
+	if m.getUserPersonFn == nil {
+		panic("unexpected call to GetCrewMemberByUserID")
+	}
+	return m.getUserPersonFn(ctx, userID)
 }
 
 // --- cruises ---

@@ -244,6 +244,10 @@ export function createCrew(body: Schemas['CrewMemberBody']) {
 	return api.post('/crew', { body });
 }
 
+export function updateCrew(id: number, body: Schemas['CrewMemberBody']) {
+	return api.put('/crew/{crewID}', { path: { crewID: id }, body });
+}
+
 export function deleteCrew(id: number) {
 	return api.del('/crew/{crewID}', { path: { crewID: id } });
 }

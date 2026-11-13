@@ -23,9 +23,9 @@ func TestPriceList(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := priceList(tc.raw)
+			got := stringList(tc.raw)
 			if got == nil || !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("priceList(%s) = %#v, want %#v", tc.raw, got, tc.want)
+				t.Fatalf("stringList(%s) = %#v, want %#v", tc.raw, got, tc.want)
 			}
 		})
 	}

@@ -332,6 +332,14 @@ func (q *Queries) UpdateUserMembership(ctx context.Context, arg UpdateUserMember
 }
 
 const updateUserProfile = `-- name: UpdateUserProfile :one
+WITH person AS (
+  UPDATE crew_members SET
+    full_name = $1::TEXT || ' ' || $2::TEXT,
+    phone = $3,
+    patent_number = $5,
+    updated_at = CURRENT_TIMESTAMP
+  WHERE crew_members.user_id = $6
+)
 UPDATE users SET
   first_name = $1,
   last_name = $2,
@@ -341,7 +349,7 @@ UPDATE users SET
   patent_number = $5,
   onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
   updated_at = CURRENT_TIMESTAMP
-WHERE id = $6
+WHERE users.id = $6
 RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 `
 
@@ -354,8 +362,16 @@ type UpdateUserProfileParams struct {
 	ID           int64            `json:"id"`
 }
 
-// UpdateUserProfile
+// The account's person mirrors its name, phone and patent number.
 //
+//	WITH person AS (
+//	  UPDATE crew_members SET
+//	    full_name = $1::TEXT || ' ' || $2::TEXT,
+//	    phone = $3,
+//	    patent_number = $5,
+//	    updated_at = CURRENT_TIMESTAMP
+//	  WHERE crew_members.user_id = $6
+//	)
 //	UPDATE users SET
 //	  first_name = $1,
 //	  last_name = $2,
@@ -365,7 +381,7 @@ type UpdateUserProfileParams struct {
 //	  patent_number = $5,
 //	  onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
 //	  updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $6
+//	WHERE users.id = $6
 //	RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserProfile,
