@@ -163,6 +163,8 @@ Every trip and voyage is a leg of a club event: `cruise_id` is required on
 trip and voyage bodies (`422 cruise not found` for an unknown id). A cruise
 that still has trips or voyages cannot be deleted (`409`). A trip with cruise or
 leg enrollments cannot be moved to another cruise (`409`).
+Assigning crew or a cruise enrollment to a trip that was completed or
+deleted at the same moment returns `409`.
 
 Trip lifecycle: a `trip` is `planned`, then either `cancelled` or `completed`.
 Completing a trip atomically converts it into a `voyage` (a logged, finished

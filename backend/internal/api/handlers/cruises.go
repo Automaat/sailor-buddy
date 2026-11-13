@@ -382,6 +382,9 @@ func (h *CruiseHandler) assignEnrollmentToTrip(ctx context.Context, in *cruiseEn
 		TripID: nullInt64(in.Body.TripID),
 		ID:     in.EnrollmentID,
 	}); err != nil {
+		if isForeignKeyViolation(err, "cruise_enrollments_trip_id_fkey") {
+			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
+		}
 		slog.Error("assign cruise enrollment to trip", "enrollment_id", in.EnrollmentID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to assign enrollment")
 	}

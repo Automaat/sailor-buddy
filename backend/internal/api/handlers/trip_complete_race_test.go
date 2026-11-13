@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
@@ -94,28 +93,43 @@ func TestCompleteTrip_ConcurrentCruiseDelete(t *testing.T) {
 		leg := seedLeg(t, conn)
 		ctx := context.Background()
 
-		deleter, err := conn.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatalf("begin delete: %v", err)
+		// The delete's ON DELETE CASCADE into cruise_enrollments stalls on this
+		// row lock while the delete already holds the cruise row, so
+		// completion starts against a delete that is still in flight.
+		if _, err := conn.ExecContext(ctx,
+			"INSERT INTO cruise_enrollments (cruise_id, user_id) VALUES ($1, $2)", leg.cruiseID, leg.userID); err != nil {
+			t.Fatalf("seed cruise enrollment: %v", err)
 		}
-		defer func() { _ = deleter.Rollback() }()
-		assertDeleteRefused(t, sqlcdb.New(deleter).DeleteCruise(ctx, leg.cruiseID))
-		_ = deleter.Rollback()
+		holder, err := conn.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin holder: %v", err)
+		}
+		defer func() { _ = holder.Rollback() }()
+		if _, err := holder.ExecContext(ctx,
+			"SELECT id FROM cruise_enrollments WHERE cruise_id = $1 FOR UPDATE", leg.cruiseID); err != nil {
+			t.Fatalf("hold cruise enrollment: %v", err)
+		}
 
-		done := make(chan result[sqlcdb.Voyage], 1)
+		deleted := make(chan error, 1)
+		go func() { deleted <- sqlcdb.New(conn).DeleteCruise(ctx, leg.cruiseID) }()
+		waitForLockWaiters(t, conn, 1)
+
+		completed := make(chan result[sqlcdb.Voyage], 1)
 		go func() {
 			v, err := completeTripTx(ctx, conn, leg.tripID, dto.CompleteTripBody{})
-			done <- result[sqlcdb.Voyage]{v, err}
+			completed <- result[sqlcdb.Voyage]{v, err}
 		}()
-		select {
-		case got := <-done:
-			if got.err != nil {
-				t.Fatalf("complete trip: %v", got.err)
-			}
-			assertVoyageKeepsCruise(t, conn, leg, got.val)
-		case <-time.After(10 * time.Second):
-			t.Fatal("completion blocked after the refused delete")
+		waitForLockWaiters(t, conn, 2)
+		if err := holder.Commit(); err != nil {
+			t.Fatalf("release cruise enrollment: %v", err)
 		}
+
+		assertDeleteRefused(t, <-deleted)
+		done := <-completed
+		if done.err != nil {
+			t.Fatalf("complete trip: %v", done.err)
+		}
+		assertVoyageKeepsCruise(t, conn, leg, done.val)
 	})
 }
 
