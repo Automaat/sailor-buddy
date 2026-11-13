@@ -98,7 +98,7 @@
 				</div>
 			</form>
 		{:else}
-			<div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+			<div class="mb-6 flex items-start justify-between max-md:flex-wrap max-md:gap-3">
 				<div>
 					<h1 class="text-3xl font-bold text-[var(--navy)]">{series.name}</h1>
 					{#if series.description}

@@ -115,6 +115,12 @@ test.describe.serial('Phone layout', () => {
 			email: 'zalogant-z-dlugim-adresem@test.local'
 		});
 		await post(token, `/trips/${trip.id}/crew`, { crew_member_id: crew.id, role: 'Sternik' });
+		// Long unassigned crew names widen the assign-crew select on trip and
+		// voyage pages; a long unbreakable email widens the /crew card.
+		await post(token, '/crew', {
+			full_name: 'Aleksandra Konstancja Brzęczyszczykiewicz-Wolańczyk',
+			email: 'konstanty.brzeczyszczykiewicz@student.agh.edu.pl'
+		});
 		await post(token, '/yachts', { name: 'Jacht', yacht_type: 'Slup', length_m: 12 });
 		await post(token, '/trainings', { name: 'Szkolenie', date: '2027-03-01' });
 		const { token: enrollToken } = await post<{ token: string }>(
@@ -233,6 +239,16 @@ test.describe.serial('Phone layout', () => {
 			expect(value, `${path} ${term}`).not.toBeNull();
 			expect(value!.y, `${path} ${term}`).toBeGreaterThanOrEqual(label!.y + label!.height);
 		}
+	});
+
+	test('cruise enrollment links are tappable', async ({ page }) => {
+		await page.setViewportSize(PHONE);
+		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
+		await page.goto(`/cruises/${ids.cruise}`);
+		const link = page.getByRole('link', { name: 'Zarządzaj zapisami' }).first();
+		const box = await link.boundingBox();
+		expect(box).not.toBeNull();
+		expect(box!.height).toBeGreaterThanOrEqual(MIN_TAP);
 	});
 
 	test('desktop keeps the sidebar', async ({ page }) => {

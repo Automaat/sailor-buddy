@@ -39,7 +39,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if member}
 	<div class="mx-auto max-w-2xl">
-		<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">{member.full_name}</h1>
 			{#if auth.isAdmin}
 				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">

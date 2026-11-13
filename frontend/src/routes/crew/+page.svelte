@@ -42,7 +42,7 @@
 </script>
 
 <div>
-	<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Załoga</h1>
 		{#if auth.isAdmin}
 			<button
@@ -86,11 +86,11 @@
 	{:else}
 		<div class="grid gap-3">
 			{#each members as member}
-				<a href="/crew/{member.id}" class="flex items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-sm transition-shadow hover:shadow-md">
-					<div>
+				<a href="/crew/{member.id}" class="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-white px-6 py-4 shadow-sm transition-shadow hover:shadow-md">
+					<div class="min-w-0">
 						<span class="font-semibold text-[var(--navy)]">{member.full_name}</span>
 						{#if member.email}
-							<span class="ml-2 text-sm text-[var(--text-muted)]">{member.email}</span>
+							<span class="ml-2 text-sm break-all text-[var(--text-muted)]">{member.email}</span>
 						{/if}
 					</div>
 					{#if member.patent_number}

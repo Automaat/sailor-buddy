@@ -70,7 +70,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else}
 	<div class="mx-auto max-w-4xl">
-		<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
 				{#if trip}
@@ -95,7 +95,7 @@
 			<div class="space-y-3">
 				{#each enrollments as enrollment}
 					<div class="rounded-xl bg-white p-4 shadow-sm">
-						<div class="flex flex-wrap items-center justify-between gap-2">
+						<div class="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
 							<div class="min-w-0 break-words">
 								<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
 								<span class="ml-2 text-sm text-[var(--text-muted)]">{enrollment.user_email ?? ''}</span>
@@ -103,7 +103,7 @@
 									{statusLabels[enrollment.status] ?? enrollment.status}
 								</span>
 							</div>
-							<div class="flex flex-wrap gap-1">
+							<div class="flex gap-1 max-md:flex-wrap">
 								{#if enrollment.status !== 'accepted'}
 									<button onclick={() => updateStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]">
 										Akceptuj

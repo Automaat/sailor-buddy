@@ -123,7 +123,7 @@
 					<PriceInfo priced={data.trip} membership={auth.user?.membership} />
 				</div>
 
-				<div class="mb-6 flex flex-wrap gap-4 text-sm">
+				<div class="mb-6 flex gap-4 text-sm max-md:flex-wrap">
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zapisanych:</span>
 						<span class="font-semibold">{data.total_count}</span>
@@ -231,7 +231,7 @@
 					</fieldset>
 				{/if}
 
-				<div class="mb-6 flex flex-wrap gap-4 text-sm">
+				<div class="mb-6 flex gap-4 text-sm max-md:flex-wrap">
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zapisanych:</span>
 						<span class="font-semibold">{data.total_count}</span>

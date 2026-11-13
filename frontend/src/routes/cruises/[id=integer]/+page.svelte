@@ -255,7 +255,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if cruise}
 	<div class="mx-auto max-w-5xl">
-		<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
 				{#if series}
@@ -407,7 +407,7 @@
 						<section aria-label={`Zapisy: ${group.trip.name}`}>
 							<div class="mb-1 flex items-center justify-between">
 								<h3 class="text-sm font-medium">{group.trip.name}</h3>
-								<a href="/trips/{group.trip.id}/enrollments" class="text-xs text-[var(--ocean)] hover:underline">
+								<a href="/trips/{group.trip.id}/enrollments" class="tap-target text-xs text-[var(--ocean)] hover:underline">
 									Zarządzaj zapisami
 								</a>
 							</div>

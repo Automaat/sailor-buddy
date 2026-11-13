@@ -44,7 +44,7 @@
 </script>
 
 <div>
-	<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Serie rejsów</h1>
 		{#if auth.isAdmin}
 			<button onclick={() => (showForm = !showForm)} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]">
