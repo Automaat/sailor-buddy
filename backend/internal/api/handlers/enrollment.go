@@ -131,8 +131,10 @@ func registerEnrollmentRoutes(api huma.API, h *EnrollmentHandler) {
 		Summary: "Update a trip enrollment's status (admin)",
 		Description: "Accepting needs a free place: 409 when the leg's accepted crew already fills " +
 			"max_crew (no limit when max_crew is unset or 0). Other status changes always apply. " +
-			"Promotion from the waiting list is this manual accept. 404 when the enrollment does " +
-			"not exist or belongs to another trip.",
+			"Promotion from the waiting list is this manual accept. Accepting puts the user's person " +
+			"on the leg's crew list as zalogant; any other status removes the entry the acceptance " +
+			"added, while crew added by hand stays. 404 when the enrollment does not exist or " +
+			"belongs to another trip.",
 		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateStatus)
 	huma.Register(api, huma.Operation{
@@ -497,6 +499,8 @@ var errEnrollmentNotFound = errors.New("enrollment not found")
 // leg's max_crew places: the trip row is locked first, as in sign-up, so
 // concurrent accepts of the last place serialize and the second gets 409.
 // Every other status change, including from accepted, needs no free place.
+// Accepting puts the user's person on the leg's crew list; any other status
+// takes off the entry an acceptance added.
 func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollmentStatusInput) (*noContentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
@@ -527,7 +531,10 @@ func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollment
 		}); err != nil {
 			return &QueryError{Op: "UpdateTripEnrollmentStatus", Err: err}
 		}
-		return nil
+		if in.Body.Status == enrollmentAccepted {
+			return addAcceptedCrew(ctx, q, trip.ID, e.UserID)
+		}
+		return removeAcceptedCrew(ctx, q, trip.ID, e.UserID)
 	})
 	if txErr != nil {
 		if errors.Is(txErr, errEnrollmentNotFound) {
@@ -569,8 +576,18 @@ func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnroll
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.q.DeleteTripEnrollment(ctx, in.ID); err != nil {
-		slog.Error("delete trip enrollment", "enrollment_id", in.ID, "err", err)
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		gone, err := q.DeleteTripEnrollment(ctx, in.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return &QueryError{Op: "DeleteTripEnrollment", Err: err}
+		}
+		return removeAcceptedCrew(ctx, q, gone.TripID, gone.UserID)
+	})
+	if txErr != nil {
+		slog.Error("delete trip enrollment", "enrollment_id", in.ID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to delete enrollment")
 	}
 	return &noContentOutput{}, nil

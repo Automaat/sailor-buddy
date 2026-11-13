@@ -66,6 +66,9 @@ func TestUpdateTripEnrollmentStatus_Capacity(t *testing.T) {
 			if got := s.rows[c.target-1].Status; got != c.wantStatus {
 				t.Fatalf("status = %q, want %q", got, c.wantStatus)
 			}
+			if c.want == http.StatusConflict && len(s.crewCalls) != 0 {
+				t.Fatalf("refused accept changed crew: %v", s.crewCalls)
+			}
 		})
 	}
 

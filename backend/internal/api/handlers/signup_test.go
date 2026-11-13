@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -25,6 +26,9 @@ type signUpStore struct {
 	legacy  []sqlcdb.CruiseEnrollment
 	nextID  int64
 	inserts int
+	// crewCalls records crew list changes as "add trip/user" or
+	// "remove trip/user", in call order.
+	crewCalls []string
 }
 
 func (s *signUpStore) find(tripID, userID int64) (int, bool) {
@@ -46,6 +50,15 @@ func newSignUpStore(trips ...sqlcdb.Trip) *signUpStore {
 
 func (s *signUpStore) mock() *mockQuerier {
 	return &mockQuerier{
+		ensureUserPersonFn: func(context.Context, int64) error { return nil },
+		addAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error {
+			s.crewCalls = append(s.crewCalls, fmt.Sprintf("add %d/%d", arg.TripID, arg.UserID))
+			return nil
+		},
+		removeAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {
+			s.crewCalls = append(s.crewCalls, fmt.Sprintf("remove %d/%d", arg.TripID, arg.UserID))
+			return nil
+		},
 		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
 			t, ok := s.trips[id]
 			if !ok {

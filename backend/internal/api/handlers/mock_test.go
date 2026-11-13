@@ -63,7 +63,7 @@ type mockQuerier struct {
 	listTripEnrollmentsFn          func(ctx context.Context, tripID int64) ([]sqlcdb.ListTripEnrollmentsRow, error)
 	updateTripEnrollmentStatusFn   func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentStatusParams) error
 	updateTripEnrollmentPaymentFn  func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error)
-	deleteTripEnrollmentFn         func(ctx context.Context, id int64) error
+	deleteTripEnrollmentFn         func(ctx context.Context, id int64) (sqlcdb.DeleteTripEnrollmentRow, error)
 	countTripEnrollmentsFn         func(ctx context.Context, tripID int64) (sqlcdb.CountTripEnrollmentsRow, error)
 	getUserTripEnrollmentFn        func(ctx context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
 	createTripEnrollmentIfAbsentFn func(ctx context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error)
@@ -85,7 +85,7 @@ type mockQuerier struct {
 	listCruiseEnrollmentsFn        func(ctx context.Context, cruiseID int64) ([]sqlcdb.ListCruiseEnrollmentsRow, error)
 	updateCruiseEnrollmentStatusFn func(ctx context.Context, arg sqlcdb.UpdateCruiseEnrollmentStatusParams) error
 	assignCruiseEnrollmentFn       func(ctx context.Context, arg sqlcdb.AssignCruiseEnrollmentToTripParams) error
-	deleteCruiseEnrollmentFn       func(ctx context.Context, id int64) error
+	deleteCruiseEnrollmentFn       func(ctx context.Context, id int64) (sqlcdb.DeleteCruiseEnrollmentRow, error)
 	countCruiseEnrollmentsFn       func(ctx context.Context, cruiseID int64) (sqlcdb.CountCruiseEnrollmentsRow, error)
 	countAcceptedForTripFn         func(ctx context.Context, tripID int64) (int64, error)
 	countAcceptedByCruiseTripFn    func(ctx context.Context, cruiseID int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error)
@@ -132,7 +132,11 @@ type mockQuerier struct {
 	updateCrewMemberFn func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
 	deleteCrewMemberFn func(ctx context.Context, id int64) (int64, error)
 	ensureUserPersonFn func(ctx context.Context, userID int64) error
-	getUserPersonFn    func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
+
+	// crew entries added by accepted sign-ups
+	addAcceptedTripCrewAssignmentFn    func(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error
+	removeAcceptedTripCrewAssignmentFn func(ctx context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error
+	getUserPersonFn                    func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
 
 	// cruises
 	listCruisesFn          func(ctx context.Context, arg sqlcdb.ListCruisesParams) ([]sqlcdb.Cruise, error)
@@ -456,7 +460,7 @@ func (m *mockQuerier) UpdateTripEnrollmentStatus(ctx context.Context, arg sqlcdb
 	return m.updateTripEnrollmentStatusFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteTripEnrollment(ctx context.Context, id int64) error {
+func (m *mockQuerier) DeleteTripEnrollment(ctx context.Context, id int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
 	if m.deleteTripEnrollmentFn == nil {
 		panic("unexpected call to DeleteTripEnrollment")
 	}
@@ -507,7 +511,7 @@ func (m *mockQuerier) AssignCruiseEnrollmentToTrip(ctx context.Context, arg sqlc
 	return m.assignCruiseEnrollmentFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteCruiseEnrollment(ctx context.Context, id int64) error {
+func (m *mockQuerier) DeleteCruiseEnrollment(ctx context.Context, id int64) (sqlcdb.DeleteCruiseEnrollmentRow, error) {
 	if m.deleteCruiseEnrollmentFn == nil {
 		panic("unexpected call to DeleteCruiseEnrollment")
 	}
@@ -1070,4 +1074,18 @@ func (m *mockQuerier) GetWaitlistPosition(ctx context.Context, id int64) (int64,
 		panic("unexpected call to GetWaitlistPosition")
 	}
 	return m.getWaitlistPositionFn(ctx, id)
+}
+
+func (m *mockQuerier) AddAcceptedTripCrewAssignment(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error {
+	if m.addAcceptedTripCrewAssignmentFn == nil {
+		panic("unexpected call to AddAcceptedTripCrewAssignment")
+	}
+	return m.addAcceptedTripCrewAssignmentFn(ctx, arg)
+}
+
+func (m *mockQuerier) RemoveAcceptedTripCrewAssignment(ctx context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {
+	if m.removeAcceptedTripCrewAssignmentFn == nil {
+		panic("unexpected call to RemoveAcceptedTripCrewAssignment")
+	}
+	return m.removeAcceptedTripCrewAssignmentFn(ctx, arg)
 }

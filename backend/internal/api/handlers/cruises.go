@@ -458,7 +458,9 @@ func (h *CruiseHandler) updateEnrollmentStatus(ctx context.Context, in *cruiseEn
 		}); err != nil {
 			return &QueryError{Op: "UpdateCruiseEnrollmentStatus", Err: err}
 		}
-		return nil
+		after := e
+		after.Status = in.Body.Status
+		return syncCruiseEnrollmentCrew(ctx, q, e, after)
 	})
 	if txErr != nil {
 		if resp, ok := cruiseEnrollmentTxError(txErr); ok {
@@ -489,10 +491,17 @@ func (h *CruiseHandler) assignEnrollmentToTrip(ctx context.Context, in *cruiseEn
 				return err
 			}
 		}
-		return q.AssignCruiseEnrollmentToTrip(ctx, sqlcdb.AssignCruiseEnrollmentToTripParams{
+		if err := q.AssignCruiseEnrollmentToTrip(ctx, sqlcdb.AssignCruiseEnrollmentToTripParams{
 			TripID: nullInt64(target),
 			ID:     e.ID,
-		})
+		}); err != nil {
+			return err
+		}
+		after, err := getCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
+		if err != nil {
+			return err
+		}
+		return syncCruiseEnrollmentCrew(ctx, q, e, after)
 	})
 	if txErr != nil {
 		if isForeignKeyViolation(txErr, "cruise_enrollments_trip_id_fkey") {
@@ -511,8 +520,18 @@ func (h *CruiseHandler) deleteEnrollment(ctx context.Context, in *cruiseEnrollme
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.q.DeleteCruiseEnrollment(ctx, in.EnrollmentID); err != nil {
-		slog.Error("delete cruise enrollment", "enrollment_id", in.EnrollmentID, "err", err)
+	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		gone, err := q.DeleteCruiseEnrollment(ctx, in.EnrollmentID)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && !gone.TripID.Valid) {
+			return nil
+		}
+		if err != nil {
+			return &QueryError{Op: "DeleteCruiseEnrollment", Err: err}
+		}
+		return removeAcceptedCrew(ctx, q, gone.TripID.Int64, gone.UserID)
+	})
+	if txErr != nil {
+		slog.Error("delete cruise enrollment", "enrollment_id", in.EnrollmentID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to delete enrollment")
 	}
 	return &noContentOutput{}, nil

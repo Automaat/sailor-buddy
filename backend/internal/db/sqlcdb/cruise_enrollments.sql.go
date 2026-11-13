@@ -67,16 +67,26 @@ func (q *Queries) CountCruiseEnrollments(ctx context.Context, cruiseID int64) (C
 	return i, err
 }
 
-const deleteCruiseEnrollment = `-- name: DeleteCruiseEnrollment :exec
+const deleteCruiseEnrollment = `-- name: DeleteCruiseEnrollment :one
 DELETE FROM cruise_enrollments WHERE id = $1
+RETURNING trip_id, user_id
 `
 
-// DeleteCruiseEnrollment
+type DeleteCruiseEnrollmentRow struct {
+	TripID types.NullInt64 `json:"trip_id"`
+	UserID int64           `json:"user_id"`
+}
+
+// Deletes one cruise enrollment and returns its user and assigned trip. No
+// row when it does not exist.
 //
 //	DELETE FROM cruise_enrollments WHERE id = $1
-func (q *Queries) DeleteCruiseEnrollment(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteCruiseEnrollment, id)
-	return err
+//	RETURNING trip_id, user_id
+func (q *Queries) DeleteCruiseEnrollment(ctx context.Context, id int64) (DeleteCruiseEnrollmentRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteCruiseEnrollment, id)
+	var i DeleteCruiseEnrollmentRow
+	err := row.Scan(&i.TripID, &i.UserID)
+	return i, err
 }
 
 const getCruiseEnrollmentOfCruise = `-- name: GetCruiseEnrollmentOfCruise :one

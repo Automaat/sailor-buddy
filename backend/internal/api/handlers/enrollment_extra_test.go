@@ -463,8 +463,30 @@ func TestEnrollment_ListEnrollments_DBError(t *testing.T) {
 }
 
 func TestEnrollment_DeleteEnrollment(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) error { return nil }}
+	t.Run("success takes the acceptance crew entry off", func(t *testing.T) {
+		var removed sqlcdb.RemoveAcceptedTripCrewAssignmentParams
+		m := &mockQuerier{
+			deleteTripEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
+				return sqlcdb.DeleteTripEnrollmentRow{TripID: 9, UserID: 4}, nil
+			},
+			removeAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {
+				removed = arg
+				return nil
+			},
+		}
+		resp := enrollTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/enrollments/1")
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("got %d, want 204", resp.Code)
+		}
+		if removed != (sqlcdb.RemoveAcceptedTripCrewAssignmentParams{TripID: 9, UserID: 4}) {
+			t.Fatalf("removed crew %+v, want trip 9 user 4", removed)
+		}
+	})
+
+	t.Run("missing enrollment is a no-op", func(t *testing.T) {
+		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
+			return sqlcdb.DeleteTripEnrollmentRow{}, sql.ErrNoRows
+		}}
 		resp := enrollTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/enrollments/1")
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
@@ -472,7 +494,9 @@ func TestEnrollment_DeleteEnrollment(t *testing.T) {
 	})
 
 	t.Run("db error", func(t *testing.T) {
-		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) error { return errors.New("fail") }}
+		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) (sqlcdb.DeleteTripEnrollmentRow, error) {
+			return sqlcdb.DeleteTripEnrollmentRow{}, errors.New("fail")
+		}}
 		resp := enrollTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/trips/9/enrollments/1")
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
