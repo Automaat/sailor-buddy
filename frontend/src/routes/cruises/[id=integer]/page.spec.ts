@@ -628,3 +628,24 @@ describe('cruise page past planned legs', () => {
 		expect(screen.queryByText('Zrealizuj →')).not.toBeInTheDocument();
 	});
 });
+
+describe('cruise page leg labels', () => {
+	it('offers an admin to add a leg and shows the empty state', async () => {
+		mockAuth.isAdmin = true;
+		mockGet.mockResolvedValue(cruise());
+		render(CruiseDetailPage);
+
+		const add = await screen.findByRole('link', { name: '+ Dodaj etap' });
+		expect(add).toHaveAttribute('href', '/trips/new?cruise_id=7');
+		expect(screen.getByText('Brak etapów')).toBeInTheDocument();
+		expect(screen.queryByText(/Dodaj jacht/)).not.toBeInTheDocument();
+	});
+
+	it('hides the add-leg link from a member', async () => {
+		mockGet.mockResolvedValue(cruise());
+		render(CruiseDetailPage);
+
+		expect(await screen.findByText('Brak etapów')).toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: '+ Dodaj etap' })).not.toBeInTheDocument();
+	});
+});
