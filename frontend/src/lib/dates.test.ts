@@ -79,8 +79,10 @@ describe('dayCount', () => {
 
 describe('daysLabel', () => {
 	it.each([
+		[0, '0 dni'],
 		[1, '1 dzień'],
 		[2, '2 dni'],
+		[12, '12 dni'],
 		[5, '5 dni'],
 		[21, '21 dni'],
 		[22, '22 dni']

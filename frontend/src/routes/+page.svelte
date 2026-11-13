@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { formatDateRangeWithDays } from '#lib/dates.js';
+	import { daysLabel, formatDateRangeWithDays } from '#lib/dates.js';
+	import { plural } from '#lib/plural.js';
 	import { getDashboard } from '#lib/api/routes.js';
 	import type { DashboardStats, SeaTime, YearStats } from '#lib/api/types.js';
 
@@ -57,8 +58,9 @@
 	<div class="rounded-2xl bg-white p-4 shadow-sm">
 		<div class="text-sm font-semibold text-[var(--navy)]">{label}</div>
 		<div class="mt-1 text-sm text-[var(--text-muted)]">
-			{t.voyage_count} rejsy · {Math.round(t.total_miles)} Mm · {Math.round(t.total_hours)} h · {t.total_days}
-			dni
+			{t.voyage_count}
+			{plural(t.voyage_count, 'rejs', 'rejsy', 'rejsów')} · {Math.round(t.total_miles)} Mm ·
+			{Math.round(t.total_hours)} h · {daysLabel(t.total_days)}
 		</div>
 	</div>
 {/snippet}
