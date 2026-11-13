@@ -1,12 +1,14 @@
 <script lang="ts">
 	import {
 		getTrip,
+		getTripSignUp,
 		listTripEnrollments,
 		updateTripEnrollmentStatus,
 		deleteTripEnrollment
 	} from '#lib/api/routes.js';
+	import { ApiError } from '#lib/api/client.js';
 	import type { TripEnrollment, Trip } from '#lib/api/types.js';
-	import { statusLabels } from '#lib/enrollment.js';
+	import { freePlacesLabel, nextWaitlisted, statusLabels } from '#lib/enrollment.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -17,6 +19,10 @@
 	let trip = $state<Trip | null>(null);
 	let enrollments = $state<TripEnrollment[]>([]);
 	let loading = $state(true);
+	let error = $state('');
+	// Accepted crew the list below does not show: cruise enrollments assigned
+	// to this leg. They take places too, so free places add them back.
+	let otherAccepted = $state(0);
 
 	const id = $derived(Number(page.params.id));
 
@@ -29,9 +35,16 @@
 
 	onMount(async () => {
 		try {
-			const [t, e] = await Promise.all([getTrip(id), listTripEnrollments(id)]);
+			// The leg's accepted count only adds cruise-level crew; the page
+			// still works without it.
+			const [t, e, s] = await Promise.all([
+				getTrip(id),
+				listTripEnrollments(id),
+				getTripSignUp(id).catch(() => null)
+			]);
 			trip = t;
 			enrollments = e ?? [];
+			otherAccepted = s ? Math.max(0, s.accepted_count - countAccepted(enrollments)) : 0;
 		} catch (err) {
 			console.error('Failed to load enrollments:', err);
 		} finally {
@@ -39,11 +52,26 @@
 		}
 	});
 
+	function countAccepted(list: TripEnrollment[]) {
+		return list.filter((e) => e.status === 'accepted').length;
+	}
+
+	const accepted = $derived(countAccepted(enrollments) + otherAccepted);
+	const places = $derived(trip ? freePlacesLabel(trip.max_crew, accepted) : null);
+	// With a place free, the first person on the waiting list is next in line.
+	const nextId = $derived(trip ? nextWaitlisted(enrollments, trip.max_crew, accepted) : null);
+
 	async function updateStatus(enrollmentId: number, status: EnrollStatus) {
+		error = '';
 		try {
 			await updateTripEnrollmentStatus(id, enrollmentId, status);
 			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
+			if (err instanceof ApiError && err.status === 409) {
+				error = 'Etap jest pełny: wszystkie miejsca są zajęte. Zwolnij miejsce, zanim zaakceptujesz kolejną osobę.';
+			} else {
+				error = 'Nie udało się zmienić statusu.';
+			}
 			console.error('Failed to update status:', err);
 		}
 	}
@@ -77,7 +105,7 @@
 					<p class="mt-1 text-[var(--text-muted)]">
 						{trip.name}
 						{#if trip.max_crew}
-							· {enrollments.filter((e) => e.status === 'accepted').length} / {trip.max_crew} zaakceptowanych
+							· {accepted} / {trip.max_crew} zaakceptowanych · <span data-testid="free-places">{places}</span>
 						{/if}
 					</p>
 				{/if}
@@ -86,6 +114,10 @@
 				Wróć do rejsu
 			</a>
 		</div>
+
+		{#if error}
+			<p role="alert" class="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
+		{/if}
 
 		{#if enrollments.length === 0}
 			<div class="rounded-2xl bg-white p-6 text-center text-sm text-[var(--text-muted)] shadow-sm">
@@ -102,6 +134,11 @@
 								<span class="ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}">
 									{statusLabels[enrollment.status] ?? enrollment.status}
 								</span>
+								{#if enrollment.id === nextId}
+									<span class="ml-2 inline-block rounded-full bg-[var(--ocean)] px-2 py-0.5 text-xs font-medium text-white" data-testid="next-waitlisted">
+										następny w kolejce
+									</span>
+								{/if}
 							</div>
 							<div class="flex gap-1">
 								{#if enrollment.status !== 'accepted'}

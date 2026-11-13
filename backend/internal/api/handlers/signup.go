@@ -66,7 +66,9 @@ func registerSignUpRoutes(api huma.API, h *EnrollmentHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "sign-up-for-trip", Method: http.MethodPost, Path: "/trips/{tripID}/sign-up",
 		Summary: "Sign the caller up for a leg with one click",
-		Description: "Creates a pending trip enrollment for the caller (201, result created). Signing up " +
+		Description: "Creates a trip enrollment for the caller (201, result created). It starts pending, " +
+			"or waitlisted when accepted plus pending sign-ups already hold all of the leg's max_crew " +
+			"places; a waitlisted result carries its waitlist_position. Signing up " +
 			"again returns the existing enrollment (200, result already_enrolled). Open only while the " +
 			"leg is planned and its sign-ups are switched on (enroll token set): otherwise 422 and " +
 			"nothing is written. 404 when the trip does not exist; completed legs are voyages, not " +
@@ -82,9 +84,9 @@ func registerSignUpRoutes(api huma.API, h *EnrollmentHandler) {
 	}, h.updateTripSignUpNote)
 	huma.Register(api, huma.Operation{
 		OperationID: "withdraw-trip-sign-up", Method: http.MethodDelete, Path: "/trips/{tripID}/sign-up",
-		Summary: "Withdraw the caller's pending leg sign-up",
-		Description: "Deletes the caller's sign-up while it is pending. 404 when the caller has not " +
-			"signed up; 409 once an admin has reviewed it (accepted, rejected or waitlisted).",
+		Summary: "Withdraw the caller's pending or waitlisted leg sign-up",
+		Description: "Deletes the caller's sign-up while it is pending or on the waiting list. 404 when " +
+			"the caller has not signed up; 409 once an admin has accepted or rejected it.",
 		Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.withdrawTripSignUp)
 	huma.Register(api, huma.Operation{
@@ -119,7 +121,8 @@ type signUpClosedError struct{ msg string }
 func (e *signUpClosedError) Error() string { return e.msg }
 
 // checkSignUpOpen is the single rule for whether a locked leg takes new
-// sign-ups. Later sign-up rules (deadlines, capacity) belong here.
+// sign-ups. Later sign-up rules (deadlines) belong here. A full leg still
+// takes sign-ups: initialSignUpStatus puts them on the waiting list.
 func checkSignUpOpen(trip sqlcdb.LockTripForSignUpRow) error {
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return &signUpClosedError{msg: "sign-up closed: the leg is not planned"}
@@ -192,14 +195,20 @@ func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) 
 	}
 	if found {
 		out.Enrollment = &e
+		if err := setWaitlistPosition(ctx, h.q, &e, &out.WaitlistPosition); err != nil {
+			slog.Error("get waitlist position for sign-up", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to get sign-up")
+		}
 	}
 	return &legSignUpOutput{Body: out}, nil
 }
 
-// signUpForTrip creates the caller's pending sign-up for a leg, or returns
-// the existing one. The trip row is share-locked first, so the open check
-// and the insert see the same leg state, in the same lock order as trip
-// completion (trip, then its enrollments). An existing sign-up, including a
+// signUpForTrip creates the caller's sign-up for a leg, or returns the
+// existing one. The trip row is locked first, so the open check, the
+// waitlist count and the insert see the same leg state, and concurrent
+// sign-ups for the leg count one another; the lock order matches trip
+// completion (trip, then its enrollments). The sign-up starts pending, or
+// waitlisted when the leg's places are taken (initialSignUpStatus). An existing sign-up, including a
 // cruise enrollment assigned to the leg, is returned even when the leg has
 // since closed. When a concurrent request from the
 // same user wins the insert, the conditional insert returns no row and the
@@ -222,15 +231,20 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 		}
 		if found {
 			out = dto.EnrollLegResult{TripID: trip.ID, Result: "already_enrolled", Enrollment: existing}
-			return nil
+			return setWaitlistPosition(ctx, q, &out.Enrollment, &out.WaitlistPosition)
 		}
 		if err := checkSignUpOpen(trip); err != nil {
+			return err
+		}
+		status, err := initialSignUpStatus(ctx, q, trip.ID, trip.MaxCrew)
+		if err != nil {
 			return err
 		}
 		result := "created"
 		e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
 			TripID: trip.ID,
 			UserID: user.UserID,
+			Status: status,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			result = "already_enrolled"
@@ -240,7 +254,7 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 			return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
 		}
 		out = dto.EnrollLegResult{TripID: trip.ID, Result: result, Enrollment: dto.TripEnrollmentToDTO(e)}
-		return nil
+		return setWaitlistPosition(ctx, q, &out.Enrollment, &out.WaitlistPosition)
 	})
 	if txErr != nil {
 		if errors.Is(txErr, sql.ErrNoRows) {
@@ -285,15 +299,16 @@ func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUp
 	return &enrollmentBodyOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
 }
 
-// withdrawTripSignUp deletes the caller's pending sign-up. When nothing was
-// deleted, a follow-up read tells a missing sign-up (404) from one an admin
-// has already reviewed or a cruise-level enrollment (409).
+// withdrawTripSignUp deletes the caller's pending or waitlisted sign-up.
+// When nothing was deleted, a follow-up read tells a missing sign-up (404)
+// from one an admin has accepted or rejected or a cruise-level enrollment
+// (409).
 func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDParam) (*noContentOutput, error) {
 	user, err := signedIn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, err = h.q.DeletePendingUserTripEnrollment(ctx, sqlcdb.DeletePendingUserTripEnrollmentParams{
+	_, err = h.q.WithdrawUserTripEnrollment(ctx, sqlcdb.WithdrawUserTripEnrollmentParams{
 		TripID: in.ID,
 		UserID: user.UserID,
 	})
@@ -314,7 +329,7 @@ func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDPa
 	case e.CruiseID != nil:
 		return nil, errCruiseLevelSignUp()
 	}
-	return nil, huma.Error409Conflict("only a pending sign-up can be withdrawn")
+	return nil, huma.Error409Conflict("only a pending or waitlisted sign-up can be withdrawn")
 }
 
 // noTripSignUp explains why the caller has no trip enrollment to change:
@@ -379,6 +394,10 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 		out[i] = dto.LegSignUp{TripID: t.ID, Open: legOpen(t.Status, t.EnrollToken), AcceptedCount: accepted[t.ID]}
 		if e, ok := byTrip[t.ID]; ok {
 			out[i].Enrollment = &e
+			if err := setWaitlistPosition(ctx, h.q, &e, &out[i].WaitlistPosition); err != nil {
+				slog.Error("get waitlist position for sign-ups", "trip_id", t.ID, "user_id", user.UserID, "err", err)
+				return nil, huma.Error500InternalServerError("failed to list sign-ups")
+			}
 		}
 	}
 	return &legSignUpsOutput{Body: out}, nil

@@ -165,12 +165,14 @@ type EnrollLegsBody struct {
 	Note    *string `json:"note,omitempty" doc:"Optional note to the organizer, copied to every leg enrollment"`
 }
 
-// EnrollLegResult is the outcome of one requested leg: a new pending
-// enrollment, or the user's existing enrollment for that leg.
+// EnrollLegResult is the outcome of one requested leg: a new pending or
+// waitlisted enrollment, or the user's existing enrollment for that leg.
 type EnrollLegResult struct {
 	TripID     int64      `json:"trip_id"`
 	Result     string     `json:"result" enum:"created,already_enrolled"`
 	Enrollment Enrollment `json:"enrollment"`
+	// WaitlistPosition is set when the enrollment is on the leg's waiting list.
+	WaitlistPosition *int64 `json:"waitlist_position,omitempty" doc:"1-based waiting-list position by sign-up time; omitted unless the enrollment is waitlisted"`
 }
 
 // EnrollLegsResponse lists one result per requested leg, in request order.
@@ -335,6 +337,8 @@ type LegSignUp struct {
 	Open          bool        `json:"open" doc:"Whether the leg takes new sign-ups: planned, with sign-ups switched on (an enroll token)"`
 	AcceptedCount int64       `json:"accepted_count" doc:"Accepted crew: direct leg sign-ups plus cruise enrollments assigned to the leg"`
 	Enrollment    *Enrollment `json:"enrollment,omitempty" doc:"The caller's sign-up for this leg; omitted when not signed up"`
+	// WaitlistPosition is set when the caller's sign-up is on the waiting list.
+	WaitlistPosition *int64 `json:"waitlist_position,omitempty" doc:"1-based position of the caller's sign-up on the leg's waiting list, by sign-up time; omitted unless it is waitlisted"`
 }
 
 // SignUpNoteBody sets the note on the caller's own leg sign-up.

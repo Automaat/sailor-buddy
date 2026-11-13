@@ -407,7 +407,12 @@ describe('cruise page leg sign-up', () => {
 		['open, not signed up', signUp(50), 'button', 'Zapisz się: Jacht A'],
 		['pending', signUp(50, { enrollment: pending(50) }), 'text', 'oczekujący'],
 		['accepted', signUp(50, { enrollment: pending(50, { status: 'accepted' }) }), 'text', 'zaakceptowany'],
-		['waitlisted', signUp(50, { enrollment: pending(50, { status: 'waitlisted' }) }), 'text', 'lista rezerwowa'],
+		[
+			'waitlisted',
+			signUp(50, { enrollment: pending(50, { status: 'waitlisted' }), waitlist_position: 1 }),
+			'text',
+			'lista rezerwowa (1.)'
+		],
 		['rejected', signUp(50, { enrollment: pending(50, { status: 'rejected' }) }), 'text', 'odrzucony'],
 		['closed', signUp(50, { open: false }), 'text', 'Zapisy zamknięte']
 	] as const)('shows the %s state', async (_name, state, kind, want) => {
@@ -423,7 +428,8 @@ describe('cruise page leg sign-up', () => {
 			expect(within(row).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 		}
 		const withdraw = within(row).queryByRole('button', { name: 'Wycofaj zapis: Jacht A' });
-		expect(withdraw !== null).toBe(want === 'oczekujący');
+		// A member may withdraw while pending or on the waiting list.
+		expect(withdraw !== null).toBe(want === 'oczekujący' || want === 'lista rezerwowa (1.)');
 	});
 
 	it('shows a cruise-level enrollment assigned to the leg as the status, without withdraw or note', async () => {

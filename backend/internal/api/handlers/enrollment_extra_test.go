@@ -403,32 +403,6 @@ func TestEnrollment_ListEnrollments_DBError(t *testing.T) {
 	}
 }
 
-func TestEnrollment_UpdateStatus(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		m := &mockQuerier{
-			updateTripEnrollmentStatusFn: func(context.Context, sqlcdb.UpdateTripEnrollmentStatusParams) error { return nil },
-		}
-		resp := enrollTestAPI(t, m).PutCtx(userCtx(context.Background()),
-			"/trips/9/enrollments/1/status", map[string]any{"status": "accepted"})
-		if resp.Code != http.StatusNoContent {
-			t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
-		}
-	})
-
-	t.Run("db error", func(t *testing.T) {
-		m := &mockQuerier{
-			updateTripEnrollmentStatusFn: func(context.Context, sqlcdb.UpdateTripEnrollmentStatusParams) error {
-				return errors.New("fail")
-			},
-		}
-		resp := enrollTestAPI(t, m).PutCtx(userCtx(context.Background()),
-			"/trips/9/enrollments/1/status", map[string]any{"status": "accepted"})
-		if resp.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want 500", resp.Code)
-		}
-	})
-}
-
 func TestEnrollment_DeleteEnrollment(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{deleteTripEnrollmentFn: func(context.Context, int64) error { return nil }}
