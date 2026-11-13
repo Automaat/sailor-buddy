@@ -290,6 +290,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 	},
 	{ name: 'createCrew', run: () => routes.createCrew(body), verb: 'post', args: ['/crew', { body }] },
 	{
+		name: 'updateCrew',
+		run: () => routes.updateCrew(5, body),
+		verb: 'put',
+		args: ['/crew/{crewID}', { path: { crewID: 5 }, body }]
+	},
+	{
 		name: 'deleteCrew',
 		run: () => routes.deleteCrew(5),
 		verb: 'del',

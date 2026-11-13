@@ -159,6 +159,17 @@ Resources keep a `created_by` audit column (the user who created the row); it
 is never used for access control. `crew_members` are decoupled from `users` —
 crew need not have accounts.
 
+`crew_members` is the club's one list of people ("Osoby" in the UI).
+Guarantee: every account has exactly one person, and a person links to at
+most one account (`crew_members.user_id` is unique, `NULL` for people
+without an account). The auth middleware creates the person on the
+account's first authenticated request (`EnsureUserPerson`: name, or the
+e-mail when the name is blank, plus e-mail, phone and patent number);
+migration `024_people.sql` backfilled existing accounts the same way. An
+account is never linked to an existing person automatically, not even by a
+matching e-mail: linking waits for admin approval. `GetCrewMemberByUserID`
+returns an account's person.
+
 Every trip and voyage is a leg of a club event: `cruise_id` is required on
 trip and voyage bodies (`422 cruise not found` for an unknown id). A cruise
 that still has trips or voyages cannot be deleted (`409`). A trip with cruise or
@@ -190,7 +201,8 @@ optional `phone` (`+48 600 100 200` style), `patent_type` and
 number without a type is dropped. A captain can't clear their patent number
 (`422`). `name` becomes `first_name last_name`, and the first save sets
 `onboarded`. After onboarding, sign-in no longer overwrites `name` with the
-Firebase display name.
+Firebase display name. The same statement copies the name, `phone` and
+`patent_number` to the caller's person.
 
 `GET /api/dashboard` returns `personal`: the caller's voyages as the
 assigned captain (`captain_user_id`) or on a crew list through a crew
@@ -199,7 +211,8 @@ record linked to their account (`crew_members.user_id`). It has `total`,
 `total_hours_sail`, `total_hours_engine`, `total_miles`, `total_days`),
 `by_year` and a `voyages` list with `role` (`captain`|`crew`). A voyage
 counts once; captain wins when both apply. Crew records without a linked
-account don't count. Admins also get `club` with the club-wide `total` and
+account don't count; an account's own person (created at sign-in) does.
+Admins also get `club` with the club-wide `total` and
 `by_year`; the key is absent for members.
 
 ### Members
@@ -622,19 +635,30 @@ Body — `name` required; the specs are optional:
 `berths` must be at least 1, `length_m` above 0 and `build_year` within
 1800–2100, otherwise `422`. `owner_name` is the charter owner (armator).
 
-### Crew members
+### Crew members (people)
 
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
-| GET | `/api/crew` | member | List crew members | 200 |
-| POST | `/api/crew` | **admin** | Create crew member | 201 |
-| GET | `/api/crew/{id}` | member | Get crew member | 200 |
-| PUT | `/api/crew/{id}` | **admin** | Update crew member | 204 |
-| DELETE | `/api/crew/{id}` | **admin** | Delete crew member | 204 |
+| GET | `/api/crew` | member | List and search people | 200 |
+| POST | `/api/crew` | **admin** | Create a person without an account | 201 |
+| GET | `/api/crew/{id}` | member | Get a person | 200 |
+| PUT | `/api/crew/{id}` | **admin** | Update a person | 204 |
+| DELETE | `/api/crew/{id}` | **admin** | Delete a person without an account | 204 |
 
-Body — `full_name` required; also accepts `email`, `patent_number`, `phone`,
-`pzz_license_type`, `pzz_license_number`, `emergency_contact_name`,
-`emergency_contact_phone`.
+Body — `full_name` required; also accepts `other_names`, `email`,
+`patent_number`, `phone`, `pzz_license_type`, `pzz_license_number`,
+`emergency_contact_name`, `emergency_contact_phone`. `other_names` (other
+spellings, maiden names; at most 20, each at most 200 characters, else
+`422`) is trimmed, and blank or case-insensitively repeated entries are
+dropped. PUT replaces the whole record, `other_names` included.
+
+A person carries `has_account` (true when `user_id` is set) and
+`other_names` (always an array). `GET /api/crew?q=` matches a
+case-insensitive substring of `full_name`, any of `other_names`, or `email`
+(the UI also folds Polish diacritics client-side); a blank `q` lists
+everyone, and `total` counts the matches. Deleting a person linked to an
+account returns `409`; it stays the account's person. Profile saves by the
+account owner overwrite its person's name, phone and patent number.
 
 ### Trainings (per-member)
 

@@ -59,7 +59,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		// the backend provisions — that account is auto-promoted to admin.
 		await registerViaUI(page, adminName, adminEmail, PASSWORD);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
-		await expect(page.getByRole('link', { name: 'Załoga', exact: true })).toHaveAttribute('href', '/crew');
+		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute('href', '/crew');
 		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveAttribute('href', '/trainings');
 		await expect(page.getByRole('link', { name: 'Szkolenia' })).toHaveCount(0);
 
@@ -78,7 +78,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await loginViaUI(page, memberEmail, PASSWORD);
 
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
-		await expect(page.getByRole('link', { name: 'Załoga', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveCount(1);
 
 		await page.goto('/settings');

@@ -3,9 +3,13 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -21,6 +25,14 @@ type CrewHandler struct {
 
 func NewCrewHandler(q sqlcdb.Querier) *CrewHandler {
 	return &CrewHandler{q: q}
+}
+
+// listCrewInput repeats the pageParams fields: huma does not apply the
+// defaults of an embedded struct.
+type listCrewInput struct {
+	Limit  int32  `query:"limit" minimum:"1" maximum:"100" default:"50" doc:"Maximum number of items to return"`
+	Offset int32  `query:"offset" minimum:"0" default:"0" doc:"Number of items to skip"`
+	Query  string `query:"q" maxLength:"200" doc:"Case-insensitive part of a name, other name or e-mail; blank lists everyone"`
 }
 
 type crewIDParam struct {
@@ -88,7 +100,7 @@ func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-crew", Method: http.MethodGet, Path: "/crew",
-		Summary: "List crew members", Tags: crew,
+		Summary: "List and search people", Tags: crew,
 	}, h.list)
 	huma.Register(api, huma.Operation{
 		OperationID: "get-crew-member", Method: http.MethodGet, Path: "/crew/{crewID}",
@@ -104,7 +116,7 @@ func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.update)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-crew-member", Method: http.MethodDelete, Path: "/crew/{crewID}",
-		Summary: "Delete a crew member (admin)", Tags: crew, DefaultStatus: http.StatusNoContent,
+		Summary: "Delete a person without an account (admin)", Tags: crew, DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 
 	huma.Register(api, huma.Operation{
@@ -134,13 +146,16 @@ func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.removeVoyageCrew)
 }
 
-func (h *CrewHandler) list(ctx context.Context, in *pageParams) (*crewListOutput, error) {
-	members, err := h.q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{Limit: in.Limit, Offset: in.Offset})
+func (h *CrewHandler) list(ctx context.Context, in *listCrewInput) (*crewListOutput, error) {
+	search := nullString(trimmedPtr(&in.Query))
+	members, err := h.q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
+		Search: search, RowLimit: in.Limit, RowOffset: in.Offset,
+	})
 	if err != nil {
 		slog.Error("list crew members", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
 	}
-	total, err := h.q.CountCrewMembers(ctx)
+	total, err := h.q.CountCrewMembers(ctx, search)
 	if err != nil {
 		slog.Error("count crew members", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
@@ -164,6 +179,10 @@ func (h *CrewHandler) create(ctx context.Context, in *createCrewInput) (*crewOut
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	otherNames, err := encodeOtherNames(in.Body.OtherNames)
+	if err != nil {
+		return nil, err
+	}
 	user := middleware.GetUser(ctx)
 	member, err := h.q.CreateCrewMember(ctx, sqlcdb.CreateCrewMemberParams{
 		CreatedBy:             types.NullInt64{Int64: user.UserID, Valid: true},
@@ -175,6 +194,7 @@ func (h *CrewHandler) create(ctx context.Context, in *createCrewInput) (*crewOut
 		PzzLicenseNumber:      nullString(in.Body.PzzLicenseNumber),
 		EmergencyContactName:  nullString(in.Body.EmergencyContactName),
 		EmergencyContactPhone: nullString(in.Body.EmergencyContactPhone),
+		OtherNames:            otherNames,
 	})
 	if err != nil {
 		slog.Error("create crew member", "err", err)
@@ -187,6 +207,10 @@ func (h *CrewHandler) update(ctx context.Context, in *updateCrewInput) (*noConte
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
+	otherNames, err := encodeOtherNames(in.Body.OtherNames)
+	if err != nil {
+		return nil, err
+	}
 	if err := h.q.UpdateCrewMember(ctx, sqlcdb.UpdateCrewMemberParams{
 		FullName:              in.Body.FullName,
 		Email:                 nullString(in.Body.Email),
@@ -196,6 +220,7 @@ func (h *CrewHandler) update(ctx context.Context, in *updateCrewInput) (*noConte
 		PzzLicenseNumber:      nullString(in.Body.PzzLicenseNumber),
 		EmergencyContactName:  nullString(in.Body.EmergencyContactName),
 		EmergencyContactPhone: nullString(in.Body.EmergencyContactPhone),
+		OtherNames:            otherNames,
 		ID:                    in.ID,
 	}); err != nil {
 		slog.Error("update crew member", "crew_member_id", in.ID, "err", err)
@@ -208,11 +233,48 @@ func (h *CrewHandler) delete(ctx context.Context, in *crewIDParam) (*noContentOu
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.q.DeleteCrewMember(ctx, in.ID); err != nil {
+	n, err := h.q.DeleteUnlinkedCrewMember(ctx, in.ID)
+	if err != nil {
 		slog.Error("delete crew member", "crew_member_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete crew member")
 	}
+	if n == 0 {
+		if _, err := h.q.GetCrewMember(ctx, in.ID); err == nil {
+			return nil, huma.Error409Conflict("person is linked to an account and cannot be deleted")
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("check crew member after delete", "crew_member_id", in.ID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to delete crew member")
+		}
+	}
 	return &noContentOutput{}, nil
+}
+
+// encodeOtherNames trims a person's other names, drops blank and repeated
+// (case-insensitive) entries and encodes the rest for the JSONB column.
+func encodeOtherNames(names []string) (json.RawMessage, error) {
+	out := make([]string, 0, len(names))
+	seen := make(map[string]bool, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if utf8.RuneCountInString(name) > dto.MaxOtherNameLen {
+			return nil, huma.Error422UnprocessableEntity(
+				fmt.Sprintf("other names must be at most %d characters", dto.MaxOtherNameLen))
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, name)
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to encode other names")
+	}
+	return b, nil
 }
 
 func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (*crewAssignmentListOutput, error) {

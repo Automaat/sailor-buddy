@@ -6,12 +6,21 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-// CrewMember is the API representation of a crew member.
+// MaxOtherNames caps how many other names a person carries.
+const MaxOtherNames = 20
+
+// MaxOtherNameLen caps the length of one other name, in characters.
+const MaxOtherNameLen = 200
+
+// CrewMember is the API representation of a person (crew record). A person
+// linked to an account carries its user ID; every account has exactly one.
 type CrewMember struct {
 	ID                    int64     `json:"id"`
 	CreatedBy             *int64    `json:"created_by,omitempty"`
 	UserID                *int64    `json:"user_id,omitempty"`
+	HasAccount            bool      `json:"has_account" doc:"Whether the person is linked to an account"`
 	FullName              string    `json:"full_name"`
+	OtherNames            []string  `json:"other_names" doc:"Other spellings and maiden names that search matches"`
 	Email                 *string   `json:"email,omitempty"`
 	PatentNumber          *string   `json:"patent_number,omitempty"`
 	Phone                 *string   `json:"phone,omitempty"`
@@ -26,14 +35,15 @@ type CrewMember struct {
 // CrewMemberBody is the create/update payload for a crew member, covering the
 // PZŻ licence and emergency-contact fields.
 type CrewMemberBody struct {
-	FullName              string  `json:"full_name" minLength:"1" doc:"Crew member full name"`
-	Email                 *string `json:"email,omitempty"`
-	PatentNumber          *string `json:"patent_number,omitempty"`
-	Phone                 *string `json:"phone,omitempty"`
-	PzzLicenseType        *string `json:"pzz_license_type,omitempty"`
-	PzzLicenseNumber      *string `json:"pzz_license_number,omitempty"`
-	EmergencyContactName  *string `json:"emergency_contact_name,omitempty"`
-	EmergencyContactPhone *string `json:"emergency_contact_phone,omitempty"`
+	FullName              string   `json:"full_name" minLength:"1" doc:"Crew member full name"`
+	OtherNames            []string `json:"other_names,omitempty" maxItems:"20" doc:"Other spellings and maiden names; blank and repeated entries are dropped, each at most 200 characters. An update replaces the list."`
+	Email                 *string  `json:"email,omitempty"`
+	PatentNumber          *string  `json:"patent_number,omitempty"`
+	Phone                 *string  `json:"phone,omitempty"`
+	PzzLicenseType        *string  `json:"pzz_license_type,omitempty"`
+	PzzLicenseNumber      *string  `json:"pzz_license_number,omitempty"`
+	EmergencyContactName  *string  `json:"emergency_contact_name,omitempty"`
+	EmergencyContactPhone *string  `json:"emergency_contact_phone,omitempty"`
 }
 
 // CrewAssignment is a crew member's assignment to a trip or voyage.
@@ -62,7 +72,9 @@ func CrewMemberFromDB(m sqlcdb.CrewMember) CrewMember {
 		ID:                    m.ID,
 		CreatedBy:             intPtr(m.CreatedBy),
 		UserID:                intPtr(m.UserID),
+		HasAccount:            m.UserID.Valid,
 		FullName:              m.FullName,
+		OtherNames:            stringList(m.OtherNames),
 		Email:                 strPtr(m.Email),
 		PatentNumber:          strPtr(m.PatentNumber),
 		Phone:                 strPtr(m.Phone),

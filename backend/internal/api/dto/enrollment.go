@@ -302,8 +302,8 @@ func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow, member bool) Enroll
 		CostPerPersonNonMember: floatPtr(c.CostPerPersonNonMember),
 		YachtFund:              floatPtr(c.YachtFund),
 		Deposit:                floatPtr(c.Deposit),
-		Included:               priceList(c.Included),
-		NotIncluded:            priceList(c.NotIncluded),
+		Included:               stringList(c.Included),
+		NotIncluded:            stringList(c.NotIncluded),
 		TravelNotes:            strPtr(c.TravelNotes),
 		MinAge:                 intPtr(c.MinAge),
 	}
