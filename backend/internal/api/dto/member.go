@@ -18,6 +18,7 @@ type Member struct {
 	Membership   string    `json:"membership" enum:"czlonek,sympatyk,gosc"`
 	PatentType   *string   `json:"patent_type,omitempty"`
 	PatentNumber *string   `json:"patent_number,omitempty"`
+	Onboarded    bool      `json:"onboarded" doc:"Whether the user completed the onboarding form"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -51,6 +52,7 @@ func MemberFromUser(u sqlcdb.User) Member {
 		Membership:   u.Membership,
 		PatentType:   strPtr(u.PatentType),
 		PatentNumber: strPtr(u.PatentNumber),
+		Onboarded:    u.OnboardedAt.Valid,
 		CreatedAt:    timeVal(u.CreatedAt),
 	}
 }

@@ -196,7 +196,7 @@ Firebase display name.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/members` | member | List club members `{id, name, email, role, is_captain, membership, ...}` |
+| GET | `/api/members` | member | List club members `{id, name, email, role, is_captain, membership, onboarded, ...}` |
 | PUT | `/api/members/{userID}/role` | **admin** | Set a member's role, 204 |
 | PUT | `/api/members/{userID}/captain` | **admin** | Add to / remove from the captain group `{ "is_captain": true }`, 204 |
 | PUT | `/api/members/{userID}/membership` | **admin** | Set membership status `{ "membership": "sympatyk" }`, 204 |

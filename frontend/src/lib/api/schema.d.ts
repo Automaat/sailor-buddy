@@ -1587,6 +1587,8 @@ export interface components {
             /** @enum {string} */
             membership: "czlonek" | "sympatyk" | "gosc";
             name: string;
+            /** @description Whether the user completed the onboarding form */
+            onboarded: boolean;
             patent_number?: string;
             patent_type?: string;
             phone?: string;
