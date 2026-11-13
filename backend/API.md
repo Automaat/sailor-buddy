@@ -680,6 +680,8 @@ Body — `name` required; the specs are optional:
 | DELETE | `/api/crew/{id}` | **admin** | Delete a person without an account | 204 |
 | GET | `/api/crew/{id}/merge-preview?duplicate_id=` | **admin** | Preview merging a duplicate into this person | 200 |
 | POST | `/api/crew/{id}/merge` | **admin** | Merge a duplicate into this person | 200 |
+| POST | `/api/crew/{id}/link` | **admin** | Link an account (`{ "user_id": 5 }`) to this person | 200 |
+| POST | `/api/crew/{id}/unlink` | **admin** | Unlink this person from its account | 200 |
 
 Body — `full_name` required; also accepts `other_names`, `email`,
 `patent_number`, `phone`, `pzz_license_type`, `pzz_license_number`,
@@ -702,7 +704,7 @@ account owner overwrite its person's name, phone and patent number.
 `{id}` and removes the duplicate, in one transaction:
 
 - Crew assignments (legs and voyages), voyage opinions and leg and voyage
-  captaincies (`captain_person_id`) move to the kept person. Where both are on the same leg or voyage, the kept person's
+  captaincies (`captain_person_id`) and "To ja" requests move to the kept person. Where both are on the same leg or voyage, the kept person's
   assignment stays (it takes the duplicate's patent number if it has none)
   and the duplicate's is dropped; the same applies to two opinions for one
   voyage, and the dropped opinion's file is deleted after commit.
@@ -738,6 +740,46 @@ kept person after the merge, the duplicate, and the duplicate's row counts
 (`shared_*` are the ones that collapse). The preview changes nothing and
 fails the same way. Inside Go, `handlers.MergePeople` runs the merge on a
 caller's transaction querier (`PlanPersonMerge` is the read-only variant).
+
+#### Linking accounts and people ("To ja")
+
+A user whose past voyages sit on a person without an account asks to be
+linked to it; an admin approves. There is no instant self-link.
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/auth/me/person-candidates?q=` | member | Up to 20 people without an account; blank `q` lists only those with the account's e-mail | 200 |
+| GET | `/api/auth/me/person-link-request` | member | `{ request }`: the caller's latest request, absent when none | 200 |
+| POST | `/api/auth/me/person-link-request` | member | `{ "person_id": 12 }`: ask to be linked to that person | 201 |
+| DELETE | `/api/auth/me/person-link-request` | member | Cancel the caller's pending request | 204 |
+| GET | `/api/person-link-requests` | **admin** | Pending requests with user and person names and e-mails | 200 |
+| GET | `/api/person-link-requests/pending-count` | **admin** | `{ count }` of pending requests | 200 |
+| POST | `/api/person-link-requests/{id}/approve` | **admin** | Approve: link the account to the person | 200 |
+| POST | `/api/person-link-requests/{id}/reject` | **admin** | Reject | 200 |
+
+- Candidates match a case-insensitive part of `full_name` or
+  `other_names`; e-mail matches (`email_match`) come first. Contact details
+  are not returned.
+- A request has `status` `pending`, `approved`, `rejected` or `cancelled`
+  and `person_name`, the name the user claimed (the admin list shows the
+  person's current name). Merging the requested person into another moves
+  its requests to the kept person.
+  An account has at most one pending request: another one → `409`. A
+  person that already has an account → `409`; an unknown one → `404`.
+  Cancelling without a pending request → `404`.
+- Approving, and an admin's direct link, merge the account's own person
+  into the requested one (`MergePeople`), so its voyages, opinions and
+  captaincies follow and the requested person carries the account. A
+  request no longer pending, or a person linked meanwhile → `409`. A
+  direct link also closes the account's pending request: approved when it
+  asked for that person, rejected otherwise. A person with another account
+  → `409`.
+- Unlinking clears the person's account link and its e-mail when it is the
+  account's (otherwise it would still count toward `/api/auth/me/cruises`);
+  the account gets a new person built from its profile, without history.
+  An approved request for that person no longer shows in
+  `/api/auth/me/person-link-request`, so the user can ask again. A person
+  without an account → `409`.
 
 ### Trainings (per-member)
 

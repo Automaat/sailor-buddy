@@ -1214,3 +1214,51 @@ func (m *mockQuerier) MoveVoyageCaptain(ctx context.Context, arg sqlcdb.MoveVoya
 	}
 	return m.moveVoyageCaptainFn(ctx, arg)
 }
+
+func (m *mockQuerier) ListPersonClaimCandidates(context.Context, sqlcdb.ListPersonClaimCandidatesParams) ([]sqlcdb.ListPersonClaimCandidatesRow, error) {
+	panic("unexpected call to ListPersonClaimCandidates")
+}
+
+func (m *mockQuerier) CreatePersonLinkRequest(context.Context, sqlcdb.CreatePersonLinkRequestParams) (sqlcdb.PersonLinkRequest, error) {
+	panic("unexpected call to CreatePersonLinkRequest")
+}
+
+func (m *mockQuerier) GetLatestPersonLinkRequest(context.Context, int64) (sqlcdb.GetLatestPersonLinkRequestRow, error) {
+	panic("unexpected call to GetLatestPersonLinkRequest")
+}
+
+func (m *mockQuerier) CancelPendingPersonLinkRequest(context.Context, int64) (int64, error) {
+	panic("unexpected call to CancelPendingPersonLinkRequest")
+}
+
+func (m *mockQuerier) ListPendingPersonLinkRequests(context.Context) ([]sqlcdb.ListPendingPersonLinkRequestsRow, error) {
+	panic("unexpected call to ListPendingPersonLinkRequests")
+}
+
+func (m *mockQuerier) CountPendingPersonLinkRequests(context.Context) (int64, error) {
+	panic("unexpected call to CountPendingPersonLinkRequests")
+}
+
+func (m *mockQuerier) LockPersonLinkRequest(context.Context, int64) (sqlcdb.PersonLinkRequest, error) {
+	panic("unexpected call to LockPersonLinkRequest")
+}
+
+func (m *mockQuerier) DecidePersonLinkRequest(context.Context, sqlcdb.DecidePersonLinkRequestParams) error {
+	panic("unexpected call to DecidePersonLinkRequest")
+}
+
+func (m *mockQuerier) CloseUserPendingLinkRequests(context.Context, sqlcdb.CloseUserPendingLinkRequestsParams) error {
+	panic("unexpected call to CloseUserPendingLinkRequests")
+}
+
+func (m *mockQuerier) UnlinkCrewMember(context.Context, sqlcdb.UnlinkCrewMemberParams) (int64, error) {
+	panic("unexpected call to UnlinkCrewMember")
+}
+
+func (m *mockQuerier) MovePersonLinkRequests(context.Context, sqlcdb.MovePersonLinkRequestsParams) (int64, error) {
+	panic("unexpected call to MovePersonLinkRequests")
+}
+
+func (m *mockQuerier) LockCrewMemberForShare(context.Context, int64) (sqlcdb.CrewMember, error) {
+	panic("unexpected call to LockCrewMemberForShare")
+}

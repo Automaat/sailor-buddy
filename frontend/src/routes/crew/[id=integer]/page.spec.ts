@@ -10,13 +10,27 @@ vi.mock('#lib/api/routes.js', () => ({
 	deleteCrew: vi.fn(),
 	listCrew: vi.fn(),
 	previewCrewMerge: vi.fn(),
-	mergeCrew: vi.fn()
+	mergeCrew: vi.fn(),
+	listMembers: vi.fn(),
+	linkCrewAccount: vi.fn(),
+	unlinkCrewAccount: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
-import { getCrew, updateCrew, listCrew, previewCrewMerge, mergeCrew } from '#lib/api/routes.js';
+import {
+	getCrew,
+	updateCrew,
+	listCrew,
+	previewCrewMerge,
+	mergeCrew,
+	listMembers,
+	linkCrewAccount,
+	unlinkCrewAccount
+} from '#lib/api/routes.js';
+import { ApiError } from '#lib/api/client.js';
+import { makeMember } from '#lib/test-utils.js';
 import { goto } from '$app/navigation';
 import type { CrewMember, PersonMerge } from '#lib/api/types.js';
 import PersonPage from './+page.svelte';
@@ -218,5 +232,49 @@ describe('person page', () => {
 		await fireEvent.click(await screen.findByRole('button', { name: /Ewa Pierwsza/ }));
 		expect(screen.getByRole('button', { name: 'Wybierz inną osobę' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Anuluj' })).toBeDisabled();
+	});
+});
+
+describe('person page account link', () => {
+	it('links a person without an account to a chosen account', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		vi.mocked(listMembers).mockResolvedValue([makeMember({ id: 8, name: 'Ewa Nowa', email: 'ewa@example.dev' })]);
+		vi.mocked(linkCrewAccount).mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Nowa', has_account: true, user_id: 8 }));
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Połącz z kontem' }));
+		const select = (await screen.findByLabelText('Konto')) as HTMLSelectElement;
+		await screen.findByRole('option', { name: 'Ewa Nowa (ewa@example.dev)' });
+		await fireEvent.change(select, { target: { value: '8' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
+
+		await waitFor(() => expect(linkCrewAccount).toHaveBeenCalledWith(4, 8));
+		expect(await screen.findByText('Połączono z kontem.')).toBeTruthy();
+		expect(screen.getByText('ma konto')).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'Odłącz konto' })).toBeTruthy();
+	});
+
+	it('explains a person with another account', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		vi.mocked(listMembers).mockResolvedValue([makeMember({ id: 8, name: 'Ewa Nowa' })]);
+		vi.mocked(linkCrewAccount).mockRejectedValue(new ApiError(409, 'conflict'));
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Połącz z kontem' }));
+		await screen.findByRole('option', { name: /Ewa Nowa/ });
+		await fireEvent.change(screen.getByLabelText('Konto'), { target: { value: '8' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
+		expect(await screen.findByText('Ta osoba ma już inne konto.')).toBeTruthy();
+	});
+
+	it('unlinks the account after confirmation', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj', has_account: true, user_id: 8 }));
+		vi.mocked(unlinkCrewAccount).mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Odłącz konto' }));
+
+		await waitFor(() => expect(unlinkCrewAccount).toHaveBeenCalledWith(4));
+		expect(await screen.findByText('Odłączono konto.')).toBeTruthy();
+		expect(screen.getByText('bez konta')).toBeTruthy();
+		confirmSpy.mockRestore();
 	});
 });

@@ -39,6 +39,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/me/person-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * People without an account the current user may claim
+         * @description At most 20 people, those with the account's e-mail first.
+         */
+        get: operations["list-person-claim-candidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me/person-link-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The current user's latest person link request */
+        get: operations["get-my-person-link-request"];
+        put?: never;
+        /**
+         * Ask an admin to link the current account to a person
+         * @description 404 when the person does not exist; 409 when it already has an account or the user already has a pending request.
+         */
+        post: operations["create-person-link-request"];
+        /**
+         * Cancel the current user's pending person link request
+         * @description 404 when there is no pending request.
+         */
+        delete: operations["cancel-person-link-request"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/crew": {
         parameters: {
             query?: never;
@@ -71,6 +116,26 @@ export interface paths {
         post?: never;
         /** Delete a person without an account (admin) */
         delete: operations["delete-crew-member"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/crew/{crewID}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link an account to this person (admin)
+         * @description Merges the account's current person into this one. The account's pending request is approved when it asked for this person and rejected otherwise. 409 when this person has another account.
+         */
+        post: operations["link-crew-member"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -110,6 +175,26 @@ export interface paths {
         get: operations["preview-crew-merge"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/crew/{crewID}/unlink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlink this person from its account (admin)
+         * @description The person stays without an account and loses the account's e-mail; the account gets a new person without history, and an approved request for this person no longer shows to the user. 409 when the person has no account.
+         */
+        post: operations["unlink-crew-member"];
         delete?: never;
         options?: never;
         head?: never;
@@ -459,6 +544,80 @@ export interface paths {
         /** Change a member's role (admin) */
         put: operations["update-member-role"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/person-link-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pending person link requests (admin) */
+        get: operations["list-person-link-requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/person-link-requests/pending-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Number of pending person link requests (admin) */
+        get: operations["count-person-link-requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/person-link-requests/{requestID}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a person link request (admin)
+         * @description Merges the account's own person into the requested one, which then carries the account. 409 when the request is no longer pending or the person got an account meanwhile.
+         */
+        post: operations["approve-person-link-request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/person-link-requests/{requestID}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a person link request (admin)
+         * @description 409 when the request is no longer pending.
+         */
+        post: operations["reject-person-link-request"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1857,6 +2016,16 @@ export interface components {
             /** @description Cruises with the user's accepted enrollment, captained leg or crew-list entry */
             cruise_ids: number[] | null;
         };
+        MyPersonLinkRequest: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/MyPersonLinkRequest.json
+             */
+            readonly $schema?: string;
+            /** @description The latest request; absent when the user never sent one */
+            request?: components["schemas"]["PersonLinkRequest"];
+        };
         PageCrewMember: {
             /**
              * Format: uri
@@ -2051,6 +2220,74 @@ export interface components {
              * @enum {string}
              */
             payment_status: "unpaid" | "deposit" | "paid";
+        };
+        PendingCount: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PendingCount.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            count: number;
+        };
+        PersonClaimCandidate: {
+            /** @description Whether the person's e-mail is the account's */
+            email_match: boolean;
+            full_name: string;
+            /** Format: int64 */
+            id: number;
+            other_names: string[] | null;
+        };
+        PersonLinkBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PersonLinkBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Account to link to the person
+             */
+            user_id: number;
+        };
+        PersonLinkRequest: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PersonLinkRequest.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            decided_at?: string;
+            /** Format: int64 */
+            id: number;
+            person_email?: string;
+            /** Format: int64 */
+            person_id: number;
+            person_name: string;
+            /** @enum {string} */
+            status: "pending" | "approved" | "rejected" | "cancelled";
+            user_email?: string;
+            /** Format: int64 */
+            user_id: number;
+            user_name?: string;
+        };
+        PersonLinkRequestBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PersonLinkRequestBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Person without an account the user claims to be
+             */
+            person_id: number;
         };
         PersonMerge: {
             /**
@@ -2818,6 +3055,127 @@ export interface operations {
             };
         };
     };
+    "list-person-claim-candidates": {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive part of a name or other name; blank lists only people with the account's e-mail */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonClaimCandidate"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-my-person-link-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyPersonLinkRequest"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-person-link-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonLinkRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonLinkRequest"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "cancel-person-link-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-crew": {
         parameters: {
             query?: {
@@ -2983,6 +3341,42 @@ export interface operations {
             };
         };
     };
+    "link-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonLinkBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewMember"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "merge-crew-member": {
         parameters: {
             query?: never;
@@ -3041,6 +3435,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonMerge"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "unlink-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Crew member ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewMember"];
                 };
             };
             /** @description Error */
@@ -3827,6 +4253,128 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-person-link-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonLinkRequest"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "count-person-link-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingCount"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "approve-person-link-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person link request ID */
+                requestID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonLinkRequest"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "reject-person-link-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person link request ID */
+                requestID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonLinkRequest"];
+                };
             };
             /** @description Error */
             default: {

@@ -172,8 +172,8 @@ func lockMergeLegs(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 	return nil
 }
 
-// moveMergeRows moves the duplicate's crew assignments, voyage opinions and
-// captaincies to the kept person, dropping the entries the kept person
+// moveMergeRows moves the duplicate's crew assignments, voyage opinions,
+// captaincies and person link requests to the kept person, dropping the entries the kept person
 // already has. It returns the files of the dropped opinions.
 func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) ([]string, error) {
 	if err := q.MergeSharedCrewAssignments(ctx, sqlcdb.MergeSharedCrewAssignmentsParams{
@@ -211,6 +211,11 @@ func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 		KeptID: keptID, DuplicateID: duplicateID,
 	}); err != nil {
 		return nil, &QueryError{Op: "MoveVoyageCaptain", Err: err}
+	}
+	if _, err := q.MovePersonLinkRequests(ctx, sqlcdb.MovePersonLinkRequestsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return nil, &QueryError{Op: "MovePersonLinkRequests", Err: err}
 	}
 	return files, nil
 }

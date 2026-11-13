@@ -29,6 +29,11 @@ type Querier interface {
 	//        SELECT 1 FROM trips t WHERE t.id = $1 AND t.cruise_id = ce.cruise_id
 	//    ))
 	AssignCruiseEnrollmentToTrip(ctx context.Context, arg AssignCruiseEnrollmentToTripParams) error
+	//CancelPendingPersonLinkRequest
+	//
+	//  UPDATE person_link_requests SET status = 'cancelled', decided_at = CURRENT_TIMESTAMP
+	//  WHERE user_id = $1 AND status = 'pending'
+	CancelPendingPersonLinkRequest(ctx context.Context, userID int64) (int64, error)
 	//CancelTrip
 	//
 	//  UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
@@ -42,6 +47,14 @@ type Querier interface {
 	//
 	//  UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1
 	ClearTripEnrollToken(ctx context.Context, id int64) error
+	// After an admin links the account to a person directly, its pending
+	// request is approved when it asked for that person and rejected otherwise.
+	//
+	//  UPDATE person_link_requests SET
+	//      status = CASE WHEN person_id = $1::BIGINT THEN 'approved' ELSE 'rejected' END,
+	//      decided_by = $2, decided_at = CURRENT_TIMESTAMP
+	//  WHERE user_id = $3 AND status = 'pending'
+	CloseUserPendingLinkRequests(ctx context.Context, arg CloseUserPendingLinkRequestsParams) error
 	// Accepted crew per trip of a cruise: distinct users with an accepted direct
 	// trip enrollment or an accepted cruise enrollment assigned to the trip.
 	//
@@ -127,6 +140,10 @@ type Querier interface {
 	//      WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
 	//  ) accepted_users
 	CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherAcceptedForTripParams) (int64, error)
+	//CountPendingPersonLinkRequests
+	//
+	//  SELECT COUNT(*)::BIGINT FROM person_link_requests WHERE status = 'pending'
+	CountPendingPersonLinkRequests(ctx context.Context) (int64, error)
 	//CountTrainings
 	//
 	//  SELECT COUNT(*)::BIGINT FROM trainings WHERE user_id = $1
@@ -204,6 +221,10 @@ type Querier interface {
 	//  INSERT INTO cruise_series (created_by, name, description)
 	//  VALUES ($1, $2, $3) RETURNING id, created_by, name, description, created_at, updated_at
 	CreateCruiseSeries(ctx context.Context, arg CreateCruiseSeriesParams) (CruiseSeries, error)
+	//CreatePersonLinkRequest
+	//
+	//  INSERT INTO person_link_requests (user_id, person_id, person_name) VALUES ($1, $2, $3) RETURNING id, user_id, person_id, person_name, status, decided_by, decided_at, created_at
+	CreatePersonLinkRequest(ctx context.Context, arg CreatePersonLinkRequestParams) (PersonLinkRequest, error)
 	//CreateTraining
 	//
 	//  INSERT INTO trainings (user_id, date, name, organizer, cost, url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, date, name, organizer, cost, url, created_at, updated_at
@@ -273,6 +294,12 @@ type Querier interface {
 	//  INSERT INTO yachts (created_by, name, registration_no, yacht_type, berths, length_m, build_year, engine, owner_name)
 	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name
 	CreateYacht(ctx context.Context, arg CreateYachtParams) (Yacht, error)
+	//DecidePersonLinkRequest
+	//
+	//  UPDATE person_link_requests SET
+	//      status = $1, decided_by = $2, decided_at = CURRENT_TIMESTAMP
+	//  WHERE id = $3
+	DecidePersonLinkRequest(ctx context.Context, arg DecidePersonLinkRequestParams) error
 	//DeleteCruise
 	//
 	//  DELETE FROM cruises WHERE id = $1
@@ -430,6 +457,17 @@ type Querier interface {
 	//      COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
 	//  FROM voyages
 	GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error)
+	// The user's most recent request, so a rejection stays visible until the
+	// user sends a new one. person_linked tells whether the requested person
+	// still carries the account, which an admin's unlink ends.
+	//
+	//  SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, (cm.user_id IS NOT DISTINCT FROM r.user_id)::BOOLEAN AS person_linked
+	//  FROM person_link_requests r
+	//  JOIN crew_members cm ON cm.id = r.person_id
+	//  WHERE r.user_id = $1
+	//  ORDER BY r.id DESC
+	//  LIMIT 1
+	GetLatestPersonLinkRequest(ctx context.Context, userID int64) (GetLatestPersonLinkRequestRow, error)
 	//GetTraining
 	//
 	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE id = $1 AND user_id = $2
@@ -609,6 +647,38 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
 	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
+	//ListPendingPersonLinkRequests
+	//
+	//  SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
+	//         cm.full_name AS current_person_name, cm.email AS person_email
+	//  FROM person_link_requests r
+	//  JOIN users u ON u.id = r.user_id
+	//  JOIN crew_members cm ON cm.id = r.person_id
+	//  WHERE r.status = 'pending'
+	//  ORDER BY r.created_at, r.id
+	ListPendingPersonLinkRequests(ctx context.Context) ([]ListPendingPersonLinkRequestsRow, error)
+	// People without an account that the user may claim. A NULL search lists
+	// only the people whose e-mail matches the account's; otherwise it matches
+	// a case-insensitive part of the name or any other name. E-mail matches
+	// come first.
+	//
+	//  SELECT cm.id, cm.full_name, cm.other_names,
+	//         (cm.email IS NOT NULL AND lower(btrim(cm.email)) = lower(btrim(u.email)))::BOOLEAN AS email_match
+	//  FROM crew_members cm, users u
+	//  WHERE u.id = $1
+	//    AND cm.user_id IS NULL
+	//    AND (
+	//        ($2::TEXT IS NULL
+	//         AND cm.email IS NOT NULL AND lower(btrim(cm.email)) = lower(btrim(u.email)))
+	//     OR strpos(lower(cm.full_name), lower($2::TEXT)) > 0
+	//     OR EXISTS (
+	//         SELECT 1 FROM jsonb_array_elements_text(cm.other_names) AS other(name)
+	//         WHERE strpos(lower(other.name), lower($2::TEXT)) > 0
+	//     )
+	//    )
+	//  ORDER BY email_match DESC, cm.full_name, cm.id
+	//  LIMIT 20
+	ListPersonClaimCandidates(ctx context.Context, arg ListPersonClaimCandidatesParams) ([]ListPersonClaimCandidatesRow, error)
 	//ListTrainings
 	//
 	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
@@ -734,6 +804,11 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Holds the requested person while a request is created, so a concurrent
+	// link or merge either finishes first and is seen, or waits for the request.
+	//
+	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1 FOR SHARE
+	LockCrewMemberForShare(ctx context.Context, id int64) (CrewMember, error)
 	// Locks both people in id order, so two merges cannot deadlock and no crew
 	// assignment or opinion can be added for either until the merge ends.
 	//
@@ -797,6 +872,11 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR NO KEY UPDATE
 	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
+	// Locks the request, so a cancel or a second decision waits for this one
+	// and then finds it no longer pending.
+	//
+	//  SELECT id, user_id, person_id, person_name, status, decided_by, decided_at, created_at FROM person_link_requests WHERE id = $1 FOR UPDATE
+	LockPersonLinkRequest(ctx context.Context, id int64) (PersonLinkRequest, error)
 	// Key-share-locks the trip's captain person. Trip completion takes it before
 	// the trip lock, in the same order as deleting the person (the person, then
 	// the trips ON DELETE SET NULL), so the two cannot deadlock.
@@ -868,6 +948,12 @@ type Querier interface {
 	//  UPDATE crew_assignments SET crew_member_id = $1::BIGINT
 	//  WHERE crew_member_id = $2::BIGINT
 	MoveCrewAssignments(ctx context.Context, arg MoveCrewAssignmentsParams) (int64, error)
+	// Points the duplicate's requests at the kept person when two people are
+	// merged, so a pending request survives the duplicate's deletion.
+	//
+	//  UPDATE person_link_requests SET person_id = $1::BIGINT
+	//  WHERE person_id = $2::BIGINT
+	MovePersonLinkRequests(ctx context.Context, arg MovePersonLinkRequestsParams) (int64, error)
 	//MoveTripCaptain
 	//
 	//  UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
@@ -919,6 +1005,17 @@ type Querier interface {
 	//
 	//  UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2
 	SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) error
+	// Detaches the person from its account. The e-mail goes too when it is the
+	// account's, since an unlinked person with the account's e-mail would still
+	// count toward the account's cruises.
+	//
+	//  UPDATE crew_members SET
+	//      user_id = NULL,
+	//      email = CASE WHEN email IS NOT NULL AND lower(btrim(email)) = lower(btrim($1::TEXT))
+	//          THEN NULL ELSE email END,
+	//      updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $2 AND user_id = $3
+	UnlinkCrewMember(ctx context.Context, arg UnlinkCrewMemberParams) (int64, error)
 	//UpdateCrewMember
 	//
 	//  UPDATE crew_members SET

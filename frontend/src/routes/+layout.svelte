@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { auth } from '#lib/stores/auth.svelte.js';
+	import { linkRequests } from '#lib/stores/linkRequests.svelte.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getMe } from '#lib/api/routes.js';
@@ -24,6 +25,7 @@
 		icon: typeof Anchor;
 		adminOnly?: boolean;
 		alsoActiveUnder?: string[];
+		badge?: () => number;
 	};
 
 	const navItems: NavItem[] = [
@@ -33,7 +35,7 @@
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
 		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
-		{ href: '/crew', label: 'Osoby', icon: Contact, adminOnly: true }
+		{ href: '/crew', label: 'Osoby', icon: Contact, adminOnly: true, badge: () => linkRequests.pending }
 	];
 
 	// Phone navigation drawer (below md). It closes on every navigation so a
@@ -43,6 +45,11 @@
 	$effect(() => {
 		void page.url.pathname;
 		menuOpen = false;
+	});
+
+	$effect(() => {
+		void page.url.pathname;
+		if (auth.isAdmin) linkRequests.refresh();
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -135,6 +142,15 @@
 				>
 					<Icon class="h-5 w-5" />
 					<span>{item.label}</span>
+					{#if item.badge?.()}
+						<span
+							class="ml-auto rounded-full bg-amber-400 px-2 text-xs font-semibold text-[var(--navy)]"
+							title="Prośby „To ja” czekające na decyzję"
+							aria-label="{item.badge()} oczekujących próśb"
+						>
+							{item.badge()}
+						</span>
+					{/if}
 				</a>
 			{/if}
 		{/each}

@@ -9,6 +9,7 @@
 	import { updateMe } from '#lib/api/routes.js';
 	import { errorMessage } from '#lib/api/errors.js';
 	import ProfileFields from '#lib/components/ProfileFields.svelte';
+	import PersonClaim from '#lib/components/PersonClaim.svelte';
 	import { profileBody, profileFormFromUser, type ProfileForm } from '#lib/profile.js';
 
 	const fbUser = auth.firebaseUser;
@@ -155,6 +156,10 @@
 				{profileSaving ? 'Zapisywanie...' : 'Zapisz'}
 			</button>
 		</form>
+	</div>
+
+	<div class="mt-6">
+		<PersonClaim />
 	</div>
 
 	{#if hasPasswordProvider}
