@@ -70,7 +70,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL('/', { timeout: 10_000 });
 
 		expect(await mutationStatus(memberToken, 'POST', '/cruises', { name: 'X' })).toBe(403);
-		expect(await mutationStatus(memberToken, 'POST', '/trips', { name: 'X' })).toBe(403);
+		expect(await mutationStatus(memberToken, 'POST', '/trips', { name: 'X', cruise_id: 1 })).toBe(403);
 		expect(await mutationStatus(memberToken, 'POST', '/yachts', { name: 'X' })).toBe(403);
 		expect(await mutationStatus(memberToken, 'POST', '/crew', { full_name: 'X' })).toBe(403);
 	});

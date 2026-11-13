@@ -39,8 +39,9 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 	var eventID, linkedTrip, standaloneTrip, standaloneVoyage int64
 	mustScan(t, conn.QueryRow(`INSERT INTO cruises (name) VALUES ('NNE 2025') RETURNING id`), &eventID)
 	mustScan(t, conn.QueryRow(`INSERT INTO trips (name, cruise_id) VALUES ('Leg 1', $1) RETURNING id`, eventID), &linkedTrip)
-	mustScan(t, conn.QueryRow(`INSERT INTO trips (name, embark_date, start_port, currency)
-		VALUES ('Weekend', '2026-05-01', 'Gdynia', 'EUR') RETURNING id`), &standaloneTrip)
+	mustScan(t, conn.QueryRow(`INSERT INTO trips (name, embark_date, start_port, currency,
+		cost_per_person, cost_per_person_non_member, yacht_fund, deposit)
+		VALUES ('Weekend', '2026-05-01', 'Gdynia', 'EUR', 760, 800, 150, 100) RETURNING id`), &standaloneTrip)
 	mustScan(t, conn.QueryRow(`INSERT INTO voyages (name, year, miles)
 		VALUES ('Rejs 2019', 2019, 120) RETURNING id`), &standaloneVoyage)
 
@@ -59,6 +60,12 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 		JOIN cruises c ON c.id = t.cruise_id WHERE t.id = $1`, standaloneTrip), &name, &startPort, &currency)
 	if name != "Weekend" || startPort != "Gdynia" || currency != "EUR" {
 		t.Errorf("standalone trip wrapped in cruise (%q, %q, %q), want (Weekend, Gdynia, EUR)", name, startPort, currency)
+	}
+	var member, nonMember, fund, deposit float64
+	mustScan(t, conn.QueryRow(`SELECT c.cost_per_person, c.cost_per_person_non_member, c.yacht_fund, c.deposit
+		FROM trips t JOIN cruises c ON c.id = t.cruise_id WHERE t.id = $1`, standaloneTrip), &member, &nonMember, &fund, &deposit)
+	if member != 760 || nonMember != 800 || fund != 150 || deposit != 100 {
+		t.Errorf("wrapped cruise prices = (%v, %v, %v, %v), want (760, 800, 150, 100)", member, nonMember, fund, deposit)
 	}
 	mustScan(t, conn.QueryRow(`SELECT c.name FROM voyages v
 		JOIN cruises c ON c.id = v.cruise_id WHERE v.id = $1`, standaloneVoyage), &name)

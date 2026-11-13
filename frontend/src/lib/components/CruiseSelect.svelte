@@ -20,7 +20,7 @@
 <select
 	{id}
 	bind:value
-	onchange={() => onchange?.(value)}
+	onchange={(e) => onchange?.(Number(e.currentTarget.value))}
 	required
 	aria-required="true"
 	class="w-full rounded-lg border px-3 py-2"

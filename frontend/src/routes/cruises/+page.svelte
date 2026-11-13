@@ -18,6 +18,9 @@
 	let entries = $state<RejsEntry[]>([]);
 	let loading = $state(true);
 	let tab = $state<RejsTab>(parseRejsTab(page.url.searchParams.get('tab')));
+	$effect(() => {
+		tab = parseRejsTab(page.url.searchParams.get('tab'));
+	});
 	let kindFilter = $state<CruiseKind | 'all'>('all');
 
 	const inTab = $derived(filterRejsEntries(entries, tab));
