@@ -21,6 +21,8 @@ func TestAssignToCompletedTrip_Conflict(t *testing.T) {
 	}{
 		{name: "trip completed or deleted underneath", err: tripGone("crew_assignments_trip_id_fkey"), want: http.StatusConflict},
 		{name: "person deleted or merged underneath", err: tripGone("crew_assignments_crew_member_id_fkey"), want: http.StatusNotFound},
+		{name: "person already on the crew", err: &pgconn.PgError{Code: "23505", ConstraintName: "crew_assignments_trip_member_uniq"}, want: http.StatusConflict},
+		{name: "deadlock on every attempt", err: &pgconn.PgError{Code: "40P01"}, want: http.StatusConflict},
 		{name: "other foreign key", err: tripGone("crew_assignments_other_fkey"), want: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {

@@ -217,3 +217,68 @@ func TestCrewAssign_PersonGoneDuringAssign(t *testing.T) {
 		}
 	}
 }
+
+// TestCrewAssign_KeptPersonDuringMerge hand-assigns the kept person to a leg
+// or voyage the duplicate is on while the merge waits for another leg the
+// kept person is on. The insert then waits for the merge, the merge moves
+// the duplicate's entry onto the same slot and waits for the insert, and
+// the insert loses the deadlock. It runs again after the merge commits and
+// answers 409, since the kept person is now on the crew list.
+func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
+	for _, target := range []string{"trip", "voyage"} {
+		t.Run(target, func(t *testing.T) {
+			f := seedMerge(t)
+			ctx := context.Background()
+			create := `INSERT INTO voyages (cruise_id, name) SELECT cruise_id, 'Fresh' FROM trips WHERE id = $1 RETURNING id`
+			if target == "trip" {
+				create = `INSERT INTO trips (cruise_id, name, currency) SELECT cruise_id, 'Fresh', 'PLN' FROM trips WHERE id = $1 RETURNING id`
+			}
+			var targetID int64
+			if err := f.conn.QueryRowContext(ctx, create, f.trip1).Scan(&targetID); err != nil {
+				t.Fatalf("create %s: %v", target, err)
+			}
+			column := target + "_id"
+			if _, err := f.conn.ExecContext(ctx,
+				"INSERT INTO crew_assignments ("+column+", crew_member_id) VALUES ($1, $2)", targetID, f.duplicateID); err != nil {
+				t.Fatalf("assign duplicate: %v", err)
+			}
+			holder, err := f.conn.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatalf("begin holder: %v", err)
+			}
+			defer func() { _ = holder.Rollback() }()
+			if _, err := holder.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR UPDATE", f.trip1); err != nil {
+				t.Fatalf("hold leg 1: %v", err)
+			}
+
+			api := f.api(t, sqlTxRunner(f.conn))
+			merged := make(chan int, 1)
+			go func() {
+				resp := api.PostCtx(callerCtx(1, "admin"),
+					fmt.Sprintf("/crew/%d/merge", f.keptID), map[string]any{"duplicate_id": f.duplicateID})
+				merged <- resp.Code
+			}()
+			waitForLockWaiters(t, f.conn, 1)
+			assigned := make(chan int, 1)
+			go func() {
+				resp := api.PostCtx(userCtx(ctx), fmt.Sprintf("/%ss/%d/crew", target, targetID),
+					map[string]any{"crew_member_id": f.keptID, "role": "zalogant"})
+				assigned <- resp.Code
+			}()
+			waitForLockWaiters(t, f.conn, 2)
+			if err := holder.Commit(); err != nil {
+				t.Fatalf("commit holder: %v", err)
+			}
+			if code := <-merged; code != http.StatusOK {
+				t.Fatalf("merge: got %d, want 200", code)
+			}
+			if code := <-assigned; code != http.StatusConflict {
+				t.Fatalf("assign: got %d, want 409", code)
+			}
+			want := []string{fmt.Sprintf("%d accepted=false", f.keptID)}
+			if got := crewOn(t, f.conn, column, targetID); !slices.Equal(got, want) {
+				t.Errorf("%s crew = %v, want %v", target, got, want)
+			}
+		})
+	}
+}

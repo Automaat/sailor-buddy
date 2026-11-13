@@ -309,6 +309,22 @@ func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (
 // between verifyCrewMember and the crew insert.
 const crewMemberFKey = "crew_assignments_crew_member_id_fkey"
 
+// assignCrewError maps a hand-assignment insert failure caused by the
+// person to its API error, or returns nil. A merge that moves the
+// duplicate's entry onto the same leg or voyage makes the person already
+// listed, or keeps deadlocking the insert.
+func assignCrewError(err error) error {
+	switch {
+	case isForeignKeyViolation(err, crewMemberFKey):
+		return huma.Error404NotFound("crew member not found")
+	case isUniqueViolation(err):
+		return huma.Error409Conflict("crew member is already on the crew list")
+	case isDeadlock(err):
+		return huma.Error409Conflict("the person changed meanwhile: reload and try again")
+	}
+	return nil
+}
+
 // verifyCrewMember confirms the crew member exists.
 func (h *CrewHandler) verifyCrewMember(ctx context.Context, crewMemberID int64) error {
 	if _, err := h.q.GetCrewMember(ctx, crewMemberID); err != nil {
@@ -335,18 +351,23 @@ func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInpu
 	if err := h.verifyCrewMember(ctx, in.Body.CrewMemberID); err != nil {
 		return nil, err
 	}
-	assignment, err := h.q.CreateTripCrewAssignment(ctx, sqlcdb.CreateTripCrewAssignmentParams{
-		TripID:       types.NullInt64{Int64: in.TripID, Valid: true},
-		CrewMemberID: in.Body.CrewMemberID,
-		Role:         in.Body.Role,
-		PatentNumber: nullString(in.Body.PatentNumber),
+	var assignment sqlcdb.CrewAssignment
+	err := onDeadlockRetry(func() error {
+		var err error
+		assignment, err = h.q.CreateTripCrewAssignment(ctx, sqlcdb.CreateTripCrewAssignmentParams{
+			TripID:       types.NullInt64{Int64: in.TripID, Valid: true},
+			CrewMemberID: in.Body.CrewMemberID,
+			Role:         in.Body.Role,
+			PatentNumber: nullString(in.Body.PatentNumber),
+		})
+		return err
 	})
 	if err != nil {
 		if isForeignKeyViolation(err, "crew_assignments_trip_id_fkey") {
 			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
 		}
-		if isForeignKeyViolation(err, crewMemberFKey) {
-			return nil, huma.Error404NotFound("crew member not found")
+		if resp := assignCrewError(err); resp != nil {
+			return nil, resp
 		}
 		slog.Error("assign trip crew", "trip_id", in.TripID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to assign crew member")
@@ -391,15 +412,20 @@ func (h *CrewHandler) assignVoyageCrew(ctx context.Context, in *assignVoyageCrew
 	if err := h.verifyCrewMember(ctx, in.Body.CrewMemberID); err != nil {
 		return nil, err
 	}
-	assignment, err := h.q.CreateVoyageCrewAssignment(ctx, sqlcdb.CreateVoyageCrewAssignmentParams{
-		VoyageID:     types.NullInt64{Int64: in.VoyageID, Valid: true},
-		CrewMemberID: in.Body.CrewMemberID,
-		Role:         in.Body.Role,
-		PatentNumber: nullString(in.Body.PatentNumber),
+	var assignment sqlcdb.CrewAssignment
+	err := onDeadlockRetry(func() error {
+		var err error
+		assignment, err = h.q.CreateVoyageCrewAssignment(ctx, sqlcdb.CreateVoyageCrewAssignmentParams{
+			VoyageID:     types.NullInt64{Int64: in.VoyageID, Valid: true},
+			CrewMemberID: in.Body.CrewMemberID,
+			Role:         in.Body.Role,
+			PatentNumber: nullString(in.Body.PatentNumber),
+		})
+		return err
 	})
 	if err != nil {
-		if isForeignKeyViolation(err, crewMemberFKey) {
-			return nil, huma.Error404NotFound("crew member not found")
+		if resp := assignCrewError(err); resp != nil {
+			return nil, resp
 		}
 		slog.Error("assign voyage crew", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to assign crew member")

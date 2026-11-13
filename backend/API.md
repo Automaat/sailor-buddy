@@ -306,7 +306,7 @@ returns `404`
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/trips/{tripID}/crew` | member | List trip crew | 200 |
-| POST | `/api/trips/{tripID}/crew` | **admin** | Assign crew member; `404` when the person is gone | 201 |
+| POST | `/api/trips/{tripID}/crew` | **admin** | Assign crew member; `404` when the person is gone, `409` when already on the crew | 201 |
 | DELETE | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
 Assignment body — `crew_member_id` and `role` required:
@@ -493,7 +493,7 @@ moves it returns `409`.
 | POST | `/api/voyages/{id}/yachts` | **admin** or voyage captain | Add a yacht to the club list (does not assign it) | 201 |
 | DELETE | `/api/voyages/{id}` | **admin** | Delete voyage | 204 |
 | GET | `/api/voyages/{voyageID}/crew` | member | List voyage crew | 200 |
-| POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member; `404` when the person is gone | 201 |
+| POST | `/api/voyages/{voyageID}/crew` | **admin** | Assign crew member; `404` when the person is gone, `409` when already on the crew | 201 |
 | DELETE | `/api/voyages/{voyageID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
 Voyage body — `name` required; also accepts `year` and the sailing-log fields
@@ -723,7 +723,9 @@ account owner overwrite its person's name, phone and patent number.
   `MergePeople` should retry on `40P01` too.
 - An acceptance that waited for the merge adds the kept person, which now
   holds the account. Hand-assigning the duplicate, or any person deleted
-  meanwhile, to a leg or voyage → `404`.
+  meanwhile, to a leg or voyage → `404`. Hand-assigning the kept person
+  where the merge moves the duplicate's entry → `409`, as for any person
+  already on the crew list; a deadlock with the merge is retried first.
 - Where both are on the same leg, the kept entry counts as added by an
   accepted sign-up (`added_by_acceptance`) only when both entries did.
 - The same ID twice, or merged `other_names` over the 20 × 200 limit →
