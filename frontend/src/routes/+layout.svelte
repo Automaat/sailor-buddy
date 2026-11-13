@@ -14,6 +14,7 @@
 	import Repeat from '@lucide/svelte/icons/repeat';
 	import Menu from '@lucide/svelte/icons/menu';
 	import X from '@lucide/svelte/icons/x';
+	import Contact from '@lucide/svelte/icons/contact';
 
 	let { children } = $props();
 
@@ -30,8 +31,9 @@
 		{ href: '/cruises', label: 'Rejsy', icon: Sailboat, alsoActiveUnder: ['/trips', '/voyages'] },
 		{ href: '/series', label: 'Serie', icon: Repeat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
-		{ href: '/trainings', label: 'Szkolenia', icon: ClipboardList },
-		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true }
+		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
+		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
+		{ href: '/crew', label: 'Załoga', icon: Contact, adminOnly: true }
 	];
 
 	// Phone navigation drawer (below md). It closes on every navigation so a

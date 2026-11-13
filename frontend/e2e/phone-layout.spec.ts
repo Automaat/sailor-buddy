@@ -177,8 +177,7 @@ test.describe.serial('Phone layout', () => {
 			`/crew/${ids.crew}`,
 			'/trainings',
 			'/members',
-			'/profile',
-			'/settings'
+			'/profile'
 		];
 		for (const path of paths) {
 			expect.soft(await pageWidth(page, path), path).toBeLessThanOrEqual(PHONE.width);

@@ -59,6 +59,9 @@ test.describe.serial('Single-club persona matrix', () => {
 		// the backend provisions — that account is auto-promoted to admin.
 		await registerViaUI(page, adminName, adminEmail, PASSWORD);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
+		await expect(page.getByRole('link', { name: 'Załoga', exact: true })).toHaveAttribute('href', '/crew');
+		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveAttribute('href', '/trainings');
+		await expect(page.getByRole('link', { name: 'Szkolenia' })).toHaveCount(0);
 
 		const member = await createTestUser(memberEmail, PASSWORD, 'Persona Member');
 		memberToken = member.idToken;
@@ -75,6 +78,11 @@ test.describe.serial('Single-club persona matrix', () => {
 		await loginViaUI(page, memberEmail, PASSWORD);
 
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Załoga', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveCount(1);
+
+		await page.goto('/settings');
+		await page.waitForURL('/profile', { timeout: 10_000 });
 
 		await page.goto('/cruises');
 		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(0);
