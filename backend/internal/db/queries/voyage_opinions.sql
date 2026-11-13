@@ -20,3 +20,17 @@ SELECT * FROM voyage_opinions WHERE id = $1;
 
 -- name: DeleteVoyageOpinion :exec
 DELETE FROM voyage_opinions WHERE id = $1;
+
+-- name: DeleteSharedVoyageOpinions :many
+-- On a voyage both people have an opinion for, the kept person's stays. The
+-- returned file paths are removed once the merge commits.
+DELETE FROM voyage_opinions d
+USING voyage_opinions k
+WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND k.voyage_id = d.voyage_id
+RETURNING d.file_path;
+
+-- name: MoveVoyageOpinions :execrows
+UPDATE voyage_opinions SET crew_member_id = sqlc.arg(kept_id)::BIGINT
+WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT;

@@ -112,6 +112,34 @@ func (q *Queries) CreateVoyageCrewAssignment(ctx context.Context, arg CreateVoya
 	return i, err
 }
 
+const deleteSharedCrewAssignments = `-- name: DeleteSharedCrewAssignments :execrows
+DELETE FROM crew_assignments d
+USING crew_assignments k
+WHERE d.crew_member_id = $1::BIGINT
+  AND k.crew_member_id = $2::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+`
+
+type DeleteSharedCrewAssignmentsParams struct {
+	DuplicateID int64 `json:"duplicate_id"`
+	KeptID      int64 `json:"kept_id"`
+}
+
+// DeleteSharedCrewAssignments
+//
+//	DELETE FROM crew_assignments d
+//	USING crew_assignments k
+//	WHERE d.crew_member_id = $1::BIGINT
+//	  AND k.crew_member_id = $2::BIGINT
+//	  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+func (q *Queries) DeleteSharedCrewAssignments(ctx context.Context, arg DeleteSharedCrewAssignmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSharedCrewAssignments, arg.DuplicateID, arg.KeptID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteTripCrewAssignment = `-- name: DeleteTripCrewAssignment :exec
 DELETE FROM crew_assignments WHERE id = $1 AND trip_id = $2
 `
@@ -563,6 +591,60 @@ func (q *Queries) ListVoyageCrewAssignments(ctx context.Context, voyageID types.
 		return nil, err
 	}
 	return items, nil
+}
+
+const mergeSharedCrewAssignments = `-- name: MergeSharedCrewAssignments :exec
+UPDATE crew_assignments k SET
+    patent_number = COALESCE(k.patent_number, d.patent_number),
+    added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+FROM crew_assignments d
+WHERE k.crew_member_id = $1::BIGINT
+  AND d.crew_member_id = $2::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+`
+
+type MergeSharedCrewAssignmentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// On a leg or voyage both people are on, the kept person's assignment stays.
+// It takes the duplicate's patent number when it has none, and counts as
+// added by an accepted sign-up only when both entries did, so a hand-added
+// entry is never removed when the sign-up is withdrawn.
+//
+//	UPDATE crew_assignments k SET
+//	    patent_number = COALESCE(k.patent_number, d.patent_number),
+//	    added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+//	FROM crew_assignments d
+//	WHERE k.crew_member_id = $1::BIGINT
+//	  AND d.crew_member_id = $2::BIGINT
+//	  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+func (q *Queries) MergeSharedCrewAssignments(ctx context.Context, arg MergeSharedCrewAssignmentsParams) error {
+	_, err := q.db.ExecContext(ctx, mergeSharedCrewAssignments, arg.KeptID, arg.DuplicateID)
+	return err
+}
+
+const moveCrewAssignments = `-- name: MoveCrewAssignments :execrows
+UPDATE crew_assignments SET crew_member_id = $1::BIGINT
+WHERE crew_member_id = $2::BIGINT
+`
+
+type MoveCrewAssignmentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveCrewAssignments
+//
+//	UPDATE crew_assignments SET crew_member_id = $1::BIGINT
+//	WHERE crew_member_id = $2::BIGINT
+func (q *Queries) MoveCrewAssignments(ctx context.Context, arg MoveCrewAssignmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveCrewAssignments, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const removeAcceptedTripCrewAssignment = `-- name: RemoveAcceptedTripCrewAssignment :exec

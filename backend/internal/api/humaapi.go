@@ -29,7 +29,7 @@ func humaConfig() huma.Config {
 // It is shared by the live router and the offline spec generator, so the
 // generated OpenAPI document always matches the routes the server serves.
 func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir string) {
-	handlers.RegisterAuthRoutes(api, q)
+	handlers.RegisterAuthRoutes(api, q, db)
 	handlers.RegisterDashboardRoutes(api, q)
 	handlers.RegisterTripRoutes(api, q, db)
 	handlers.RegisterVoyageRoutes(api, q)
@@ -37,7 +37,7 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 	handlers.RegisterGeocodeRoutes(api)
 	handlers.RegisterYachtRoutes(api, q)
 	handlers.RegisterTrainingRoutes(api, q)
-	handlers.RegisterCrewRoutes(api, q)
+	handlers.RegisterCrewRoutes(api, q, db)
 	handlers.RegisterEnrollmentRoutes(api, q, db)
 	handlers.RegisterVoyageOpinionRoutes(api, q, uploadDir)
 	handlers.RegisterUploadRoutes(api, uploadDir)

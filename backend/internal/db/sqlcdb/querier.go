@@ -80,6 +80,28 @@ type Querier interface {
 	//         WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
 	//     )
 	CountCrewMembers(ctx context.Context, search types.NullString) (int64, error)
+	// Counts what merging the duplicate into the kept person moves. A shared
+	// row is a leg, voyage or voyage opinion both people already have.
+	//
+	//  SELECT
+	//      (SELECT COUNT(*) FROM crew_assignments
+	//       WHERE crew_member_id = $1::BIGINT AND trip_id IS NOT NULL)::BIGINT AS trip_assignments,
+	//      (SELECT COUNT(*) FROM crew_assignments
+	//       WHERE crew_member_id = $1::BIGINT AND voyage_id IS NOT NULL)::BIGINT AS voyage_assignments,
+	//      (SELECT COUNT(*) FROM crew_assignments d
+	//       JOIN crew_assignments k ON k.crew_member_id = $2::BIGINT
+	//        AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+	//       WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_assignments,
+	//      (SELECT COUNT(*) FROM voyage_opinions
+	//       WHERE crew_member_id = $1::BIGINT)::BIGINT AS opinions,
+	//      (SELECT COUNT(*) FROM voyage_opinions d
+	//       JOIN voyage_opinions k ON k.crew_member_id = $2::BIGINT AND k.voyage_id = d.voyage_id
+	//       WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions,
+	//      (SELECT COUNT(*) FROM trips
+	//       WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
+	//      (SELECT COUNT(*) FROM voyages
+	//       WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
+	CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRowsParams) (CountCrewMergeRowsRow, error)
 	//CountCruiseEnrollments
 	//
 	//  SELECT
@@ -265,6 +287,28 @@ type Querier interface {
 	//
 	//  DELETE FROM cruise_series WHERE id = $1
 	DeleteCruiseSeries(ctx context.Context, id int64) error
+	//DeleteMergedCrewMember
+	//
+	//  DELETE FROM crew_members WHERE id = $1
+	DeleteMergedCrewMember(ctx context.Context, id int64) (int64, error)
+	//DeleteSharedCrewAssignments
+	//
+	//  DELETE FROM crew_assignments d
+	//  USING crew_assignments k
+	//  WHERE d.crew_member_id = $1::BIGINT
+	//    AND k.crew_member_id = $2::BIGINT
+	//    AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+	DeleteSharedCrewAssignments(ctx context.Context, arg DeleteSharedCrewAssignmentsParams) (int64, error)
+	// On a voyage both people have an opinion for, the kept person's stays. The
+	// returned file paths are removed once the merge commits.
+	//
+	//  DELETE FROM voyage_opinions d
+	//  USING voyage_opinions k
+	//  WHERE d.crew_member_id = $1::BIGINT
+	//    AND k.crew_member_id = $2::BIGINT
+	//    AND k.voyage_id = d.voyage_id
+	//  RETURNING d.file_path
+	DeleteSharedVoyageOpinions(ctx context.Context, arg DeleteSharedVoyageOpinionsParams) ([]string, error)
 	//DeleteTraining
 	//
 	//  DELETE FROM trainings WHERE id = $1 AND user_id = $2
@@ -692,6 +736,40 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// Locks both people in id order, so two merges cannot deadlock and no crew
+	// assignment or opinion can be added for either until the merge ends.
+	//
+	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
+	//  WHERE id IN ($1::BIGINT, $2::BIGINT)
+	//  ORDER BY id
+	//  FOR UPDATE
+	LockCrewMembersForMerge(ctx context.Context, arg LockCrewMembersForMergeParams) ([]CrewMember, error)
+	// Share-locks every leg either person is on or captains, so completing a
+	// leg waits for the merge instead of moving its crew or captain under it.
+	// Taken after the people, in the person-then-leg order of leg completion
+	// and person deletion.
+	//
+	//  SELECT t.id FROM trips t
+	//  WHERE t.id IN (
+	//      SELECT ca.trip_id FROM crew_assignments ca
+	//      WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  )
+	//     OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
+	//  ORDER BY t.id
+	//  FOR SHARE
+	LockCrewMergeTrips(ctx context.Context, arg LockCrewMergeTripsParams) error
+	// Share-locks every voyage either person is on or captains, for the same
+	// reason.
+	//
+	//  SELECT v.id FROM voyages v
+	//  WHERE v.id IN (
+	//      SELECT ca.voyage_id FROM crew_assignments ca
+	//      WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  )
+	//     OR v.captain_person_id IN ($1::BIGINT, $2::BIGINT)
+	//  ORDER BY v.id
+	//  FOR SHARE
+	LockCrewMergeVoyages(ctx context.Context, arg LockCrewMergeVoyagesParams) error
 	// Share-locks the cruise for the rest of a share-link sign-up while it still
 	// has the given enroll token, so clearing or regenerating the link waits for
 	// the sign-up to commit and a sign-up after that sees the change. Taken
@@ -760,6 +838,46 @@ type Querier interface {
 	//  WHERE id = $1
 	//  FOR NO KEY UPDATE
 	LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error)
+	// Serializes a profile save with a merge that moves the account's person
+	// link. Both lock the account first; the save's update then runs on a fresh
+	// snapshot and finds the person the merge kept. NO KEY keeps foreign-key
+	// checks on the account (sign-ups, captains) from waiting on the merge.
+	//
+	//  SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
+	LockUserForUpdate(ctx context.Context, id int64) (int64, error)
+	// On a leg or voyage both people are on, the kept person's assignment stays.
+	// It takes the duplicate's patent number when it has none, and counts as
+	// added by an accepted sign-up only when both entries did, so a hand-added
+	// entry is never removed when the sign-up is withdrawn.
+	//
+	//  UPDATE crew_assignments k SET
+	//      patent_number = COALESCE(k.patent_number, d.patent_number),
+	//      added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+	//  FROM crew_assignments d
+	//  WHERE k.crew_member_id = $1::BIGINT
+	//    AND d.crew_member_id = $2::BIGINT
+	//    AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+	MergeSharedCrewAssignments(ctx context.Context, arg MergeSharedCrewAssignmentsParams) error
+	//MoveCrewAssignments
+	//
+	//  UPDATE crew_assignments SET crew_member_id = $1::BIGINT
+	//  WHERE crew_member_id = $2::BIGINT
+	MoveCrewAssignments(ctx context.Context, arg MoveCrewAssignmentsParams) (int64, error)
+	//MoveTripCaptain
+	//
+	//  UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+	//  WHERE captain_person_id = $2::BIGINT
+	MoveTripCaptain(ctx context.Context, arg MoveTripCaptainParams) (int64, error)
+	//MoveVoyageCaptain
+	//
+	//  UPDATE voyages SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+	//  WHERE captain_person_id = $2::BIGINT
+	MoveVoyageCaptain(ctx context.Context, arg MoveVoyageCaptainParams) (int64, error)
+	//MoveVoyageOpinions
+	//
+	//  UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
+	//  WHERE crew_member_id = $2::BIGINT
+	MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinionsParams) (int64, error)
 	// Takes a user's person off a trip's crew when the entry came from an
 	// accepted sign-up and the user no longer has any accepted sign-up for the
 	// trip, direct or through a cruise enrollment assigned to it.
@@ -828,6 +946,16 @@ type Querier interface {
 	//  UPDATE cruise_series SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $3
 	UpdateCruiseSeries(ctx context.Context, arg UpdateCruiseSeriesParams) error
+	//UpdateMergedCrewMember
+	//
+	//  UPDATE crew_members SET
+	//      user_id = $1, full_name = $2, email = $3, patent_number = $4, phone = $5,
+	//      pzz_license_type = $6, pzz_license_number = $7,
+	//      emergency_contact_name = $8, emergency_contact_phone = $9,
+	//      other_names = $10, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $11
+	//  RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names
+	UpdateMergedCrewMember(ctx context.Context, arg UpdateMergedCrewMemberParams) (CrewMember, error)
 	//UpdateTraining
 	//
 	//  UPDATE trainings SET date = $1, name = $2, organizer = $3, cost = $4, url = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 AND user_id = $7

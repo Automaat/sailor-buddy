@@ -90,3 +90,27 @@ WHERE ca.trip_id = sqlc.arg(trip_id)::BIGINT
       SELECT 1 FROM cruise_enrollments ce
       WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
   );
+
+-- name: MergeSharedCrewAssignments :exec
+-- On a leg or voyage both people are on, the kept person's assignment stays.
+-- It takes the duplicate's patent number when it has none, and counts as
+-- added by an accepted sign-up only when both entries did, so a hand-added
+-- entry is never removed when the sign-up is withdrawn.
+UPDATE crew_assignments k SET
+    patent_number = COALESCE(k.patent_number, d.patent_number),
+    added_by_acceptance = k.added_by_acceptance AND d.added_by_acceptance
+FROM crew_assignments d
+WHERE k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id);
+
+-- name: DeleteSharedCrewAssignments :execrows
+DELETE FROM crew_assignments d
+USING crew_assignments k
+WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id);
+
+-- name: MoveCrewAssignments :execrows
+UPDATE crew_assignments SET crew_member_id = sqlc.arg(kept_id)::BIGINT
+WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT;

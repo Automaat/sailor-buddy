@@ -24,7 +24,7 @@ func TestAuthHandler_Me(t *testing.T) {
 			return sqlcdb.CrewMember{ID: 40, UserID: userID}, nil
 		},
 	}
-	RegisterAuthRoutes(api, m)
+	registerAuthRoutes(api, authHandlerFor(m))
 
 	t.Run("authenticated", func(t *testing.T) {
 		resp := api.GetCtx(userCtx(context.Background()), "/auth/me")
@@ -124,6 +124,7 @@ func TestAuthHandler_UpdateMe(t *testing.T) {
 				getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 					return sqlcdb.User{ID: id, IsCaptain: tt.isCaptain}, nil
 				},
+				lockUserForUpdateFn: func(_ context.Context, id int64) (int64, error) { return id, nil },
 				getUserPersonFn: func(context.Context, types.NullInt64) (sqlcdb.CrewMember, error) {
 					return sqlcdb.CrewMember{}, sql.ErrNoRows
 				},
@@ -136,7 +137,7 @@ func TestAuthHandler_UpdateMe(t *testing.T) {
 					}, nil
 				},
 			}
-			RegisterAuthRoutes(api, m)
+			registerAuthRoutes(api, authHandlerFor(m))
 
 			resp := api.PutCtx(userCtx(context.Background()), "/auth/me", tt.body)
 			if resp.Code != tt.want {
@@ -175,12 +176,12 @@ func TestAuthHandler_MyCruises(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, api := humatest.New(t)
 			var asked int64
-			RegisterAuthRoutes(api, &mockQuerier{
+			registerAuthRoutes(api, authHandlerFor(&mockQuerier{
 				listUserCruiseIDsFn: func(_ context.Context, userID int64) ([]int64, error) {
 					asked = userID
 					return tt.ids, nil
 				},
-			})
+			}))
 			resp := api.GetCtx(userCtx(context.Background()), "/auth/me/cruises")
 			if resp.Code != http.StatusOK {
 				t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
@@ -199,9 +200,13 @@ func TestAuthHandler_MyCruises(t *testing.T) {
 
 	t.Run("not authenticated", func(t *testing.T) {
 		_, api := humatest.New(t)
-		RegisterAuthRoutes(api, &mockQuerier{})
+		registerAuthRoutes(api, authHandlerFor(&mockQuerier{}))
 		if resp := api.Get("/auth/me/cruises"); resp.Code != http.StatusUnauthorized {
 			t.Fatalf("got %d, want 401", resp.Code)
 		}
 	})
+}
+
+func authHandlerFor(m *mockQuerier) *AuthHandler {
+	return &AuthHandler{q: m, runTx: directTxRunner(m)}
 }

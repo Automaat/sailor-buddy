@@ -76,6 +76,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/crew/{crewID}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge a duplicate person into this one (admin)
+         * @description Moves the duplicate's crew assignments and voyage opinions to this person, adds its names to the other names, fills empty contact fields, moves its account link and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have an opinion for the same voyage, this person's stays. 409 when both are linked to different accounts; 422 when both IDs are the same or the merged other names exceed the limit.
+         */
+        post: operations["merge-crew-member"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/crew/{crewID}/merge-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview merging a duplicate person into this one (admin)
+         * @description Shows the kept person as it would be after the merge and how many crew assignments and voyage opinions would move. Changes nothing. Fails like the merge itself.
+         */
+        get: operations["preview-crew-merge"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cruises": {
         parameters: {
             query?: never;
@@ -2012,6 +2052,66 @@ export interface components {
              */
             payment_status: "unpaid" | "deposit" | "paid";
         };
+        PersonMerge: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PersonMerge.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Legs the duplicate captains
+             */
+            captained_trips: number;
+            /**
+             * Format: int64
+             * @description Voyages the duplicate captains
+             */
+            captained_voyages: number;
+            /** @description Person removed by the merge */
+            duplicate: components["schemas"]["CrewMember"];
+            /**
+             * Format: int64
+             * @description Voyage opinions of the duplicate
+             */
+            opinions: number;
+            /** @description Kept person after the merge */
+            person: components["schemas"]["CrewMember"];
+            /**
+             * Format: int64
+             * @description Duplicate's assignments on legs and voyages the kept person is already on; they collapse into the kept person's
+             */
+            shared_assignments: number;
+            /**
+             * Format: int64
+             * @description Duplicate's opinions for voyages the kept person already has one for; the kept person's stays
+             */
+            shared_opinions: number;
+            /**
+             * Format: int64
+             * @description Leg crew assignments of the duplicate
+             */
+            trip_assignments: number;
+            /**
+             * Format: int64
+             * @description Voyage crew assignments of the duplicate
+             */
+            voyage_assignments: number;
+        };
+        PersonMergeBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PersonMergeBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Person merged into the path's person and then removed
+             */
+            duplicate_id: number;
+        };
         PersonalSeaTime: {
             as_captain: components["schemas"]["SeaTime"];
             as_crew: components["schemas"]["SeaTime"];
@@ -2871,6 +2971,77 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "merge-crew-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Kept person ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonMergeBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonMerge"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "preview-crew-merge": {
+        parameters: {
+            query: {
+                /** @description Person that would be merged in and removed */
+                duplicate_id: number;
+            };
+            header?: never;
+            path: {
+                /** @description Kept person ID */
+                crewID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonMerge"];
+                };
             };
             /** @description Error */
             default: {

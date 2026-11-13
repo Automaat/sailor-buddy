@@ -17,11 +17,12 @@ import (
 )
 
 type AuthHandler struct {
-	q sqlcdb.Querier
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewAuthHandler(q sqlcdb.Querier) *AuthHandler {
-	return &AuthHandler{q: q}
+func NewAuthHandler(q sqlcdb.Querier, db *sql.DB) *AuthHandler {
+	return &AuthHandler{q: q, runTx: sqlTxRunner(db)}
 }
 
 type meOutput struct {
@@ -37,8 +38,11 @@ type updateMeInput struct {
 }
 
 // RegisterAuthRoutes wires the current-user endpoints onto the API.
-func RegisterAuthRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewAuthHandler(q)
+func RegisterAuthRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	registerAuthRoutes(api, NewAuthHandler(q, db))
+}
+
+func registerAuthRoutes(api huma.API, h *AuthHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-me", Method: http.MethodGet, Path: "/auth/me",
 		Summary: "Current authenticated user", Tags: []string{"Auth"},
@@ -116,7 +120,15 @@ func (h *AuthHandler) updateMe(ctx context.Context, in *updateMeInput) (*meOutpu
 			return nil, huma.Error422UnprocessableEntity("captains must keep a patent number")
 		}
 	}
-	user, err := h.q.UpdateUserProfile(ctx, params)
+	var user sqlcdb.User
+	err = h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if _, err := q.LockUserForUpdate(ctx, claims.UserID); err != nil {
+			return &QueryError{Op: "LockUserForUpdate", Err: err}
+		}
+		var err error
+		user, err = q.UpdateUserProfile(ctx, params)
+		return err
+	})
 	if err != nil {
 		slog.Error("update user profile", "user_id", claims.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update profile")

@@ -29,3 +29,11 @@ export function parseOtherNames(text: string): string[] {
 		.map((name) => name.trim())
 		.filter((name) => name !== '');
 }
+
+/**
+ * defaultKept picks which of two people a merge keeps: the one linked to an
+ * account, else the current person.
+ */
+export function defaultKept(current: CrewMember, other: CrewMember): CrewMember {
+	return other.has_account && !current.has_account ? other : current;
+}

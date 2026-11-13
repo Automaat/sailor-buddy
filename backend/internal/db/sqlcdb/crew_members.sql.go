@@ -40,6 +40,78 @@ func (q *Queries) CountCrewMembers(ctx context.Context, search types.NullString)
 	return column_1, err
 }
 
+const countCrewMergeRows = `-- name: CountCrewMergeRows :one
+SELECT
+    (SELECT COUNT(*) FROM crew_assignments
+     WHERE crew_member_id = $1::BIGINT AND trip_id IS NOT NULL)::BIGINT AS trip_assignments,
+    (SELECT COUNT(*) FROM crew_assignments
+     WHERE crew_member_id = $1::BIGINT AND voyage_id IS NOT NULL)::BIGINT AS voyage_assignments,
+    (SELECT COUNT(*) FROM crew_assignments d
+     JOIN crew_assignments k ON k.crew_member_id = $2::BIGINT
+      AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_assignments,
+    (SELECT COUNT(*) FROM voyage_opinions
+     WHERE crew_member_id = $1::BIGINT)::BIGINT AS opinions,
+    (SELECT COUNT(*) FROM voyage_opinions d
+     JOIN voyage_opinions k ON k.crew_member_id = $2::BIGINT AND k.voyage_id = d.voyage_id
+     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions,
+    (SELECT COUNT(*) FROM trips
+     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
+    (SELECT COUNT(*) FROM voyages
+     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
+`
+
+type CountCrewMergeRowsParams struct {
+	DuplicateID int64 `json:"duplicate_id"`
+	KeptID      int64 `json:"kept_id"`
+}
+
+type CountCrewMergeRowsRow struct {
+	TripAssignments   int64 `json:"trip_assignments"`
+	VoyageAssignments int64 `json:"voyage_assignments"`
+	SharedAssignments int64 `json:"shared_assignments"`
+	Opinions          int64 `json:"opinions"`
+	SharedOpinions    int64 `json:"shared_opinions"`
+	CaptainedTrips    int64 `json:"captained_trips"`
+	CaptainedVoyages  int64 `json:"captained_voyages"`
+}
+
+// Counts what merging the duplicate into the kept person moves. A shared
+// row is a leg, voyage or voyage opinion both people already have.
+//
+//	SELECT
+//	    (SELECT COUNT(*) FROM crew_assignments
+//	     WHERE crew_member_id = $1::BIGINT AND trip_id IS NOT NULL)::BIGINT AS trip_assignments,
+//	    (SELECT COUNT(*) FROM crew_assignments
+//	     WHERE crew_member_id = $1::BIGINT AND voyage_id IS NOT NULL)::BIGINT AS voyage_assignments,
+//	    (SELECT COUNT(*) FROM crew_assignments d
+//	     JOIN crew_assignments k ON k.crew_member_id = $2::BIGINT
+//	      AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
+//	     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_assignments,
+//	    (SELECT COUNT(*) FROM voyage_opinions
+//	     WHERE crew_member_id = $1::BIGINT)::BIGINT AS opinions,
+//	    (SELECT COUNT(*) FROM voyage_opinions d
+//	     JOIN voyage_opinions k ON k.crew_member_id = $2::BIGINT AND k.voyage_id = d.voyage_id
+//	     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_opinions,
+//	    (SELECT COUNT(*) FROM trips
+//	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
+//	    (SELECT COUNT(*) FROM voyages
+//	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
+func (q *Queries) CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRowsParams) (CountCrewMergeRowsRow, error) {
+	row := q.db.QueryRowContext(ctx, countCrewMergeRows, arg.DuplicateID, arg.KeptID)
+	var i CountCrewMergeRowsRow
+	err := row.Scan(
+		&i.TripAssignments,
+		&i.VoyageAssignments,
+		&i.SharedAssignments,
+		&i.Opinions,
+		&i.SharedOpinions,
+		&i.CaptainedTrips,
+		&i.CaptainedVoyages,
+	)
+	return i, err
+}
+
 const createCrewMember = `-- name: CreateCrewMember :one
 INSERT INTO crew_members (
     created_by, user_id, full_name, email, patent_number,
@@ -101,6 +173,21 @@ func (q *Queries) CreateCrewMember(ctx context.Context, arg CreateCrewMemberPara
 		&i.OtherNames,
 	)
 	return i, err
+}
+
+const deleteMergedCrewMember = `-- name: DeleteMergedCrewMember :execrows
+DELETE FROM crew_members WHERE id = $1
+`
+
+// DeleteMergedCrewMember
+//
+//	DELETE FROM crew_members WHERE id = $1
+func (q *Queries) DeleteMergedCrewMember(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteMergedCrewMember, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteUnlinkedCrewMember = `-- name: DeleteUnlinkedCrewMember :execrows
@@ -270,6 +357,190 @@ func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams
 	return items, nil
 }
 
+const lockCrewMembersForMerge = `-- name: LockCrewMembersForMerge :many
+SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
+WHERE id IN ($1::BIGINT, $2::BIGINT)
+ORDER BY id
+FOR UPDATE
+`
+
+type LockCrewMembersForMergeParams struct {
+	FirstID  int64 `json:"first_id"`
+	SecondID int64 `json:"second_id"`
+}
+
+// Locks both people in id order, so two merges cannot deadlock and no crew
+// assignment or opinion can be added for either until the merge ends.
+//
+//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
+//	WHERE id IN ($1::BIGINT, $2::BIGINT)
+//	ORDER BY id
+//	FOR UPDATE
+func (q *Queries) LockCrewMembersForMerge(ctx context.Context, arg LockCrewMembersForMergeParams) ([]CrewMember, error) {
+	rows, err := q.db.QueryContext(ctx, lockCrewMembersForMerge, arg.FirstID, arg.SecondID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CrewMember
+	for rows.Next() {
+		var i CrewMember
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedBy,
+			&i.UserID,
+			&i.FullName,
+			&i.Email,
+			&i.PatentNumber,
+			&i.Phone,
+			&i.PzzLicenseType,
+			&i.PzzLicenseNumber,
+			&i.EmergencyContactName,
+			&i.EmergencyContactPhone,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OtherNames,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockCrewMergeTrips = `-- name: LockCrewMergeTrips :exec
+SELECT t.id FROM trips t
+WHERE t.id IN (
+    SELECT ca.trip_id FROM crew_assignments ca
+    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+)
+   OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
+ORDER BY t.id
+FOR SHARE
+`
+
+type LockCrewMergeTripsParams struct {
+	FirstID  int64 `json:"first_id"`
+	SecondID int64 `json:"second_id"`
+}
+
+// Share-locks every leg either person is on or captains, so completing a
+// leg waits for the merge instead of moving its crew or captain under it.
+// Taken after the people, in the person-then-leg order of leg completion
+// and person deletion.
+//
+//	SELECT t.id FROM trips t
+//	WHERE t.id IN (
+//	    SELECT ca.trip_id FROM crew_assignments ca
+//	    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+//	)
+//	   OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
+//	ORDER BY t.id
+//	FOR SHARE
+func (q *Queries) LockCrewMergeTrips(ctx context.Context, arg LockCrewMergeTripsParams) error {
+	_, err := q.db.ExecContext(ctx, lockCrewMergeTrips, arg.FirstID, arg.SecondID)
+	return err
+}
+
+const lockCrewMergeVoyages = `-- name: LockCrewMergeVoyages :exec
+SELECT v.id FROM voyages v
+WHERE v.id IN (
+    SELECT ca.voyage_id FROM crew_assignments ca
+    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+)
+   OR v.captain_person_id IN ($1::BIGINT, $2::BIGINT)
+ORDER BY v.id
+FOR SHARE
+`
+
+type LockCrewMergeVoyagesParams struct {
+	FirstID  int64 `json:"first_id"`
+	SecondID int64 `json:"second_id"`
+}
+
+// Share-locks every voyage either person is on or captains, for the same
+// reason.
+//
+//	SELECT v.id FROM voyages v
+//	WHERE v.id IN (
+//	    SELECT ca.voyage_id FROM crew_assignments ca
+//	    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+//	)
+//	   OR v.captain_person_id IN ($1::BIGINT, $2::BIGINT)
+//	ORDER BY v.id
+//	FOR SHARE
+func (q *Queries) LockCrewMergeVoyages(ctx context.Context, arg LockCrewMergeVoyagesParams) error {
+	_, err := q.db.ExecContext(ctx, lockCrewMergeVoyages, arg.FirstID, arg.SecondID)
+	return err
+}
+
+const lockUserForUpdate = `-- name: LockUserForUpdate :one
+SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
+`
+
+// Serializes a profile save with a merge that moves the account's person
+// link. Both lock the account first; the save's update then runs on a fresh
+// snapshot and finds the person the merge kept. NO KEY keeps foreign-key
+// checks on the account (sign-ups, captains) from waiting on the merge.
+//
+//	SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE
+func (q *Queries) LockUserForUpdate(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockUserForUpdate, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const moveTripCaptain = `-- name: MoveTripCaptain :execrows
+UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+WHERE captain_person_id = $2::BIGINT
+`
+
+type MoveTripCaptainParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveTripCaptain
+//
+//	UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+//	WHERE captain_person_id = $2::BIGINT
+func (q *Queries) MoveTripCaptain(ctx context.Context, arg MoveTripCaptainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveTripCaptain, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const moveVoyageCaptain = `-- name: MoveVoyageCaptain :execrows
+UPDATE voyages SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+WHERE captain_person_id = $2::BIGINT
+`
+
+type MoveVoyageCaptainParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveVoyageCaptain
+//
+//	UPDATE voyages SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
+//	WHERE captain_person_id = $2::BIGINT
+func (q *Queries) MoveVoyageCaptain(ctx context.Context, arg MoveVoyageCaptainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveVoyageCaptain, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateCrewMember = `-- name: UpdateCrewMember :exec
 UPDATE crew_members SET
     full_name = $1, email = $2, patent_number = $3,
@@ -314,4 +585,71 @@ func (q *Queries) UpdateCrewMember(ctx context.Context, arg UpdateCrewMemberPara
 		arg.ID,
 	)
 	return err
+}
+
+const updateMergedCrewMember = `-- name: UpdateMergedCrewMember :one
+UPDATE crew_members SET
+    user_id = $1, full_name = $2, email = $3, patent_number = $4, phone = $5,
+    pzz_license_type = $6, pzz_license_number = $7,
+    emergency_contact_name = $8, emergency_contact_phone = $9,
+    other_names = $10, updated_at = CURRENT_TIMESTAMP
+WHERE id = $11
+RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names
+`
+
+type UpdateMergedCrewMemberParams struct {
+	UserID                types.NullInt64  `json:"user_id"`
+	FullName              string           `json:"full_name"`
+	Email                 types.NullString `json:"email"`
+	PatentNumber          types.NullString `json:"patent_number"`
+	Phone                 types.NullString `json:"phone"`
+	PzzLicenseType        types.NullString `json:"pzz_license_type"`
+	PzzLicenseNumber      types.NullString `json:"pzz_license_number"`
+	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
+	OtherNames            json.RawMessage  `json:"other_names"`
+	ID                    int64            `json:"id"`
+}
+
+// UpdateMergedCrewMember
+//
+//	UPDATE crew_members SET
+//	    user_id = $1, full_name = $2, email = $3, patent_number = $4, phone = $5,
+//	    pzz_license_type = $6, pzz_license_number = $7,
+//	    emergency_contact_name = $8, emergency_contact_phone = $9,
+//	    other_names = $10, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $11
+//	RETURNING id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names
+func (q *Queries) UpdateMergedCrewMember(ctx context.Context, arg UpdateMergedCrewMemberParams) (CrewMember, error) {
+	row := q.db.QueryRowContext(ctx, updateMergedCrewMember,
+		arg.UserID,
+		arg.FullName,
+		arg.Email,
+		arg.PatentNumber,
+		arg.Phone,
+		arg.PzzLicenseType,
+		arg.PzzLicenseNumber,
+		arg.EmergencyContactName,
+		arg.EmergencyContactPhone,
+		arg.OtherNames,
+		arg.ID,
+	)
+	var i CrewMember
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.UserID,
+		&i.FullName,
+		&i.Email,
+		&i.PatentNumber,
+		&i.Phone,
+		&i.PzzLicenseType,
+		&i.PzzLicenseNumber,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OtherNames,
+	)
+	return i, err
 }

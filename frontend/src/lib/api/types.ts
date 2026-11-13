@@ -26,6 +26,7 @@ export type YachtBody = Schemas['YachtBody'];
 
 export type CrewMember = Schemas['CrewMember'];
 export type CrewAssignment = Schemas['CrewAssignment'];
+export type PersonMerge = Schemas['PersonMerge'];
 
 export type Training = Schemas['Training'];
 export type TrainingBody = Schemas['TrainingBody'];

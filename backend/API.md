@@ -676,6 +676,8 @@ Body — `name` required; the specs are optional:
 | GET | `/api/crew/{id}` | member | Get a person | 200 |
 | PUT | `/api/crew/{id}` | **admin** | Update a person | 204 |
 | DELETE | `/api/crew/{id}` | **admin** | Delete a person without an account | 204 |
+| GET | `/api/crew/{id}/merge-preview?duplicate_id=` | **admin** | Preview merging a duplicate into this person | 200 |
+| POST | `/api/crew/{id}/merge` | **admin** | Merge a duplicate into this person | 200 |
 
 Body — `full_name` required; also accepts `other_names`, `email`,
 `patent_number`, `phone`, `pzz_license_type`, `pzz_license_number`,
@@ -691,6 +693,43 @@ case-insensitive substring of `full_name`, any of `other_names`, or `email`
 everyone, and `total` counts the matches. Deleting a person linked to an
 account returns `409`; it stays the account's person. Profile saves by the
 account owner overwrite its person's name, phone and patent number.
+
+#### Merging duplicates
+
+`POST /api/crew/{id}/merge` with `{ "duplicate_id": 12 }` keeps person
+`{id}` and removes the duplicate, in one transaction:
+
+- Crew assignments (legs and voyages), voyage opinions and leg and voyage
+  captaincies (`captain_person_id`) move to the kept person. Where both are on the same leg or voyage, the kept person's
+  assignment stays (it takes the duplicate's patent number if it has none)
+  and the duplicate's is dropped; the same applies to two opinions for one
+  voyage, and the dropped opinion's file is deleted after commit.
+- The duplicate's `full_name` and `other_names` join the kept person's
+  `other_names` (repeats and the kept name skipped). Empty contact and
+  licence fields are filled from the duplicate.
+- The duplicate's account link moves to the kept person, together with
+  the account person's `full_name` (profile saves overwrite it anyway); the
+  kept person's own name then joins its `other_names`. Both linked to
+  different accounts → `409`, nothing changes. `users` rows are never
+  merged.
+- The merge locks the moving account, both people, then every leg and
+  voyage either person is on or captains (the person-then-leg order of leg
+  completion and person deletion), so a concurrent profile save, leg
+  completion or new crew assignment waits for it. Sign-up acceptance locks
+  the leg first; when it deadlocks with a merge, the merge is retried up to
+  three times. Go callers of `MergePeople` should retry on `40P01` too.
+- Where both are on the same leg, the kept entry counts as added by an
+  accepted sign-up (`added_by_acceptance`) only when both entries did.
+- The same ID twice, or merged `other_names` over the 20 × 200 limit →
+  `422`; an unknown person → `404`.
+
+Both endpoints return `{ person, duplicate, trip_assignments,
+voyage_assignments, shared_assignments, opinions, shared_opinions,
+captained_trips, captained_voyages }`: the
+kept person after the merge, the duplicate, and the duplicate's row counts
+(`shared_*` are the ones that collapse). The preview changes nothing and
+fails the same way. Inside Go, `handlers.MergePeople` runs the merge on a
+caller's transaction querier (`PlanPersonMerge` is the read-only variant).
 
 ### Trainings (per-member)
 
