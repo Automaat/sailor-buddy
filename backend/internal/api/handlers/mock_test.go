@@ -882,6 +882,10 @@ func (m *mockQuerier) CountAdmins(context.Context) (int64, error) {
 	panic("unexpected call to CountAdmins")
 }
 
+func (m *mockQuerier) LockAdminRoles(context.Context) error {
+	return nil
+}
+
 func (m *mockQuerier) LockFirstAdmin(context.Context) error {
 	panic("unexpected call to LockFirstAdmin")
 }

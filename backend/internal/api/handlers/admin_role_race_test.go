@@ -146,3 +146,53 @@ func TestUpdateRole_ParallelDemotionsKeepAnAdmin(t *testing.T) {
 		}
 	}
 }
+
+// TestUpdateRole_DemoteLastAdminWhilePromoting replays the only admin
+// promoting a member while demoting themself from another tab. The demotion
+// waits for the promotion and must then see the new admin and succeed,
+// rather than refuse with a stale view of the admin set.
+func TestUpdateRole_DemoteLastAdminWhilePromoting(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	q := sqlcdb.New(conn)
+	admin := seedAdmins(t, conn, 1)[0]
+	member, err := q.CreateUser(ctx, sqlcdb.CreateUserParams{Email: "member@example.com", Name: "Member"})
+	if err != nil {
+		t.Fatalf("create member: %v", err)
+	}
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	paused := &MembersHandler{q: q, runTx: func(ctx context.Context, fn func(sqlcdb.Querier) error) error {
+		return sqlTxRunner(conn)(ctx, func(tq sqlcdb.Querier) error {
+			return fn(pauseAfterLockAdmins{Querier: tq, locked: locked, release: release})
+		})
+	}}
+	promoted := make(chan error, 1)
+	go func() {
+		_, err := paused.updateRole(userCtx(ctx), &updateMemberRoleInput{
+			UserID: member.ID, Body: dto.RoleBody{Role: "admin"},
+		})
+		promoted <- err
+	}()
+	<-locked
+
+	demoted := make(chan error, 1)
+	go func() { demoted <- demote(ctx, NewMembersHandler(q, conn), admin) }()
+	waitForLockWaiters(t, conn, 1)
+	close(release)
+
+	if err := <-promoted; err != nil {
+		t.Fatalf("promote member: %v", err)
+	}
+	if err := <-demoted; err != nil {
+		t.Fatalf("demote admin: %v", err)
+	}
+	ids, err := q.LockAdmins(ctx)
+	if err != nil {
+		t.Fatalf("list admins: %v", err)
+	}
+	if len(ids) != 1 || ids[0] != member.ID {
+		t.Fatalf("admins = %v, want only %d", ids, member.ID)
+	}
+}

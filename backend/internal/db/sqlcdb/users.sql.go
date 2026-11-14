@@ -273,15 +273,29 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
-const lockAdmins = `-- name: LockAdmins :many
-SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE
+const lockAdminRoles = `-- name: LockAdminRoles :exec
+SELECT pg_advisory_xact_lock(hashtext('admin-roles'))
 `
 
-// LockAdmins row-locks every admin, in id order so concurrent callers queue
-// instead of deadlocking. A role change that runs it first in its
-// transaction sees the admin set the previous change left behind.
+// LockAdminRoles serializes role changes for the rest of the transaction.
+// Run it as its own statement, before LockAdmins, so the admin set is read
+// from a snapshot taken after the previous role change committed.
 //
-//	SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE
+//	SELECT pg_advisory_xact_lock(hashtext('admin-roles'))
+func (q *Queries) LockAdminRoles(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, lockAdminRoles)
+	return err
+}
+
+const lockAdmins = `-- name: LockAdmins :many
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE
+`
+
+// LockAdmins row-locks every admin, in id order. NO KEY UPDATE still
+// blocks other role writes but not foreign-key checks on admin rows (e.g.
+// decided_by), which would otherwise deadlock with a concurrent link.
+//
+//	SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE
 func (q *Queries) LockAdmins(ctx context.Context) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, lockAdmins)
 	if err != nil {

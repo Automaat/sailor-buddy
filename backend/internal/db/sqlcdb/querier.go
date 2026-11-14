@@ -804,11 +804,17 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
-	// LockAdmins row-locks every admin, in id order so concurrent callers queue
-	// instead of deadlocking. A role change that runs it first in its
-	// transaction sees the admin set the previous change left behind.
+	// LockAdminRoles serializes role changes for the rest of the transaction.
+	// Run it as its own statement, before LockAdmins, so the admin set is read
+	// from a snapshot taken after the previous role change committed.
 	//
-	//  SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE
+	//  SELECT pg_advisory_xact_lock(hashtext('admin-roles'))
+	LockAdminRoles(ctx context.Context) error
+	// LockAdmins row-locks every admin, in id order. NO KEY UPDATE still
+	// blocks other role writes but not foreign-key checks on admin rows (e.g.
+	// decided_by), which would otherwise deadlock with a concurrent link.
+	//
+	//  SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE
 	LockAdmins(ctx context.Context) ([]int64, error)
 	// Holds the requested person while a request is created, so a concurrent
 	// link or merge either finishes first and is seen, or waits for the request.

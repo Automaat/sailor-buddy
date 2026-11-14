@@ -135,8 +135,11 @@ func (h *MembersHandler) updateRole(ctx context.Context, in *updateMemberRoleInp
 		return nil, err
 	}
 	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		// Lock the admin set before checking it, so concurrent demotions
-		// serialize and the later one counts the admins the earlier left.
+		// Serialize role changes, then lock and read the admin set, so a
+		// concurrent change counts the admins the earlier one left.
+		if err := q.LockAdminRoles(ctx); err != nil {
+			return &QueryError{Op: "LockAdminRoles", Err: err}
+		}
 		admins, err := q.LockAdmins(ctx)
 		if err != nil {
 			return &QueryError{Op: "LockAdmins", Err: err}
