@@ -71,6 +71,11 @@ SELECT COUNT(*)::BIGINT FROM users;
 -- name: CountAdmins :one
 SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin';
 
+-- CountOtherAdmins counts admins other than the given user, so a request
+-- holding a stale role still learns when its own account was promoted.
+-- name: CountOtherAdmins :one
+SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1;
+
 -- LockAdminRoles serializes role changes for the rest of the transaction.
 -- Run it as its own statement, before LockAdmins, so the admin set is read
 -- from a snapshot taken after the previous role change committed.

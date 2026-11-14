@@ -13,8 +13,14 @@ import (
 
 func opinionTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
+	return opinionTestAPIIn(t, m, t.TempDir())
+}
+
+// opinionTestAPIIn registers the opinion routes with dir as the upload root.
+func opinionTestAPIIn(t *testing.T, m *mockQuerier, dir string) humatest.TestAPI {
+	t.Helper()
 	_, api := humatest.New(t)
-	RegisterVoyageOpinionRoutes(api, m, t.TempDir())
+	RegisterVoyageOpinionRoutes(api, m, testUploadRoot(t, dir))
 	return api
 }
 

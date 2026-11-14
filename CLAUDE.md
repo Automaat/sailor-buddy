@@ -4,10 +4,12 @@ Sailing cruise tracker and crew document generator.
 
 ## Stack
 
-- **Backend**: Go 1.26 + chi router + PostgreSQL 18 (pgx/v5) + sqlc
-- **Frontend**: SvelteKit 5 (Svelte 5 runes) + Tailwind CSS
+- **Backend**: Go + chi router + PostgreSQL 18 (pgx/v5) + sqlc
+- **Frontend**: SvelteKit + Svelte 5 (runes) + Tailwind CSS
 - **Auth**: Firebase Auth (ID token verified server-side); `users.role`
   (`admin`|`member`) — first registered user becomes admin
+- **Tool versions**: Go, Node, linters and codegen tools are pinned in
+  `mise.toml`. Docs point there instead of repeating those versions.
 
 ## Project Structure
 
@@ -17,13 +19,13 @@ backend/
   cmd/migrate/main.go       # standalone migration runner
   internal/
     api/router.go           # chi router setup
-    api/handlers/            # HTTP handlers (auth, members, cruises, trips, voyages, crew, yachts, trainings, dashboard)
+    api/handlers/            # HTTP handlers: one file per resource, plus shared helpers
     api/handlers/authz.go    # requireAdmin role gate
     api/middleware/auth.go   # Firebase auth middleware + first-user-admin
     auth/firebase.go         # Firebase client + Claims
     config/config.go         # env-based config
     db/db.go                # PostgreSQL connection + migration runner
-    db/migrations/           # SQL migration files (001-021)
+    db/migrations/           # SQL migrations, numbered NNN_name.sql, applied in order
     db/queries/              # sqlc SQL query files
     db/sqlcdb/               # generated sqlc Go code (DO NOT EDIT)
 frontend/
@@ -129,4 +131,4 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   compile, and an unstubbed call panics. Add a mock method and `fooFn`
   field only when a test needs to stub that query.
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
-- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`)
+- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only as a subdomain wildcard such as `https://*.example.com`, otherwise the API refuses to start)

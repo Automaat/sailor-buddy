@@ -70,7 +70,7 @@ func TestReadyz(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			r := NewRouter(tc.db, &config.Config{}, nil)
+			r := NewRouter(tc.db, &config.Config{}, nil, nil)
 
 			w := httptest.NewRecorder()
 			start := time.Now()

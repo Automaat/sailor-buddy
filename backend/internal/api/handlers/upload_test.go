@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -12,18 +13,43 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/go-chi/chi/v5"
 )
 
+// testUploadRoot opens dir as the upload root and closes it after the test.
+func testUploadRoot(t *testing.T, dir string) *os.Root {
+	t.Helper()
+	root, err := OpenUploadRoot(dir)
+	if err != nil {
+		t.Fatalf("open upload root: %v", err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+	return root
+}
+
 func uploadTestAPI(t *testing.T) (api humatest.TestAPI, dir string) {
 	t.Helper()
 	dir = t.TempDir()
 	_, api = humatest.New(t)
-	RegisterUploadRoutes(api, dir)
+	RegisterUploadRoutes(api, testUploadRoot(t, dir))
 	return api, dir
+}
+
+// writeUpload creates an uploaded file under dir with the given contents.
+func writeUpload(t *testing.T, dir, rel, contents string) {
+	t.Helper()
+	path := filepath.Join(dir, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // multipartBody builds a multipart form body with one "file" part written by
@@ -44,7 +70,7 @@ func multipartBody(t *testing.T, filename string, encode func(io.Writer)) (body 
 }
 
 func TestUploadImage_ValidJPEG(t *testing.T) {
-	api, _ := uploadTestAPI(t)
+	api, dir := uploadTestAPI(t)
 	body, ct := multipartBody(t, "test.jpg", func(wr io.Writer) {
 		_ = jpeg.Encode(wr, image.NewRGBA(image.Rect(0, 0, 1, 1)), nil)
 	})
@@ -56,6 +82,14 @@ func TestUploadImage_ValidJPEG(t *testing.T) {
 	_ = json.Unmarshal(resp.Body.Bytes(), &out)
 	if out["url"] == "" {
 		t.Fatal("expected url in response")
+	}
+	// The URL names the stored file under the user's image directory.
+	rel, ok := strings.CutPrefix(out["url"], "/api/uploads/")
+	if !ok {
+		t.Fatalf("url = %q, want /api/uploads/ prefix", out["url"])
+	}
+	if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
+		t.Fatalf("stored file: %v", err)
 	}
 }
 
@@ -107,39 +141,119 @@ func serveFileReq(t *testing.T, h *UploadHandler, wildcard string) *httptest.Res
 
 func TestServeFile(t *testing.T) {
 	dir := t.TempDir()
-	h := NewUploadHandler(dir)
-	_ = os.MkdirAll(dir+"/1/images", 0o755)
-	_ = os.WriteFile(dir+"/1/images/test.jpg", []byte("fake-image-data"), 0o644)
+	writeUpload(t, dir, "1/images/test.jpg", "fake-image-data")
+	h := NewUploadHandler(testUploadRoot(t, dir))
 
-	if rr := serveFileReq(t, h, "1/images/test.jpg"); rr.Code != http.StatusOK {
+	rr := serveFileReq(t, h, "1/images/test.jpg")
+	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-}
-
-func TestServeFile_PathTraversal(t *testing.T) {
-	h := NewUploadHandler(t.TempDir())
-	if rr := serveFileReq(t, h, "../etc/passwd"); rr.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", rr.Code)
+	if rr.Body.String() != "fake-image-data" {
+		t.Fatalf("body = %q, want the stored file", rr.Body.String())
 	}
 }
 
-func TestServeFile_EmptyPath(t *testing.T) {
-	h := NewUploadHandler(t.TempDir())
-	if rr := serveFileReq(t, h, ""); rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", rr.Code)
+// TestServeFile_Rejected covers request paths that must not serve a file:
+// outside the caller's directory, through ".." or a symlink, or not a file.
+func TestServeFile_Rejected(t *testing.T) {
+	outside := t.TempDir()
+	writeUpload(t, outside, "secret.txt", "secret")
+	dir := t.TempDir()
+	writeUpload(t, dir, "2/images/test.jpg", "other-user")
+	writeUpload(t, dir, "1/images/own.jpg", "own")
+	if err := os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(dir, "1", "images", "link.jpg")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "1", "out")); err != nil {
+		t.Fatal(err)
+	}
+	h := NewUploadHandler(testUploadRoot(t, dir))
+
+	tests := []struct {
+		name     string
+		wildcard string
+		want     int
+	}{
+		{"empty path", "", http.StatusBadRequest},
+		{"parent traversal", "../etc/passwd", http.StatusForbidden},
+		{"traversal after own prefix", "1/../../etc/passwd", http.StatusForbidden},
+		{"other user via own prefix", "1/../2/images/test.jpg", http.StatusForbidden},
+		{"other user", "2/images/test.jpg", http.StatusForbidden},
+		{"missing file", "1/images/missing.jpg", http.StatusNotFound},
+		{"directory", "1/images", http.StatusNotFound},
+		{"symlinked file outside uploads", "1/images/link.jpg", http.StatusBadRequest},
+		{"symlinked directory outside uploads", "1/out/secret.txt", http.StatusBadRequest},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := serveFileReq(t, h, tc.wildcard)
+			if rr.Code != tc.want {
+				t.Fatalf("got %d, want %d: %s", rr.Code, tc.want, rr.Body.String())
+			}
+			if strings.Contains(rr.Body.String(), "secret") || strings.Contains(rr.Body.String(), "other-user") {
+				t.Fatalf("body leaked file contents: %q", rr.Body.String())
+			}
+		})
 	}
 }
 
-func TestServeFile_NotFound(t *testing.T) {
-	h := NewUploadHandler(t.TempDir())
-	if rr := serveFileReq(t, h, "1/images/missing.jpg"); rr.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", rr.Code)
+func TestOpenUploadRoot_CreatesDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "uploads")
+	root := testUploadRoot(t, dir)
+	if root.Name() != dir {
+		t.Fatalf("root name = %q, want %q", root.Name(), dir)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Fatalf("upload dir not created: %v", err)
 	}
 }
 
-func TestServeFile_OtherUserPath(t *testing.T) {
-	h := NewUploadHandler(t.TempDir())
-	if rr := serveFileReq(t, h, "2/images/test.jpg"); rr.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", rr.Code)
+func TestRemoveUploadedFiles(t *testing.T) {
+	outside := t.TempDir()
+	writeUpload(t, outside, "keep.pdf", "keep")
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	writeUpload(t, outside, "target.pdf", "target")
+	if err := os.Symlink(filepath.Join(outside, "target.pdf"), filepath.Join(dir, "opinions", "link.pdf")); err != nil {
+		t.Fatal(err)
+	}
+
+	removeUploadedFiles(testUploadRoot(t, dir),
+		filepath.Join(dir, "opinions", "1_2.pdf"),
+		filepath.Join(dir, "opinions", "missing.pdf"),
+		filepath.Join(outside, "keep.pdf"),
+		filepath.Join(dir, "opinions", "link.pdf"),
+	)
+
+	if _, err := os.Stat(filepath.Join(dir, "opinions", "1_2.pdf")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("file inside uploads kept: err=%v", err)
+	}
+	for _, kept := range []string{"keep.pdf", "target.pdf"} {
+		if _, err := os.Stat(filepath.Join(outside, kept)); err != nil {
+			t.Errorf("file outside uploads removed: %s: %v", kept, err)
+		}
+	}
+}
+
+func TestUploadRelPath(t *testing.T) {
+	dir := t.TempDir()
+	root := testUploadRoot(t, dir)
+	tests := []struct {
+		name    string
+		stored  string
+		want    string
+		wantErr bool
+	}{
+		{"inside", filepath.Join(dir, "opinions", "1_2.pdf"), filepath.Join("opinions", "1_2.pdf"), false},
+		{"outside", filepath.Join(filepath.Dir(dir), "x.pdf"), "", true},
+		{"escapes via dot-dot", filepath.Join(dir, "..", "x.pdf"), "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := uploadRelPath(root, tc.stored)
+			if (err != nil) != tc.wantErr || got != tc.want {
+				t.Fatalf("uploadRelPath(%q) = %q, %v; want %q, err %v", tc.stored, got, err, tc.want, tc.wantErr)
+			}
+		})
 	}
 }
