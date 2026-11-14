@@ -25,6 +25,21 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const countOtherAdmins = `-- name: CountOtherAdmins :one
+SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1
+`
+
+// CountOtherAdmins counts admins other than the given user, so a request
+// holding a stale role still learns when its own account was promoted.
+//
+//	SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1
+func (q *Queries) CountOtherAdmins(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOtherAdmins, id)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT COUNT(*)::BIGINT FROM users
 `
