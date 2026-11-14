@@ -105,17 +105,17 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 			})
 			if err != nil {
 				if !isUniqueViolation(err) {
-					slog.Error("upsert user", "email", email, "uid", fbToken.UID, "err", err)
+					slog.Error("upsert user", "err", err)
 					http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 					return
 				}
 				emailVerified, _ := fbToken.Claims["email_verified"].(bool)
 				if !emailVerified {
-					slog.Warn("email not verified, refusing link by email", "email", email, "uid", fbToken.UID)
+					slog.Warn("email not verified, refusing link by email")
 					http.Error(w, `{"error":"email not verified"}`, http.StatusUnauthorized)
 					return
 				}
-				slog.Error("upsert user, trying link by email", "email", email, "uid", fbToken.UID, "err", err)
+				slog.Error("upsert user, trying link by email", "err", err)
 				user, err = linkByEmail(r.Context(), q, sqlcdb.LinkFirebaseUIDByEmailParams{
 					FirebaseUid: fbUID,
 					NewName:     name,
@@ -123,12 +123,12 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 				})
 			}
 			if errors.Is(err, errEmailTaken) {
-				slog.Warn("email belongs to another account", "email", email, "uid", fbToken.UID)
+				slog.Warn("email belongs to another account")
 				http.Error(w, `{"error":"email belongs to another account"}`, http.StatusConflict)
 				return
 			}
 			if err != nil {
-				slog.Error("provision user", "email", email, "uid", fbToken.UID, "err", err)
+				slog.Error("provision user", "err", err)
 				http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 				return
 			}
@@ -155,7 +155,7 @@ func knownUser(ctx context.Context, q sqlcdb.Querier, fbUID types.NullString, em
 	row, err := q.GetAuthUserByFirebaseUID(ctx, fbUID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
-			slog.Warn("look up user", "uid", fbUID.String, "err", err)
+			slog.Warn("look up user", "err", err)
 		}
 		return sqlcdb.User{}, false
 	}

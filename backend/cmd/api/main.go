@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/logging"
 )
 
 // shutdownTimeout bounds how long in-flight requests may run after a stop
@@ -32,6 +34,7 @@ const shutdownTimeout = 30 * time.Second
 var errStopped = errors.New("stop signal received")
 
 func main() {
+	slog.SetDefault(logging.New(os.Stderr))
 	err := run()
 	switch {
 	case errors.Is(err, errStopped):

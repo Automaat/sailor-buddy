@@ -149,3 +149,10 @@ HTTPS, HSTS, and the actual Firebase Google OAuth domain flow remain deployment
 checks in #690; they have not been verified on a public host. See
 [SvelteKit CSP](https://svelte.dev/docs/kit/@sveltejs-kit-vite#csp) and
 [Firebase Google sign-in](https://firebase.google.com/docs/auth/web/google-signin).
+
+## Security log collection
+
+Collect the API's JSON stderr stream using the
+[security logging policy](security-logging.md). It defines actor/target fields,
+token redaction, restricted access, 90-day retention, and write-failure behavior.
+Verify collection and upstream proxy redaction on the selected host in #690.

@@ -58,6 +58,10 @@ automatically on the first authenticated request.
 
 ## Error responses
 
+Every API response includes a server-generated `X-Request-ID` for correlation
+with the private request/audit logs. CORS exposes it to allowed origins. See
+[security logging](../docs/security-logging.md) for event fields and redaction.
+
 Errors use huma's RFC 9457 problem-details envelope:
 
 ```json

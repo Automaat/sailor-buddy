@@ -10,10 +10,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	fbauth "firebase.google.com/go/v4/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/handlers"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
@@ -22,17 +20,21 @@ import (
 
 // NewRouter builds the HTTP router. uploads is the opened upload directory
 // (see handlers.OpenUploadRoot) that confines every upload file access.
-func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client, uploads *os.Root) *chi.Mux {
+func NewRouter(db *sql.DB, cfg *config.Config, fbClient middleware.TokenVerifier, uploads *os.Root) *chi.Mux {
+	return newRouter(db, cfg, fbClient, uploads, slog.Default())
+}
+
+func newRouter(db *sql.DB, cfg *config.Config, fbClient middleware.TokenVerifier, uploads *os.Root, logger *slog.Logger) *chi.Mux {
+	audit := middleware.NewRequestAudit(logger, os.Stderr)
 	r := chi.NewRouter()
 	r.Use(middleware.SecurityHeaders)
-	r.Use(chimiddleware.Logger)
-	r.Use(chimiddleware.Recoverer)
+	r.Use(audit.Middleware)
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-		ExposedHeaders:   []string{"Link"},
+		ExposedHeaders:   []string{"Link", "X-Request-ID"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
@@ -47,8 +49,11 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client, uploads 
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(fbClient, q))
+			r.Use(middleware.AuditIdentity)
 			r.Use(middleware.Admission)
-			registerHumaRoutes(humachi.New(r, humaConfig()), q, db, uploads)
+			api := humachi.New(r, humaConfig())
+			registerHumaRoutes(api, q, db, uploads)
+			audit.Register(api.OpenAPI())
 			mountStaticRoutes(r, uploads)
 		})
 	})
