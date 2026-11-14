@@ -108,11 +108,16 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 					return
 				}
 				slog.Error("upsert user, trying link by email", "email", email, "uid", fbToken.UID, "err", err)
-				user, err = q.LinkFirebaseUIDByEmail(r.Context(), sqlcdb.LinkFirebaseUIDByEmailParams{
+				user, err = linkByEmail(r.Context(), q, sqlcdb.LinkFirebaseUIDByEmailParams{
 					FirebaseUid: fbUID,
 					NewName:     name,
 					Email:       email,
 				})
+			}
+			if errors.Is(err, errEmailTaken) {
+				slog.Warn("email belongs to another account", "email", email, "uid", fbToken.UID)
+				http.Error(w, `{"error":"email belongs to another account"}`, http.StatusConflict)
+				return
 			}
 			if err != nil {
 				slog.Error("provision user", "email", email, "uid", fbToken.UID, "err", err)
@@ -165,6 +170,25 @@ func upsertAccount(ctx context.Context, q sqlcdb.Querier, arg sqlcdb.UpsertUserB
 	user, err := q.UpsertUserByFirebaseUID(ctx, arg)
 	if isUniqueViolation(err) {
 		return q.UpsertUserByFirebaseUID(ctx, arg)
+	}
+	return user, err
+}
+
+// errEmailTaken reports that another Firebase account owns the email.
+var errEmailTaken = errors.New("email belongs to another account")
+
+// linkByEmail gives the account of a verified email to a new Firebase UID.
+// It only claims an account without a UID, and accounts are never moved
+// between sign-ins automatically, so it returns errEmailTaken and changes
+// nothing when:
+//   - another Firebase account owns the email (no row matches), or
+//   - the UID already has an account of its own with another email, so the
+//     link breaks the firebase_uid unique index. The link writes no email,
+//     so that index is the only one it can break.
+func linkByEmail(ctx context.Context, q sqlcdb.Querier, arg sqlcdb.LinkFirebaseUIDByEmailParams) (sqlcdb.User, error) {
+	user, err := q.LinkFirebaseUIDByEmail(ctx, arg)
+	if errors.Is(err, sql.ErrNoRows) || isUniqueViolation(err) {
+		return sqlcdb.User{}, errEmailTaken
 	}
 	return user, err
 }

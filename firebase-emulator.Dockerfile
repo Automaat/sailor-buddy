@@ -12,4 +12,7 @@ COPY firebase.json .
 
 EXPOSE 9099 4000
 
-CMD ["firebase", "emulators:start", "--project", "sailor-buddy-dev", "--export-on-exit", "data", "--import", "data"]
+# data/ is the compose volume mount point. The export deletes and replaces
+# its target directory, which fails with "Resource busy" on a mount point,
+# so export to a subdirectory inside the volume instead.
+CMD ["firebase", "emulators:start", "--project", "sailor-buddy-dev", "--export-on-exit", "data/export", "--import", "data/export"]

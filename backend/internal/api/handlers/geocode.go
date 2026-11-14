@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/sync/singleflight"
@@ -121,8 +123,28 @@ func geocodeKey(q string) string {
 	return strings.ToLower(strings.TrimSpace(q))
 }
 
+// geocodeMinQueryLen is the shortest query, in characters after trimming
+// surrounding whitespace, worth sending upstream.
+const geocodeMinQueryLen = 2
+
 type geocodeInput struct {
-	Query string `query:"q" minLength:"2" doc:"Town or place name to search for"`
+	Query string `query:"q" required:"true" minLength:"2" doc:"Town or place name to search for"`
+}
+
+// Resolve rejects a query that is too short once surrounding whitespace is
+// trimmed: the upstream call sends the trimmed text, so "  " or " a" would
+// spend a request of the Nominatim rate budget on an empty or one-letter
+// search. huma runs it before the handler, so a rejected query touches
+// neither the cache nor the limiter.
+func (i *geocodeInput) Resolve(_ huma.Context) []error {
+	if utf8.RuneCountInString(strings.TrimSpace(i.Query)) < geocodeMinQueryLen {
+		return []error{&huma.ErrorDetail{
+			Message:  fmt.Sprintf("expected at least %d non-whitespace characters", geocodeMinQueryLen),
+			Location: "query.q",
+			Value:    i.Query,
+		}}
+	}
+	return nil
 }
 
 type geocodeOutput struct {
@@ -148,7 +170,12 @@ var placeCategories = map[string]bool{"place": true, "boundary": true, "natural"
 
 // RegisterGeocodeRoutes wires the geocoding proxy onto the API.
 func RegisterGeocodeRoutes(api huma.API) {
-	h := NewGeocodeHandler()
+	registerGeocode(api, NewGeocodeHandler())
+}
+
+// registerGeocode registers the geocode operation backed by h, so tests can
+// exercise the full huma request path against a stub upstream.
+func registerGeocode(api huma.API, h *GeocodeHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "geocode", Method: http.MethodGet, Path: "/geocode",
 		Summary: "Search towns/places by name", Tags: []string{"Geocode"},
@@ -242,9 +269,8 @@ func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.Geocode
 		if !placeCategories[r.Category] {
 			continue
 		}
-		lat, latErr := strconv.ParseFloat(r.Lat, 64)
-		lon, lonErr := strconv.ParseFloat(r.Lon, 64)
-		if latErr != nil || lonErr != nil {
+		lat, lon, ok := parseCoordinates(r.Lat, r.Lon)
+		if !ok {
 			continue
 		}
 		// Nominatim often lists the same town twice (a place node and its
@@ -270,4 +296,21 @@ func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.Geocode
 		}
 	}
 	return results, nil
+}
+
+// parseCoordinates parses a Nominatim lat/lon pair and reports whether it is
+// a usable position. strconv.ParseFloat accepts "NaN" and "Inf", which the
+// JSON encoder cannot write, so a record carrying one would break the whole
+// response. ±Inf also fails the range check, which drops out-of-range
+// positions from a broken upstream.
+func parseCoordinates(rawLat, rawLon string) (lat, lon float64, ok bool) {
+	lat, latErr := strconv.ParseFloat(rawLat, 64)
+	lon, lonErr := strconv.ParseFloat(rawLon, 64)
+	if latErr != nil || lonErr != nil {
+		return 0, 0, false
+	}
+	if math.IsNaN(lat) || math.IsNaN(lon) || math.Abs(lat) > 90 || math.Abs(lon) > 180 {
+		return 0, 0, false
+	}
+	return lat, lon, true
 }

@@ -3854,6 +3854,7 @@ paths:
           explode: false
           in: query
           name: q
+          required: true
           schema:
             description: Town or place name to search for
             minLength: 2

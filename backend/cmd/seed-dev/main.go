@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/cli"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
 )
@@ -36,17 +38,44 @@ var devUsers = []devUser{
 	{Email: "aneta.dev@gmail.com", Name: "Aneta Solo", Sub: "dev-google-aneta", Role: "member"},
 }
 
+const usage = `Usage: seed-dev [-h]
+
+Apply pending migrations and seed dev users and club data into the database
+named by SAILOR_DATABASE_URL, creating the users in the Firebase Auth emulator
+at FIREBASE_AUTH_EMULATOR_HOST (default localhost:9099).
+SAILOR_DATABASE_URL is required; seed-dev never falls back to a default.
+`
+
+// seedFunc migrates and seeds the database at dsn.
+type seedFunc func(ctx context.Context, dsn string) error
+
 func main() {
-	if err := run(); err != nil {
+	err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr, seed)
+	switch {
+	case errors.Is(err, flag.ErrHelp):
+	case errors.Is(err, cli.ErrUsage):
+		os.Exit(2)
+	case err != nil:
 		log.Fatal(err)
 	}
 }
 
-func run() error {
-	ctx := context.Background()
-	cfg := config.Load()
+// run parses args and, only when they are valid and SAILOR_DATABASE_URL is
+// set, calls apply; see cli.ParseNoArgs for help and bad-argument results.
+func run(ctx context.Context, args []string, stdout, stderr io.Writer, apply seedFunc) error {
+	if err := cli.ParseNoArgs("seed-dev", usage, args, stdout, stderr); err != nil {
+		return err
+	}
 
-	database, err := db.Open(cfg.DatabaseURL)
+	dsn, err := config.RequireDatabaseURL()
+	if err != nil {
+		return err
+	}
+	return apply(ctx, dsn)
+}
+
+func seed(ctx context.Context, dsn string) error {
+	database, err := db.OpenContext(ctx, dsn)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
