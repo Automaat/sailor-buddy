@@ -9,6 +9,8 @@
 		deleteTripEnrollment
 	} from '#lib/api/routes.js';
 	import { ApiError } from '#lib/api/client.js';
+	import { noteFailure, settle } from '#lib/api/errors.js';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import type { TripEnrollment, Trip } from '#lib/api/types.js';
 	import {
 		freePlacesLabel,
@@ -30,6 +32,7 @@
 	let enrollments = $state<TripEnrollment[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let loadErrors = $state<string[]>([]);
 	// Accepted crew the list below does not show: cruise enrollments assigned
 	// to this leg. They take places too, so free places add them back.
 	let otherAccepted = $state(0);
@@ -50,12 +53,12 @@
 
 	onMount(async () => {
 		try {
-			// The leg's accepted count only adds cruise-level crew; the page
-			// still works without it.
+			// Without the leg's accepted count the list still renders, but free
+			// places miss cruise-level crew, so the banner flags the count.
 			const [t, e, s] = await Promise.all([
 				getTrip(id),
 				listTripEnrollments(id),
-				getTripSignUp(id).catch(() => null)
+				settle(getTripSignUp(id), null, noteFailure(loadErrors, 'liczba zajętych miejsc'))
 			]);
 			trip = t;
 			enrollments = e ?? [];
@@ -132,6 +135,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else}
 	<div class="mx-auto max-w-4xl">
+		<LoadErrorBanner errors={loadErrors} />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>

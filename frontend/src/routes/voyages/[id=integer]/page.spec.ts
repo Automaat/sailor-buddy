@@ -37,6 +37,7 @@ import {
 	addVoyageYacht,
 	createYacht,
 	getVoyage,
+	listVoyageCrew,
 	listVoyagePorts,
 	listYachts,
 	updateVoyageLog
@@ -198,5 +199,28 @@ describe('voyage page record', () => {
 		await screen.findByText('Odwiedzone porty (0)');
 		expect(screen.queryByRole('button', { name: 'Uzupełnij po rejsie' })).not.toBeInTheDocument();
 		expect(screen.queryByLabelText('Odwiedzone porty')).not.toBeInTheDocument();
+	});
+});
+
+describe('voyage page load errors', () => {
+	it('names a failed crew list instead of showing no crew, and renders the ports', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5 }));
+		vi.mocked(listVoyageCrew).mockRejectedValueOnce(new Error('500'));
+		vi.mocked(listVoyagePorts).mockResolvedValue([
+			{ id: 1, voyage_id: 5, name: 'Gdynia', latitude: 54.5, longitude: 18.5, anchorage: false, position: 0, created_at: '' }
+		]);
+		render(VoyagePage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: załoga\./)).toBeInTheDocument();
+		expect(screen.getByText('Odwiedzone porty (1)')).toBeInTheDocument();
+	});
+
+	it('shows no load banner when every section loads', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5 }));
+		render(VoyagePage);
+
+		await screen.findByText('Odwiedzone porty (0)');
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
 	});
 });

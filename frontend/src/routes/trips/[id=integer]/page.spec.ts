@@ -208,3 +208,36 @@ describe('trip page actions', () => {
 		expect(screen.queryByRole('button', { name: 'Więcej akcji' })).not.toBeInTheDocument();
 	});
 });
+
+describe('trip page load errors', () => {
+	it('names a failed crew list instead of showing no crew, and renders the leg', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(listTripCrew).mockRejectedValueOnce(new Error('500'));
+		render(TripDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: załoga\./)).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Więcej akcji' })).toBeInTheDocument();
+	});
+
+	it('names the cruise when only the cruise fails to load', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(getCruise).mockRejectedValueOnce(new Error('500'));
+		render(TripDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: wydarzenie\./)).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+	});
+
+	it('shows no load banner when every section loads', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		render(TripDetailPage);
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+});
+

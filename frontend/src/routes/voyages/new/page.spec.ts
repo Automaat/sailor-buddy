@@ -117,3 +117,14 @@ describe('new voyage page', () => {
 		expect(createYacht).not.toHaveBeenCalled();
 	});
 });
+
+describe('new voyage page load errors', () => {
+	it('names the failed cruise list and still renders the form', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listCruises).mockRejectedValue(new Error('down'));
+		render(NewVoyagePage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: lista wydarzeń\./)).toBeInTheDocument();
+		expect(screen.getByLabelText('Nazwa rejsu *')).toBeInTheDocument();
+	});
+});

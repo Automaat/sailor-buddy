@@ -136,3 +136,21 @@ describe('trip enrollments page payment status', () => {
 		expect(screen.queryByTestId('payment-counts')).not.toBeInTheDocument();
 	});
 });
+
+describe('trip enrollments page load errors', () => {
+	it('flags the accepted count when the leg sign-up state fails, and still lists sign-ups', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(getTripSignUp).mockRejectedValue(new Error('500'));
+		render(EnrollmentsPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: liczba zajętych miejsc\./)).toBeInTheDocument();
+		expect(screen.getByLabelText('Płatność: Anna')).toBeInTheDocument();
+	});
+
+	it('shows no load banner when every section loads', async () => {
+		render(EnrollmentsPage);
+
+		await screen.findByLabelText('Płatność: Anna');
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+});

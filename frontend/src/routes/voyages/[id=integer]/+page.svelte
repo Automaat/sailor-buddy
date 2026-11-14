@@ -32,8 +32,10 @@
 		YachtBody
 	} from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
+	import { noteFailure, settle } from '#lib/api/errors.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import NotFound from '#lib/components/NotFound.svelte';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import PortPicker from '#lib/components/PortPicker.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import { page } from '$app/state';
@@ -49,6 +51,7 @@
 	let yachts = $state<Yacht[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
+	let loadErrors = $state<string[]>([]);
 
 	let genCrewId = $state('');
 	let genFormat = $state<'pdf' | 'docx'>('pdf');
@@ -137,14 +140,14 @@
 		try {
 			voyage = await getVoyage(id);
 			[crew, opinions, ports, allCrewMembers, yachts] = await Promise.all([
-				listVoyageCrew(id).then((c) => c ?? []).catch(() => []),
-				listVoyageOpinions(id).then((o) => o ?? []).catch(() => []),
-				listVoyagePorts(id).then((p) => p ?? []).catch(() => []),
-				listAssignableCrew().catch(() => []),
-				listYachts().then((y) => y ?? []).catch(() => [])
+				settle(listVoyageCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga')),
+				settle(listVoyageOpinions(id).then((o) => o ?? []), [], noteFailure(loadErrors, 'opinie')),
+				settle(listVoyagePorts(id).then((p) => p ?? []), [], noteFailure(loadErrors, 'porty')),
+				settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób')),
+				settle(listYachts().then((y) => y ?? []), [], noteFailure(loadErrors, 'jachty'))
 			]);
 			if (voyage?.cruise_id) {
-				cruise = await getCruise(voyage.cruise_id).catch(() => null);
+				cruise = await settle(getCruise(voyage.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'));
 			}
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 404) {
@@ -246,6 +249,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if voyage}
 	<div class="mx-auto max-w-4xl">
+		<LoadErrorBanner errors={loadErrors} />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				{#if cruise}

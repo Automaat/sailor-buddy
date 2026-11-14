@@ -260,9 +260,11 @@ describe('trip page sign-up', () => {
 	});
 
 	it('hides the sign-up card when the sign-up state cannot load', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		fn(getTripSignUp).mockRejectedValue(new Error('boom'));
 		render(TripPage);
 		await screen.findByRole('heading', { name: 'Jacht A' });
 		expect(screen.queryByTestId('my-sign-up')).not.toBeInTheDocument();
+		expect(screen.getByText(/Nie udało się wczytać: zapis na etap\./)).toBeInTheDocument();
 	});
 });
