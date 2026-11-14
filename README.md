@@ -61,6 +61,8 @@ sandbox on.
 
 - [`backend/API.md`](backend/API.md) — HTTP API reference: error envelope,
   status codes, authentication, and every endpoint.
+- [`docs/upload-storage.md`](docs/upload-storage.md) — image quotas,
+  content validation, attachment protection, and cleanup.
 - [`backend/openapi.yaml`](backend/openapi.yaml) — OpenAPI 3.1 spec derived
   from the Go DTOs; source for the generated frontend types.
 - [`CLAUDE.md`](CLAUDE.md) — project structure, commands, and conventions.

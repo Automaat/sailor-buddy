@@ -39,6 +39,14 @@ type Querier interface {
 	//  UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id
 	CancelTrip(ctx context.Context, id int64) (Trip, error)
+	//ClaimAbandonedImageUploads
+	//
+	//  UPDATE image_uploads SET state = 'deleting' WHERE url IN (
+	//      SELECT candidate.url FROM image_uploads candidate WHERE candidate.user_id = $1 AND NOT candidate.retained
+	//          AND candidate.created_at < clock_timestamp() - interval '24 hours'
+	//      ORDER BY candidate.created_at LIMIT 100 FOR UPDATE SKIP LOCKED
+	//  ) AND NOT retained RETURNING url, user_id, state, owned, byte_size, retained, created_at
+	ClaimAbandonedImageUploads(ctx context.Context, userID int64) ([]ImageUpload, error)
 	//ClearCruiseEnrollToken
 	//
 	//  UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1
@@ -129,6 +137,19 @@ type Querier interface {
 	//
 	//  SELECT COUNT(*)::BIGINT FROM cruises
 	CountCruises(ctx context.Context) (int64, error)
+	//CountImageUploadRequest
+	//
+	//  INSERT INTO image_upload_requests (user_id, window_start, requests)
+	//  VALUES ($1, clock_timestamp(), 1)
+	//  ON CONFLICT (user_id) DO UPDATE SET
+	//      window_start = CASE WHEN image_upload_requests.window_start <= EXCLUDED.window_start - interval '1 minute'
+	//                          THEN EXCLUDED.window_start ELSE image_upload_requests.window_start END,
+	//      requests = CASE WHEN image_upload_requests.window_start <= EXCLUDED.window_start - interval '1 minute'
+	//                      THEN 1 ELSE image_upload_requests.requests + 1 END
+	//  WHERE image_upload_requests.window_start <= EXCLUDED.window_start - interval '1 minute'
+	//        OR image_upload_requests.requests < $2
+	//  RETURNING requests
+	CountImageUploadRequest(ctx context.Context, arg CountImageUploadRequestParams) (int64, error)
 	// Accepted crew of one trip other than the given user, counted the same way
 	// as CountAcceptedForTrip. Accepting that user's sign-up takes one more place.
 	//
@@ -305,6 +326,10 @@ type Querier interface {
 	//      status = $1, decided_by = $2, decided_at = CURRENT_TIMESTAMP
 	//  WHERE id = $3
 	DecidePersonLinkRequest(ctx context.Context, arg DecidePersonLinkRequestParams) error
+	//DeleteAbandonedImageUpload
+	//
+	//  DELETE FROM image_uploads WHERE url = $1 AND NOT retained
+	DeleteAbandonedImageUpload(ctx context.Context, url string) error
 	//DeleteCruise
 	//
 	//  DELETE FROM cruises WHERE id = $1
@@ -685,6 +710,10 @@ type Querier interface {
 	//  ORDER BY embark_date DESC NULLS LAST, id DESC
 	//  LIMIT $4 OFFSET $3
 	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
+	//ListImageUploadsForQuota
+	//
+	//  SELECT url, byte_size FROM image_uploads WHERE user_id = $1 LIMIT $2::bigint
+	ListImageUploadsForQuota(ctx context.Context, arg ListImageUploadsForQuotaParams) ([]ListImageUploadsForQuotaRow, error)
 	//ListPendingPersonLinkRequests
 	//
 	//  SELECT r.id, r.user_id, r.person_id, r.person_name, r.status, r.decided_by, r.decided_at, r.created_at, u.name AS user_name, u.email AS user_email,
@@ -1095,10 +1124,23 @@ type Querier interface {
 	//  UPDATE crew_assignments SET voyage_id = $1, trip_id = NULL
 	//  WHERE trip_id = $2
 	RepointCrewAssignmentsToVoyage(ctx context.Context, arg RepointCrewAssignmentsToVoyageParams) error
+	//ReserveImageUpload
+	//
+	//  INSERT INTO image_uploads (url, user_id, byte_size, state) VALUES ($1, $2, $3, 'reserved')
+	ReserveImageUpload(ctx context.Context, arg ReserveImageUploadParams) error
+	//RetainImageUpload
+	//
+	//  UPDATE image_uploads SET retained = TRUE WHERE url = $1 AND state = 'ready' RETURNING url
+	RetainImageUpload(ctx context.Context, url string) (string, error)
 	//SetCruiseEnrollToken
 	//
 	//  UPDATE cruises SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 	SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error
+	//SetImageUploadState
+	//
+	//  UPDATE image_uploads SET state = $2, owned = owned OR $2 IN ('writing', 'ready')
+	//  WHERE url = $1 AND NOT retained
+	SetImageUploadState(ctx context.Context, arg SetImageUploadStateParams) error
 	//SetTripEnrollToken
 	//
 	//  UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2

@@ -234,6 +234,9 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 				return sqlcdb.Voyage{}, err
 			}
 			params := createVoyageParams(scope, in.Body)
+			if err := retainUploadImages(ctx, q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
+				return sqlcdb.Voyage{}, err
+			}
 			var err error
 			params.CaptainPersonID, params.CaptainName, err = captainAssignment(ctx, q, in.Body.CaptainPersonID, in.Body.CaptainName)
 			if err != nil {
@@ -257,6 +260,9 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			var err error
 			params.CaptainPersonID, params.CaptainName, err = captainAssignment(ctx, q, in.Body.CaptainPersonID, in.Body.CaptainName)
 			if err != nil {
+				return err
+			}
+			if err := retainUploadImages(ctx, q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
 				return err
 			}
 			return voyageWriteErr(q.UpdateVoyage(ctx, params))

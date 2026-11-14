@@ -3,6 +3,8 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -50,14 +52,18 @@ func TestUploadRequestLimits(t *testing.T) {
 					next.ServeHTTP(w, req.WithContext(userCtx(req.Context())))
 				})
 			})
-			RegisterUploadRoutes(humachi.New(r, huma.DefaultConfig("test", "1")), testUploadRoot(t, dir))
+			RegisterUploadRoutes(humachi.New(r, huma.DefaultConfig("test", "1")), testUploadRoot(t, dir), uploadTestDB(t), nil)
 			body := &bytes.Buffer{}
 			mw := multipart.NewWriter(body)
 			part, err := mw.CreateFormFile("file", "test.png")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, _ = part.Write(append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte("x"), max(tt.size-8, 504))...))
+			encoded := &bytes.Buffer{}
+			if err := png.Encode(encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+				t.Fatal(err)
+			}
+			_, _ = part.Write(append(encoded.Bytes(), bytes.Repeat([]byte("x"), max(tt.size-encoded.Len(), 0))...))
 			for range tt.count - 1 {
 				part, err = mw.CreateFormFile("file", "duplicate.png")
 				if err != nil {

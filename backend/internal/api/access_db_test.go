@@ -82,7 +82,7 @@ func securityRouter(t *testing.T, conn *sql.DB) (http.Handler, *os.Root) {
 	r := chi.NewRouter()
 	r.Route("/api", func(r chi.Router) {
 		r.Use(middleware.Auth(verifier, q), middleware.Admission)
-		registerHumaRoutes(humachi.New(r, humaConfig()), q, conn, uploads)
+		registerHumaRoutes(humachi.New(r, humaConfig()), q, conn, uploads, nil)
 	})
 	for token := range verifier {
 		resp := securityRequest(r, token, http.MethodGet, "/api/auth/me", "")

@@ -206,6 +206,9 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 		return nil, err
 	}
 	user := middleware.GetUser(ctx)
+	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
+		return nil, err
+	}
 	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
 		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
 		Name:                   in.Body.Name,
@@ -257,6 +260,9 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 	}
 	chatURL, err := groupChatURL(in.Body.GroupChatUrl)
 	if err != nil {
+		return nil, err
+	}
+	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
 		return nil, err
 	}
 	if err := h.q.UpdateCruise(ctx, sqlcdb.UpdateCruiseParams{

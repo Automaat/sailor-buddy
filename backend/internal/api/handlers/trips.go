@@ -154,6 +154,9 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		return nil, err
 	}
 	user := middleware.GetUser(ctx)
+	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
+		return nil, err
+	}
 	trip, err := h.q.CreateTrip(ctx, sqlcdb.CreateTripParams{
 		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
 		CruiseID:               in.Body.CruiseID,
@@ -260,6 +263,9 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	}
 	captainID, captainName, err := captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
 	if err != nil {
+		return nil, err
+	}
+	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
 		return nil, err
 	}
 	if err := h.q.UpdateTrip(ctx, sqlcdb.UpdateTripParams{
