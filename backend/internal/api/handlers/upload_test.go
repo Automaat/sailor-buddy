@@ -395,11 +395,13 @@ func TestOpenUploadRoot_DirsDeletedDuringWalk(t *testing.T) {
 	}
 	stop.Store(true)
 	<-done
-	for _, err := range failures[:min(len(failures), 5)] {
+	const shown = 5
+	for i, err := range failures {
+		if i == shown {
+			t.Errorf("%d more failures", len(failures)-shown)
+			break
+		}
 		t.Errorf("open while directories are deleted: %v", err)
-	}
-	if len(failures) > 5 {
-		t.Errorf("%d more failures", len(failures)-5)
 	}
 }
 
