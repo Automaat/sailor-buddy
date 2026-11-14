@@ -112,20 +112,43 @@ func (q *Queries) GetTraining(ctx context.Context, arg GetTrainingParams) (Train
 }
 
 const listTrainings = `-- name: ListTrainings :many
-SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
+SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings
+WHERE user_id = $1
+  AND ($2::BIGINT IS NULL
+   OR (date IS NULL, COALESCE(date, ''), id)
+    < ($3::TEXT IS NULL,
+       COALESCE($3::TEXT, ''), $2::BIGINT))
+ORDER BY date DESC, id DESC
+LIMIT $5 OFFSET $4
 `
 
 type ListTrainingsParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID    int64            `json:"user_id"`
+	AfterID   types.NullInt64  `json:"after_id"`
+	AfterDate types.NullString `json:"after_date"`
+	RowOffset int32            `json:"row_offset"`
+	RowLimit  int32            `json:"row_limit"`
 }
 
-// ListTrainings
+// A set after_id starts the page after the cursor's sort key. The keyset
+// tuple sorts descending like the ORDER BY: a NULL date first.
 //
-//	SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
+//	SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings
+//	WHERE user_id = $1
+//	  AND ($2::BIGINT IS NULL
+//	   OR (date IS NULL, COALESCE(date, ''), id)
+//	    < ($3::TEXT IS NULL,
+//	       COALESCE($3::TEXT, ''), $2::BIGINT))
+//	ORDER BY date DESC, id DESC
+//	LIMIT $5 OFFSET $4
 func (q *Queries) ListTrainings(ctx context.Context, arg ListTrainingsParams) ([]Training, error) {
-	rows, err := q.db.QueryContext(ctx, listTrainings, arg.UserID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listTrainings,
+		arg.UserID,
+		arg.AfterID,
+		arg.AfterDate,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

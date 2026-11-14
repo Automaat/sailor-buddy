@@ -12,7 +12,16 @@ INSERT INTO voyages (
 SELECT * FROM voyages WHERE id = $1;
 
 -- name: ListVoyages :many
-SELECT * FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2;
+-- A set after_id starts the page after the cursor's sort key. The keyset
+-- tuple sorts descending like the ORDER BY: a NULL year or embark_date first.
+SELECT * FROM voyages
+WHERE sqlc.narg(after_id)::BIGINT IS NULL
+   OR (year IS NULL, COALESCE(year, 0), embark_date IS NULL, COALESCE(embark_date, ''), id)
+    < (sqlc.narg(after_year)::BIGINT IS NULL, COALESCE(sqlc.narg(after_year)::BIGINT, 0),
+       sqlc.narg(after_embark_date)::TEXT IS NULL,
+       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT)
+ORDER BY year DESC, embark_date DESC, id DESC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountVoyages :one
 SELECT COUNT(*)::BIGINT FROM voyages;

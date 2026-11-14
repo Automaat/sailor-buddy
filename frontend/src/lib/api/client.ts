@@ -164,20 +164,26 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 // listAll walks every page of a paginated endpoint and returns the flattened
 // items, so callers without pagination UI keep getting a full array.
 async function listAll<T extends { id: unknown }>(template: string, opts?: CallOpts): Promise<T[]> {
-	// Offset paging is no snapshot: a row added or removed between two pages
-	// shifts the window, so a later page can repeat an earlier item. Callers
-	// key {#each} on id and Svelte throws on duplicate keys, so keep the first.
+	// Each page resumes after the previous page's last row (next_cursor), not
+	// at an offset: a row deleted before the boundary would shift an offset
+	// window past a row that never gets fetched. Offset paging is the fallback
+	// for a page without a cursor. Neither is a snapshot, so a row moved or
+	// added mid-walk can still repeat; callers key {#each} on id and Svelte
+	// throws on duplicate keys, so keep the first.
 	// EXC:FILE011:documents-a-non-obvious-invariant
 	const out: T[] = [];
 	const seen = new Set<unknown>();
 	const limit = 100;
 	let offset = 0;
+	let after: string | undefined;
 	for (;;) {
-		const url = resolvePath(template, {
-			...opts,
-			query: { ...opts?.query, limit, offset }
-		});
-		const page = await request<{ items: T[] | null; has_more: boolean }>('GET', url);
+		const paging = after === undefined ? { limit, offset } : { limit, after };
+		const url = resolvePath(template, { ...opts, query: { ...opts?.query, ...paging } });
+		const page = await request<{
+			items: T[] | null;
+			has_more: boolean;
+			next_cursor?: string;
+		}>('GET', url);
 		const items = page.items ?? [];
 		for (const item of items) {
 			if (seen.has(item.id)) continue;
@@ -186,6 +192,7 @@ async function listAll<T extends { id: unknown }>(template: string, opts?: CallO
 		}
 		if (!page.has_more || items.length === 0) break;
 		offset += items.length;
+		after = page.next_cursor || undefined;
 	}
 	return out;
 }

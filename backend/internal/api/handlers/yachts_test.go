@@ -64,9 +64,15 @@ func TestYachtHandler_List(t *testing.T) {
 
 func TestYachtHandler_List_Pagination(t *testing.T) {
 	t.Run("envelope echoes limit/offset and total", func(t *testing.T) {
+		var got sqlcdb.ListYachtsParams
 		m := &mockQuerier{
-			listYachtsFn: func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
-				return []sqlcdb.Yacht{{ID: 1, Name: "Bavaria 46"}}, nil
+			listYachtsFn: func(_ context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
+				got = arg
+				rows := make([]sqlcdb.Yacht, arg.RowLimit)
+				for i := range rows {
+					rows[i] = sqlcdb.Yacht{ID: int64(i + 1), Name: "Bavaria 46"}
+				}
+				return rows, nil
 			},
 			countYachtsFn: func(context.Context) (int64, error) { return 42, nil },
 		}
@@ -78,13 +84,16 @@ func TestYachtHandler_List_Pagination(t *testing.T) {
 		if err := json.Unmarshal(resp.Body.Bytes(), &page); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
+		if got.RowLimit != 11 || got.RowOffset != 20 || got.AfterID.Valid {
+			t.Fatalf("query args = %+v, want one row past the window from offset 20", got)
+		}
 		if page.Total != 42 || page.Limit != 10 || page.Offset != 20 {
 			t.Fatalf("unexpected page meta: %+v", page)
 		}
-		if !page.HasMore {
-			t.Fatalf("want has_more true (21 of 42 seen)")
+		if !page.HasMore || page.NextCursor == "" {
+			t.Fatalf("want has_more and a next_cursor when a row follows the window: %+v", page)
 		}
-		if len(page.Items) != 1 || page.Items[0].Name != "Bavaria 46" {
+		if len(page.Items) != 10 || page.Items[0].Name != "Bavaria 46" {
 			t.Fatalf("unexpected items: %+v", page.Items)
 		}
 	})

@@ -37,6 +37,7 @@ func NewCrewHandler(q sqlcdb.Querier, db *sql.DB, uploads *os.Root) *CrewHandler
 type listCrewInput struct {
 	Limit  int32  `query:"limit" minimum:"1" maximum:"100" default:"50" doc:"Maximum number of items to return"`
 	Offset int32  `query:"offset" minimum:"0" default:"0" doc:"Number of items to skip"`
+	After  string `query:"after" doc:"A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"`
 	Query  string `query:"q" maxLength:"200" doc:"Case-insensitive part of a name, other name or e-mail; blank lists everyone"`
 }
 
@@ -170,9 +171,15 @@ func registerCrewRoutes(api huma.API, h *CrewHandler) {
 }
 
 func (h *CrewHandler) list(ctx context.Context, in *listCrewInput) (*crewListOutput, error) {
+	var key nameKey
+	ok, err := decodeCursor(in.After, &key)
+	if err != nil {
+		return nil, err
+	}
 	search := nullString(trimmedPtr(&in.Query))
 	members, err := h.q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
-		Search: search, RowLimit: in.Limit, RowOffset: in.Offset,
+		Search: search, AfterID: afterID(ok, key.ID), AfterName: afterText(ok, key.Name),
+		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
 	if err != nil {
 		slog.Error("list crew members", "err", err)
@@ -183,7 +190,8 @@ func (h *CrewHandler) list(ctx context.Context, in *listCrewInput) (*crewListOut
 		slog.Error("count crew members", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
 	}
-	return &crewListOutput{Body: dto.NewPage(dto.CrewMembersFromDB(members), total, in.Limit, in.Offset)}, nil
+	return &crewListOutput{Body: buildPage(members, total, in.Limit, in.Offset, dto.CrewMembersFromDB,
+		func(r sqlcdb.CrewMember) any { return nameKey{Name: r.FullName, ID: r.ID} })}, nil
 }
 
 func (h *CrewHandler) get(ctx context.Context, in *crewIDParam) (*crewOutput, error) {

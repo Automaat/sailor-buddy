@@ -92,7 +92,15 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 			return adminScope(ctx)
 		},
 		list: func(ctx context.Context, _ crudScope, in *pageParams) ([]sqlcdb.Yacht, error) {
-			return q.ListYachts(ctx, sqlcdb.ListYachtsParams{Limit: in.Limit, Offset: in.Offset})
+			var key nameKey
+			ok, err := decodeCursor(in.After, &key)
+			if err != nil {
+				return nil, err
+			}
+			return q.ListYachts(ctx, sqlcdb.ListYachtsParams{
+				AfterID: afterID(ok, key.ID), AfterName: afterText(ok, key.Name),
+				RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
+			})
 		},
 		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
 			return q.CountYachts(ctx)
@@ -134,7 +142,8 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 			return err
 		},
 		listOutput: func(in *pageParams, rows []sqlcdb.Yacht, total int64) *yachtListOutput {
-			return &yachtListOutput{Body: dto.NewPage(dto.YachtsFromDB(rows), total, in.Limit, in.Offset)}
+			return &yachtListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.YachtsFromDB,
+				func(r sqlcdb.Yacht) any { return nameKey{Name: r.Name, ID: r.ID} })}
 		},
 		itemOutput: func(row sqlcdb.Yacht) *yachtOutput {
 			return &yachtOutput{Body: dto.YachtFromDB(row)}

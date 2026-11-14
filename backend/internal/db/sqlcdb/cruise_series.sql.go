@@ -88,19 +88,34 @@ func (q *Queries) GetCruiseSeries(ctx context.Context, id int64) (CruiseSeries, 
 }
 
 const listCruiseSeries = `-- name: ListCruiseSeries :many
-SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series ORDER BY name, id LIMIT $1 OFFSET $2
+SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series
+WHERE $1::BIGINT IS NULL
+   OR (name, id) > ($2::TEXT, $1::BIGINT)
+ORDER BY name, id
+LIMIT $4 OFFSET $3
 `
 
 type ListCruiseSeriesParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	AfterID   types.NullInt64  `json:"after_id"`
+	AfterName types.NullString `json:"after_name"`
+	RowOffset int32            `json:"row_offset"`
+	RowLimit  int32            `json:"row_limit"`
 }
 
-// ListCruiseSeries
+// A set after_id starts the page after the cursor's (name, id) sort key.
 //
-//	SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series ORDER BY name, id LIMIT $1 OFFSET $2
+//	SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series
+//	WHERE $1::BIGINT IS NULL
+//	   OR (name, id) > ($2::TEXT, $1::BIGINT)
+//	ORDER BY name, id
+//	LIMIT $4 OFFSET $3
 func (q *Queries) ListCruiseSeries(ctx context.Context, arg ListCruiseSeriesParams) ([]CruiseSeries, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseSeries, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listCruiseSeries,
+		arg.AfterID,
+		arg.AfterName,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

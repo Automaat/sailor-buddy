@@ -1351,6 +1351,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -1389,6 +1392,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -1427,6 +1433,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -1465,6 +1474,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -1503,6 +1515,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -1541,6 +1556,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -1579,6 +1597,9 @@ components:
           description: Maximum items returned in this window
           format: int64
           type: integer
+        next_cursor:
+          description: Pass as after to fetch the next window; set when has_more is true
+          type: string
         offset:
           description: Number of items skipped before this window
           format: int64
@@ -2998,6 +3019,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
         - description: Case-insensitive part of a name, other name or e-mail; blank lists everyone
           explode: false
           in: query
@@ -3289,6 +3317,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
       responses:
         "200":
           content:
@@ -4117,6 +4152,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
       responses:
         "200":
           content:
@@ -4294,6 +4336,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
       responses:
         "200":
           content:
@@ -4439,6 +4488,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
       responses:
         "200":
           content:
@@ -5092,6 +5148,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
       responses:
         "200":
           content:
@@ -5674,6 +5737,13 @@ paths:
             format: int32
             minimum: 0
             type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
       responses:
         "200":
           content:
