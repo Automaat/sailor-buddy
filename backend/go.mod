@@ -5,7 +5,7 @@ go 1.27
 require (
 	firebase.google.com/go/v4 v4.23.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/chromedp/chromedp v0.23.0
+	github.com/chromedp/chromedp v0.23.1
 	github.com/danielgtaylor/huma/v2 v2.40.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
@@ -32,7 +32,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.62.0 // indirect
 	github.com/MicahParks/keyfunc v1.9.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chromedp/cdproto v0.160.0 // indirect
+	github.com/chromedp/cdproto v0.160.1 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.40.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
