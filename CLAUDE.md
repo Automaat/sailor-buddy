@@ -114,5 +114,9 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   (`src/lib/api/errors.ts`) and render `LoadErrorBanner`, so an empty list
   from a failed request is not shown as real data.
 - Go code must pass `gofumpt` formatting
+- Handler tests use `mockQuerier` (`internal/api/handlers/mock_test.go`),
+  which embeds a nil `sqlcdb.Querier`: a new query needs no mock change to
+  compile, and an unstubbed call panics. Add a mock method and `fooFn`
+  field only when a test needs to stub that query.
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
 - `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`)
