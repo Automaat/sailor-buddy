@@ -391,9 +391,11 @@ func TestNewGeocodeHandler_PolicyLimits(t *testing.T) {
 }
 
 // TestGeocode_QueryValidation drives the operation through huma: a missing,
-// bare, empty or too-short query, counting only visible characters, is
-// rejected with 422 before it reaches the cache, the rate limiter or the
-// upstream service. An accepted query reaches the upstream trimmed.
+// bare, empty or too-short query, counting only base characters (no blanks,
+// blank lookalikes or combining marks), is rejected with 422 before it
+// reaches the cache, the rate limiter or the upstream service. An accepted
+// query reaches the upstream trimmed, with the marks of decomposed letters
+// intact.
 func TestGeocode_QueryValidation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -414,11 +416,26 @@ func TestGeocode_QueryValidation(t *testing.T) {
 		{"NUL bytes", "/geocode?q=%00%00", http.StatusUnprocessableEntity, ""},
 		{"invalid UTF-8", "/geocode?q=%FF%FF", http.StatusUnprocessableEntity, ""},
 		{"one character among invisibles", "/geocode?q=%E2%80%8Ba%00%EF%BB%BF", http.StatusUnprocessableEntity, ""},
+		{"Hangul fillers", "/geocode?q=%E3%85%A4%E3%85%A4", http.StatusUnprocessableEntity, ""},
+		{"Hangul choseong and halfwidth fillers", "/geocode?q=%E1%85%9F%EF%BE%A0", http.StatusUnprocessableEntity, ""},
+		{"Hangul jungseong fillers", "/geocode?q=%E1%85%A0%E1%85%A0", http.StatusUnprocessableEntity, ""},
+		{"braille blanks", "/geocode?q=%E2%A0%80%E2%A0%80", http.StatusUnprocessableEntity, ""},
+		{"combining grapheme joiners", "/geocode?q=%CD%8F%CD%8F", http.StatusUnprocessableEntity, ""},
+		{"variation selectors", "/geocode?q=%EF%B8%8F%EF%B8%8F", http.StatusUnprocessableEntity, ""},
+		{"supplementary variation selectors", "/geocode?q=%F3%A0%84%80%F3%A0%84%80", http.StatusUnprocessableEntity, ""},
+		{"lone combining marks", "/geocode?q=%CC%81%CC%81", http.StatusUnprocessableEntity, ""},
+		{"one decomposed letter", "/geocode?q=a%CC%81", http.StatusUnprocessableEntity, ""},
+		{"one character among blank lookalikes", "/geocode?q=%E3%85%A4a%E2%A0%80%EF%B8%8F", http.StatusUnprocessableEntity, ""},
+		{"one character among inner blanks", "/geocode?q=a%E2%A0%80%E3%85%A4%CD%8F", http.StatusUnprocessableEntity, ""},
 		{"two characters", "/geocode?q=ab", http.StatusOK, "ab"},
 		{"two characters padded", "/geocode?q=%20ab%20", http.StatusOK, "ab"},
 		{"two multibyte characters", "/geocode?q=%C5%81%C3%B3", http.StatusOK, "Łó"},
 		{"two characters among invisibles", "/geocode?q=%E2%80%8Bab%00%EF%BB%BF", http.StatusOK, "ab"},
 		{"inner invisible kept", "/geocode?q=a%E2%80%8Bb", http.StatusOK, "a\u200bb"},
+		{"two characters among blank lookalikes", "/geocode?q=%E3%85%A4ab%EF%B8%8F%E2%A0%80", http.StatusOK, "ab"},
+		{"inner blank lookalike kept", "/geocode?q=a%E2%A0%80b", http.StatusOK, "a\u2800b"},
+		{"NFD name keeps its marks", "/geocode?q=%C5%81o%CC%81dz%CC%81", http.StatusOK, "\u0141o\u0301dz\u0301"},
+		{"two decomposed letters", "/geocode?q=a%CC%81e%CC%81", http.StatusOK, "a\u0301e\u0301"},
 		{"literal true", "/geocode?q=true", http.StatusOK, "true"},
 		{"value before bare", "/geocode?q=ab&q", http.StatusOK, "ab"},
 	}
