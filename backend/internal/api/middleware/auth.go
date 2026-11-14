@@ -178,12 +178,16 @@ func upsertAccount(ctx context.Context, q sqlcdb.Querier, arg sqlcdb.UpsertUserB
 var errEmailTaken = errors.New("email belongs to another account")
 
 // linkByEmail gives the account of a verified email to a new Firebase UID.
-// It only claims an account without a UID: when another Firebase account
-// owns the email it returns errEmailTaken and leaves that account alone,
-// because accounts are never moved between sign-ins automatically.
+// It only claims an account without a UID, and accounts are never moved
+// between sign-ins automatically, so it returns errEmailTaken and changes
+// nothing when:
+//   - another Firebase account owns the email (no row matches), or
+//   - the UID already has an account of its own with another email, so the
+//     link breaks the firebase_uid unique index. The link writes no email,
+//     so that index is the only one it can break.
 func linkByEmail(ctx context.Context, q sqlcdb.Querier, arg sqlcdb.LinkFirebaseUIDByEmailParams) (sqlcdb.User, error) {
 	user, err := q.LinkFirebaseUIDByEmail(ctx, arg)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || isUniqueViolation(err) {
 		return sqlcdb.User{}, errEmailTaken
 	}
 	return user, err

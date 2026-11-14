@@ -633,12 +633,14 @@ func TestAuth_EmailOfExistingAccount(t *testing.T) {
 	}
 }
 
-// TestAuth_EmailOfAnotherUID refuses a sign-in whose email belongs to an
-// account of another Firebase UID with 409, and moves no account to the
-// new UID.
+// TestAuth_EmailOfAnotherUID refuses a sign-in whose email belongs to
+// another account with 409 when the link cannot claim it: the owner has
+// another Firebase UID, or the UID already has an account of its own. No
+// account moves to the new UID.
 func TestAuth_EmailOfAnotherUID(t *testing.T) {
 	cases := []struct {
 		name     string
+		ownerUID sql.NullString
 		setup    string
 		verified bool
 		want     int
@@ -646,18 +648,29 @@ func TestAuth_EmailOfAnotherUID(t *testing.T) {
 	}{
 		{
 			name:     "new UID, verified email",
+			ownerUID: sql.NullString{String: "fb-old", Valid: true},
 			verified: true,
 			want:     http.StatusConflict,
 			wantBody: `{"error":"email belongs to another account"}`,
 		},
 		{
 			name:     "new UID, unverified email",
+			ownerUID: sql.NullString{String: "fb-old", Valid: true},
 			verified: false,
 			want:     http.StatusUnauthorized,
 			wantBody: `{"error":"email not verified"}`,
 		},
 		{
-			name: "known UID switching to the taken email",
+			name:     "known UID switching to the taken email",
+			ownerUID: sql.NullString{String: "fb-old", Valid: true},
+			setup: `INSERT INTO users (email, name, firebase_uid)
+				VALUES ('ola@sail.example.dev', 'Ola', 'fb-new')`,
+			verified: true,
+			want:     http.StatusConflict,
+			wantBody: `{"error":"email belongs to another account"}`,
+		},
+		{
+			name: "known UID switching to the email of an account without UID",
 			setup: `INSERT INTO users (email, name, firebase_uid)
 				VALUES ('ola@sail.example.dev', 'Ola', 'fb-new')`,
 			verified: true,
@@ -670,7 +683,7 @@ func TestAuth_EmailOfAnotherUID(t *testing.T) {
 			conn := freshDB(t)
 			var ownerID int64
 			if err := conn.QueryRow(`INSERT INTO users (email, name, role, firebase_uid)
-				VALUES ('ola@example.dev', 'Ola', 'admin', 'fb-old') RETURNING id`).Scan(&ownerID); err != nil {
+				VALUES ('ola@example.dev', 'Ola', 'admin', $1) RETURNING id`, tc.ownerUID).Scan(&ownerID); err != nil {
 				t.Fatalf("insert account: %v", err)
 			}
 			if tc.setup != "" {
@@ -694,12 +707,12 @@ func TestAuth_EmailOfAnotherUID(t *testing.T) {
 			if got := strings.TrimSpace(rec.Body.String()); got != tc.wantBody {
 				t.Errorf("body = %s, want %s", got, tc.wantBody)
 			}
-			var ownerUID string
+			var ownerUID sql.NullString
 			if err := conn.QueryRow(`SELECT firebase_uid FROM users WHERE id = $1`, ownerID).Scan(&ownerUID); err != nil {
 				t.Fatalf("read owner: %v", err)
 			}
-			if ownerUID != "fb-old" {
-				t.Errorf("owner firebase_uid = %q, want fb-old", ownerUID)
+			if ownerUID != tc.ownerUID {
+				t.Errorf("owner firebase_uid = %+v, want %+v", ownerUID, tc.ownerUID)
 			}
 			var accounts int
 			if err := conn.QueryRow(`SELECT count(*) FROM users WHERE email = 'ola@example.dev'`).Scan(&accounts); err != nil {
