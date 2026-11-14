@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$app/state', () => ({ page: { params: { id: '50' } } }));
 vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	deleteTrip: vi.fn(),
@@ -36,6 +35,18 @@ import {
 } from '#lib/api/routes.js';
 import { makeTrip } from '#lib/test-utils.js';
 import TripPage from './+page.svelte';
+import { load } from './+page.js';
+import type { PageData } from './$types';
+
+function runLoad(id = '50') {
+	return load({ params: { id } } as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
+}
+
+// renderPage runs the route's load function and renders the page with its
+// data, the way SvelteKit does on navigation.
+async function renderPage() {
+	return render(TripPage, { props: { data: await runLoad() } });
+}
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 
@@ -62,7 +73,7 @@ beforeEach(() => {
 
 describe('trip page sign-up', () => {
 	it('shows free places and a one-click sign-up button', async () => {
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('free-places')).toHaveTextContent('wolne 5 z 8');
 		expect(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' })).toBeEnabled();
@@ -71,7 +82,7 @@ describe('trip page sign-up', () => {
 
 	it('signs up and shows the pending status without a reload', async () => {
 		fn(signUpForTrip).mockResolvedValue({ trip_id: 50, result: 'created', enrollment: enrollment() });
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 
 		await fireEvent.click(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' }));
@@ -87,7 +98,7 @@ describe('trip page sign-up', () => {
 		['rejected', 'odrzucony']
 	])('shows a reviewed (%s) sign-up without withdraw', async (status, label) => {
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3, enrollment: enrollment({ status }) });
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByText(label)).toBeInTheDocument();
 		expect(within(card).queryByRole('button', { name: /Wycofaj/ })).not.toBeInTheDocument();
@@ -102,7 +113,7 @@ describe('trip page sign-up', () => {
 			waitlist_position: 2
 		});
 		fn(withdrawTripSignUp).mockResolvedValue(undefined);
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('lista rezerwowa (2.)');
 		expect(within(card).getByTestId('free-places')).toHaveTextContent('wolne 0 z 8');
@@ -121,7 +132,7 @@ describe('trip page sign-up', () => {
 			enrollment: enrollment({ status: 'waitlisted' }),
 			waitlist_position: 3
 		});
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 
 		await fireEvent.click(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' }));
@@ -141,7 +152,7 @@ describe('trip page sign-up', () => {
 			accepted_count: 3,
 			enrollment: enrollment({ payment_status: payment })
 		});
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('oczekujący');
 		expect(within(card).getByTestId('sign-up-payment')).toHaveTextContent(label);
@@ -154,7 +165,7 @@ describe('trip page sign-up', () => {
 			accepted_count: 3,
 			enrollment: enrollment({ payment_status: payment })
 		});
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('sign-up-status')).toHaveTextContent('oczekujący');
 		expect(within(card).queryByRole('button', { name: /Wycofaj/ })).not.toBeInTheDocument();
@@ -167,7 +178,7 @@ describe('trip page sign-up', () => {
 			accepted_count: 3,
 			enrollment: enrollment({ cruise_id: 7 })
 		});
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('sign-up-status')).toBeInTheDocument();
 		expect(within(card).queryByTestId('sign-up-payment')).not.toBeInTheDocument();
@@ -176,7 +187,7 @@ describe('trip page sign-up', () => {
 	it('withdraws a pending sign-up', async () => {
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3, enrollment: enrollment() });
 		fn(withdrawTripSignUp).mockResolvedValue(undefined);
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 
 		await fireEvent.click(within(card).getByRole('button', { name: 'Wycofaj zapis: Jacht A' }));
@@ -193,7 +204,7 @@ describe('trip page sign-up', () => {
 			enrollment: enrollment({ note: 'stara' })
 		});
 		fn(updateTripSignUpNote).mockResolvedValue(enrollment({ note: 'nowa' }));
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('sign-up-note')).toHaveTextContent('stara');
 
@@ -209,7 +220,7 @@ describe('trip page sign-up', () => {
 
 	it('shows closed sign-ups instead of the button', async () => {
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByText('Zapisy zamknięte')).toBeInTheDocument();
 		expect(within(card).queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
@@ -219,7 +230,7 @@ describe('trip page sign-up', () => {
 		fn(getTrip).mockResolvedValue(
 			makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8, sign_up_deadline: '2026-06-01' })
 		);
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
 		expect(within(card).getByRole('button', { name: 'Zapisz się: Jacht A' })).toBeEnabled();
@@ -230,7 +241,7 @@ describe('trip page sign-up', () => {
 			makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8, sign_up_deadline: '2026-06-01' })
 		);
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByText('Zapisy zamknięte')).toBeInTheDocument();
 		expect(within(card).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
@@ -238,7 +249,7 @@ describe('trip page sign-up', () => {
 	});
 
 	it('omits the deadline when the leg has none', async () => {
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
 	});
@@ -246,7 +257,7 @@ describe('trip page sign-up', () => {
 	it('shows a cancelled leg without free places or a button', async () => {
 		fn(getTrip).mockResolvedValue(makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8, status: 'cancelled' }));
 		fn(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).getByText('Etap odwołany')).toBeInTheDocument();
 		expect(within(card).queryByTestId('free-places')).not.toBeInTheDocument();
@@ -254,7 +265,7 @@ describe('trip page sign-up', () => {
 
 	it('omits free places when the leg has no crew limit', async () => {
 		fn(getTrip).mockResolvedValue(makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A' }));
-		render(TripPage);
+		await renderPage();
 		const card = await screen.findByTestId('my-sign-up');
 		expect(within(card).queryByTestId('free-places')).not.toBeInTheDocument();
 	});
@@ -262,7 +273,7 @@ describe('trip page sign-up', () => {
 	it('hides the sign-up card when the sign-up state cannot load', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		fn(getTripSignUp).mockRejectedValue(new Error('boom'));
-		render(TripPage);
+		await renderPage();
 		await screen.findByRole('heading', { name: 'Jacht A' });
 		expect(screen.queryByTestId('my-sign-up')).not.toBeInTheDocument();
 		expect(screen.getByText(/Nie udało się wczytać: zapis na etap\./)).toBeInTheDocument();

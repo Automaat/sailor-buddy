@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$app/state', () => ({ page: { params: { id: '50' } } }));
 vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	getTripSignUp: vi.fn(),
@@ -24,6 +23,18 @@ import {
 } from '#lib/api/routes.js';
 import { makeTrip } from '#lib/test-utils.js';
 import EnrollmentsPage from './+page.svelte';
+import { load } from './+page.js';
+import type { PageData } from './$types';
+
+function runLoad(id = '50') {
+	return load({ params: { id } } as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
+}
+
+// renderPage runs the route's load function and renders the page with its
+// data, the way SvelteKit does on navigation.
+async function renderPage() {
+	return render(EnrollmentsPage, { props: { data: await runLoad() } });
+}
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 
@@ -59,14 +70,14 @@ beforeEach(() => {
 
 describe('trip enrollments page capacity', () => {
 	it('marks no one as next while the leg is full', async () => {
-		render(EnrollmentsPage);
+		await renderPage();
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('wolne 0 z 2');
 		expect(screen.queryByTestId('next-waitlisted')).not.toBeInTheDocument();
 	});
 
 	it('explains a full leg when an accept is refused and keeps the status', async () => {
 		fn(updateTripEnrollmentStatus).mockRejectedValue(new ApiError(409, 'leg is full: all 2 places are taken'));
-		render(EnrollmentsPage);
+		await renderPage();
 		await screen.findByText('Osoba 3');
 
 		await fireEvent.click(within(card('Osoba 3')).getByRole('button', { name: 'Akceptuj' }));
@@ -76,7 +87,7 @@ describe('trip enrollments page capacity', () => {
 	});
 
 	it('shows a free place and marks the earliest waitlisted as next after a rejection', async () => {
-		render(EnrollmentsPage);
+		await renderPage();
 		await screen.findByText('Osoba 1');
 
 		await fireEvent.click(within(card('Osoba 1')).getByRole('button', { name: 'Odrzuć' }));
@@ -90,7 +101,7 @@ describe('trip enrollments page capacity', () => {
 	});
 
 	it('marks the next waitlisted after an accepted sign-up is deleted', async () => {
-		render(EnrollmentsPage);
+		await renderPage();
 		await screen.findByText('Osoba 2');
 
 		await fireEvent.click(within(card('Osoba 2')).getByRole('button', { name: 'Usuń' }));
@@ -101,7 +112,7 @@ describe('trip enrollments page capacity', () => {
 
 	it('counts cruise-level accepted crew toward the places', async () => {
 		fn(listTripEnrollments).mockResolvedValue([row(1, 'accepted', 1), row(3, 'waitlisted', 3)]);
-		render(EnrollmentsPage);
+		await renderPage();
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('wolne 0 z 2');
 		expect(screen.queryByTestId('next-waitlisted')).not.toBeInTheDocument();
 	});
