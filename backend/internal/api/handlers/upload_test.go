@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 
@@ -366,6 +367,56 @@ func TestCheckUploadEntry_DeletedDuringWalk(t *testing.T) {
 				t.Fatalf("checkUploadEntry = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestOpenUploadRoot_DirsDeletedDuringWalk(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	churn := filepath.Join(dir, "churn")
+	var stop atomic.Bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for !stop.Load() {
+			_ = os.MkdirAll(filepath.Join(churn, "sub"), 0o755)
+			_ = os.WriteFile(filepath.Join(churn, "sub", "a.png"), []byte("png"), 0o644)
+			_ = os.RemoveAll(churn)
+		}
+	}()
+	var failures []error
+	for range 2000 {
+		root, err := OpenUploadRoot(dir)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		_ = root.Close()
+	}
+	stop.Store(true)
+	<-done
+	for _, err := range failures[:min(len(failures), 5)] {
+		t.Errorf("open while directories are deleted: %v", err)
+	}
+	if len(failures) > 5 {
+		t.Errorf("%d more failures", len(failures)-5)
+	}
+}
+
+func TestCheckUploadEntry_ProbeNameTakenBySymlink(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	const probeName = uploadWriteProbe + "-taken"
+	if err := os.Symlink(filepath.Join(dir, "opinions", "1_2.pdf"), filepath.Join(dir, "opinions", probeName)); err != nil {
+		t.Fatal(err)
+	}
+	root := testUploadRoot(t, dir)
+	err := checkUploadEntry(root, probeName, "opinions", uploadDirEntry(t, root, ".", "opinions"), nil)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("checkUploadEntry = %v, want %v", err, fs.ErrExist)
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "opinions", "1_2.pdf")); err != nil || string(got) != "pdf" {
+		t.Fatalf("symlink target changed: %q, %v", got, err)
 	}
 }
 

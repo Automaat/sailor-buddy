@@ -77,7 +77,11 @@ func checkUploadsWritable(uploads *os.Root) error {
 //     unchanged. Files named with the probe prefix belong to other runs.
 //   - Symlinks, FIFOs and other entries are skipped, so the check never
 //     follows a link or blocks on a pipe.
-//   - An entry another process deletes during the walk counts as a pass.
+//   - An entry another process deletes or replaces during the walk counts as
+//     a pass. Its failure is ignored when the entry is gone or is no longer
+//     the same file afterwards, because the error then depends on the
+//     platform: Linux reports ENOENT for a file created in a removed
+//     directory, macOS reports EINVAL.
 func checkUploadEntry(uploads *os.Root, probeName, name string, d fs.DirEntry, err error) error {
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -85,32 +89,55 @@ func checkUploadEntry(uploads *os.Root, probeName, name string, d fs.DirEntry, e
 		}
 		return err
 	}
-	switch {
-	case d.IsDir():
-		probe := filepath.Join(name, probeName)
-		f, err := uploads.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		closeErr := f.Close()
-		if err := uploads.Remove(probe); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return errors.Join(closeErr, err)
-		}
-		return closeErr
-	case d.Type().IsRegular() && !strings.HasPrefix(d.Name(), uploadWriteProbe):
-		f, err := uploads.OpenFile(name, os.O_WRONLY, 0)
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		return f.Close()
+	isDir := d.IsDir()
+	if !isDir && (!d.Type().IsRegular() || strings.HasPrefix(d.Name(), uploadWriteProbe)) {
+		return nil
 	}
-	return nil
+	before, err := uploads.Lstat(name)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if isDir {
+		err = probeUploadDir(uploads, filepath.Join(name, probeName))
+	} else {
+		err = openUploadForWrite(uploads, name)
+	}
+	if err == nil {
+		return nil
+	}
+	after, statErr := uploads.Lstat(name)
+	if errors.Is(statErr, fs.ErrNotExist) || (statErr == nil && !os.SameFile(before, after)) {
+		return nil
+	}
+	return err
+}
+
+// probeUploadDir creates probe with O_EXCL and removes it again. O_EXCL fails
+// on any existing entry, symlinks included, so the probe never touches a file
+// it did not create.
+func probeUploadDir(uploads *os.Root, probe string) error {
+	f, err := uploads.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	closeErr := f.Close()
+	if err := uploads.Remove(probe); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.Join(closeErr, err)
+	}
+	return closeErr
+}
+
+// openUploadForWrite opens name write-only without O_TRUNC, which leaves the
+// file unchanged.
+func openUploadForWrite(uploads *os.Root, name string) error {
+	f, err := uploads.OpenFile(name, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 // uploadRelPath maps a stored file path, as built by joining the upload
