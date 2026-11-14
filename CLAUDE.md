@@ -113,6 +113,16 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   Wrap it in `settle(p, fallback, noteFailure(loadErrors, '<label>'))`
   (`src/lib/api/errors.ts`) and render `LoadErrorBanner`, so an empty list
   from a failed request is not shown as real data.
+- Page data loads in `+page.ts` (`export const load: PageLoad`), not in
+  `onMount`: SvelteKit reuses the component between two URLs of one route,
+  so `onMount` would keep the previous record. The component reads
+  `let { data } = $props()`. Load the page's record with
+  `found(p, { message, title, backHref, backLabel })` (`src/lib/api/load.ts`),
+  which throws `error(404)` for the root `+error.svelte` to render — no
+  per-page `notFound` flags. Sections the user can edit in place use a
+  writable `$derived(data.x)`. Admin-only lists stay in an `$effect` keyed on
+  the record id, since `auth.isAdmin` is false until `/auth/me` answers.
+  Migration of the remaining `onMount` pages is tracked in #600.
 - Go code must pass `gofumpt` formatting
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
 - `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`)

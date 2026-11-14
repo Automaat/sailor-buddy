@@ -4,6 +4,7 @@ import {
 	registerViaUI,
 	loginViaUI,
 	clearFirebaseUsers,
+	signInTestUser,
 	apiRequest,
 	completeOnboarding,
 	SUITE_ADMIN,
@@ -118,6 +119,32 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
 		cruiseId = Number(page.url().split('/').pop());
 		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+	});
+
+	// SvelteKit reuses the page component when a link stays on the same route,
+	// so the cruise page must take its data from the load function to show the
+	// cruise the link points at, not the one it was opened on.
+	test('admin: a link from one cruise to another shows the second', async ({ page }) => {
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		const otherName = `Other cruise ${RUN_ID}`;
+		const other = (await apiRequest(idToken, 'POST', '/cruises', { name: otherName })) as {
+			id: number;
+		};
+		await loginViaUI(page, adminEmail, PASSWORD);
+
+		await page.goto(`/cruises/${cruiseId}`);
+		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+		await page.evaluate((href) => {
+			const a = document.createElement('a');
+			a.href = href;
+			a.textContent = 'next cruise';
+			document.querySelector('main')?.prepend(a);
+		}, `/cruises/${other.id}`);
+		await page.getByRole('link', { name: 'next cruise' }).click();
+
+		await page.waitForURL(`/cruises/${other.id}`);
+		await expect(page.getByRole('heading', { name: otherName })).toBeVisible();
+		await expect(page.getByRole('heading', { name: cruiseName })).toHaveCount(0);
 	});
 
 	test('admin: creates a planned trip', async ({ page }) => {

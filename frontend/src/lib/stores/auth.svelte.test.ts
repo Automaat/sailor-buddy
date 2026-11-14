@@ -36,10 +36,20 @@ describe('auth store lifecycle', () => {
 		expect(auth.user).toBeNull();
 		expect(auth.firebaseUser).toBeNull();
 		expect(auth.isAdmin).toBe(false);
-		await expect(auth.getIdToken()).resolves.toBeNull();
+
+		// A token request made before firebase restores the session waits for
+		// it instead of resolving to no token, so a page load function never
+		// sends an anonymous request on a direct visit.
+		let early: string | null | undefined;
+		const pending = auth.getIdToken().then((t) => (early = t));
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(early).toBeUndefined();
 
 		// Sign-in pushed through the listener clears loading and exposes the user.
 		authListener(fbUser);
+		await pending;
+		expect(early).toBe('id-token');
 		expect(auth.loading).toBe(false);
 		expect(auth.isAuthenticated).toBe(true);
 		expect(auth.firebaseUser).toEqual(fbUser);
