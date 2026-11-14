@@ -220,6 +220,20 @@ describe('series detail page', () => {
 		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 	});
 
+	it('clears a delete error when the edit form opens', async () => {
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		mockDelete.mockRejectedValue(new ApiError(409, 'series is in use'));
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+
+		expect(screen.getByLabelText('Nazwa *')).toBeInTheDocument();
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
 	it('keeps the series when deletion is not confirmed', async () => {
 		mockAuth.isAdmin = true;
 		vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -299,5 +313,40 @@ describe('series page same-route navigation', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
 
 		expect(screen.getByRole('button', { name: 'Zapisz zmiany' })).toBeEnabled();
+	});
+
+	it('drops a delete failure that answers after a link moved to another series', async () => {
+		loadBoth();
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		let fail: (err: Error) => void = () => {};
+		mockDelete.mockImplementation(() => new Promise<void>((_, reject) => (fail = reject)));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await view.rerender({ data: await runLoad('5') });
+		fail(new ApiError(409, 'series is in use'));
+		expect(mockDelete).toHaveBeenCalledWith(4);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(screen.getByRole('heading', { name: 'Baltic Cup' })).toBeInTheDocument();
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
+	it('stays on the new series when a delete succeeds after a link moved to it', async () => {
+		loadBoth();
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		let finish: () => void = () => {};
+		mockDelete.mockImplementation(() => new Promise<void>((r) => (finish = r)));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await view.rerender({ data: await runLoad('5') });
+		finish();
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(goto).not.toHaveBeenCalled();
+		expect(screen.getByRole('heading', { name: 'Baltic Cup' })).toBeInTheDocument();
 	});
 });

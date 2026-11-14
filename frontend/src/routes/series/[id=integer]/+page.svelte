@@ -40,6 +40,7 @@
 	function startEdit() {
 		form = { name: series.name, description: series.description ?? '' };
 		error = '';
+		deleteError = '';
 		editing = true;
 	}
 
