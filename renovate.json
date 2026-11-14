@@ -5,5 +5,58 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "firebase-tools in the emulator image (mirrors mise.toml)",
+      "managerFilePatterns": [
+        "/(^|/)firebase-emulator\\.Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG FIREBASE_TOOLS_VERSION=(?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "firebase-tools",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "air in the backend dev image (mirrors mise.toml)",
+      "managerFilePatterns": [
+        "/(^|/)backend/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "go install (?<depName>github\\.com/air-verse/air)@(?<currentValue>v\\S+)"
+      ],
+      "datasourceTemplate": "go"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Bump mise.toml go and the go.mod toolchain line together; a newer toolchain line alone would make Go switch away from the mise version",
+      "matchPackageNames": [
+        "go",
+        "golang/go"
+      ],
+      "matchDepTypes": [
+        "toolchain",
+        "tools"
+      ],
+      "groupName": "go toolchain"
+    },
+    {
+      "description": "Bump the mise.toml and Dockerfile copies of firebase-tools together",
+      "matchPackageNames": [
+        "firebase-tools"
+      ],
+      "groupName": "firebase-tools"
+    },
+    {
+      "description": "Bump the mise.toml and Dockerfile copies of air together",
+      "matchPackageNames": [
+        "github.com/air-verse/air"
+      ],
+      "groupName": "air"
+    }
   ]
 }
