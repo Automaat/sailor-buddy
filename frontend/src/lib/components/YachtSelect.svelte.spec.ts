@@ -198,3 +198,64 @@ describe('YachtSelect when a create ends late', () => {
 		expect(create).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe('YachtSelect while a create is pending', () => {
+	it('reuses the pending create when the yacht is added again after a cancel', async () => {
+		const { create, resolvers } = pending();
+		const props = $state({ value: 0, yachts: [] as Yacht[], create });
+		render(YachtSelect, { props });
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Anuluj' }));
+		await fillDraft(' SELMA ');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		resolvers[0](selma);
+
+		await waitFor(() => expect(props.value).toBe(4));
+		expect(create).toHaveBeenCalledTimes(1);
+		expect(props.yachts).toEqual([selma]);
+		expect(screen.getByRole('combobox')).toHaveValue('4');
+		expect(screen.queryByLabelText('Nazwa jachtu *')).not.toBeInTheDocument();
+	});
+
+	it('reuses the pending create when the yacht is added again after a remount', async () => {
+		const { create, resolvers } = pending();
+		const props = $state({ value: 0, yachts: [] as Yacht[], create });
+		const { unmount } = render(YachtSelect, { props });
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		unmount();
+
+		const other = pending();
+		const again = $state({ value: 0, yachts: [] as Yacht[], create: other.create });
+		render(YachtSelect, { props: again });
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		resolvers[0](selma);
+
+		await waitFor(() => expect(again.value).toBe(4));
+		expect(create).toHaveBeenCalledTimes(1);
+		expect(other.create).not.toHaveBeenCalled();
+		expect(again.yachts).toEqual([selma]);
+		expect(screen.getByRole('combobox')).toHaveValue('4');
+	});
+
+	it('sends a new create after the pending one fails', async () => {
+		const { create, resolvers, rejecters } = pending();
+		const props = $state({ value: 0, yachts: [] as Yacht[], create });
+		render(YachtSelect, { props });
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		rejecters[0](new Error('Brak uprawnień'));
+		expect(await screen.findByText('Brak uprawnień')).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		resolvers[1](selma);
+
+		await waitFor(() => expect(props.value).toBe(4));
+		expect(create).toHaveBeenCalledTimes(2);
+	});
+});

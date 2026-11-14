@@ -1,7 +1,32 @@
+<script lang="ts" module>
+	import type { Yacht } from '#lib/api/types.js';
+
+	// Creates still waiting for the server, shared by every picker on the page,
+	// so a draft re-added after a cancel or remount reuses the pending request
+	// instead of saving the same yacht twice.
+	const pendingCreates = new Map<string, Promise<Yacht>>();
+
+	function pendingKey(name: string, type: string) {
+		return JSON.stringify([type.toLocaleLowerCase(), name.toLocaleLowerCase()]);
+	}
+
+	function createOnce(key: string, start: () => Promise<Yacht>) {
+		const pending = pendingCreates.get(key);
+		if (pending) return pending;
+		const request = start();
+		pendingCreates.set(key, request);
+		const forget = () => {
+			if (pendingCreates.get(key) === request) pendingCreates.delete(key);
+		};
+		request.then(forget, forget);
+		return request;
+	}
+</script>
+
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { createYacht } from '#lib/api/routes.js';
-	import type { Yacht, YachtBody } from '#lib/api/types.js';
+	import type { YachtBody } from '#lib/api/types.js';
 
 	// Picks a yacht from the club list, or adds a new one (e.g. a charter yacht
 	// used once) without leaving the surrounding form. `create` defaults to the
@@ -95,11 +120,13 @@
 		saving = true;
 		error = '';
 		try {
-			const yacht = await create({
-				name,
-				yacht_type: type || undefined,
-				registration_no: draft.registration_no.trim() || undefined
-			});
+			const yacht = await createOnce(pendingKey(name, type), () =>
+				create({
+					name,
+					yacht_type: type || undefined,
+					registration_no: draft.registration_no.trim() || undefined
+				})
+			);
 			if (!yachts.some((y) => y.id === yacht.id)) yachts = [...yachts, yacht];
 			if (current !== attempt) return;
 			if (!pickedWhileSaving) value = yacht.id;
