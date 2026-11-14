@@ -179,6 +179,9 @@ Every trip and voyage is a leg of a club event: `cruise_id` is required on
 trip and voyage bodies (`422 cruise not found` for an unknown id). A cruise
 that still has trips or voyages cannot be deleted (`409`). A trip with cruise or
 leg enrollments cannot be moved to another cruise (`409`).
+A trip or voyage create or update, and a voyage log, with a `yacht_id` that
+does not exist (or that is deleted during the save) returns
+`422 yacht not found`.
 Assigning crew or a cruise enrollment to a trip that was completed or
 deleted at the same moment returns `409`.
 
