@@ -2,6 +2,7 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { listYachts, createYacht, deleteYacht } from '#lib/api/routes.js';
 	import type { Yacht } from '#lib/api/types.js';
+	import { errorMessage } from '#lib/api/errors.js';
 	import Ship from '@lucide/svelte/icons/ship';
 
 	let yachts = $state<Yacht[]>([]);
@@ -19,6 +20,7 @@
 	});
 	let form = $state(emptyForm());
 	let saving = $state(false);
+	let deleteError = $state('');
 
 	async function load() {
 		loading = true;
@@ -73,7 +75,14 @@
 
 	async function handleDelete(id: number) {
 		if (!confirm('Usunąć ten jacht?')) return;
-		await deleteYacht(id);
+		deleteError = '';
+		try {
+			await deleteYacht(id);
+		} catch (err) {
+			console.error('Failed to delete yacht:', err);
+			deleteError = `Nie udało się usunąć jachtu: ${errorMessage(err)}`;
+			return;
+		}
 		yachts = yachts.filter((y) => y.id !== id);
 	}
 </script>
@@ -183,6 +192,10 @@
 				{saving ? 'Dodawanie...' : 'Dodaj'}
 			</button>
 		</form>
+	{/if}
+
+	{#if deleteError}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
 	{/if}
 
 	{#if loading}

@@ -9,6 +9,7 @@ vi.mock('#lib/api/routes.js', () => ({
 }));
 
 import { createTraining, deleteTraining, listTrainings } from '#lib/api/routes.js';
+import { ApiError } from '#lib/api/client.js';
 import TrainingsPage from './+page.svelte';
 import { load } from './+page.js';
 import type { PageData } from './$types';
@@ -87,6 +88,36 @@ describe('trainings page', () => {
 			expect(screen.queryByText('Sternik motorowodny')).not.toBeInTheDocument()
 		);
 		expect(mockDelete).toHaveBeenCalledWith(1);
+	});
+
+	it('shows the error and keeps the training when deletion fails', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockDelete.mockRejectedValue(new ApiError(500, 'database is down'));
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć szkolenia: database is down'
+		);
+		expect(screen.getByText('Sternik motorowodny')).toBeInTheDocument();
+		errorSpy.mockRestore();
+	});
+
+	it('clears a training delete error when a retry succeeds', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockDelete.mockRejectedValueOnce(new Error('offline'));
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent('offline');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
+		await vi.waitFor(() =>
+			expect(screen.queryByText('Sternik motorowodny')).not.toBeInTheDocument()
+		);
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+		errorSpy.mockRestore();
 	});
 
 	it('replaces a locally changed list with the reloaded log', async () => {

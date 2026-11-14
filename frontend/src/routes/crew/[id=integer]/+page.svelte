@@ -56,6 +56,7 @@
 			patent_number: p.patent_number ?? ''
 		};
 		error = '';
+		deleteError = '';
 		editing = true;
 	}
 
@@ -89,6 +90,7 @@
 
 	function handleMerged(result: PersonMergeResult, keptName: string) {
 		merging = false;
+		deleteError = '';
 		merged = `Połączono: ${result.duplicate.full_name} → ${keptName}.`;
 		if (result.person.full_name !== keptName) {
 			merged += ` Imię i nazwisko z konta: ${result.person.full_name}.`;
@@ -102,6 +104,7 @@
 
 	function handleLinked(p: CrewMember) {
 		linking = false;
+		deleteError = '';
 		person = p;
 		merged = 'Połączono z kontem.';
 	}

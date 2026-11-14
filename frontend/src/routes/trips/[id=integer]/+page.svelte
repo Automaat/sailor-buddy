@@ -45,6 +45,7 @@
 	let assignRole = $state('');
 	let showCompleteModal = $state(false);
 	let deleteError = $state('');
+	let removeCrewError = $state('');
 	// The *For values name the trip whose request is in flight, so a button
 	// stays busy only on that trip, not on one a link moved to.
 	let assigningFor = $state<number | null>(null);
@@ -71,6 +72,7 @@
 		assignRole = '';
 		showCompleteModal = false;
 		deleteError = '';
+		removeCrewError = '';
 	});
 
 	// A request started on one trip may answer after a link has moved the
@@ -165,7 +167,16 @@
 	async function removeCrew(assignmentId: number) {
 		if (!confirm('Usunąć przypisanie załoganta?')) return;
 		const tripId = id;
-		await removeTripCrew(tripId, assignmentId);
+		removeCrewError = '';
+		try {
+			await removeTripCrew(tripId, assignmentId);
+		} catch (err) {
+			console.error('Failed to remove crew:', err);
+			if (!leftTrip(tripId)) {
+				removeCrewError = `Nie udało się usunąć załoganta: ${errorMessage(err)}`;
+			}
+			return;
+		}
 		if (leftTrip(tripId)) return;
 		crew = crew.filter((c) => c.id !== assignmentId);
 	}
@@ -440,6 +451,12 @@
 						{assigning ? 'Dodawanie...' : 'Dodaj'}
 					</button>
 				</form>
+			{/if}
+
+			{#if removeCrewError}
+				<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+					{removeCrewError}
+				</div>
 			{/if}
 
 			{#if crew.length === 0}

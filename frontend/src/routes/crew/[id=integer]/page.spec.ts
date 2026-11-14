@@ -337,4 +337,57 @@ describe('person page account link', () => {
 		confirmSpy.mockRestore();
 		errorSpy.mockRestore();
 	});
+
+	async function failDelete() {
+		deleteMock.mockRejectedValue(new ApiError(409, 'person has crew assignments'));
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		expect(await screen.findByText(/Nie udało się usunąć osoby/)).toBeTruthy();
+	}
+
+	it('clears a delete error once the person is linked to an account', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		vi.mocked(listMembers).mockResolvedValue([makeMember({ id: 8, name: 'Ewa Nowa' })]);
+		vi.mocked(linkCrewAccount).mockResolvedValue(
+			makePerson({ id: 4, full_name: 'Ewa Maj', has_account: true, user_id: 8 })
+		);
+		await failDelete();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz z kontem' }));
+		await screen.findByRole('option', { name: /Ewa Nowa/ });
+		await fireEvent.change(screen.getByLabelText('Konto'), { target: { value: '8' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
+
+		expect(await screen.findByText('Połączono z kontem.')).toBeTruthy();
+		expect(screen.queryByText(/Nie udało się usunąć osoby/)).toBeNull();
+	});
+
+	it('clears a delete error once a record is merged into the person', async () => {
+		const current = makePerson({ id: 4, full_name: 'Ewa Maj' });
+		const other = makePerson({ id: 7, full_name: 'Ewa Maj (stara)' });
+		getMock.mockResolvedValue(current);
+		listMock.mockResolvedValue([current, other]);
+		previewMock.mockResolvedValue(mergeOf(current, other));
+		mergeMock.mockResolvedValue(mergeOf(current, other));
+		await failDelete();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz z…' }));
+		await fireEvent.click(await screen.findByRole('button', { name: /Ewa Maj \(stara\)/ }));
+		await screen.findByTestId('merge-summary');
+		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
+
+		expect(await screen.findByRole('status')).toHaveTextContent('Połączono');
+		expect(screen.queryByText(/Nie udało się usunąć osoby/)).toBeNull();
+	});
+
+	it('clears a delete error when the edit form opens', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		await failDelete();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+
+		expect(screen.queryByText(/Nie udało się usunąć osoby/)).toBeNull();
+	});
 });
