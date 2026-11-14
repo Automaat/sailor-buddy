@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -97,27 +98,35 @@ func run() error {
 func checkPDFRenderer(ctx context.Context) {
 	_, err := docgen.GeneratePDF(ctx, []byte("<p>startup check</p>"))
 	if err != nil && ctx.Err() == nil {
+		sandboxOff, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX"))
 		log.Printf("PDF renderer unavailable, PDF opinions will fail (%s): %v",
-			pdfRendererHint("/proc"), err)
+			pdfRendererHint("/proc", sandboxOff), err)
 	}
 }
 
-// pdfRendererHint names the container setting most likely to block the
+// pdfRendererHint names the container settings most likely to block the
 // Chromium sandbox. procDir is the procfs mount, a parameter for tests.
+// sandboxOff reports SAILOR_CHROME_NO_SANDBOX; with the sandbox off neither
+// seccomp nor AppArmor can be the cause.
 //
 // Hosts with kernel.apparmor_restrict_unprivileged_userns=1 (Ubuntu 24.04+)
 // move an AppArmor-unconfined process into the unprivileged_userns profile
 // when Chromium creates its sandbox namespace, and the sandbox cannot start.
 // Docker's default AppArmor profile is not affected, so the fix is to drop
-// apparmor=unconfined. Otherwise the usual cause is a missing seccomp
-// profile.
-func pdfRendererHint(procDir string) string {
-	if apparmorUnconfined(procDir) && userNSRestricted(procDir) {
+// apparmor=unconfined. Docker's default seccomp profile blocks the namespace
+// before AppArmor sees it, so that hint also names the seccomp profile.
+func pdfRendererHint(procDir string, sandboxOff bool) string {
+	const seccompHint = "run with --security-opt seccomp=backend/seccomp-chromium.json"
+	switch {
+	case sandboxOff:
+		return "Chromium sandbox is off (SAILOR_CHROME_NO_SANDBOX); check CHROME_PATH"
+	case apparmorUnconfined(procDir) && userNSRestricted(procDir):
 		return "AppArmor restricts user namespaces on this host and the container " +
 			"runs unconfined: drop --security-opt apparmor=unconfined to keep " +
-			"Docker's default profile; see README"
+			"Docker's default profile, and " + seccompHint + "; see README"
+	default:
+		return "Docker needs to " + seccompHint + "; see README"
 	}
-	return "Docker needs --security-opt seccomp=backend/seccomp-chromium.json; see README"
 }
 
 // apparmorUnconfined reports whether this process runs without an AppArmor

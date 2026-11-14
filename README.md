@@ -41,7 +41,8 @@ sandbox on.
   `--security-opt apparmor=unconfined`: on those hosts the kernel then moves
   Chromium into the `unprivileged_userns` profile, which denies the
   `CAP_SYS_ADMIN` the sandbox needs, and PDF renders fail with `Failed to move
-  to new namespace`. The startup log names AppArmor when this happens.
+  to new namespace`. The startup log names AppArmor when this happens. The
+  seccomp profile is still required with either AppArmor setting.
   Verified on Ubuntu 24.04.5 (kernel 6.8, Docker 29.9).
 - **Uploads**: `SAILOR_UPLOAD_DIR` (default `/app/uploads`) must be
   writable by UID 10001. A new named volume at `/app/uploads` gets that owner
