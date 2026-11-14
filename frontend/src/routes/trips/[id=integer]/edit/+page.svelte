@@ -26,7 +26,7 @@
 	// Editing trips is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto(`/trips/${id}`);
+			void goto(`/trips/${id}`);
 		}
 	});
 
@@ -76,7 +76,7 @@
 				captain_name: form.captain_person_id ? undefined : legacyCaptainName || undefined
 			};
 			await updateTrip(tripId, payload);
-			if (run === submit) goto(`/trips/${tripId}`);
+			if (run === submit) void goto(`/trips/${tripId}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {

@@ -32,7 +32,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 
 	async function handleAdd(e: Event) {
@@ -139,7 +139,7 @@
 		</div>
 	{:else}
 		<div class="grid gap-3">
-			{#each yachts as yacht}
+			{#each yachts as yacht (yacht.id)}
 				<div class="flex items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-sm">
 					<div>
 						<span class="font-semibold text-[var(--navy)]">{yacht.name}</span>

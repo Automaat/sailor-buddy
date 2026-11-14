@@ -41,7 +41,7 @@
 	}
 
 	$effect(() => {
-		load(id);
+		void load(id);
 	});
 
 	function startEdit(p: CrewMember) {
@@ -93,7 +93,7 @@
 		if (result.person.id === id) {
 			person = result.person;
 		} else {
-			goto(`/crew/${result.person.id}`);
+			void goto(`/crew/${result.person.id}`);
 		}
 	}
 
@@ -120,7 +120,7 @@
 	async function handleDelete() {
 		if (!confirm('Usunąć tę osobę?')) return;
 		await deleteCrew(id);
-		goto('/crew');
+		void goto('/crew');
 	}
 </script>
 

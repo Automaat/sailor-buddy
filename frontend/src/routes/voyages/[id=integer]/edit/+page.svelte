@@ -23,7 +23,7 @@
 	// Editing voyages is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto(`/voyages/${id}`);
+			void goto(`/voyages/${id}`);
 		}
 	});
 
@@ -83,7 +83,7 @@
 				captain_name: form.captain_person_id ? undefined : legacyCaptainName || undefined
 			};
 			await updateVoyage(voyageId, payload);
-			if (run === submit) goto(`/voyages/${voyageId}`);
+			if (run === submit) void goto(`/voyages/${voyageId}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {

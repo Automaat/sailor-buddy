@@ -32,7 +32,7 @@
 	// Managing members is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/');
+			void goto('/');
 		}
 	});
 
@@ -48,7 +48,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 
 	$effect(() => () => clearTimeout(successTimer));
@@ -271,7 +271,7 @@
 											? 'bg-[var(--ocean-tint)] text-[var(--ocean)]'
 											: ''}"
 									>
-										{#each Object.entries(roleLabels) as [value, label]}
+										{#each Object.entries(roleLabels) as [value, label] (value)}
 											<option {value}>{label}</option>
 										{/each}
 									</select>
@@ -289,7 +289,7 @@
 											)}
 										class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
 									>
-										{#each Object.entries(membershipLabels) as [value, label]}
+										{#each Object.entries(membershipLabels) as [value, label] (value)}
 											<option {value}>{label}</option>
 										{/each}
 									</select>

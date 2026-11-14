@@ -22,7 +22,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 
 	const roleLabels = { captain: 'Kapitan', crew: 'Załoga' } as const;

@@ -17,7 +17,7 @@
 	// Logging voyages is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/cruises?tab=completed');
+			void goto('/cruises?tab=completed');
 		}
 	});
 
@@ -73,7 +73,7 @@
 				captain_person_id: form.captain_person_id || undefined
 			};
 			const voyage = await createVoyage(payload);
-			if (run === submit) goto(`/voyages/${voyage.id}`);
+			if (run === submit) void goto(`/voyages/${voyage.id}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się dodać rejsu';
 		} finally {

@@ -21,7 +21,7 @@
 
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto(`/cruises/${id}`);
+			void goto(`/cruises/${id}`);
 		}
 	});
 
@@ -57,7 +57,7 @@
 				included: parseList(included),
 				not_included: parseList(notIncluded)
 			});
-			if (run === submit) goto(`/cruises/${cruiseId}`);
+			if (run === submit) void goto(`/cruises/${cruiseId}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {

@@ -53,7 +53,7 @@
 	// Managing enrollments is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto(`/trips/${id}`);
+			void goto(`/trips/${id}`);
 		}
 	});
 
@@ -155,7 +155,7 @@
 	{/if}
 	{#if enrollments.length > 0}
 		<div class="mb-4 flex flex-wrap gap-2 text-sm" data-testid="payment-counts">
-			{#each paymentStatuses as ps}
+			{#each paymentStatuses as ps (ps)}
 				<span class="rounded-full bg-white px-3 py-1 shadow-sm" data-testid={`payment-count-${ps}`}>
 					{paymentLabels[ps]}: <strong>{payments[ps]}</strong>
 				</span>
@@ -200,7 +200,7 @@
 								disabled={savingPayment.includes(enrollment.id)}
 								class="rounded border px-2 py-1 text-xs"
 							>
-								{#each paymentStatuses as ps}
+								{#each paymentStatuses as ps (ps)}
 									<option value={ps}>{paymentLabels[ps]}</option>
 								{/each}
 							</select>

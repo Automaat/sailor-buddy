@@ -74,12 +74,12 @@
 	function pick(p: CrewMember) {
 		other = p;
 		keptID = defaultKept(person, p).id;
-		loadPreview();
+		void loadPreview();
 	}
 
 	function setKept(id: number) {
 		keptID = id;
-		loadPreview();
+		void loadPreview();
 	}
 
 	async function confirmMerge() {

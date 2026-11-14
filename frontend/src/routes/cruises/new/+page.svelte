@@ -13,7 +13,7 @@
 
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/cruises');
+			void goto('/cruises');
 		}
 	});
 
@@ -52,7 +52,7 @@
 				included: parseList(included),
 				not_included: parseList(notIncluded)
 			});
-			goto(`/cruises/${cruise.id}`);
+			void goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć wydarzenia';
 		} finally {

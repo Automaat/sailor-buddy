@@ -18,7 +18,7 @@
 	// Planning trips is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/cruises');
+			void goto('/cruises');
 		}
 	});
 
@@ -126,7 +126,7 @@
 				captain_person_id: run.form.captain_person_id || undefined
 			};
 			const trip = await createTrip(payload);
-			if (run === draft) goto(`/trips/${trip.id}`);
+			if (run === draft) void goto(`/trips/${trip.id}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się zaplanować rejsu';
 		} finally {

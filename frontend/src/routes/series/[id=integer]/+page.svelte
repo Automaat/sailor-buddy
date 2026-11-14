@@ -64,7 +64,7 @@
 	async function handleDelete() {
 		if (!confirm('Usunąć serię? Wydarzenia zostaną, ale stracą powiązanie z serią.')) return;
 		await deleteSeries(id);
-		goto('/series');
+		void goto('/series');
 	}
 </script>
 

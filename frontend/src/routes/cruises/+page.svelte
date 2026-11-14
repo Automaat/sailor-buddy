@@ -54,7 +54,7 @@
 	};
 
 	function navigate() {
-		goto(rejsListUrl(tab, mine), { replace: true, shallow: true });
+		void goto(rejsListUrl(tab, mine), { replace: true, shallow: true });
 	}
 
 	function selectTab(next: RejsTab) {
@@ -96,7 +96,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 </script>
 

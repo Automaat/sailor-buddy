@@ -46,10 +46,11 @@
 	// enrollment for it, if any.
 	const legs = $derived.by(() => {
 		if (data.kind !== 'cruise' || !data.trips) return [];
-		const byTrip = new Map<number, Enrollment>();
-		for (const e of data.leg_enrollments ?? []) {
-			if (e.trip_id != null) byTrip.set(e.trip_id, e);
-		}
+		const byTrip = new Map(
+			(data.leg_enrollments ?? []).flatMap((e): [number, Enrollment][] =>
+				e.trip_id != null ? [[e.trip_id, e]] : []
+			)
+		);
 		return numberLegs(data.trips).map((l) => ({ ...l, enrollment: byTrip.get(l.trip.id) }));
 	});
 	const today = warsawToday();

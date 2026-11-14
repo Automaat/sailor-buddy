@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatDate } from '#lib/dates.js';
-	import { listTrainings, createTraining, deleteTraining } from '#lib/api/routes.js';
+	import { createTraining, deleteTraining } from '#lib/api/routes.js';
 	import type { Training } from '#lib/api/types.js';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 
@@ -80,7 +80,7 @@
 		</div>
 	{:else}
 		<div class="grid gap-3">
-			{#each trainings as training}
+			{#each trainings as training (training.id)}
 				<div class="flex items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-sm">
 					<div>
 						<span class="font-semibold text-[var(--navy)]">{training.name}</span>

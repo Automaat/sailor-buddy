@@ -36,7 +36,7 @@
 	<div>
 		<label class={label} for="patentType">Patent żeglarski</label>
 		<select id="patentType" bind:value={form.patentType} class={input}>
-			{#each PATENT_OPTIONS as opt}
+			{#each PATENT_OPTIONS as opt (opt.value)}
 				<option value={opt.value}>{opt.label}</option>
 			{/each}
 		</select>

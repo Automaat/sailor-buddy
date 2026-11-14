@@ -153,7 +153,7 @@
 		const cruiseId = voyage.cruise_id;
 		await deleteVoyage(voyageId);
 		if (leftVoyage(voyageId)) return;
-		goto(`/cruises/${cruiseId}`);
+		void goto(`/cruises/${cruiseId}`);
 	}
 
 	async function generateOpinion() {
@@ -451,7 +451,7 @@
 						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
 						<select id="assign-crew" bind:value={assignCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
 							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member}
+							{#each allCrewMembers as member (member.id)}
 								<option value={member.id}>{member.full_name}</option>
 							{/each}
 						</select>
@@ -470,7 +470,7 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each crew as member}
+					{#each crew as member (member.id)}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{member.full_name}</span>
@@ -496,7 +496,7 @@
 						<label for="gen-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
 						<select id="gen-crew" bind:value={genCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
 							<option value="">Wybierz...</option>
-							{#each crew as member}
+							{#each crew as member (member.id)}
 								<option value={member.crew_member_id}>{member.full_name}</option>
 							{/each}
 						</select>
@@ -518,7 +518,7 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak wygenerowanych opinii.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each opinions as op}
+					{#each opinions as op (op.id)}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{op.full_name}</span>

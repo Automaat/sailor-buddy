@@ -23,7 +23,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 
 	async function handleAdd(e: Event) {

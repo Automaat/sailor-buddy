@@ -89,7 +89,7 @@
 		if (!isAdmin) return;
 		let current = true;
 		const errors: string[] = [];
-		Promise.all([
+		void Promise.all([
 			settle(
 				listCruiseEnrollments(cruiseId).then((r) => r ?? []),
 				[],
@@ -135,7 +135,7 @@
 		deleteError = '';
 		try {
 			await deleteCruise(id);
-			goto('/cruises');
+			void goto('/cruises');
 		} catch (err) {
 			deleteError = err instanceof Error ? err.message : 'Nie udało się usunąć wydarzenia';
 		}
@@ -161,7 +161,9 @@
 
 	function copyEnrollLink() {
 		if (!enrollToken) return;
-		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
+		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`).catch((err) => {
+			console.error('Failed to copy enrollment link:', err);
+		});
 	}
 
 	async function setEnrollmentStatus(enrollmentId: number, status: EnrollStatus) {
@@ -254,7 +256,7 @@
 				value={enrollment.trip_id ?? ''}
 				onchange={(e) => {
 					const v = (e.currentTarget as HTMLSelectElement).value;
-					assignEnrollmentToTrip(enrollment.id, v ? Number(v) : null);
+					void assignEnrollmentToTrip(enrollment.id, v ? Number(v) : null);
 				}}
 				class="min-w-0 max-w-full rounded border px-2 py-1 text-sm"
 			>
@@ -481,7 +483,7 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak zrealizowanych etapów.</p>
 			{/if}
 			<div class="space-y-2">
-				{#each voyages as voyage}
+				{#each voyages as voyage (voyage.id)}
 					<a href="/voyages/{voyage.id}" class="block rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100">
 						<div class="flex items-center justify-between">
 							<span class="font-medium">{voyage.name}</span>

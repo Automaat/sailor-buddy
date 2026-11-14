@@ -88,7 +88,7 @@
 		const cruiseId = trip.cruise_id;
 		await deleteTrip(tripId);
 		if (leftTrip(tripId)) return;
-		goto(`/cruises/${cruiseId}`);
+		void goto(`/cruises/${cruiseId}`);
 	}
 
 	async function toggleEnrollment() {
@@ -122,7 +122,9 @@
 
 	function copyEnrollLink() {
 		if (!enrollToken) return;
-		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
+		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`).catch((err) => {
+			console.error('Failed to copy enrollment link:', err);
+		});
 	}
 
 	async function assignCrew(e: Event) {
@@ -188,7 +190,7 @@
 		const voyage = await completeTrip(tripId, payload);
 		if (leftTrip(tripId)) return;
 		showCompleteModal = false;
-		goto(`/voyages/${voyage.id}`);
+		void goto(`/voyages/${voyage.id}`);
 	}
 
 	const status = $derived(legStatus(trip, cruise));
@@ -237,7 +239,7 @@
 								disabled={completing}
 								onclick={() => {
 									close();
-									handleCancel();
+									void handleCancel();
 								}}
 								class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
 							>
@@ -249,7 +251,7 @@
 							role="menuitem"
 							onclick={() => {
 								close();
-								handleDelete();
+								void handleDelete();
 							}}
 							class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
 						>
@@ -375,7 +377,7 @@
 						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
 						<select id="assign-crew" bind:value={assignCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
 							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member}
+							{#each allCrewMembers as member (member.id)}
 								<option value={member.id}>{member.full_name}</option>
 							{/each}
 						</select>
@@ -398,7 +400,7 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each crew as member}
+					{#each crew as member (member.id)}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{member.full_name}</span>
