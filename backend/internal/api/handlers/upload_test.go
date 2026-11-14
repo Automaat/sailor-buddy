@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"image"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"github.com/go-chi/chi/v5"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 // testUploadRoot opens dir as the upload root and closes it after the test.
@@ -40,8 +42,17 @@ func uploadTestAPI(t *testing.T) (api humatest.TestAPI, dir string) {
 	t.Helper()
 	dir = t.TempDir()
 	_, api = humatest.New(t)
-	RegisterUploadRoutes(api, testUploadRoot(t, dir))
+	RegisterUploadRoutes(api, testUploadRoot(t, dir), uploadTestDB(t), nil)
 	return api, dir
+}
+
+func uploadTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	conn := lockTestDB(t)
+	if _, err := sqlcdb.New(conn).CreateUser(t.Context(), sqlcdb.CreateUserParams{Email: "uploader@example.test", Name: "Uploader"}); err != nil {
+		t.Fatal(err)
+	}
+	return conn
 }
 
 // writeUpload creates an uploaded file under dir with the given contents.
@@ -171,6 +182,9 @@ func TestServeFile_Rejected(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(dir, "1", "out")); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Symlink(filepath.Join(dir, "2/images/test.jpg"), filepath.Join(dir, "1/images/other.jpg")); err != nil {
+		t.Fatal(err)
+	}
 	h := NewUploadHandler(testUploadRoot(t, dir))
 
 	tests := []struct {
@@ -187,6 +201,7 @@ func TestServeFile_Rejected(t *testing.T) {
 		{"directory", "1/images", http.StatusNotFound},
 		{"symlinked file outside uploads", "1/images/link.jpg", http.StatusBadRequest},
 		{"symlinked directory outside uploads", "1/out/secret.txt", http.StatusBadRequest},
+		{"symlink to another account inside uploads", "1/images/other.jpg", http.StatusBadRequest},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -16,20 +21,30 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
+	_ "golang.org/x/image/webp"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 )
 
 // UploadHandler stores and serves uploaded images. Every file access goes
 // through uploads, so request paths cannot reach outside the upload
 // directory, by ".." or by a symlink.
 type UploadHandler struct {
-	uploads *os.Root
+	uploads     *os.Root
+	db          *sql.DB
+	limits      config.UploadLimits
+	api         huma.API
+	createImage func(*os.Root, string) (io.WriteCloser, error)
 }
 
 func NewUploadHandler(uploads *os.Root) *UploadHandler {
-	return &UploadHandler{uploads: uploads}
+	return &UploadHandler{
+		uploads: uploads, limits: config.DefaultUploadLimits(),
+		createImage: func(root *os.Root, name string) (io.WriteCloser, error) {
+			return root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		},
+	}
 }
 
 // OpenUploadRoot creates the upload directory if needed and opens it as the
@@ -214,13 +229,28 @@ func removeUploadedFiles(uploads *os.Root, paths ...string) {
 
 // RegisterUploadRoutes wires the image upload operation onto the API. Static
 // file serving (GET /uploads/*) stays on chi as it is not an API operation.
-func RegisterUploadRoutes(api huma.API, uploads *os.Root) {
+func RegisterUploadRoutes(api huma.API, uploads *os.Root, db *sql.DB, limits *config.UploadLimits) {
 	h := NewUploadHandler(uploads)
+	h.db = db
+	if limits != nil {
+		h.limits = *limits
+	}
+	registerUploadRoutes(api, h)
+}
+
+func registerUploadRoutes(api huma.API, h *UploadHandler) {
+	h.api = api
 	huma.Register(api, huma.Operation{
 		OperationID: "upload-image", Method: http.MethodPost, Path: "/upload/image",
 		Summary: "Upload an image", Tags: []string{"Uploads"},
 		MaxBodyBytes: maxUploadBodyBytes,
+		Middlewares:  huma.Middlewares{h.rateLimit},
 	}, h.uploadImage)
+	huma.Register(api, huma.Operation{
+		OperationID: "cleanup-images", Method: http.MethodPost, Path: "/upload/images/cleanup",
+		Summary: "Remove my expired unattached images", Tags: []string{"Uploads"},
+		DefaultStatus: http.StatusNoContent, Middlewares: huma.Middlewares{h.rateLimit},
+	}, h.cleanup)
 }
 
 func (h *UploadHandler) uploadImage(ctx context.Context, in *uploadImageInput) (*uploadURLOutput, error) {
@@ -234,46 +264,54 @@ func (h *UploadHandler) uploadImage(ctx context.Context, in *uploadImageInput) (
 		return nil, huma.Error400BadRequest("file too large (max 5MB)")
 	}
 
-	buf := make([]byte, 512)
-	n, err := file.Read(buf)
+	data, extension, err := validatedImage(file)
 	if err != nil {
-		return nil, huma.Error400BadRequest("cannot read file")
+		return nil, err
 	}
-	ext, ok := allowedMIME[http.DetectContentType(buf[:n])]
-	if !ok {
-		return nil, huma.Error400BadRequest("unsupported file type; allowed: jpeg, png, webp")
-	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return nil, huma.Error500InternalServerError("failed to process file")
-	}
-
-	userDir := filepath.Join(strconv.FormatInt(user.UserID, 10), "images")
-	if err := h.uploads.MkdirAll(userDir, 0o755); err != nil {
-		return nil, huma.Error500InternalServerError("failed to create upload directory")
-	}
-	filename := uuid.New().String() + ext
-	dst, err := h.uploads.Create(filepath.Join(userDir, filename))
+	url, err := h.saveImage(ctx, user.UserID, data, extension)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to save file")
+		return nil, uploadStorageError(err)
 	}
-	saved := false
-	defer func() {
-		_ = dst.Close()
-		if !saved {
-			_ = h.uploads.Remove(filepath.Join(userDir, filename))
-		}
-	}()
-	if _, err := io.Copy(dst, file); err != nil {
-		return nil, huma.Error500InternalServerError("failed to write file")
-	}
-
-	if err := dst.Close(); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save file")
-	}
-	saved = true
 	out := &uploadURLOutput{}
-	out.Body.URL = fmt.Sprintf("/api/uploads/%d/images/%s", user.UserID, filename)
+	out.Body.URL = url
 	return out, nil
+}
+
+func validatedImage(reader io.Reader) (data []byte, extension string, err error) {
+	data, err = io.ReadAll(io.LimitReader(reader, maxImageBytes+1))
+	if err != nil || len(data) > maxImageBytes {
+		return nil, "", huma.Error400BadRequest("cannot read image or image exceeds 5 MB")
+	}
+	header, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || (format != "jpeg" && format != "png" && format != "webp") {
+		return nil, "", huma.Error400BadRequest("invalid image; allowed: jpeg, png, webp")
+	}
+	if header.Width < 1 || header.Height < 1 || header.Width > 4096 || header.Height > 4096 || int64(header.Width)*int64(header.Height) > 4_000_000 {
+		return nil, "", huma.Error400BadRequest("image exceeds 4096 pixels per side or four million pixels")
+	}
+	decoded, decodedFormat, err := image.Decode(bytes.NewReader(data))
+	if err != nil || decodedFormat != format || decoded.Bounds().Dx() != header.Width || decoded.Bounds().Dy() != header.Height {
+		return nil, "", huma.Error400BadRequest("invalid image content")
+	}
+	return data, allowedMIME["image/"+format], nil
+}
+
+func uploadStorageError(err error) error {
+	if _, ok := errors.AsType[huma.StatusError](err); ok {
+		return err
+	}
+	slog.Error("image storage failure", "err", err)
+	return huma.Error503ServiceUnavailable("upload storage unavailable")
+}
+
+func (h *UploadHandler) cleanup(ctx context.Context, _ *struct{}) (*noContentOutput, error) {
+	userID := middleware.GetUser(ctx).UserID
+	if err := h.withAccount(ctx, userID, func(bounded context.Context, conn *sql.Conn, dir *os.Root) error {
+		return cleanupImages(bounded, conn, dir, userID)
+	}); err != nil {
+		return nil, uploadStorageError(err)
+	}
+	return &noContentOutput{}, nil
 }
 
 // ServeFile serves a previously uploaded file. It stays on chi: static asset
@@ -296,7 +334,19 @@ func (h *UploadHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f, err := h.uploads.Open(clean)
+	userDir := strconv.FormatInt(user.UserID, 10)
+	userInfo, err := h.uploads.Lstat(userDir)
+	if err == nil && (!userInfo.IsDir() || userInfo.Mode()&os.ModeSymlink != 0) {
+		respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+	ownerRoot, err := h.uploads.OpenRoot(userDir)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	defer func() { _ = ownerRoot.Close() }()
+	f, err := ownerRoot.Open(strings.TrimPrefix(clean, userPrefix))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			respondError(w, http.StatusNotFound, "file not found")

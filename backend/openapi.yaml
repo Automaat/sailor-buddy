@@ -5184,6 +5184,21 @@ paths:
       summary: Upload an image
       tags:
         - Uploads
+  /upload/images/cleanup:
+    post:
+      operationId: cleanup-images
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove my expired unattached images
+      tags:
+        - Uploads
   /voyages:
     get:
       operationId: list-voyages

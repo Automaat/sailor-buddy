@@ -135,6 +135,22 @@ type CruiseSeries struct {
 	UpdatedAt   types.NullTime   `json:"updated_at"`
 }
 
+type ImageUpload struct {
+	Url       string    `json:"url"`
+	UserID    int64     `json:"user_id"`
+	State     string    `json:"state"`
+	Owned     bool      `json:"owned"`
+	ByteSize  int64     `json:"byte_size"`
+	Retained  bool      `json:"retained"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ImageUploadRequest struct {
+	UserID      int64     `json:"user_id"`
+	WindowStart time.Time `json:"window_start"`
+	Requests    int64     `json:"requests"`
+}
+
 type PersonLinkRequest struct {
 	ID         int64           `json:"id"`
 	UserID     int64           `json:"user_id"`

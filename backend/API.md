@@ -830,7 +830,14 @@ Body — `name` required: `{ "name": "ISSA Skipper", "date": "2026-03-01", "orga
 | Method | Path | Description | Success |
 |--------|------|-------------|---------|
 | POST | `/api/upload/image` | Exactly one `file` part (≤5 MiB; jpeg/png/webp), no other fields; total body ≤5 MiB + 64 KiB framing. Oversized bodies return 413; extra parts return 422. → `{url}` | 200 |
+| POST | `/api/upload/images/cleanup` | Clean my expired, never-attached managed images; no body | 204 |
 | GET | `/api/uploads/*` | Serve a previously uploaded file | 200 (file) |
+
+Images must fully decode and fit within 4096 pixels per side and four million
+pixels total. Per-account storage defaults to 100 files/100 MiB, with a shared
+20-request/minute upload/cleanup limit. Quota errors return 409; rate errors 429
+with `Retry-After: 60`. See [upload storage](../docs/upload-storage.md) for finite
+configuration overrides, reference protection and cleanup rules.
 
 `400` on missing `file` field, oversized file, or unsupported type.
 

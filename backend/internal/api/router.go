@@ -52,7 +52,7 @@ func newRouter(db *sql.DB, cfg *config.Config, fbClient middleware.TokenVerifier
 			r.Use(middleware.AuditIdentity)
 			r.Use(middleware.Admission)
 			api := humachi.New(r, humaConfig())
-			registerHumaRoutes(api, q, db, uploads)
+			registerHumaRoutes(api, q, db, uploads, cfg.UploadLimits)
 			audit.Register(api.OpenAPI())
 			mountStaticRoutes(r, uploads)
 		})

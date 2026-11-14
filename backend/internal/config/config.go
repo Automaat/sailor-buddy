@@ -19,6 +19,7 @@ type Config struct {
 	DatabaseURL        string
 	ListenAddr         string
 	UploadDir          string
+	UploadLimits       *UploadLimits
 	FirebaseProjectID  string
 	CORSAllowedOrigins []string
 }
@@ -50,6 +51,7 @@ func Load() *Config {
 		DatabaseURL:        strings.TrimSpace(os.Getenv(databaseURLEnv)),
 		ListenAddr:         getenv("SAILOR_LISTEN_ADDR", ":8080"),
 		UploadDir:          getenv("SAILOR_UPLOAD_DIR", "uploads"),
+		UploadLimits:       loadUploadLimits(),
 		FirebaseProjectID:  getenv("SAILOR_FIREBASE_PROJECT_ID", "sailor-buddy-dev"),
 		CORSAllowedOrigins: loadCORSOrigins(),
 	}
@@ -68,6 +70,11 @@ var ErrNullCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: "null" is not an allow
 
 // Validate reports settings the API server must not start with.
 func (c *Config) Validate() error {
+	if c.UploadLimits != nil {
+		if err := c.UploadLimits.Validate(); err != nil {
+			return err
+		}
+	}
 	if c.Environment != "" && c.Environment != "development" && c.Environment != "production" {
 		return errors.New("SAILOR_ENV must be development or production")
 	}
