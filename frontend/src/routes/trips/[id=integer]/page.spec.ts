@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { makeCruise, makeTrip } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -208,3 +208,77 @@ describe('trip page actions', () => {
 		expect(screen.queryByRole('button', { name: 'Więcej akcji' })).not.toBeInTheDocument();
 	});
 });
+
+describe('trip page load errors', () => {
+	it('names a failed crew list instead of showing no crew, and renders the leg', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(listTripCrew).mockRejectedValueOnce(new Error('500'));
+		render(TripDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: załoga\./)).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Więcej akcji' })).toBeInTheDocument();
+	});
+
+	it('names the cruise when only the cruise fails to load', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(getCruise).mockRejectedValueOnce(new Error('500'));
+		render(TripDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: wydarzenie\./)).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+	});
+
+	it('names no admin-only section for a member', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(listTripCrew).mockRejectedValueOnce(new Error('500'));
+		vi.mocked(listAssignableCrew).mockRejectedValueOnce(new Error('500'));
+		render(TripDetailPage);
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		await waitFor(() => expect(listAssignableCrew).toHaveBeenCalled());
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+
+	it('still loads the crew for an admin whose role is known only after mount', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(listTripCrew).mockClear();
+		render(TripDetailPage);
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		expect(listTripCrew).toHaveBeenCalledWith(50);
+	});
+
+	it('drops the sign-up failure once the refresh after cancelling succeeds', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', status: 'planned' }));
+		vi.mocked(getTripSignUp)
+			.mockRejectedValueOnce(new Error('500'))
+			.mockResolvedValueOnce({ trip_id: 50, open: false, accepted_count: 0 });
+		vi.mocked(cancelTrip).mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', status: 'cancelled' }));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(TripDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: zapis na etap\./)).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Odwołaj etap' }));
+
+		expect(await screen.findByText('Anulowany')).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument());
+		confirmSpy.mockRestore();
+	});
+
+	it('shows no load banner when every section loads', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		render(TripDetailPage);
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+});
+

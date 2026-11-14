@@ -27,6 +27,8 @@
 		LegSignUp
 	} from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
+	import { noteFailure, settle } from '#lib/api/errors.js';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo, yourPrice } from '#lib/pricing.js';
@@ -51,6 +53,7 @@
 	let adminLoadedFor = $state<number | null>(null);
 	let loading = $state(true);
 	let notFound = $state(false);
+	let loadErrors = $state<string[]>([]);
 	let enrollToken = $state<string | null>(null);
 	let togglingEnroll = $state(false);
 
@@ -78,8 +81,16 @@
 		if (!isAdmin || !cruise || adminLoadedFor === id) return;
 		adminLoadedFor = id;
 		Promise.all([
-			listCruiseEnrollments(id).then((r) => r ?? []).catch(() => []),
-			listCruiseTripEnrollments(id).then((r) => r ?? []).catch(() => [])
+			settle(
+				listCruiseEnrollments(id).then((r) => r ?? []),
+				[],
+				noteFailure(loadErrors, 'zgłoszenia na wydarzenie')
+			),
+			settle(
+				listCruiseTripEnrollments(id).then((r) => r ?? []),
+				[],
+				noteFailure(loadErrors, 'zapisy na etapy')
+			)
 		]).then(([e, te]) => {
 			enrollments = e;
 			legEnrollments = te;
@@ -96,10 +107,14 @@
 			enrollToken = cruise?.enroll_token ?? null;
 			const seriesID = cruise?.series_id;
 			const [t, v, su, s] = await Promise.all([
-				listCruiseTrips(id).then((r) => r ?? []).catch(() => []),
-				listCruiseVoyages(id).then((r) => r ?? []).catch(() => []),
-				listCruiseLegSignUps(id).then((r) => r ?? []).catch(() => []),
-				seriesID ? getSeries(seriesID).catch(() => null) : Promise.resolve(null)
+				settle(listCruiseTrips(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'planowane etapy')),
+				settle(listCruiseVoyages(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'zrealizowane etapy')),
+				settle(
+					listCruiseLegSignUps(id).then((r) => r ?? []),
+					[],
+					noteFailure(loadErrors, 'twoje zapisy na etapy')
+				),
+				seriesID ? settle(getSeries(seriesID), null, noteFailure(loadErrors, 'cykl')) : Promise.resolve(null)
 			]);
 			trips = t;
 			voyages = v;
@@ -269,6 +284,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if cruise}
 	<div class="mx-auto max-w-5xl">
+		<LoadErrorBanner errors={loadErrors} />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>

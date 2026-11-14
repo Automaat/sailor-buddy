@@ -321,6 +321,39 @@ describe('cruise page load errors', () => {
 
 		expect(await screen.findByText('Nie udało się wczytać wydarzenia')).toBeInTheDocument();
 	});
+
+	it('names a failed leg list instead of showing no legs, and renders the rest', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockGet.mockResolvedValue(cruise());
+		fn(listCruiseTrips).mockRejectedValue(new Error('500'));
+		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120.4, days: 7 }]);
+		render(CruiseDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: planowane etapy\./)).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
+		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
+	});
+
+	it('shows no load banner when every section loads', async () => {
+		mockGet.mockResolvedValue(cruise());
+		render(CruiseDetailPage);
+
+		await screen.findByRole('heading', { name: 'Sycylia 2026' });
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+
+	it('names failed admin sign-up lists for an admin', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
+		mockGet.mockResolvedValue(cruise());
+		fn(listCruiseEnrollments).mockRejectedValue(new Error('500'));
+		fn(listCruiseTripEnrollments).mockRejectedValue(new Error('500'));
+		render(CruiseDetailPage);
+
+		expect(
+			await screen.findByText(/Nie udało się wczytać: zgłoszenia na wydarzenie, zapisy na etapy\./)
+		).toBeInTheDocument();
+	});
 });
 
 describe('cruise page price', () => {
