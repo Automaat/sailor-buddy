@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,12 +20,50 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 )
 
+// UploadHandler stores and serves uploaded images. Every file access goes
+// through uploads, so request paths cannot reach outside the upload
+// directory, by ".." or by a symlink.
 type UploadHandler struct {
-	uploadDir string
+	uploads *os.Root
 }
 
-func NewUploadHandler(uploadDir string) *UploadHandler {
-	return &UploadHandler{uploadDir: uploadDir}
+func NewUploadHandler(uploads *os.Root) *UploadHandler {
+	return &UploadHandler{uploads: uploads}
+}
+
+// OpenUploadRoot creates the upload directory if needed and opens it as the
+// root that confines all upload file access. The caller closes it.
+func OpenUploadRoot(dir string) (*os.Root, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create upload directory: %w", err)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("open upload directory: %w", err)
+	}
+	return root, nil
+}
+
+// uploadRelPath maps a stored file path, as built by joining the upload
+// directory with a relative name, back to its path inside uploads. Both are
+// resolved against the working directory, as os.Open would.
+func uploadRelPath(uploads *os.Root, stored string) (string, error) {
+	base, err := filepath.Abs(uploads.Name())
+	if err != nil {
+		return "", err
+	}
+	target, err := filepath.Abs(stored)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return "", err
+	}
+	if !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("path %q is outside the upload directory", stored)
+	}
+	return rel, nil
 }
 
 var allowedMIME = map[string]string{
@@ -43,10 +84,24 @@ type uploadURLOutput struct {
 	}
 }
 
+// removeUploadedFiles deletes stored files through uploads. A missing file is
+// fine; a path outside uploads or any other failure is logged and skipped.
+func removeUploadedFiles(uploads *os.Root, paths ...string) {
+	for _, stored := range paths {
+		rel, err := uploadRelPath(uploads, stored)
+		if err == nil {
+			err = uploads.Remove(rel)
+		}
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			slog.Warn("remove uploaded file", "path", stored, "err", err)
+		}
+	}
+}
+
 // RegisterUploadRoutes wires the image upload operation onto the API. Static
 // file serving (GET /uploads/*) stays on chi as it is not an API operation.
-func RegisterUploadRoutes(api huma.API, uploadDir string) {
-	h := NewUploadHandler(uploadDir)
+func RegisterUploadRoutes(api huma.API, uploads *os.Root) {
+	h := NewUploadHandler(uploads)
 	huma.Register(api, huma.Operation{
 		OperationID: "upload-image", Method: http.MethodPost, Path: "/upload/image",
 		Summary: "Upload an image", Tags: []string{"Uploads"},
@@ -77,12 +132,12 @@ func (h *UploadHandler) uploadImage(ctx context.Context, in *uploadImageInput) (
 		return nil, huma.Error500InternalServerError("failed to process file")
 	}
 
-	userDir := filepath.Join(h.uploadDir, strconv.FormatInt(user.UserID, 10), "images")
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
+	userDir := filepath.Join(strconv.FormatInt(user.UserID, 10), "images")
+	if err := h.uploads.MkdirAll(userDir, 0o755); err != nil {
 		return nil, huma.Error500InternalServerError("failed to create upload directory")
 	}
 	filename := uuid.New().String() + ext
-	dst, err := os.Create(filepath.Join(userDir, filename))
+	dst, err := h.uploads.Create(filepath.Join(userDir, filename))
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to save file")
 	}
@@ -107,24 +162,36 @@ func (h *UploadHandler) ServeFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userPrefix := strconv.FormatInt(user.UserID, 10) + "/"
-	if !strings.HasPrefix(relPath, userPrefix) {
+	// Check ownership on the cleaned path, so "1/../2/..." cannot reach
+	// another user's files.
+	clean := filepath.Clean(relPath)
+	userPrefix := strconv.FormatInt(user.UserID, 10) + string(filepath.Separator)
+	if !strings.HasPrefix(clean, userPrefix) {
 		respondError(w, http.StatusForbidden, "access denied")
 		return
 	}
 
-	clean := filepath.Clean("/" + relPath)
-	absPath := filepath.Join(h.uploadDir, clean)
-	rel, err := filepath.Rel(h.uploadDir, absPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	f, err := h.uploads.Open(clean)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			respondError(w, http.StatusNotFound, "file not found")
+			return
+		}
+		slog.Warn("open uploaded file", "path", clean, "err", err)
 		respondError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
+	defer func() { _ = f.Close() }()
 
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+	info, err := f.Stat()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to read file")
+		return
+	}
+	if info.IsDir() {
 		respondError(w, http.StatusNotFound, "file not found")
 		return
 	}
 
-	http.ServeFile(w, r, absPath)
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }

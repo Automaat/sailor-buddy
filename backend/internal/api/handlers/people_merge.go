@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -388,10 +387,6 @@ func (h *CrewHandler) merge(ctx context.Context, in *mergeCrewInput) (*personMer
 	if err != nil {
 		return nil, mergeHTTPError(err, in.ID, in.Body.DuplicateID)
 	}
-	for _, path := range result.RemovedOpinionFiles {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.Warn("remove merged opinion file", "path", path, "err", err)
-		}
-	}
+	removeUploadedFiles(h.uploads, result.RemovedOpinionFiles...)
 	return &personMergeOutput{Body: dto.PersonMergeFromDB(result.Kept, result.Duplicate, result.Counts)}, nil
 }
