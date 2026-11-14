@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -22,6 +24,18 @@ func Load() *Config {
 		FirebaseProjectID:  getenv("SAILOR_FIREBASE_PROJECT_ID", "sailor-buddy-dev"),
 		CORSAllowedOrigins: loadCORSOrigins(),
 	}
+}
+
+// ErrWildcardCORSOrigin rejects "*" in CORS_ALLOWED_ORIGINS: the API must
+// name the origins allowed to call it.
+var ErrWildcardCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS must list origins; wildcard "*" is not allowed`)
+
+// Validate reports settings the API server must not start with.
+func (c *Config) Validate() error {
+	if slices.Contains(c.CORSAllowedOrigins, "*") {
+		return ErrWildcardCORSOrigin
+	}
+	return nil
 }
 
 func loadCORSOrigins() []string {

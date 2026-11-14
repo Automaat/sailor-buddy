@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/handlers"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
@@ -41,6 +42,9 @@ func run() error {
 	defer stop()
 
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
 
 	database, err := db.OpenContext(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -61,11 +65,21 @@ func run() error {
 		return fmt.Errorf("init firebase auth: %w", err)
 	}
 
+	uploads, err := handlers.OpenUploadRoot(cfg.UploadDir)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := uploads.Close(); err != nil {
+			log.Printf("failed to close upload directory: %v", err)
+		}
+	}()
+
 	ln, err := net.Listen("tcp", cfg.ListenAddr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
-	srv := newServer(cfg.ListenAddr, api.NewRouter(database, cfg, fbClient))
+	srv := newServer(cfg.ListenAddr, api.NewRouter(database, cfg, fbClient, uploads))
 	log.Printf("listening on %s", ln.Addr())
 	return serve(ctx, srv, ln, shutdownTimeout)
 }

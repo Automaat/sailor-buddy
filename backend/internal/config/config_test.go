@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -108,4 +109,30 @@ func TestGetenv(t *testing.T) {
 			t.Errorf("got %q, want %q", got, "fallback")
 		}
 	})
+}
+
+func TestValidate_CORSOrigins(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     string
+		wantErr bool
+	}{
+		{"default localhost", "", false},
+		{"listed origins", "https://a.com,https://b.com", false},
+		{"subdomain pattern", "https://*.example.com", false},
+		{"wildcard", "*", true},
+		{"wildcard among origins", "https://a.com, *", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("CORS_ALLOWED_ORIGINS", tc.env)
+			err := Load().Validate()
+			if tc.wantErr != errors.Is(err, ErrWildcardCORSOrigin) {
+				t.Fatalf("Validate() = %v, want wildcard error %v", err, tc.wantErr)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("Validate() = %v, want nil", err)
+			}
+		})
+	}
 }

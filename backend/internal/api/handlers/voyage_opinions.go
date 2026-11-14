@@ -19,13 +19,15 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// VoyageOpinionHandler serves crew opinion documents. Their files live in
+// the opinions directory under uploads and are only accessed through it.
 type VoyageOpinionHandler struct {
-	q         sqlcdb.Querier
-	uploadDir string
+	q       sqlcdb.Querier
+	uploads *os.Root
 }
 
-func NewVoyageOpinionHandler(q sqlcdb.Querier, uploadDir string) *VoyageOpinionHandler {
-	return &VoyageOpinionHandler{q: q, uploadDir: uploadDir}
+func NewVoyageOpinionHandler(q sqlcdb.Querier, uploads *os.Root) *VoyageOpinionHandler {
+	return &VoyageOpinionHandler{q: q, uploads: uploads}
 }
 
 type generateOpinionInput struct {
@@ -54,8 +56,8 @@ type opinionFileOutput struct {
 
 // RegisterVoyageOpinionRoutes wires the crew opinion document operations. Reads
 // are open to any member; generating and deleting require an admin.
-func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploadDir string) {
-	h := NewVoyageOpinionHandler(q, uploadDir)
+func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploads *os.Root) {
+	h := NewVoyageOpinionHandler(q, uploads)
 	tag := []string{"Voyage opinions"}
 
 	huma.Register(api, huma.Operation{
@@ -116,7 +118,7 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 	}
 
 	data := opinionDocData(voyage, assignment, yachtName, yachtType)
-	filePath, err := storeOpinionFile(ctx, h.uploadDir, in.VoyageID, in.Body.CrewMemberID, format, data)
+	filePath, err := storeOpinionFile(ctx, h.uploads, in.VoyageID, in.Body.CrewMemberID, format, data)
 	if err != nil {
 		slog.Error("store opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
 		return nil, huma.Error500InternalServerError("failed to generate opinion document")
@@ -143,7 +145,7 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 	if err != nil {
 		return nil, err
 	}
-	fileBytes, err := os.ReadFile(opinion.FilePath)
+	fileBytes, err := h.readOpinionFile(opinion.FilePath)
 	if err != nil {
 		slog.Error("read opinion file", "opinion_id", in.OpinionID, "path", opinion.FilePath, "err", err)
 		return nil, huma.Error500InternalServerError("failed to read opinion file")
@@ -166,12 +168,33 @@ func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*n
 	if err != nil {
 		return nil, err
 	}
-	_ = os.Remove(opinion.FilePath)
+	h.removeOpinionFile(opinion.FilePath)
 	if err := h.q.DeleteVoyageOpinion(ctx, in.OpinionID); err != nil {
 		slog.Error("delete voyage opinion", "opinion_id", in.OpinionID, "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete opinion")
 	}
 	return &noContentOutput{}, nil
+}
+
+// readOpinionFile reads an opinion's stored file through uploads.
+func (h *VoyageOpinionHandler) readOpinionFile(stored string) ([]byte, error) {
+	rel, err := uploadRelPath(h.uploads, stored)
+	if err != nil {
+		return nil, err
+	}
+	return h.uploads.ReadFile(rel)
+}
+
+// removeOpinionFile deletes an opinion's stored file through uploads. A
+// missing file is fine; other failures are logged, as the record still goes.
+func (h *VoyageOpinionHandler) removeOpinionFile(stored string) {
+	rel, err := uploadRelPath(h.uploads, stored)
+	if err == nil {
+		err = h.uploads.Remove(rel)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("remove opinion file", "path", stored, "err", err)
+	}
 }
 
 // verifyVoyage confirms the voyage exists.
@@ -235,28 +258,30 @@ func getOpinionCrewAssignment(ctx context.Context, q sqlcdb.Querier, voyageID, c
 	return assignment, nil
 }
 
-// storeOpinionFile renders the opinion document and writes it under the upload
-// directory, removing any prior file in a different format. ctx bounds the
-// render, so a disconnected client stops its Chromium process.
-func storeOpinionFile(ctx context.Context, uploadDir string, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
+// storeOpinionFile renders the opinion document and writes it to the
+// opinions directory under uploads, removing any prior file in a different
+// format. It returns the path to store on the record: the upload directory
+// joined with the file's relative name. ctx bounds the render, so a
+// disconnected client stops its Chromium process.
+func storeOpinionFile(ctx context.Context, uploads *os.Root, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
 	fileBytes, err := renderOpinionFile(ctx, format, data)
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(uploadDir, "opinions")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	const dir = "opinions"
+	if err := uploads.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	for _, oldFmt := range []string{"pdf", "docx"} {
 		if oldFmt != format {
-			_ = os.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, oldFmt)))
+			_ = uploads.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, oldFmt)))
 		}
 	}
-	filePath := filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, format))
-	if err := os.WriteFile(filePath, fileBytes, 0o644); err != nil {
+	rel := filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, format))
+	if err := uploads.WriteFile(rel, fileBytes, 0o644); err != nil {
 		return "", err
 	}
-	return filePath, nil
+	return filepath.Join(uploads.Name(), rel), nil
 }
 
 // opinionDocData assembles the document payload from the voyage and crew
