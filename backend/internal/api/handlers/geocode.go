@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -268,9 +269,8 @@ func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.Geocode
 		if !placeCategories[r.Category] {
 			continue
 		}
-		lat, latErr := strconv.ParseFloat(r.Lat, 64)
-		lon, lonErr := strconv.ParseFloat(r.Lon, 64)
-		if latErr != nil || lonErr != nil {
+		lat, lon, ok := parseCoordinates(r.Lat, r.Lon)
+		if !ok {
 			continue
 		}
 		// Nominatim often lists the same town twice (a place node and its
@@ -296,4 +296,21 @@ func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.Geocode
 		}
 	}
 	return results, nil
+}
+
+// parseCoordinates parses a Nominatim lat/lon pair and reports whether it is
+// a usable position. strconv.ParseFloat accepts "NaN" and "Inf", which the
+// JSON encoder cannot write, so a record carrying one would break the whole
+// response. ±Inf also fails the range check, which drops out-of-range
+// positions from a broken upstream.
+func parseCoordinates(rawLat, rawLon string) (lat, lon float64, ok bool) {
+	lat, latErr := strconv.ParseFloat(rawLat, 64)
+	lon, lonErr := strconv.ParseFloat(rawLon, 64)
+	if latErr != nil || lonErr != nil {
+		return 0, 0, false
+	}
+	if math.IsNaN(lat) || math.IsNaN(lon) || math.Abs(lat) > 90 || math.Abs(lon) > 180 {
+		return 0, 0, false
+	}
+	return lat, lon, true
 }

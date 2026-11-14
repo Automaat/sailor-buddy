@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -14,6 +16,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
 	"golang.org/x/time/rate"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 )
 
 // stubNominatim returns a handler backed by a test server serving the given
@@ -427,6 +431,62 @@ func TestGeocode_QueryValidation(t *testing.T) {
 			}
 			if tokens := limiter.Tokens(); tokens < 1 {
 				t.Fatalf("limiter tokens = %v, want 1 (unspent)", tokens)
+			}
+		})
+	}
+}
+
+// TestGeocode_DropsInvalidCoordinates drives the operation through huma with
+// upstream records whose coordinates are NaN, infinite or out of range. Each
+// such record is dropped, the valid records are kept, the response encodes as
+// JSON, and the repeat request is served from a cache that holds only the
+// valid records.
+func TestGeocode_DropsInvalidCoordinates(t *testing.T) {
+	tests := []struct {
+		name     string
+		lat, lon string
+	}{
+		{"NaN latitude", "NaN", "16.44"},
+		{"NaN longitude", "43.50", "nan"},
+		{"Inf latitude", "Inf", "16.44"},
+		{"negative Inf latitude", "-Inf", "16.44"},
+		{"Infinity longitude", "43.50", "+Infinity"},
+		{"overflowing latitude", "1e400", "16.44"},
+		{"latitude above 90", "90.5", "16.44"},
+		{"latitude below -90", "-91", "16.44"},
+		{"longitude above 180", "43.50", "180.01"},
+		{"longitude below -180", "43.50", "-200"},
+	}
+	want := []dto.GeocodeResult{
+		{Name: "Split", Label: "Split, Croatia", Latitude: 43.5081, Longitude: 16.4402},
+		{Name: "Pole", Label: "North Pole", Latitude: 90, Longitude: -180},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `[
+				{"name":"Broken","display_name":"Broken","lat":"` + tt.lat + `","lon":"` + tt.lon + `","category":"place"},
+				{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place"},
+				{"name":"Pole","display_name":"North Pole","lat":"90","lon":"-180","category":"natural"}
+			]`
+			h, hits := countingNominatim(t, http.StatusOK, body, rate.NewLimiter(rate.Inf, 1))
+			_, api := humatest.New(t)
+			registerGeocode(api, h)
+
+			for range 2 {
+				resp := api.Get("/geocode?q=Split")
+				if resp.Code != http.StatusOK {
+					t.Fatalf("status = %d, want 200: %s", resp.Code, resp.Body.String())
+				}
+				var got []dto.GeocodeResult
+				if err := json.Unmarshal(resp.Body.Bytes(), &got); err != nil {
+					t.Fatalf("decode %q: %v", resp.Body.String(), err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("results = %+v, want %+v", got, want)
+				}
+			}
+			if n := hits.Load(); n != 1 {
+				t.Fatalf("upstream hits = %d, want 1", n)
 			}
 		})
 	}
