@@ -5,8 +5,9 @@ under `/api`. The frontend dev server proxies `/api` to the backend on
 `:8080` (see `frontend/vite.config.ts`).
 
 Sailor Buddy is a single-club app: all sailing data (cruises, trips, voyages,
-yachts, crew) is shared across the club. Every member sees the same data;
-only **admins** may create, edit or delete it.
+yachts, crew) is shared across approved club accounts. Emergency contacts and
+opinions have narrower access. Mutations require **admin** access except for
+the documented own-account, enrollment, training, and assigned-captain flows.
 
 ## Authentication
 
@@ -19,9 +20,17 @@ Authorization: Bearer <firebase_id_token>
 The `Auth` middleware verifies the token, then reads the `users` row keyed by
 Firebase UID. It upserts the row (linking by verified email if the UID is
 new) only when the account is new or the token's email or name changed, so
-a known account's request writes nothing. The **first user
-ever provisioned becomes the club admin**; every account after is a regular
-`member`. Admins manage other members' roles on the members page.
+a known account's request writes nothing. New accounts are pending members;
+administrators approve access separately from club membership. Club data needs
+verified email and approval. Bootstrap the first admin privately using
+`bootstrap-admin`; HTTP sign-in never grants that role. See
+[the access policy](../docs/security-access.md) and
+[production session controls](../docs/production.md#disable-access-or-revoke-sessions).
+
+Every token verification checks Firebase account disabling and revocation,
+with a 5-second deadline and no application cache of account status. Provider
+failures grant no authenticated access and return 503, so the client can retry
+without losing its session.
 
 Public endpoints (no token):
 
@@ -36,11 +45,12 @@ automatically on the first authenticated request.
 
 ### Auth failures
 
-| Status | `error` value | Cause |
+| Status | Message (`error` or `detail`) | Cause |
 |--------|---------------|-------|
 | 401 | `missing authorization header` | No `Authorization` header |
 | 401 | `invalid authorization format` | Header not `Bearer <token>` |
-| 401 | `invalid or expired token` | Firebase rejected the token |
+| 401 | `invalid or expired session` | Invalid/expired/revoked token, disabled or deleted Firebase account |
+| 503 | `authentication service unavailable; try again` | Firebase/credential lookup failed; retry without signing out |
 | 401 | `missing email claim` | Token has no email claim |
 | 401 | `email not verified` | Email-link collision, email unverified |
 | 409 | `email belongs to another account` | Verified email already used by another account that link-by-email cannot claim: it has another Firebase UID, or the token's UID already has an account of its own. No account is moved |

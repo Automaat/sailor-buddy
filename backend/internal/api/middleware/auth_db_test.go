@@ -65,7 +65,7 @@ func freshDB(t *testing.T) *sql.DB {
 // fakeVerifier accepts any token naming a key of its map.
 type fakeVerifier map[string]*fbauth.Token
 
-func (f fakeVerifier) VerifyIDToken(_ context.Context, token string) (*fbauth.Token, error) {
+func (f fakeVerifier) VerifyIDTokenAndCheckRevoked(_ context.Context, token string) (*fbauth.Token, error) {
 	if tok, ok := f[token]; ok {
 		return tok, nil
 	}

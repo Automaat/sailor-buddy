@@ -7,6 +7,7 @@ COPY . .
 RUN go build -o /app/sailor-buddy ./cmd/api
 RUN go build -o /app/seed-dev ./cmd/seed-dev
 RUN go build -o /app/bootstrap-admin ./cmd/bootstrap-admin
+RUN go build -o /app/revoke-sessions ./cmd/revoke-sessions
 
 FROM golang:1.27-alpine AS dev
 RUN apk add --no-cache ca-certificates chromium git
@@ -17,6 +18,7 @@ EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 
 FROM alpine:3.24
+ENV SAILOR_ENV=production
 # Runs as an unprivileged user so Chromium keeps its sandbox on for PDF
 # renders. The fixed numeric UID lets operators chown mounted upload volumes
 # and lets Kubernetes runAsNonRoot verify the user.
@@ -28,6 +30,7 @@ WORKDIR /app
 COPY --from=builder /app/sailor-buddy .
 COPY --from=builder /app/seed-dev .
 COPY --from=builder /app/bootstrap-admin .
+COPY --from=builder /app/revoke-sessions .
 # Default SAILOR_UPLOAD_DIR is ./uploads; create it owned by the app user so
 # a fresh named volume mounted here inherits that ownership.
 RUN install -d -o sailor -g sailor /app/uploads

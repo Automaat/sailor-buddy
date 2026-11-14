@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +13,9 @@ import (
 )
 
 type Config struct {
+	Environment        string
+	AuthEmulatorHost   string
+	ChromeNoSandbox    bool
 	DatabaseURL        string
 	ListenAddr         string
 	UploadDir          string
@@ -38,7 +42,11 @@ func RequireDatabaseURL() (string, error) {
 }
 
 func Load() *Config {
+	sandboxOff, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX"))
 	return &Config{
+		Environment:        getenv("SAILOR_ENV", "development"),
+		AuthEmulatorHost:   os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
+		ChromeNoSandbox:    sandboxOff,
 		DatabaseURL:        strings.TrimSpace(os.Getenv(databaseURLEnv)),
 		ListenAddr:         getenv("SAILOR_LISTEN_ADDR", ":8080"),
 		UploadDir:          getenv("SAILOR_UPLOAD_DIR", "uploads"),
@@ -60,6 +68,9 @@ var ErrNullCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: "null" is not an allow
 
 // Validate reports settings the API server must not start with.
 func (c *Config) Validate() error {
+	if c.Environment != "" && c.Environment != "development" && c.Environment != "production" {
+		return errors.New("SAILOR_ENV must be development or production")
+	}
 	if c.DatabaseURL == "" {
 		return ErrDatabaseURLUnset
 	}
@@ -69,6 +80,31 @@ func (c *Config) Validate() error {
 		}
 		if strings.Contains(o, "*") && !isSafeWildcard(strings.ToLower(o)) {
 			return fmt.Errorf("%w: %q", ErrWildcardCORSOrigin, o)
+		}
+	}
+	if c.Environment == "production" {
+		return c.validateProduction()
+	}
+	return nil
+}
+
+func (c *Config) validateProduction() error {
+	if c.AuthEmulatorHost != "" {
+		return errors.New("emulator authentication is forbidden in production")
+	}
+	if c.FirebaseProjectID == "" || c.FirebaseProjectID == "sailor-buddy-dev" || strings.HasPrefix(c.FirebaseProjectID, "demo-") {
+		return errors.New("explicit production Firebase project ID is required")
+	}
+	if c.ChromeNoSandbox {
+		return errors.New("production requires the Chromium sandbox")
+	}
+	if len(c.CORSAllowedOrigins) == 0 {
+		return errors.New("production HTTPS origins are required")
+	}
+	for _, origin := range c.CORSAllowedOrigins {
+		u, err := url.Parse(origin)
+		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			return errors.New("production CORS origins must be HTTPS origins")
 		}
 	}
 	return nil

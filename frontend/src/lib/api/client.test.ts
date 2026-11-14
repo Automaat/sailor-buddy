@@ -57,6 +57,16 @@ describe('api.get', () => {
 });
 
 describe('request error handling', () => {
+	it('keeps the session and reports a temporary authentication outage', async () => {
+		fetchMock.mockResolvedValue(
+			jsonResponse({ detail: 'authentication service unavailable; try again' }, { status: 503 })
+		);
+		await expect(api.get('/dashboard')).rejects.toMatchObject({
+			status: 503,
+			message: 'authentication service unavailable; try again'
+		});
+		expect(logout).not.toHaveBeenCalled();
+	});
 	it('logs out and throws on a 401 response', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}, { status: 401 }));
 		await expect(api.get('/dashboard')).rejects.toThrow('Session expired');

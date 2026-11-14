@@ -16,6 +16,7 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
 FROM node:26-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+ENV SAILOR_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 COPY --from=builder /app/build ./build
