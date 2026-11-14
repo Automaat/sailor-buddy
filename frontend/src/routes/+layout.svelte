@@ -11,7 +11,6 @@
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
-	import Users from '@lucide/svelte/icons/users';
 	import Repeat from '@lucide/svelte/icons/repeat';
 	import Menu from '@lucide/svelte/icons/menu';
 	import X from '@lucide/svelte/icons/x';
@@ -34,7 +33,6 @@
 		{ href: '/series', label: 'Serie', icon: Repeat },
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
-		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
 		{
 			href: '/crew',
 			label: 'Osoby',
