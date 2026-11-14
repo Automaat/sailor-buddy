@@ -146,15 +146,6 @@ type PersonLinkRequest struct {
 	CreatedAt  time.Time       `json:"created_at"`
 }
 
-type RefreshToken struct {
-	ID        int64          `json:"id"`
-	UserID    int64          `json:"user_id"`
-	TokenHash string         `json:"token_hash"`
-	ExpiresAt time.Time      `json:"expires_at"`
-	Revoked   int64          `json:"revoked"`
-	CreatedAt types.NullTime `json:"created_at"`
-}
-
 type Training struct {
 	ID        int64             `json:"id"`
 	UserID    int64             `json:"user_id"`
@@ -213,7 +204,6 @@ type User struct {
 	ID           int64            `json:"id"`
 	Email        string           `json:"email"`
 	Name         string           `json:"name"`
-	PasswordHash string           `json:"password_hash"`
 	AvatarUrl    types.NullString `json:"avatar_url"`
 	FirebaseUid  types.NullString `json:"firebase_uid"`
 	Role         string           `json:"role"`
