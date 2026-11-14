@@ -33,6 +33,18 @@
   ],
   "packageRules": [
     {
+      "description": "Bump mise.toml go and the go.mod toolchain line together; a newer toolchain line alone would make Go switch away from the mise version",
+      "matchPackageNames": [
+        "go",
+        "golang/go"
+      ],
+      "matchDepTypes": [
+        "toolchain",
+        "tools"
+      ],
+      "groupName": "go toolchain"
+    },
+    {
       "description": "Bump the mise.toml and Dockerfile copies of firebase-tools together",
       "matchPackageNames": [
         "firebase-tools"
