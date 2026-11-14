@@ -43,6 +43,7 @@ automatically on the first authenticated request.
 | 401 | `invalid or expired token` | Firebase rejected the token |
 | 401 | `missing email claim` | Token has no email claim |
 | 401 | `email not verified` | Email-link collision, email unverified |
+| 409 | `email belongs to another account` | Verified email already used by an account of another Firebase UID; the account is never moved to the new UID |
 | 500 | `failed to provision user` | DB error during user upsert |
 
 ## Error responses
@@ -72,7 +73,7 @@ Validation failures (`422`) additionally carry a per-field `errors` array:
 
 Clients should branch on the HTTP status code (or `status`), not on the
 `detail` string. The auth middleware still emits a legacy `{"error": "..."}`
-body for `401` responses via `http.Error`.
+body for its `401`, `409` and `500` responses via `http.Error`.
 
 ## Status code conventions
 

@@ -632,3 +632,82 @@ func TestAuth_EmailOfExistingAccount(t *testing.T) {
 		})
 	}
 }
+
+// TestAuth_EmailOfAnotherUID refuses a sign-in whose email belongs to an
+// account of another Firebase UID with 409, and moves no account to the
+// new UID.
+func TestAuth_EmailOfAnotherUID(t *testing.T) {
+	cases := []struct {
+		name     string
+		setup    string
+		verified bool
+		want     int
+		wantBody string
+	}{
+		{
+			name:     "new UID, verified email",
+			verified: true,
+			want:     http.StatusConflict,
+			wantBody: `{"error":"email belongs to another account"}`,
+		},
+		{
+			name:     "new UID, unverified email",
+			verified: false,
+			want:     http.StatusUnauthorized,
+			wantBody: `{"error":"email not verified"}`,
+		},
+		{
+			name: "known UID switching to the taken email",
+			setup: `INSERT INTO users (email, name, firebase_uid)
+				VALUES ('ola@sail.example.dev', 'Ola', 'fb-new')`,
+			verified: true,
+			want:     http.StatusConflict,
+			wantBody: `{"error":"email belongs to another account"}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := freshDB(t)
+			var ownerID int64
+			if err := conn.QueryRow(`INSERT INTO users (email, name, role, firebase_uid)
+				VALUES ('ola@example.dev', 'Ola', 'admin', 'fb-old') RETURNING id`).Scan(&ownerID); err != nil {
+				t.Fatalf("insert account: %v", err)
+			}
+			if tc.setup != "" {
+				if _, err := conn.Exec(tc.setup); err != nil {
+					t.Fatalf("setup: %v", err)
+				}
+			}
+			handler := Auth(fakeVerifier{
+				"tok-new": {UID: "fb-new", Claims: map[string]any{"email": "ola@example.dev", "email_verified": tc.verified}},
+			}, sqlcdb.New(conn), conn)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Error("handler reached for an email of another account")
+			}))
+			req := httptest.NewRequest(http.MethodGet, "/api/auth/me", http.NoBody)
+			req.Header.Set("Authorization", "Bearer tok-new")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tc.want, rec.Body)
+			}
+			if got := strings.TrimSpace(rec.Body.String()); got != tc.wantBody {
+				t.Errorf("body = %s, want %s", got, tc.wantBody)
+			}
+			var ownerUID string
+			if err := conn.QueryRow(`SELECT firebase_uid FROM users WHERE id = $1`, ownerID).Scan(&ownerUID); err != nil {
+				t.Fatalf("read owner: %v", err)
+			}
+			if ownerUID != "fb-old" {
+				t.Errorf("owner firebase_uid = %q, want fb-old", ownerUID)
+			}
+			var accounts int
+			if err := conn.QueryRow(`SELECT count(*) FROM users WHERE email = 'ola@example.dev'`).Scan(&accounts); err != nil {
+				t.Fatalf("count accounts: %v", err)
+			}
+			if accounts != 1 {
+				t.Errorf("accounts with the email = %d, want 1", accounts)
+			}
+		})
+	}
+}
