@@ -3,16 +3,24 @@
 	import { listSeries } from '#lib/api/routes.js';
 	import type { CruiseSeries } from '#lib/api/types.js';
 
+	/**
+	 * Series picker and edition field of a cruise form. `series` is the list a
+	 * page's load function fetched; without it the picker fetches the list
+	 * itself on mount.
+	 */
 	let {
 		seriesId = $bindable<number | null>(null),
-		edition = $bindable('')
-	}: { seriesId?: number | null; edition?: string } = $props();
+		edition = $bindable(''),
+		series: loaded
+	}: { seriesId?: number | null; edition?: string; series?: CruiseSeries[] } = $props();
 
-	let series = $state<CruiseSeries[]>([]);
+	let fetched = $state<CruiseSeries[]>([]);
+	const series = $derived(loaded ?? fetched);
 
 	onMount(async () => {
+		if (loaded) return;
 		try {
-			series = await listSeries();
+			fetched = await listSeries();
 		} catch (err) {
 			console.error('Failed to load series:', err);
 		}
