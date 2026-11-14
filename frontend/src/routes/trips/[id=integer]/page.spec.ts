@@ -35,6 +35,7 @@ import {
 	getTripSignUp,
 	listAssignableCrew,
 	listTripCrew,
+	removeTripCrew,
 	signUpForTrip,
 	updateTripSignUpNote
 } from '#lib/api/routes.js';
@@ -292,6 +293,64 @@ describe('trip page actions', () => {
 	});
 });
 
+describe('trip page crew removal', () => {
+	const anna = { id: 1, crew_member_id: 3, full_name: 'Anna Nowak', role: 'Sternik' } as never;
+
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', status: 'planned' }));
+		vi.mocked(listTripCrew).mockResolvedValue([anna]);
+	});
+
+	it('removes a crew member after confirmation', async () => {
+		vi.mocked(removeTripCrew).mockReset().mockResolvedValue(undefined);
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		await waitFor(() => expect(screen.queryByText('Anna Nowak')).not.toBeInTheDocument());
+		expect(removeTripCrew).toHaveBeenCalledWith(50, 1);
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+		confirmSpy.mockRestore();
+	});
+
+	it('shows the error and keeps the crew member when removal fails', async () => {
+		vi.mocked(removeTripCrew)
+			.mockReset()
+			.mockRejectedValue(new ApiError(409, 'crew member has a voyage'));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć załoganta: crew member has a voyage'
+		);
+		expect(screen.getByText('Anna Nowak')).toBeInTheDocument();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
+	});
+
+	it('clears a removal error when a retry succeeds', async () => {
+		vi.mocked(removeTripCrew)
+			.mockReset()
+			.mockRejectedValueOnce(new Error('offline'))
+			.mockResolvedValueOnce(undefined);
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent('offline');
+		await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
+
+		await waitFor(() => expect(screen.queryByText('Anna Nowak')).not.toBeInTheDocument());
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
+	});
+});
+
 describe('trip page load errors', () => {
 	it('names a failed crew list instead of showing no crew, and renders the leg', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -441,6 +500,56 @@ describe('trip page same-route navigation', () => {
 		expect(screen.queryByRole('heading', { name: 'Jacht A' })).not.toBeInTheDocument();
 		expect(screen.queryByText('Anulowany')).not.toBeInTheDocument();
 		confirmSpy.mockRestore();
+	});
+
+	it('drops a leg delete failure that answers after a link moved to another trip', async () => {
+		let fail: (err: Error) => void = () => {};
+		vi.mocked(deleteTrip)
+			.mockReset()
+			.mockReturnValue(new Promise((_, reject) => (fail = reject)));
+		vi.mocked(goto).mockReset();
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Usuń' }));
+
+		await view.rerender({ data: await runLoad('51') });
+		fail(new ApiError(409, 'trip has crew'));
+		expect(deleteTrip).toHaveBeenCalledWith(50);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(screen.getByRole('heading', { name: 'Jacht B' })).toBeInTheDocument();
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+		expect(goto).not.toHaveBeenCalled();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
+	});
+
+	it('drops a crew removal failure that answers after a link moved to another trip', async () => {
+		vi.mocked(listTripCrew).mockImplementation(async (id: number) =>
+			id === 50
+				? [{ id: 1, crew_member_id: 3, full_name: 'Anna Nowak', role: 'Sternik' } as never]
+				: []
+		);
+		let fail: (err: Error) => void = () => {};
+		vi.mocked(removeTripCrew)
+			.mockReset()
+			.mockReturnValue(new Promise((_, reject) => (fail = reject)));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await view.rerender({ data: await runLoad('51') });
+		fail(new ApiError(409, 'crew member has a voyage'));
+		expect(removeTripCrew).toHaveBeenCalledWith(50, 1);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(screen.getByRole('heading', { name: 'Jacht B' })).toBeInTheDocument();
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
 	});
 });
 
