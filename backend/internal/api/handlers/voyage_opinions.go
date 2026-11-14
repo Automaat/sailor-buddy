@@ -168,7 +168,7 @@ func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*n
 	if err != nil {
 		return nil, err
 	}
-	h.removeOpinionFile(opinion.FilePath)
+	removeUploadedFiles(h.uploads, opinion.FilePath)
 	if err := h.q.DeleteVoyageOpinion(ctx, in.OpinionID); err != nil {
 		slog.Error("delete voyage opinion", "opinion_id", in.OpinionID, "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete opinion")
@@ -183,18 +183,6 @@ func (h *VoyageOpinionHandler) readOpinionFile(stored string) ([]byte, error) {
 		return nil, err
 	}
 	return h.uploads.ReadFile(rel)
-}
-
-// removeOpinionFile deletes an opinion's stored file through uploads. A
-// missing file is fine; other failures are logged, as the record still goes.
-func (h *VoyageOpinionHandler) removeOpinionFile(stored string) {
-	rel, err := uploadRelPath(h.uploads, stored)
-	if err == nil {
-		err = h.uploads.Remove(rel)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		slog.Warn("remove opinion file", "path", stored, "err", err)
-	}
 }
 
 // verifyVoyage confirms the voyage exists.

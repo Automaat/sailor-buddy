@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -204,6 +205,33 @@ func TestOpenUploadRoot_CreatesDir(t *testing.T) {
 	}
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		t.Fatalf("upload dir not created: %v", err)
+	}
+}
+
+func TestRemoveUploadedFiles(t *testing.T) {
+	outside := t.TempDir()
+	writeUpload(t, outside, "keep.pdf", "keep")
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	writeUpload(t, outside, "target.pdf", "target")
+	if err := os.Symlink(filepath.Join(outside, "target.pdf"), filepath.Join(dir, "opinions", "link.pdf")); err != nil {
+		t.Fatal(err)
+	}
+
+	removeUploadedFiles(testUploadRoot(t, dir),
+		filepath.Join(dir, "opinions", "1_2.pdf"),
+		filepath.Join(dir, "opinions", "missing.pdf"),
+		filepath.Join(outside, "keep.pdf"),
+		filepath.Join(dir, "opinions", "link.pdf"),
+	)
+
+	if _, err := os.Stat(filepath.Join(dir, "opinions", "1_2.pdf")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("file inside uploads kept: err=%v", err)
+	}
+	for _, kept := range []string{"keep.pdf", "target.pdf"} {
+		if _, err := os.Stat(filepath.Join(outside, kept)); err != nil {
+			t.Errorf("file outside uploads removed: %s: %v", kept, err)
+		}
 	}
 }
 

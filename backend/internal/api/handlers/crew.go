@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"unicode/utf8"
 
@@ -19,13 +20,16 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// CrewHandler serves the people list. uploads holds the opinion files a
+// merge removes.
 type CrewHandler struct {
-	q     sqlcdb.Querier
-	runTx txRunner
+	q       sqlcdb.Querier
+	runTx   txRunner
+	uploads *os.Root
 }
 
-func NewCrewHandler(q sqlcdb.Querier, db *sql.DB) *CrewHandler {
-	return &CrewHandler{q: q, runTx: sqlTxRunner(db)}
+func NewCrewHandler(q sqlcdb.Querier, db *sql.DB, uploads *os.Root) *CrewHandler {
+	return &CrewHandler{q: q, runTx: sqlTxRunner(db), uploads: uploads}
 }
 
 // listCrewInput repeats the pageParams fields: huma does not apply the
@@ -95,8 +99,8 @@ type crewAssignmentListOutput struct {
 
 // RegisterCrewRoutes wires the club crew member and crew assignment operations
 // onto the API. Reads are open to any member; mutations require an admin.
-func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
-	registerCrewRoutes(api, NewCrewHandler(q, db))
+func RegisterCrewRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploads *os.Root) {
+	registerCrewRoutes(api, NewCrewHandler(q, db, uploads))
 }
 
 func registerCrewRoutes(api huma.API, h *CrewHandler) {

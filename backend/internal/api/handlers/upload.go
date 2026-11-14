@@ -84,6 +84,20 @@ type uploadURLOutput struct {
 	}
 }
 
+// removeUploadedFiles deletes stored files through uploads. A missing file is
+// fine; a path outside uploads or any other failure is logged and skipped.
+func removeUploadedFiles(uploads *os.Root, paths ...string) {
+	for _, stored := range paths {
+		rel, err := uploadRelPath(uploads, stored)
+		if err == nil {
+			err = uploads.Remove(rel)
+		}
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			slog.Warn("remove uploaded file", "path", stored, "err", err)
+		}
+	}
+}
+
 // RegisterUploadRoutes wires the image upload operation onto the API. Static
 // file serving (GET /uploads/*) stays on chi as it is not an API operation.
 func RegisterUploadRoutes(api huma.API, uploads *os.Root) {
