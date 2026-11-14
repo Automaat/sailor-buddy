@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/sync/singleflight"
@@ -121,8 +122,28 @@ func geocodeKey(q string) string {
 	return strings.ToLower(strings.TrimSpace(q))
 }
 
+// geocodeMinQueryLen is the shortest query, in characters after trimming
+// surrounding whitespace, worth sending upstream.
+const geocodeMinQueryLen = 2
+
 type geocodeInput struct {
-	Query string `query:"q" minLength:"2" doc:"Town or place name to search for"`
+	Query string `query:"q" required:"true" minLength:"2" doc:"Town or place name to search for"`
+}
+
+// Resolve rejects a query that is too short once surrounding whitespace is
+// trimmed: the upstream call sends the trimmed text, so "  " or " a" would
+// spend a request of the Nominatim rate budget on an empty or one-letter
+// search. huma runs it before the handler, so a rejected query touches
+// neither the cache nor the limiter.
+func (i *geocodeInput) Resolve(_ huma.Context) []error {
+	if utf8.RuneCountInString(strings.TrimSpace(i.Query)) < geocodeMinQueryLen {
+		return []error{&huma.ErrorDetail{
+			Message:  fmt.Sprintf("expected at least %d non-whitespace characters", geocodeMinQueryLen),
+			Location: "query.q",
+			Value:    i.Query,
+		}}
+	}
+	return nil
 }
 
 type geocodeOutput struct {
@@ -148,7 +169,12 @@ var placeCategories = map[string]bool{"place": true, "boundary": true, "natural"
 
 // RegisterGeocodeRoutes wires the geocoding proxy onto the API.
 func RegisterGeocodeRoutes(api huma.API) {
-	h := NewGeocodeHandler()
+	registerGeocode(api, NewGeocodeHandler())
+}
+
+// registerGeocode registers the geocode operation backed by h, so tests can
+// exercise the full huma request path against a stub upstream.
+func registerGeocode(api huma.API, h *GeocodeHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "geocode", Method: http.MethodGet, Path: "/geocode",
 		Summary: "Search towns/places by name", Tags: []string{"Geocode"},

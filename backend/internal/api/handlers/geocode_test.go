@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/humatest"
 	"golang.org/x/time/rate"
 )
 
@@ -381,5 +382,52 @@ func TestNewGeocodeHandler_PolicyLimits(t *testing.T) {
 	}
 	if h.cache.ttl != 24*time.Hour || h.cache.limit != 1000 {
 		t.Fatalf("cache = ttl %v limit %d, want 24h/1000", h.cache.ttl, h.cache.limit)
+	}
+}
+
+// TestGeocode_QueryValidation drives the operation through huma: a missing,
+// empty or too-short query is rejected with 422 before it reaches the cache,
+// the rate limiter or the upstream service.
+func TestGeocode_QueryValidation(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantHits   int64
+	}{
+		{"missing", "/geocode", http.StatusUnprocessableEntity, 0},
+		{"empty", "/geocode?q=", http.StatusUnprocessableEntity, 0},
+		{"one character", "/geocode?q=a", http.StatusUnprocessableEntity, 0},
+		{"whitespace only", "/geocode?q=%20%20%20", http.StatusUnprocessableEntity, 0},
+		{"one character padded", "/geocode?q=%20a%20", http.StatusUnprocessableEntity, 0},
+		{"two characters", "/geocode?q=ab", http.StatusOK, 1},
+		{"two characters padded", "/geocode?q=%20ab%20", http.StatusOK, 1},
+		{"two multibyte characters", "/geocode?q=%C5%81%C3%B3", http.StatusOK, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// One token and no refill: a rejected query must leave it unspent.
+			limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
+			h, hits := countingNominatim(t, http.StatusOK, splitBody, limiter)
+			_, api := humatest.New(t)
+			registerGeocode(api, h)
+
+			resp := api.Get(tt.path)
+			if resp.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d: %s", resp.Code, tt.wantStatus, resp.Body.String())
+			}
+			if got := hits.Load(); got != tt.wantHits {
+				t.Fatalf("upstream hits = %d, want %d", got, tt.wantHits)
+			}
+			if tt.wantHits > 0 {
+				return
+			}
+			if n := len(h.cache.entries); n != 0 {
+				t.Fatalf("cache entries = %d, want 0", n)
+			}
+			if tokens := limiter.Tokens(); tokens < 1 {
+				t.Fatalf("limiter tokens = %v, want 1 (unspent)", tokens)
+			}
+		})
 	}
 }
