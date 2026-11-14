@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
 	createTestUser,
 	registerViaUI,
 	loginViaUI,
-	clearFirebaseUsers,
+	signInTestUser,
 	apiRequest,
 	completeOnboarding,
 	SUITE_ADMIN,
@@ -47,17 +47,28 @@ async function mutationStatus(
 	return res.status;
 }
 
+/**
+ * Registers the suite admin through the UI so it is the first account the
+ * backend provisions, which auto-promotes it to admin. A retry of this serial
+ * group signs in to the account the failed attempt created instead: the
+ * backend cannot link a re-registered email, and e2e/global-setup.ts clears
+ * the emulator only once per run.
+ */
+async function signInAdmin(page: Page): Promise<void> {
+	const existing = await signInTestUser(adminEmail, PASSWORD).catch(() => null);
+	if (!existing) {
+		await registerViaUI(page, adminName, adminEmail, PASSWORD);
+		return;
+	}
+	await completeOnboarding(existing.idToken, 'Persona', 'Admin');
+	await loginViaUI(page, adminEmail, PASSWORD);
+}
+
 test.describe.serial('Single-club persona matrix', () => {
 	let memberToken = '';
 
-	test.beforeAll(async () => {
-		await clearFirebaseUsers();
-	});
-
 	test('setup: first user becomes admin, second becomes member', async ({ page }) => {
-		// Register the admin through the UI first so it is the first account
-		// the backend provisions — that account is auto-promoted to admin.
-		await registerViaUI(page, adminName, adminEmail, PASSWORD);
+		await signInAdmin(page);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
 		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute('href', '/crew');
 		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveAttribute('href', '/trainings');
