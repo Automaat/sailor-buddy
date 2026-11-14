@@ -26,6 +26,9 @@
 	// The parent form's submit, held back while a create is pending so the form
 	// is not saved with the previous yacht; replayed once the new yacht is set.
 	let heldSubmit: { submitter: HTMLElement | null } | null = null;
+	// Set when the user picks from the list while a create is pending; their
+	// pick then wins over the new yacht, even if it equals the earlier value.
+	let pickedWhileSaving = false;
 
 	onDestroy(() => {
 		attempt++;
@@ -88,9 +91,7 @@
 			return;
 		}
 		const current = ++attempt;
-		// The selection when the save started; if the user picks another yacht
-		// while the create is pending, their pick wins over the new yacht.
-		const chosen = value;
+		pickedWhileSaving = false;
 		saving = true;
 		error = '';
 		try {
@@ -101,7 +102,7 @@
 			});
 			if (!yachts.some((y) => y.id === yacht.id)) yachts = [...yachts, yacht];
 			if (current !== attempt) return;
-			if (value === chosen) value = yacht.id;
+			if (!pickedWhileSaving) value = yacht.id;
 			adding = false;
 			saving = false;
 			replayHeldSubmit();
@@ -124,7 +125,7 @@
 
 <svelte:window onsubmitcapture={holdParentSubmitWhileSaving} />
 
-<select {id} bind:this={select} bind:value class="w-full rounded-lg border px-3 py-2">
+<select {id} bind:this={select} bind:value onchange={() => (pickedWhileSaving = saving)} class="w-full rounded-lg border px-3 py-2">
 	<option value={0}>-- Wybierz --</option>
 	{#each yachts as yacht (yacht.id)}
 		<option value={yacht.id}>{yachtLabel(yacht)}</option>
