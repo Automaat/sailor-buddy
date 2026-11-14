@@ -85,14 +85,18 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 			name, _ := fbToken.Claims["name"].(string)
 
 			fbUID := types.NullString{String: fbToken.UID, Valid: true}
-			user, err := q.UpsertUserByFirebaseUID(r.Context(), sqlcdb.UpsertUserByFirebaseUIDParams{
+			if user, ok := knownUser(r.Context(), q, fbUID, email, name); ok {
+				next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role)))
+				return
+			}
+
+			user, err := upsertAccount(r.Context(), q, sqlcdb.UpsertUserByFirebaseUIDParams{
 				Email:       email,
 				Name:        name,
 				FirebaseUid: fbUID,
 			})
 			if err != nil {
-				var pgErr *pgconn.PgError
-				if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+				if !isUniqueViolation(err) {
 					slog.Error("upsert user", "email", email, "uid", fbToken.UID, "err", err)
 					http.Error(w, `{"error":"failed to provision user"}`, http.StatusInternalServerError)
 					return
@@ -124,27 +128,78 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 				return
 			}
 
-			claims := &auth.Claims{
-				UserID:    user.ID,
-				Email:     user.Email,
-				Name:      user.Name,
-				AvatarUrl: user.AvatarUrl.String,
-				Role:      firstAdminRole(r.Context(), q, db, user),
-			}
-			ctx := context.WithValue(r.Context(), UserCtxKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			role := firstAdminRole(r.Context(), q, db, user)
+			next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, role)))
 		})
 	}
+}
+
+// knownUser returns the stored account of fbUID when the request needs no
+// write: the upsert would keep the same email and name (a token name only
+// replaces a non-empty, not yet onboarded one), the account has its person,
+// and an admin exists, so first-user-admin has nothing to do. Any other
+// case, including a failed lookup, falls through to provisioning.
+func knownUser(ctx context.Context, q sqlcdb.Querier, fbUID types.NullString, email, name string) (sqlcdb.User, bool) {
+	row, err := q.GetAuthUserByFirebaseUID(ctx, fbUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Warn("look up user", "uid", fbUID.String, "err", err)
+		}
+		return sqlcdb.User{}, false
+	}
+	user := row.User
+	renamed := name != "" && !user.OnboardedAt.Valid && user.Name != name
+	if user.Email != email || renamed || !row.HasPerson || !row.AdminExists {
+		return sqlcdb.User{}, false
+	}
+	return user, true
+}
+
+// upsertAccount inserts or updates the account of a Firebase UID. A
+// concurrent first request of the same account can insert it after this
+// upsert's firebase_uid conflict check, and the email unique index then
+// rejects the insert. That account is committed once the violation is
+// reported, so one retry updates it instead. A second violation means the
+// email belongs to another account.
+func upsertAccount(ctx context.Context, q sqlcdb.Querier, arg sqlcdb.UpsertUserByFirebaseUIDParams) (sqlcdb.User, error) {
+	user, err := q.UpsertUserByFirebaseUID(ctx, arg)
+	if isUniqueViolation(err) {
+		return q.UpsertUserByFirebaseUID(ctx, arg)
+	}
+	return user, err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23505"
+}
+
+func withClaims(ctx context.Context, user sqlcdb.User, role string) context.Context {
+	return context.WithValue(ctx, UserCtxKey, &auth.Claims{
+		UserID:    user.ID,
+		Email:     user.Email,
+		Name:      user.Name,
+		AvatarUrl: user.AvatarUrl.String,
+		Role:      role,
+	})
 }
 
 // firstAdminRole returns the user's role after first-user-admin: the first
 // account ever provisioned becomes the club admin. Self-healing — it only
 // promotes while no admin exists. A failed promotion keeps the stored role.
+//
+// user.Role may be stale: a concurrent first request of the same account
+// can promote it after user was read. The fast path therefore ignores the
+// user, so that case still reaches PromoteIfNoAdmin, which ignores it too
+// and reports the promotion.
 func firstAdminRole(ctx context.Context, q sqlcdb.Querier, db *sql.DB, user sqlcdb.User) string {
 	if user.Role == "admin" {
 		return user.Role
 	}
-	if n, err := q.CountAdmins(ctx); err != nil || n != 0 {
+	if n, err := q.CountOtherAdmins(ctx, user.ID); err != nil || n != 0 {
 		return user.Role
 	}
 	promoted, err := promoteFirstAdmin(ctx, db, user.ID)

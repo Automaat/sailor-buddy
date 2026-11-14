@@ -1,5 +1,5 @@
 -- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING *;
+INSERT INTO users (email, name, firebase_uid) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = $1;
@@ -10,9 +10,19 @@ SELECT * FROM users WHERE id = $1;
 -- name: GetUserByFirebaseUID :one
 SELECT * FROM users WHERE firebase_uid = $1;
 
+-- GetAuthUserByFirebaseUID is the auth middleware's read-only lookup. One
+-- snapshot also reports whether the account has its person and whether any
+-- admin exists, so a known, unchanged account needs no write.
+-- name: GetAuthUserByFirebaseUID :one
+SELECT sqlc.embed(users),
+  EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+  EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+FROM users
+WHERE users.firebase_uid = $1;
+
 -- name: UpsertUserByFirebaseUID :one
-INSERT INTO users (email, name, password_hash, firebase_uid)
-VALUES ($1, $2, '', $3)
+INSERT INTO users (email, name, firebase_uid)
+VALUES ($1, $2, $3)
 ON CONFLICT(firebase_uid) DO UPDATE SET
   email = EXCLUDED.email,
   name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
@@ -60,6 +70,11 @@ SELECT COUNT(*)::BIGINT FROM users;
 
 -- name: CountAdmins :one
 SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin';
+
+-- CountOtherAdmins counts admins other than the given user, so a request
+-- holding a stale role still learns when its own account was promoted.
+-- name: CountOtherAdmins :one
+SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1;
 
 -- LockAdminRoles serializes role changes for the rest of the transaction.
 -- Run it as its own statement, before LockAdmins, so the admin set is read

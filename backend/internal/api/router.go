@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -19,24 +20,19 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux {
+// NewRouter builds the HTTP router. uploads is the opened upload directory
+// (see handlers.OpenUploadRoot) that confines every upload file access.
+func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client, uploads *os.Root) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
-
-	allowCredentials := false
-	for _, o := range cfg.CORSAllowedOrigins {
-		if allowCredentials && o == "*" {
-			panic("CORS misconfiguration: AllowCredentials=true with wildcard origin is forbidden")
-		}
-	}
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: allowCredentials,
+		AllowCredentials: false,
 		MaxAge:           300,
 	}))
 
@@ -50,8 +46,8 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(fbClient, q, db))
-			registerHumaRoutes(humachi.New(r, humaConfig()), q, db, cfg.UploadDir)
-			mountStaticRoutes(r, cfg)
+			registerHumaRoutes(humachi.New(r, humaConfig()), q, db, uploads)
+			mountStaticRoutes(r, uploads)
 		})
 	})
 
@@ -81,7 +77,7 @@ func readyz(db *sql.DB) http.HandlerFunc {
 
 // mountStaticRoutes registers chi routes for static asset delivery, which is
 // not modelled as an API operation in the OpenAPI spec.
-func mountStaticRoutes(r chi.Router, cfg *config.Config) {
-	uploadH := handlers.NewUploadHandler(cfg.UploadDir)
+func mountStaticRoutes(r chi.Router, uploads *os.Root) {
+	uploadH := handlers.NewUploadHandler(uploads)
 	r.Get("/uploads/*", uploadH.ServeFile)
 }

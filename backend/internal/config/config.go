@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -22,6 +24,44 @@ func Load() *Config {
 		FirebaseProjectID:  getenv("SAILOR_FIREBASE_PROJECT_ID", "sailor-buddy-dev"),
 		CORSAllowedOrigins: loadCORSOrigins(),
 	}
+}
+
+// ErrWildcardCORSOrigin rejects a CORS_ALLOWED_ORIGINS entry that matches
+// origins the API does not name. go-chi/cors reads any "*" as a wildcard, so
+// "*", "https://*" and "http*" all allow arbitrary origins.
+var ErrWildcardCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: a wildcard is allowed only as a subdomain of a named domain, e.g. https://*.example.com`)
+
+// Validate reports settings the API server must not start with.
+func (c *Config) Validate() error {
+	for _, o := range c.CORSAllowedOrigins {
+		if !strings.Contains(o, "*") {
+			continue
+		}
+		if !isSubdomainWildcard(o) {
+			return fmt.Errorf("%w: %q", ErrWildcardCORSOrigin, o)
+		}
+	}
+	return nil
+}
+
+// isSubdomainWildcard reports whether o has the form scheme://*.domain, where
+// domain holds no other wildcard, path or port-only part and has at least two
+// labels, so "https://*.com" is refused.
+func isSubdomainWildcard(o string) bool {
+	scheme, domain, ok := strings.Cut(o, "://*.")
+	if !ok || (scheme != "http" && scheme != "https") {
+		return false
+	}
+	host, _, _ := strings.Cut(domain, ":")
+	if strings.ContainsAny(domain, "*/") || !strings.Contains(host, ".") {
+		return false
+	}
+	for label := range strings.SplitSeq(host, ".") {
+		if label == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func loadCORSOrigins() []string {

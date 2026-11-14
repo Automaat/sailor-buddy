@@ -25,15 +25,17 @@ const (
 
 // PersonLinkHandler serves "this person is me" requests and the admin's
 // approval, direct link and unlink of an account and a person. Linking an
-// account to an existing person always goes through an admin.
+// account to an existing person always goes through an admin. uploads holds
+// the opinion files a link merge removes.
 type PersonLinkHandler struct {
-	q     sqlcdb.Querier
-	runTx txRunner
+	q       sqlcdb.Querier
+	runTx   txRunner
+	uploads *os.Root
 }
 
 // RegisterPersonLinkRoutes wires the person link operations onto the API.
-func RegisterPersonLinkRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
-	registerPersonLinkRoutes(api, &PersonLinkHandler{q: q, runTx: sqlTxRunner(db)})
+func RegisterPersonLinkRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploads *os.Root) {
+	registerPersonLinkRoutes(api, &PersonLinkHandler{q: q, runTx: sqlTxRunner(db), uploads: uploads})
 }
 
 type claimCandidatesInput struct {
@@ -270,7 +272,7 @@ func (h *PersonLinkHandler) approve(ctx context.Context, in *linkRequestIDParam)
 	if err != nil {
 		return nil, linkHTTPError(err, "approve person link request", in.ID)
 	}
-	removeOpinionFiles(result.RemovedOpinionFiles)
+	removeUploadedFiles(h.uploads, result.RemovedOpinionFiles...)
 	req.Status = linkApproved
 	return &linkRequestOutput{Body: dto.PersonLinkRequestFromDB(req)}, nil
 }
@@ -324,7 +326,7 @@ func (h *PersonLinkHandler) link(ctx context.Context, in *linkPersonInput) (*cre
 	if err != nil {
 		return nil, linkHTTPError(err, "link person", in.ID)
 	}
-	removeOpinionFiles(result.RemovedOpinionFiles)
+	removeUploadedFiles(h.uploads, result.RemovedOpinionFiles...)
 	return &crewOutput{Body: dto.CrewMemberFromDB(result.Kept)}, nil
 }
 
@@ -448,14 +450,6 @@ func (h *PersonLinkHandler) retryMerge(ctx context.Context, op string, fn func(s
 			return err
 		}
 		slog.Warn(op+" deadlocked; retrying", "attempt", attempt)
-	}
-}
-
-func removeOpinionFiles(paths []string) {
-	for _, path := range paths {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			slog.Warn("remove merged opinion file", "path", path, "err", err)
-		}
 	}
 }
 

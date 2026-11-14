@@ -2,24 +2,16 @@
 	import { formatDate } from '#lib/dates.js';
 	import { listTrainings, createTraining, deleteTraining } from '#lib/api/routes.js';
 	import type { Training } from '#lib/api/types.js';
-	import { onMount } from 'svelte';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 
-	let trainings = $state<Training[]>([]);
-	let loading = $state(true);
+	let { data } = $props();
+
+	// trainings changes in place after an add or a delete and resets to the
+	// loaded value when the load reruns.
+	let trainings = $derived<Training[]>(data.trainings);
 	let showForm = $state(false);
 	let form = $state({ name: '', date: '', organizer: '', cost: 0, url: '' });
 	let saving = $state(false);
-
-	onMount(async () => {
-		try {
-			trainings = await listTrainings();
-		} catch (err) {
-			console.error('Failed to load trainings:', err);
-		} finally {
-			loading = false;
-		}
-	});
 
 	async function handleAdd(e: Event) {
 		e.preventDefault();
@@ -81,9 +73,7 @@
 		</form>
 	{/if}
 
-	{#if loading}
-		<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
-	{:else if trainings.length === 0}
+	{#if trainings.length === 0}
 		<div class="rounded-2xl bg-white py-16 text-center shadow-sm">
 			<ClipboardList class="mx-auto h-14 w-14 text-[var(--text-muted)]" />
 			<p class="mt-4 text-lg text-[var(--text-muted)]">Brak szkoleń</p>

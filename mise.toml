@@ -1,10 +1,11 @@
 [tools]
 go = "1.27.4"
-node = "24"
+node = "26"
 golangci-lint = "2.15.0"
 "go:github.com/sqlc-dev/sqlc/cmd/sqlc" = "v1.31.1"
 "go:github.com/air-verse/air" = "v1.67.4"
 "go:go.uber.org/nilaway/cmd/nilaway" = "v0.0.0-20260515015210-fd187751154f"
+"go:golang.org/x/vuln/cmd/govulncheck" = "v1.9.0"
 "npm:firebase-tools" = "15.36.0"
 
 [tasks.dev]
