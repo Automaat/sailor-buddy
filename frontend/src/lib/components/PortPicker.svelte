@@ -27,8 +27,6 @@
 		// onReorder moves the port at `from` to `to`; drag-and-drop is only
 		// offered when a parent supplies it.
 		onReorder?: (from: number, to: number) => Promise<void> | void;
-		// debounceMs is overridable so tests can search without waiting.
-		debounceMs?: number;
 	};
 
 	let {
@@ -36,8 +34,7 @@
 		readonly = false,
 		onAdd,
 		onRemove,
-		onReorder,
-		debounceMs = 400
+		onReorder
 	}: Props = $props();
 
 	let query = $state('');
@@ -46,7 +43,6 @@
 	let searching = $state(false);
 	let searchError = $state('');
 	let busy = $state(false);
-	let debounce: ReturnType<typeof setTimeout> | undefined;
 	// Monotonic id of the latest search; stale responses are discarded.
 	let searchSeq = 0;
 
@@ -77,7 +73,6 @@
 
 	onDestroy(() => {
 		destroyed = true;
-		clearTimeout(debounce);
 		map?.remove();
 	});
 
@@ -126,16 +121,23 @@
 		renderMarkers();
 	});
 
+	const canSearch = $derived(!busy && !searching && query.trim().length >= 2);
+
+	// Typing only invalidates the previous search. Nominatim's usage policy
+	// forbids search-as-you-type, so a lookup runs on Enter or "Szukaj".
 	function onInput() {
-		clearTimeout(debounce);
+		searchSeq++;
+		searching = false;
 		searchError = '';
-		const q = query.trim();
-		if (q.length < 2) {
-			results = [];
-			return;
-		}
-		// Debounced so typing does not hammer the Nominatim proxy (1 req/s policy).
-		debounce = setTimeout(runSearch, debounceMs);
+		results = [];
+	}
+
+	function onKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Enter') return;
+		// The picker sits inside the trip-completion form; Enter must search,
+		// not submit it.
+		e.preventDefault();
+		if (canSearch) runSearch();
 	}
 
 	async function runSearch() {
@@ -164,7 +166,6 @@
 		searchError = '';
 		try {
 			await onAdd?.(anchorage ? { ...port, anchorage: true } : port);
-			clearTimeout(debounce);
 			searchSeq++;
 			searching = false;
 			query = '';
@@ -272,16 +273,27 @@
 					Dodaj bez lokalizacji na mapie
 				</button>
 			</div>
-			<input
-				id="port-search"
-				type="text"
-				bind:value={query}
-				oninput={onInput}
-				disabled={busy}
-				placeholder="Wpisz nazwę miasta / portu..."
-				class="w-full rounded-lg border px-3 py-1.5 text-sm"
-				autocomplete="off"
-			/>
+			<div class="flex gap-2">
+				<input
+					id="port-search"
+					type="text"
+					bind:value={query}
+					oninput={onInput}
+					onkeydown={onKeydown}
+					disabled={busy}
+					placeholder="Wpisz nazwę miasta / portu i naciśnij Enter..."
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+					autocomplete="off"
+				/>
+				<button
+					type="button"
+					onclick={runSearch}
+					disabled={!canSearch}
+					class="rounded-lg border px-3 py-1.5 text-sm text-[var(--ocean)] hover:bg-gray-50 disabled:opacity-40"
+				>
+					Szukaj
+				</button>
+			</div>
 			{#if searching || results.length > 0 || searchError}
 				<div
 					class="absolute z-[1100] mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg"

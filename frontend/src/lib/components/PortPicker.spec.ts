@@ -21,20 +21,77 @@ describe('PortPicker', () => {
 		expect(screen.getByText('Hvar')).toBeInTheDocument();
 	});
 
-	it('searches by town name and adds the picked result', async () => {
+	const typeQuery = (value: string) =>
+		fireEvent.input(screen.getByLabelText('Odwiedzone porty'), { target: { value } });
+
+	it('does not search while typing', async () => {
+		geocodeMock.mockResolvedValue([]);
+		vi.useFakeTimers();
+		try {
+			render(PortPicker, { props: { ports: [], onAdd: vi.fn() } });
+			await typeQuery('Spl');
+			await typeQuery('Split');
+			await vi.advanceTimersByTimeAsync(5000);
+			expect(geocodeMock).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('searches on the Szukaj button and adds the picked result', async () => {
 		geocodeMock.mockResolvedValue([{ name: 'Split', latitude: 43.5, longitude: 16.4 }]);
 		const onAdd = vi.fn();
-		// debounceMs 0 keeps the search deterministic without the 400ms wait.
-		render(PortPicker, { props: { ports: [], onAdd, debounceMs: 0 } });
+		render(PortPicker, { props: { ports: [], onAdd } });
 
-		await fireEvent.input(screen.getByLabelText('Odwiedzone porty'), {
-			target: { value: 'Split' }
-		});
+		await typeQuery('Split');
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
 		const result = await screen.findByRole('button', { name: 'Split' });
 		await fireEvent.click(result);
 
+		expect(geocodeMock).toHaveBeenCalledTimes(1);
 		expect(geocodeMock).toHaveBeenCalledWith('Split');
 		expect(onAdd).toHaveBeenCalledWith({ name: 'Split', latitude: 43.5, longitude: 16.4 });
+	});
+
+	it('searches on Enter without submitting an enclosing form', async () => {
+		geocodeMock.mockResolvedValue([{ name: 'Hvar', latitude: 43.1, longitude: 16.4 }]);
+		const onSubmit = vi.fn((e: Event) => e.preventDefault());
+		const form = document.createElement('form');
+		form.addEventListener('submit', onSubmit);
+		document.body.appendChild(form);
+		try {
+			render(PortPicker, { target: form, props: { ports: [] } });
+			await typeQuery('Hvar');
+			const notCancelled = await fireEvent.keyDown(screen.getByLabelText('Odwiedzone porty'), {
+				key: 'Enter'
+			});
+
+			expect(await screen.findByRole('button', { name: 'Hvar' })).toBeInTheDocument();
+			expect(geocodeMock).toHaveBeenCalledWith('Hvar');
+			expect(notCancelled).toBe(false);
+			expect(onSubmit).not.toHaveBeenCalled();
+		} finally {
+			form.remove();
+		}
+	});
+
+	it('disables Szukaj for a query shorter than two characters', async () => {
+		render(PortPicker, { props: { ports: [] } });
+		await typeQuery('S');
+		expect(screen.getByRole('button', { name: 'Szukaj' })).toBeDisabled();
+		await fireEvent.keyDown(screen.getByLabelText('Odwiedzone porty'), { key: 'Enter' });
+		expect(geocodeMock).not.toHaveBeenCalled();
+	});
+
+	it('clears stale results when the query changes', async () => {
+		geocodeMock.mockResolvedValue([{ name: 'Split', latitude: 43.5, longitude: 16.4 }]);
+		render(PortPicker, { props: { ports: [] } });
+		await typeQuery('Split');
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await screen.findByRole('button', { name: 'Split' });
+
+		await typeQuery('Hvar');
+		expect(screen.queryByRole('button', { name: 'Split' })).toBeNull();
 	});
 
 	it('renders a port name in the map tooltip as text, not HTML', async () => {
