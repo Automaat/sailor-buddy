@@ -1,0 +1,38 @@
+services:
+  backend:
+    image: ${SAILOR_BACKEND_IMAGE:?Set the final backend image digest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SAILOR_ENV: production
+      SAILOR_DATABASE_URL: ${SAILOR_DATABASE_URL:?Set a private PostgreSQL TLS connection string}
+      SAILOR_FIREBASE_PROJECT_ID: ${SAILOR_FIREBASE_PROJECT_ID:?Set the production Firebase project}
+      SAILOR_UPLOAD_DIR: /app/uploads
+      CORS_ALLOWED_ORIGINS: ${SAILOR_PUBLIC_ORIGIN:?Set the public HTTPS origin}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase_adc
+    secrets:
+      - firebase_adc
+    volumes:
+      - uploads:/app/uploads
+    security_opt:
+      - seccomp=backend/seccomp-chromium.json
+  frontend:
+    image: ${SAILOR_FRONTEND_IMAGE:?Set the final frontend image digest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      SAILOR_ENV: production
+      ORIGIN: ${SAILOR_PUBLIC_ORIGIN:?Set the public HTTPS origin}
+      PUBLIC_API_URL: /api
+      PUBLIC_FIREBASE_PROJECT_ID: ${SAILOR_FIREBASE_PROJECT_ID:?Set the production Firebase project}
+      PUBLIC_FIREBASE_API_KEY: ${SAILOR_FIREBASE_API_KEY:?Set the Firebase web API key}
+      PUBLIC_FIREBASE_AUTH_DOMAIN: ${SAILOR_FIREBASE_AUTH_DOMAIN:?Set the Firebase auth domain}
+
+secrets:
+  firebase_adc:
+    file: ${SAILOR_FIREBASE_ADC_FILE:?Set the runtime workload identity credential configuration path}
+
+volumes:
+  uploads:

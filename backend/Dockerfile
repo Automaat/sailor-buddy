@@ -17,6 +17,7 @@ EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
 
 FROM alpine:3.24
+ENV SAILOR_ENV=production
 # Runs as an unprivileged user so Chromium keeps its sandbox on for PDF
 # renders. The fixed numeric UID lets operators chown mounted upload volumes
 # and lets Kubernetes runAsNonRoot verify the user.

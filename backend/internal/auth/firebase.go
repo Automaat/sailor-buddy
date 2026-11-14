@@ -2,10 +2,11 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	firebase "firebase.google.com/go/v4"
 	fbauth "firebase.google.com/go/v4/auth"
-	"google.golang.org/api/option"
 )
 
 type Claims struct {
@@ -17,7 +18,10 @@ type Claims struct {
 }
 
 func NewFirebaseAuth(ctx context.Context, projectID string) (*fbauth.Client, error) {
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID}, option.WithoutAuthentication())
+	if os.Getenv("SAILOR_ENV") == "production" && os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") != "" {
+		return nil, errors.New("Firebase emulator is forbidden in production")
+	}
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
 	if err != nil {
 		return nil, err
 	}

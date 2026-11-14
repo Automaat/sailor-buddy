@@ -21,6 +21,11 @@ mise run dev-frontend        # frontend on :5173
 
 ## Production image
 
+Use the [production configuration guide](docs/production.md) and
+[`compose.production.yml`](compose.production.yml) for the runtime settings,
+Firebase identity, TLS routing, and suspension procedure. Final images default
+to production mode and reject emulator authentication.
+
 `backend/Dockerfile` builds the API image. It runs as the unprivileged user
 `sailor` (UID and GID 10001) so Chromium renders PDF opinions with its
 sandbox on.

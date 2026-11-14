@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	fbauth "firebase.google.com/go/v4/auth"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -35,7 +36,7 @@ func optionalAuthPath(r *http.Request) bool {
 
 // TokenVerifier verifies a Firebase ID token; *fbauth.Client implements it.
 type TokenVerifier interface {
-	VerifyIDToken(ctx context.Context, idToken string) (*fbauth.Token, error)
+	VerifyIDTokenAndCheckRevoked(ctx context.Context, idToken string) (*fbauth.Token, error)
 }
 
 // Auth verifies the Firebase ID token, provisions the account on first
@@ -65,13 +66,21 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 				return
 			}
 
-			fbToken, err := fbClient.VerifyIDToken(r.Context(), token)
-			if err != nil {
+			verifyCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			fbToken, err := fbClient.VerifyIDTokenAndCheckRevoked(verifyCtx, token)
+			cancel()
+			if err != nil || fbToken == nil {
 				if optional {
 					next.ServeHTTP(w, r)
 					return
 				}
-				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
+				if invalidSession(err) {
+					w.Header().Set("Content-Type", "application/json")
+					http.Error(w, `{"detail":"invalid or expired session"}`, http.StatusUnauthorized)
+				} else {
+					w.Header().Set("Content-Type", "application/json")
+					http.Error(w, `{"detail":"authentication service unavailable; try again"}`, http.StatusServiceUnavailable)
+				}
 				return
 			}
 
@@ -212,4 +221,8 @@ func withClaims(ctx context.Context, user sqlcdb.User, role string) context.Cont
 func GetUser(ctx context.Context) *auth.Claims {
 	claims, _ := ctx.Value(UserCtxKey).(*auth.Claims)
 	return claims
+}
+
+func invalidSession(err error) bool {
+	return fbauth.IsIDTokenRevoked(err) || fbauth.IsUserDisabled(err) || fbauth.IsIDTokenExpired(err) || fbauth.IsIDTokenInvalid(err) || fbauth.IsUserNotFound(err) || fbauth.IsTenantIDMismatch(err)
 }

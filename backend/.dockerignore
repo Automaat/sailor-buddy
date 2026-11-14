@@ -1,0 +1,9 @@
+tmp
+uploads
+server
+sailor-buddy
+seed-dev
+bootstrap-admin
+
+.env
+.env.*
