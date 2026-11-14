@@ -119,3 +119,82 @@ describe('YachtSelect', () => {
 		expect(screen.queryByLabelText('Nazwa jachtu *')).not.toBeInTheDocument();
 	});
 });
+
+describe('YachtSelect when a create ends late', () => {
+	it('adds the yacht to the bound list after the picker unmounts', async () => {
+		const { create, resolvers } = pending();
+		const props = $state({ value: 0, yachts: [wega], create });
+		const { unmount } = render(YachtSelect, { props });
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		unmount();
+		resolvers[0](selma);
+
+		await waitFor(() => expect(props.yachts).toEqual([wega, selma]));
+		expect(props.value).toBe(0);
+	});
+
+	it('keeps the yacht the user picked while the create was pending', async () => {
+		const { create, resolvers } = pending();
+		const { submit, submitted, props } = renderInForm(create);
+		props.yachts = [wega];
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+		await fireEvent.click(submit);
+		expect(submitted).toEqual([]);
+
+		resolvers[0](selma);
+		await waitFor(() => expect(submitted).toEqual([5]));
+		expect(screen.getByRole('combobox')).toHaveValue('5');
+		expect(screen.getByRole('option', { name: 'Selma' })).toBeInTheDocument();
+		expect(screen.queryByLabelText('Nazwa jachtu *')).not.toBeInTheDocument();
+	});
+
+	it('keeps the earlier yacht when the user picks it again while the create is pending', async () => {
+		const { create, resolvers } = pending();
+		const other: Yacht = { id: 7, name: 'Other', created_at: '', updated_at: '' };
+		const props = $state({ value: 5, yachts: [wega, other], create });
+		render(YachtSelect, { props });
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		await fireEvent.change(screen.getByRole('combobox'), { target: { value: '7' } });
+		await fireEvent.change(screen.getByRole('combobox'), { target: { value: '5' } });
+		resolvers[0](selma);
+
+		await waitFor(() => expect(screen.getByRole('option', { name: 'Selma' })).toBeInTheDocument());
+		expect(props.value).toBe(5);
+		expect(screen.getByRole('combobox')).toHaveValue('5');
+	});
+
+	it('selects a listed yacht with the same type and name instead of creating it again', async () => {
+		const create = vi.fn();
+		const props = $state({ value: 0, yachts: [wega, { ...selma, yacht_type: 'Hanse 415' }], create });
+		render(YachtSelect, { props });
+
+		await fillDraft(' selma ');
+		await fireEvent.input(screen.getByLabelText('Typ jachtu'), { target: { value: 'HANSE 415' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+
+		expect(create).not.toHaveBeenCalled();
+		expect(props.value).toBe(4);
+		expect(screen.getByRole('combobox')).toHaveValue('4');
+		expect(screen.queryByLabelText('Nazwa jachtu *')).not.toBeInTheDocument();
+	});
+
+	it('creates a yacht whose name is listed under another type', async () => {
+		const { create, resolvers } = pending();
+		const props = $state({ value: 0, yachts: [{ ...selma, yacht_type: 'Hanse 415' }], create });
+		render(YachtSelect, { props });
+
+		await fillDraft('Selma');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		resolvers[0]({ ...selma, id: 6 });
+
+		await waitFor(() => expect(props.value).toBe(6));
+		expect(create).toHaveBeenCalledTimes(1);
+	});
+});
