@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -52,38 +53,64 @@ func OpenUploadRoot(dir string) (*os.Root, error) {
 	return root, nil
 }
 
-// uploadWriteProbe is created and removed in every upload directory to prove
-// the process can add files there.
+// uploadWriteProbe prefixes the file created and removed in every upload
+// directory to prove the process can add files there.
 const uploadWriteProbe = ".write-probe"
 
 // checkUploadsWritable walks uploads and fails on the first directory the
-// process cannot create files in or file it cannot open for writing.
+// process cannot create files in or file it cannot open for writing. Each run
+// uses its own probe name, so processes sharing one upload directory can
+// check it at the same time.
 func checkUploadsWritable(uploads *os.Root) error {
+	probeName := fmt.Sprintf("%s-%d-%s", uploadWriteProbe, os.Getpid(), rand.Text())
 	return fs.WalkDir(uploads.FS(), ".", func(name string, d fs.DirEntry, err error) error {
+		return checkUploadEntry(uploads, probeName, name, d, err)
+	})
+}
+
+// checkUploadEntry is the fs.WalkDirFunc of checkUploadsWritable.
+//
+//   - A directory gets probeName created with O_EXCL and removed again. O_EXCL
+//     fails on any existing entry, symlinks included, so the probe never
+//     touches a file it did not create.
+//   - A regular file is opened write-only without O_TRUNC, which leaves it
+//     unchanged. Files named with the probe prefix belong to other runs.
+//   - Symlinks, FIFOs and other entries are skipped, so the check never
+//     follows a link or blocks on a pipe.
+//   - An entry another process deletes during the walk counts as a pass.
+func checkUploadEntry(uploads *os.Root, probeName, name string, d fs.DirEntry, err error) error {
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	switch {
+	case d.IsDir():
+		probe := filepath.Join(name, probeName)
+		f, err := uploads.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
-		switch {
-		case d.IsDir():
-			probe := filepath.Join(name, uploadWriteProbe)
-			f, err := uploads.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-			if err != nil {
-				return err
-			}
-			if err := f.Close(); err != nil {
-				return err
-			}
-			return uploads.Remove(probe)
-		case d.Type().IsRegular() && d.Name() != uploadWriteProbe:
-			// Opening without O_TRUNC leaves the file unchanged.
-			f, err := uploads.OpenFile(name, os.O_WRONLY, 0)
-			if err != nil {
-				return err
-			}
-			return f.Close()
+		closeErr := f.Close()
+		if err := uploads.Remove(probe); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return errors.Join(closeErr, err)
 		}
-		return nil
-	})
+		return closeErr
+	case d.Type().IsRegular() && !strings.HasPrefix(d.Name(), uploadWriteProbe):
+		f, err := uploads.OpenFile(name, os.O_WRONLY, 0)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return f.Close()
+	}
+	return nil
 }
 
 // uploadRelPath maps a stored file path, as built by joining the upload
