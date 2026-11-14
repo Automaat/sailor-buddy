@@ -10,7 +10,7 @@ RUN go build -o /app/seed-dev ./cmd/seed-dev
 FROM golang:1.27-alpine AS dev
 RUN apk add --no-cache ca-certificates chromium git
 ENV CHROME_PATH=/usr/bin/chromium-browser
-RUN go install github.com/air-verse/air@v1.65.1
+RUN go install github.com/air-verse/air@v1.67.4
 WORKDIR /app
 EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]

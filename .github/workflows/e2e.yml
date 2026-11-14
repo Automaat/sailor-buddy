@@ -30,15 +30,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          go-version-file: backend/go.mod
+          install_args: go node npm:firebase-tools
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version-file: frontend/package.json
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-e2e-${{ hashFiles('mise.toml', 'backend/go.sum') }}
+          restore-keys: go-${{ runner.os }}-e2e-
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
 
       - name: Install frontend deps
         working-directory: frontend
@@ -54,7 +62,6 @@ jobs:
 
       - name: Start Firebase Auth emulator
         run: |
-          npm install -g firebase-tools@15.9.0
           firebase emulators:start --project sailor-buddy-dev --only auth &
           # wait for emulator to be ready
           for attempt in $(seq 1 30); do

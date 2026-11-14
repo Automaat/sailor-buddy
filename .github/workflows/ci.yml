@@ -16,13 +16,13 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          go-version-file: backend/go.mod
+          install_args: go golangci-lint
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           working-directory: backend
-          version: v2.15.0
+          install-mode: none
 
   backend-nilaway:
     name: Backend Nilaway
@@ -32,12 +32,16 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          go-version-file: backend/go.mod
-
-      - name: Install nilaway
-        run: go install go.uber.org/nilaway/cmd/nilaway@v0.0.0-20260515015210-fd187751154f
+          install_args: go go:go.uber.org/nilaway/cmd/nilaway
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-backend-nilaway-${{ hashFiles('mise.toml', 'backend/go.sum') }}
+          restore-keys: go-${{ runner.os }}-backend-nilaway-
 
       - name: Run nilaway
         run: |
@@ -94,9 +98,16 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          go-version-file: backend/go.mod
+          install_args: go
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-backend-test-${{ hashFiles('mise.toml', 'backend/go.sum') }}
+          restore-keys: go-${{ runner.os }}-backend-test-
       - run: go test ./...
         env:
           SAILOR_TEST_DATABASE_URL: postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable
@@ -106,12 +117,16 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          go-version-file: backend/go.mod
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+          install_args: go node
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version-file: frontend/package.json
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-api-spec-drift-${{ hashFiles('mise.toml', 'backend/go.sum') }}
+          restore-keys: go-${{ runner.os }}-api-spec-drift-
       - name: Regenerate OpenAPI spec and TS types
         run: |
           (cd backend && go run ./cmd/openapi)
@@ -131,11 +146,14 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          node-version-file: frontend/package.json
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          install_args: node
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
       - run: npm ci
       - run: npx svelte-check
 
@@ -147,10 +165,13 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
-          node-version-file: frontend/package.json
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          install_args: node
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
       - run: npm ci
       - run: npm run test:coverage
