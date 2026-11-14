@@ -14,6 +14,7 @@ require (
 	github.com/lukasjarosch/go-docx v0.5.0
 	golang.org/x/net v0.62.0
 	golang.org/x/text v0.44.0
+	golang.org/x/time v0.16.0
 	google.golang.org/api v0.315.0
 )
 
@@ -65,7 +66,6 @@ require (
 	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
-	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto v0.0.0-20261110000943-09e21b237f2c // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261110000943-09e21b237f2c // indirect
