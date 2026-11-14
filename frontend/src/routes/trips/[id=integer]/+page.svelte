@@ -13,7 +13,7 @@
 		getTripSignUp
 	} from '#lib/api/routes.js';
 	import type { CompleteTripPayload, LegSignUp } from '#lib/api/types.js';
-	import { clearFailure, noteFailure, settle } from '#lib/api/errors.js';
+	import { clearFailure, errorMessage, noteFailure, settle } from '#lib/api/errors.js';
 	import { goto } from '$app/navigation';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
 	import ActionsMenu from '#lib/components/ActionsMenu.svelte';
@@ -44,6 +44,7 @@
 	let assignCrewId = $state('');
 	let assignRole = $state('');
 	let showCompleteModal = $state(false);
+	let deleteError = $state('');
 	// The *For values name the trip whose request is in flight, so a button
 	// stays busy only on that trip, not on one a link moved to.
 	let assigningFor = $state<number | null>(null);
@@ -69,6 +70,7 @@
 		assignCrewId = '';
 		assignRole = '';
 		showCompleteModal = false;
+		deleteError = '';
 	});
 
 	// A request started on one trip may answer after a link has moved the
@@ -88,7 +90,14 @@
 		if (!confirm('Usunąć ten rejs?')) return;
 		const tripId = id;
 		const cruiseId = trip.cruise_id;
-		await deleteTrip(tripId);
+		deleteError = '';
+		try {
+			await deleteTrip(tripId);
+		} catch (err) {
+			console.error('Failed to delete trip:', err);
+			if (!leftTrip(tripId)) deleteError = `Nie udało się usunąć etapu: ${errorMessage(err)}`;
+			return;
+		}
 		if (leftTrip(tripId)) return;
 		void goto(`/cruises/${cruiseId}`);
 	}
@@ -270,6 +279,10 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if deleteError}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
+	{/if}
 
 	{#if canManageCrew && status === 'overdue'}
 		<div

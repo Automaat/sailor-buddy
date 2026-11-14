@@ -124,32 +124,61 @@ func geocodeKey(q string) string {
 	return strings.ToLower(trimGeocodeQuery(q))
 }
 
-// trimGeocodeQuery strips the leading and trailing characters that carry no
-// searchable text: whitespace, Unicode format characters (Cf, such as
-// zero-width spaces and the byte order mark), control characters (Cc, such as
-// NUL) and bytes that are not valid UTF-8. strings.TrimSpace keeps all but the
-// first group. Once trimmed, the first and last characters are visible, so a
-// result of two or more characters holds at least two visible ones.
-func trimGeocodeQuery(q string) string {
-	return strings.TrimFunc(q, func(r rune) bool {
-		return unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Cc, r) || r == utf8.RuneError
-	})
+// isBlankGeocodeRune reports whether r carries no searchable text:
+//   - whitespace;
+//   - format (Cf, such as zero-width spaces and the byte order mark) and
+//     control (Cc, such as NUL) characters;
+//   - the other default-ignorable code points: Hangul fillers (U+115F,
+//     U+1160, U+3164, U+FFA0), the combining grapheme joiner (U+034F) and the
+//     variation selectors (U+FE00..U+FE0F and others);
+//   - the braille blank (U+2800), which renders as an empty cell;
+//   - bytes that are not valid UTF-8.
+//
+// It matches explicit code points, not whole categories: the combining
+// marks of decomposed (NFD) letters, such as the acute in "ź", stay.
+func isBlankGeocodeRune(r rune) bool {
+	return unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Cc, r) ||
+		unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
+		unicode.Is(unicode.Variation_Selector, r) ||
+		r == '⠀' || r == utf8.RuneError
 }
 
-// geocodeMinQueryLen is the shortest query, in characters after
-// trimGeocodeQuery, worth sending upstream.
+// trimGeocodeQuery strips leading and trailing runes that isBlankGeocodeRune
+// matches. Blank runes between other characters stay. The result may still
+// start with a combining mark or hold only marks, so the length check counts
+// with geocodeBaseCharCount instead of the rune count.
+func trimGeocodeQuery(q string) string {
+	return strings.TrimFunc(q, isBlankGeocodeRune)
+}
+
+// geocodeBaseCharCount counts the runes in q that are neither blank nor
+// combining marks (M). A letter and its decomposed accents count once, so NFC
+// and NFD spellings of a name have the same count.
+func geocodeBaseCharCount(q string) int {
+	n := 0
+	for _, r := range q {
+		if !isBlankGeocodeRune(r) && !unicode.Is(unicode.M, r) {
+			n++
+		}
+	}
+	return n
+}
+
+// geocodeMinQueryLen is the fewest base characters, as geocodeBaseCharCount
+// counts them, that a query worth sending upstream holds.
 const geocodeMinQueryLen = 2
 
 type geocodeInput struct {
 	Query string `query:"q" required:"true" minLength:"2" doc:"Town or place name to search for"`
 }
 
-// Resolve rejects a query that holds fewer than two visible characters once
-// trimGeocodeQuery has run: the upstream call sends the trimmed text, so
-// "  ", " a" or two zero-width spaces would spend a request of the Nominatim
-// rate budget on an empty or one-letter search. It also rejects a bare "q"
-// with no "=", which huma reads as the value "true". huma runs Resolve before
-// the handler, so a rejected query touches neither the cache nor the limiter.
+// Resolve rejects a query that holds fewer than two base characters: the
+// upstream call sends the trimmed text, so "  ", " a", two zero-width spaces,
+// two Hangul fillers or two lone combining marks would spend a request of the
+// Nominatim rate budget on an empty or one-letter search. It also rejects a
+// bare "q" with no "=", which huma reads as the value "true". huma runs
+// Resolve before the handler, so a rejected query touches neither the cache
+// nor the limiter.
 func (i *geocodeInput) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	if isBareQueryParam(u.RawQuery, "q") {
@@ -158,7 +187,7 @@ func (i *geocodeInput) Resolve(ctx huma.Context) []error {
 			Location: "query.q",
 		}}
 	}
-	if utf8.RuneCountInString(trimGeocodeQuery(i.Query)) < geocodeMinQueryLen {
+	if geocodeBaseCharCount(i.Query) < geocodeMinQueryLen {
 		return []error{&huma.ErrorDetail{
 			Message:  fmt.Sprintf("expected at least %d visible characters", geocodeMinQueryLen),
 			Location: "query.q",

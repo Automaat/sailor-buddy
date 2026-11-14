@@ -193,6 +193,33 @@ describe('series detail page', () => {
 		expect(mockDelete).toHaveBeenCalledWith(4);
 	});
 
+	it('shows the error and stays on the series when deletion fails', async () => {
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		mockDelete.mockRejectedValue(new ApiError(409, 'series is in use'));
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć serii: series is in use'
+		);
+		expect(screen.getByRole('heading', { name: 'May I Sail' })).toBeInTheDocument();
+		expect(goto).not.toHaveBeenCalled();
+	});
+
+	it('clears a delete error when a retry succeeds', async () => {
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		mockDelete.mockRejectedValueOnce(new Error('offline'));
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent('offline');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
+		await vi.waitFor(() => expect(goto).toHaveBeenCalledWith('/series'));
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
 	it('keeps the series when deletion is not confirmed', async () => {
 		mockAuth.isAdmin = true;
 		vi.spyOn(window, 'confirm').mockReturnValue(false);

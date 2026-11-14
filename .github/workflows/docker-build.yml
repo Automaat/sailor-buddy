@@ -49,3 +49,50 @@ jobs:
           load: false
           cache-from: type=gha,scope=${{ matrix.context }}
           cache-to: type=gha,mode=max,scope=${{ matrix.context }}
+
+  # The sandbox only holds with the image's non-root user and the seccomp
+  # profile operators deploy with, so test Chromium there, not on the runner.
+  chromium-sandbox:
+    name: Backend Chromium sandbox
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: go
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: sailor-buddy-backend:ci
+          cache-from: type=gha,scope=backend
+
+      - name: Build docgen test binary
+        working-directory: backend
+        env:
+          CGO_ENABLED: '0'
+        run: go test -c -o "$RUNNER_TEMP/docgen.test" ./internal/docgen
+
+      - name: Run Chrome tests in the image
+        shell: bash
+        run: |
+          docker run --rm \
+            --security-opt seccomp=backend/seccomp-chromium.json \
+            -v "$RUNNER_TEMP/docgen.test:/app/docgen.test:ro" \
+            sailor-buddy-backend:ci \
+            ./docgen.test -test.run Chrome -test.v -test.count=1 \
+            | tee "$RUNNER_TEMP/chrome-test.log"
+          # A skipped test passes silently, e.g. if the image loses CHROME_PATH.
+          if grep -q -- '--- SKIP' "$RUNNER_TEMP/chrome-test.log"; then
+            echo "::error::Chrome tests were skipped in the image."
+            exit 1
+          fi
+          if ! grep -q -- '--- PASS: TestChromeOptions_Sandboxed' "$RUNNER_TEMP/chrome-test.log"; then
+            echo "::error::TestChromeOptions_Sandboxed did not run and pass."
+            exit 1
+          fi

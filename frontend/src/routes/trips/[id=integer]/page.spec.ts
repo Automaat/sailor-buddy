@@ -25,8 +25,10 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
+import { goto } from '$app/navigation';
 import {
 	cancelTrip,
+	deleteTrip,
 	generateTripEnrollToken,
 	getCruise,
 	getTrip,
@@ -252,6 +254,41 @@ describe('trip page actions', () => {
 
 		expect(await screen.findByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Więcej akcji' })).not.toBeInTheDocument();
+	});
+
+	it('goes back to the event after the leg is deleted', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, cruise_id: 1 }));
+		vi.mocked(deleteTrip).mockReset().mockResolvedValue(undefined);
+		vi.mocked(goto).mockReset();
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Usuń' }));
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/cruises/1'));
+		expect(deleteTrip).toHaveBeenCalledWith(50);
+		confirmSpy.mockRestore();
+	});
+
+	it('shows the error and stays on the leg when deletion fails', async () => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', cruise_id: 1 }));
+		vi.mocked(deleteTrip).mockReset().mockRejectedValue(new ApiError(409, 'trip has crew'));
+		vi.mocked(goto).mockReset();
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Usuń' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć etapu: trip has crew'
+		);
+		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+		expect(goto).not.toHaveBeenCalled();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
 	});
 });
 
