@@ -165,6 +165,9 @@ func (h *crudHandlers[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut,
 		return nil, err
 	}
 	if err := h.cfg.delete(ctx, scope, in); err != nil {
+		if se, ok := errors.AsType[huma.StatusError](err); ok {
+			return nil, se
+		}
 		logCRUD(h.cfg.deleteLogMsg, h.cfg.deleteLogAttrs(scope, in), err)
 		return nil, huma.Error500InternalServerError(h.cfg.deleteClientMsg)
 	}

@@ -325,6 +325,9 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 		if errors.Is(err, errTripCaptainChanged) {
 			return nil, huma.Error409Conflict("trip captain changed; retry")
 		}
+		if errors.Is(err, errTripYachtChanged) {
+			return nil, huma.Error409Conflict("trip yacht changed; retry")
+		}
 		slog.Error("complete trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to complete trip")
 	}
@@ -339,8 +342,12 @@ var errTripCruiseChanged = errors.New("trip cruise changed during completion")
 // between the captain lock and the trip lock on every completion attempt.
 var errTripCaptainChanged = errors.New("trip captain changed during completion")
 
-// completeTripAttempts bounds the retries when the trip's cruise or captain
-// changes between its lock and the trip lock.
+// errTripYachtChanged reports that the trip's yacht changed between the yacht
+// lock and the trip lock on every completion attempt.
+var errTripYachtChanged = errors.New("trip yacht changed during completion")
+
+// completeTripAttempts bounds the retries when the trip's cruise, captain or
+// yacht changes between its lock and the trip lock.
 const completeTripAttempts = 3
 
 // completeTripTx wraps the trip → voyage transition: it creates the voyage,
@@ -356,7 +363,8 @@ func completeTripTxWith(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querie
 	var last error
 	for range completeTripAttempts {
 		voyage, err := completeTripOnce(ctx, db, wrap, tripID, req)
-		if !errors.Is(err, errTripCruiseChanged) && !errors.Is(err, errTripCaptainChanged) {
+		if !errors.Is(err, errTripCruiseChanged) && !errors.Is(err, errTripCaptainChanged) &&
+			!errors.Is(err, errTripYachtChanged) {
 			return voyage, err
 		}
 		last = err
@@ -376,11 +384,13 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 		qtx = wrap(qtx)
 	}
 
-	// Lock the cruise and the captain person, then the trip, before any
-	// write. DELETE FROM cruises takes the same order (cruise, then the trips
-	// foreign-key check), so does deleting the captain person (person, then
-	// its ON DELETE SET NULL on trips), and a concurrent leg enrollment
-	// share-locks the trip; any other order deadlocks with one of them.
+	// Lock the cruise, the captain person and the yacht, then the trip,
+	// before any write. DELETE FROM cruises takes the same order (cruise,
+	// then the trips foreign-key check), so does deleting the captain person
+	// (person, then its ON DELETE SET NULL on trips) and deleting the yacht
+	// (yacht, then the trips foreign-key check), and a concurrent leg
+	// enrollment share-locks the trip; any other order deadlocks with one of
+	// them.
 	cruiseID, err := qtx.LockTripCruise(ctx, tripID)
 	locked := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -391,17 +401,25 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripCaptain", Err: err}
 	}
+	yachtID, err := qtx.LockTripYacht(ctx, tripID)
+	yacht := types.NullInt64{Int64: yachtID, Valid: err == nil}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return sqlcdb.Voyage{}, &QueryError{Op: "LockTripYacht", Err: err}
+	}
 	trip, err := qtx.GetTripForUpdate(ctx, tripID)
 	if err != nil {
 		return sqlcdb.Voyage{}, err
 	}
-	// A trip that moved to a cruise or captain other than the locked one
-	// must retry, since locking the new row now would invert the order.
+	// A trip that moved to a cruise, captain or yacht other than the locked
+	// one must retry, since locking the new row now would invert the order.
 	if !locked || trip.CruiseID != cruiseID {
 		return sqlcdb.Voyage{}, errTripCruiseChanged
 	}
 	if trip.CaptainPersonID != captain {
 		return sqlcdb.Voyage{}, errTripCaptainChanged
+	}
+	if trip.YachtID != yacht {
+		return sqlcdb.Voyage{}, errTripYachtChanged
 	}
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return sqlcdb.Voyage{}, sql.ErrNoRows

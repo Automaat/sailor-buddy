@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
@@ -237,6 +238,20 @@ func TestYachtHandler_Delete(t *testing.T) {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
+
+	for _, constraint := range []string{"trips_yacht_id_fkey", "voyages_yacht_id_fkey"} {
+		t.Run("used by "+constraint, func(t *testing.T) {
+			m := &mockQuerier{
+				deleteYachtFn: func(context.Context, int64) error {
+					return &pgconn.PgError{Code: "23503", ConstraintName: constraint}
+				},
+			}
+			resp := yachtTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/yachts/1")
+			if resp.Code != http.StatusConflict {
+				t.Fatalf("got %d, want 409; body=%s", resp.Code, resp.Body)
+			}
+		})
+	}
 }
 
 func TestYachtHandler_Create_MemberForbidden(t *testing.T) {

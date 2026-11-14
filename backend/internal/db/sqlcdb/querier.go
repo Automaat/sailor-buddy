@@ -916,6 +916,15 @@ type Querier interface {
 	//  WHERE id = $1
 	//  FOR NO KEY UPDATE
 	LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error)
+	// Key-share-locks the trip's yacht. Trip completion takes it before the trip
+	// lock, in the same order as deleting the yacht (the yacht, then the trips
+	// foreign-key check), so the two cannot deadlock.
+	// No row when the trip has no yacht or either is gone.
+	//
+	//  SELECT y.id FROM yachts y
+	//  WHERE y.id = (SELECT t.yacht_id FROM trips t WHERE t.id = $1)
+	//  FOR KEY SHARE OF y
+	LockTripYacht(ctx context.Context, id int64) (int64, error)
 	// Serializes a profile save with a merge that moves the account's person
 	// link. Both lock the account first; the save's update then runs on a fresh
 	// snapshot and finds the person the merge kept. NO KEY keeps foreign-key

@@ -121,7 +121,11 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 			})
 		},
 		delete: func(ctx context.Context, _ crudScope, in *yachtIDParam) error {
-			return q.DeleteYacht(ctx, in.ID)
+			err := q.DeleteYacht(ctx, in.ID)
+			if isForeignKeyViolation(err, "trips_yacht_id_fkey") || isForeignKeyViolation(err, "voyages_yacht_id_fkey") {
+				return huma.Error409Conflict("yacht is still used by a trip or voyage")
+			}
+			return err
 		},
 		listOutput: func(in *pageParams, rows []sqlcdb.Yacht, total int64) *yachtListOutput {
 			return &yachtListOutput{Body: dto.NewPage(dto.YachtsFromDB(rows), total, in.Limit, in.Offset)}
