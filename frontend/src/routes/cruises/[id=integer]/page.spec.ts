@@ -275,7 +275,7 @@ describe('cruise page admin flows', () => {
 	});
 
 	it('toggles enrollment off and on and copies the link', async () => {
-		const writeText = vi.fn();
+		const writeText = vi.fn().mockResolvedValue(undefined);
 		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 		fn(generateCruiseEnrollToken).mockResolvedValue({ token: 'new' });
 		await renderPage();

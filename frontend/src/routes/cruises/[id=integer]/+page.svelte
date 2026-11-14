@@ -164,13 +164,13 @@
 		}
 	}
 
-	function copyEnrollLink() {
+	async function copyEnrollLink() {
 		if (!enrollToken) return;
-		navigator.clipboard
-			.writeText(`${window.location.origin}/enroll/${enrollToken}`)
-			.catch((err) => {
-				console.error('Failed to copy enrollment link:', err);
-			});
+		try {
+			await navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
+		} catch (err) {
+			console.error('Failed to copy enrollment link:', err);
+		}
 	}
 
 	async function setEnrollmentStatus(enrollmentId: number, status: EnrollStatus) {
