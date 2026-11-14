@@ -85,13 +85,21 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        id: image-build
         with:
           context: ${{ matrix.context }}
           push: true
+          pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.context }}
           cache-to: type=gha,mode=max,scope=${{ matrix.context }}
+
+      - uses: ./.github/actions/scan-image
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.image-build.outputs.digest }}
+          source: remote
+          name: ${{ matrix.context }}
 
   release:
     name: GitHub Release
@@ -120,11 +128,23 @@ jobs:
             echo "No changes recorded." > /tmp/release-notes.md
           fi
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: image-security-*
+          path: security-reports
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          ASSETS=()
+          for IMAGE in backend frontend; do
+            cp "security-reports/image-security-$IMAGE/trivy.json" "security-reports/$IMAGE-trivy.json"
+            cp "security-reports/image-security-$IMAGE/metadata.json" "security-reports/$IMAGE-security-metadata.json"
+            ASSETS+=("security-reports/$IMAGE-trivy.json" "security-reports/$IMAGE-security-metadata.json")
+          done
           gh release create "$RELEASE_VERSION" \
+            "${ASSETS[@]}" \
             --title "$RELEASE_VERSION" \
             --notes-file /tmp/release-notes.md

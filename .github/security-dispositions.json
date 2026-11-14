@@ -1,0 +1,213 @@
+{
+  "advisories": {
+    "GHSA-gcqx-w48m-w2h4": {
+      "owner": "Automaat",
+      "reviewed": "2026-11-14",
+      "review_before": "2026-12-14",
+      "evidence": "docs/security-scanning.md#reviewed-findings"
+    },
+    "GHSA-g3hv-75wg-m249": {
+      "owner": "Automaat",
+      "reviewed": "2026-11-14",
+      "review_before": "2026-12-14",
+      "evidence": "docs/security-scanning.md#reviewed-findings"
+    }
+  },
+  "npm_entries": {
+    "@sveltejs/vite-plugin-svelte": {
+      "scope": {
+        "severity": "low",
+        "isDirect": true,
+        "nodes": [
+          "node_modules/@sveltejs/vite-plugin-svelte"
+        ],
+        "effects": [],
+        "via": [
+          "deepmerge"
+        ]
+      },
+      "versions": {
+        "node_modules/@sveltejs/vite-plugin-svelte": "7.3.1"
+      },
+      "advisories": [
+        "GHSA-gcqx-w48m-w2h4"
+      ]
+    },
+    "@typescript-eslint/eslint-plugin": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/@typescript-eslint/eslint-plugin"
+        ],
+        "effects": [
+          "typescript-eslint"
+        ],
+        "via": [
+          "@typescript-eslint/type-utils",
+          "@typescript-eslint/utils"
+        ]
+      },
+      "versions": {
+        "node_modules/@typescript-eslint/eslint-plugin": "8.72.2"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    },
+    "@typescript-eslint/parser": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/@typescript-eslint/parser"
+        ],
+        "effects": [
+          "typescript-eslint"
+        ],
+        "via": [
+          "@typescript-eslint/typescript-estree"
+        ]
+      },
+      "versions": {
+        "node_modules/@typescript-eslint/parser": "8.72.2"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    },
+    "@typescript-eslint/type-utils": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/@typescript-eslint/type-utils"
+        ],
+        "effects": [
+          "@typescript-eslint/eslint-plugin"
+        ],
+        "via": [
+          "@typescript-eslint/typescript-estree",
+          "@typescript-eslint/utils"
+        ]
+      },
+      "versions": {
+        "node_modules/@typescript-eslint/type-utils": "8.72.2"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    },
+    "@typescript-eslint/typescript-estree": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/@typescript-eslint/typescript-estree"
+        ],
+        "effects": [
+          "@typescript-eslint/parser",
+          "@typescript-eslint/type-utils",
+          "@typescript-eslint/utils",
+          "typescript-eslint"
+        ],
+        "via": [
+          "minimatch"
+        ]
+      },
+      "versions": {
+        "node_modules/@typescript-eslint/typescript-estree": "8.72.2"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    },
+    "@typescript-eslint/utils": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/@typescript-eslint/utils"
+        ],
+        "effects": [
+          "@typescript-eslint/eslint-plugin",
+          "@typescript-eslint/type-utils",
+          "typescript-eslint"
+        ],
+        "via": [
+          "@typescript-eslint/typescript-estree"
+        ]
+      },
+      "versions": {
+        "node_modules/@typescript-eslint/utils": "8.72.2"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    },
+    "deepmerge": {
+      "scope": {
+        "severity": "low",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/deepmerge"
+        ],
+        "effects": [
+          "@sveltejs/vite-plugin-svelte"
+        ],
+        "via": [
+          "https://github.com/advisories/GHSA-gcqx-w48m-w2h4"
+        ]
+      },
+      "versions": {
+        "node_modules/deepmerge": "4.3.1"
+      },
+      "advisories": [
+        "GHSA-gcqx-w48m-w2h4"
+      ]
+    },
+    "minimatch": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": false,
+        "nodes": [
+          "node_modules/@typescript-eslint/typescript-estree/node_modules/minimatch"
+        ],
+        "effects": [
+          "@typescript-eslint/typescript-estree"
+        ],
+        "via": [
+          "https://github.com/advisories/GHSA-g3hv-75wg-m249"
+        ]
+      },
+      "versions": {
+        "node_modules/@typescript-eslint/typescript-estree/node_modules/minimatch": "10.2.6"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    },
+    "typescript-eslint": {
+      "scope": {
+        "severity": "moderate",
+        "isDirect": true,
+        "nodes": [
+          "node_modules/typescript-eslint"
+        ],
+        "effects": [],
+        "via": [
+          "@typescript-eslint/eslint-plugin",
+          "@typescript-eslint/parser",
+          "@typescript-eslint/typescript-estree",
+          "@typescript-eslint/utils"
+        ]
+      },
+      "versions": {
+        "node_modules/typescript-eslint": "8.72.2"
+      },
+      "advisories": [
+        "GHSA-g3hv-75wg-m249"
+      ]
+    }
+  }
+}

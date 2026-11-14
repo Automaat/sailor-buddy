@@ -1,0 +1,33 @@
+name: Scan immutable image
+description: Retain the complete OS/library report and block high or critical vulnerabilities.
+inputs:
+  image:
+    description: Immutable SHA-256 image reference
+    required: true
+  source:
+    description: docker for locally loaded images, remote for registry digests
+    required: true
+  name:
+    description: Artifact identifier
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+      with:
+        version: v0.76.2
+        cache: true
+    - name: Scan and apply image policy
+      shell: bash
+      env:
+        SCAN_IMAGE: ${{ inputs.image }}
+        SCAN_SOURCE: ${{ inputs.source }}
+        SCAN_NAME: ${{ inputs.name }}
+      run: python3 .github/scripts/security_scan.py image --image "$SCAN_IMAGE" --source "$SCAN_SOURCE" --output "security-reports/$SCAN_NAME"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      if: always()
+      with:
+        name: image-security-${{ inputs.name }}
+        path: security-reports/${{ inputs.name }}
+        if-no-files-found: error
+        retention-days: 90
