@@ -9,12 +9,16 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -227,6 +231,24 @@ func TestOpenUploadRoot_ChecksWritable(t *testing.T) {
 			dir := t.TempDir()
 			writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
 			writeUpload(t, dir, "7/images/a.png", "png")
+			outside := t.TempDir()
+			writeUpload(t, outside, "target.pdf", "target")
+			if err := syscall.Mkfifo(filepath.Join(dir, "7", "pipe"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			links := map[string]string{
+				uploadWriteProbe:               filepath.Join(outside, "target.pdf"),
+				"opinions/inside.pdf":          filepath.Join(dir, "opinions", "1_2.pdf"),
+				"opinions/outside.pdf":         filepath.Join(outside, "target.pdf"),
+				"7/images/outside-dir":         outside,
+				"7/images/dangling.png":        filepath.Join(outside, "missing.png"),
+				"opinions/" + uploadWriteProbe: filepath.Join(dir, "opinions", "1_2.pdf"),
+			}
+			for link, target := range links {
+				if err := os.Symlink(target, filepath.Join(dir, link)); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if tt.readOnly != "" {
 				target := filepath.Join(dir, tt.readOnly)
 				info, err := os.Stat(target)
@@ -259,13 +281,161 @@ func TestOpenUploadRoot_ChecksWritable(t *testing.T) {
 			if got, err := os.ReadFile(filepath.Join(dir, "opinions", "1_2.pdf")); err != nil || string(got) != "pdf" {
 				t.Fatalf("existing upload changed: %q, %v", got, err)
 			}
-			for _, d := range []string{".", "opinions", "7", "7/images"} {
-				if _, err := os.Stat(filepath.Join(dir, d, uploadWriteProbe)); !errors.Is(err, os.ErrNotExist) {
-					t.Errorf("write probe left in %s: %v", d, err)
+			if got, err := os.ReadFile(filepath.Join(outside, "target.pdf")); err != nil || string(got) != "target" {
+				t.Fatalf("symlink target changed: %q, %v", got, err)
+			}
+			for link, target := range links {
+				if got, err := os.Readlink(filepath.Join(dir, link)); err != nil || got != target {
+					t.Errorf("symlink %s = %q, %v; want %q", link, got, err, target)
 				}
+			}
+			assertNoWriteProbes(t, dir)
+		})
+	}
+}
+
+// assertNoWriteProbes fails when a probe file is left in any directory under
+// dir.
+func assertNoWriteProbes(t *testing.T, dir string) {
+	t.Helper()
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(d.Name(), uploadWriteProbe+"-") {
+			t.Errorf("write probe left: %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenUploadRoot_Concurrent(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	writeUpload(t, dir, "7/images/a.png", "png")
+	const workers, rounds = 8, 25
+	errs := make(chan error, workers*rounds)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Go(func() {
+			for range rounds {
+				root, err := OpenUploadRoot(dir)
+				if err != nil {
+					errs <- err
+					continue
+				}
+				_ = root.Close()
 			}
 		})
 	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("concurrent open: %v", err)
+	}
+	assertNoWriteProbes(t, dir)
+}
+
+func TestCheckUploadEntry_DeletedDuringWalk(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "gone/a.png", "png")
+	root := testUploadRoot(t, dir)
+	dirEntry := uploadDirEntry(t, root, ".", "gone")
+	fileEntry := uploadDirEntry(t, root, "gone", "a.png")
+	if err := os.RemoveAll(filepath.Join(dir, "gone")); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		path    string
+		d       fs.DirEntry
+		walkErr error
+		wantErr error
+	}{
+		{name: "deleted directory", path: "gone", d: dirEntry},
+		{name: "deleted file", path: "gone/a.png", d: fileEntry},
+		{name: "unreadable deleted directory", path: "gone", d: dirEntry, walkErr: fs.ErrNotExist},
+		{name: "permission error", path: "gone", d: dirEntry, walkErr: fs.ErrPermission, wantErr: fs.ErrPermission},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkUploadEntry(root, uploadWriteProbe+"-test", tt.path, tt.d, tt.walkErr)
+			if !errors.Is(err, tt.wantErr) || (tt.wantErr == nil && err != nil) {
+				t.Fatalf("checkUploadEntry = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestOpenUploadRoot_DirsDeletedDuringWalk(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	churn := filepath.Join(dir, "churn")
+	var stop atomic.Bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for !stop.Load() {
+			_ = os.MkdirAll(filepath.Join(churn, "sub"), 0o755)
+			_ = os.WriteFile(filepath.Join(churn, "sub", "a.png"), []byte("png"), 0o644)
+			_ = os.RemoveAll(churn)
+		}
+	}()
+	var failures []error
+	for range 2000 {
+		root, err := OpenUploadRoot(dir)
+		if err != nil {
+			failures = append(failures, err)
+			continue
+		}
+		_ = root.Close()
+	}
+	stop.Store(true)
+	<-done
+	const shown = 5
+	for i, err := range failures {
+		if i == shown {
+			t.Errorf("%d more failures", len(failures)-shown)
+			break
+		}
+		t.Errorf("open while directories are deleted: %v", err)
+	}
+}
+
+func TestCheckUploadEntry_ProbeNameTakenBySymlink(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+	const probeName = uploadWriteProbe + "-taken"
+	if err := os.Symlink(filepath.Join(dir, "opinions", "1_2.pdf"), filepath.Join(dir, "opinions", probeName)); err != nil {
+		t.Fatal(err)
+	}
+	root := testUploadRoot(t, dir)
+	err := checkUploadEntry(root, probeName, "opinions", uploadDirEntry(t, root, ".", "opinions"), nil)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("checkUploadEntry = %v, want %v", err, fs.ErrExist)
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "opinions", "1_2.pdf")); err != nil || string(got) != "pdf" {
+		t.Fatalf("symlink target changed: %q, %v", got, err)
+	}
+}
+
+// uploadDirEntry returns the entry called name in directory parent of root.
+func uploadDirEntry(t *testing.T, root *os.Root, parent, name string) fs.DirEntry {
+	t.Helper()
+	entries, err := fs.ReadDir(root.FS(), parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() == name {
+			return e
+		}
+	}
+	t.Fatalf("no entry %s in %s", name, parent)
+	return nil
 }
 
 func TestRemoveUploadedFiles(t *testing.T) {
