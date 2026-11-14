@@ -12,7 +12,7 @@
 		clearTripEnrollToken,
 		getTripSignUp
 	} from '#lib/api/routes.js';
-	import type { CompleteTripPayload } from '#lib/api/types.js';
+	import type { CompleteTripPayload, LegSignUp } from '#lib/api/types.js';
 	import { clearFailure, noteFailure, settle } from '#lib/api/errors.js';
 	import { goto } from '$app/navigation';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
@@ -74,6 +74,12 @@
 	// and is dropped.
 	function leftTrip(tripId: number) {
 		return tripId !== id;
+	}
+
+	// A sign-up reply names its trip; one for a trip the page has left is
+	// dropped.
+	function updateSignUp(next: LegSignUp) {
+		if (!leftTrip(next.trip_id)) signUp = next;
 	}
 
 	async function handleDelete() {
@@ -319,12 +325,16 @@
 					</p>
 				{/if}
 			</div>
-			<LegSignUpControl
-				{signUp}
-				legName={trip.name}
-				cancelled={trip.status === 'cancelled'}
-				onchange={(next) => (signUp = next)}
-			/>
+			<!-- Keyed on the trip so a link to another trip starts the control
+			afresh: no busy flag, alert or note draft from the previous trip. -->
+			{#key id}
+				<LegSignUpControl
+					{signUp}
+					legName={trip.name}
+					cancelled={trip.status === 'cancelled'}
+					onchange={updateSignUp}
+				/>
+			{/key}
 		</div>
 	{/if}
 

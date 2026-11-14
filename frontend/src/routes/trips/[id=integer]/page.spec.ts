@@ -32,7 +32,9 @@ import {
 	getTrip,
 	getTripSignUp,
 	listAssignableCrew,
-	listTripCrew
+	listTripCrew,
+	signUpForTrip,
+	updateTripSignUpNote
 } from '#lib/api/routes.js';
 import { ApiError } from '#lib/api/client.js';
 import TripDetailPage from './+page.svelte';
@@ -358,6 +360,59 @@ describe('trip page same-route navigation', () => {
 		expect(screen.queryByRole('heading', { name: 'Jacht A' })).not.toBeInTheDocument();
 		expect(screen.queryByText('Anulowany')).not.toBeInTheDocument();
 		confirmSpy.mockRestore();
+	});
+});
+
+describe('trip page same-route navigation: sign-up control', () => {
+	const pending = (tripId: number, note?: string) =>
+		({ id: tripId, trip_id: tripId, status: 'pending', payment_status: 'unpaid', note }) as never;
+
+	beforeEach(() => {
+		vi.mocked(getCruise).mockResolvedValue(makeCruise({ id: 1 }));
+		vi.mocked(getTrip).mockImplementation(async (id: number) =>
+			makeTrip({ id, name: id === 50 ? 'Jacht A' : 'Jacht B', status: 'planned' })
+		);
+	});
+
+	it('drops a sign-up reply and its busy flag after a link moved to another trip', async () => {
+		vi.mocked(getTripSignUp).mockImplementation(async (id: number) => ({ trip_id: id, open: true, accepted_count: 0 }));
+		let answer: (v: never) => void = () => {};
+		vi.mocked(signUpForTrip).mockReturnValue(new Promise((r) => (answer = r)));
+		const view = await renderPage();
+		const button = await screen.findByRole('button', { name: 'Zapisz się: Jacht A' });
+		await fireEvent.click(button);
+		expect(button).toBeDisabled();
+
+		await view.rerender({ data: await runLoad('51') });
+		expect(screen.getByRole('button', { name: 'Zapisz się: Jacht B' })).toBeEnabled();
+		answer({ enrollment: pending(50), waitlist_position: undefined } as never);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(screen.getByRole('heading', { name: 'Jacht B' })).toBeInTheDocument();
+		expect(screen.queryByTestId('sign-up-status')).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Zapisz się: Jacht B' })).toBeEnabled();
+	});
+
+	it('clears a sign-up alert and a note draft from the previous trip', async () => {
+		vi.mocked(getTripSignUp).mockImplementation(async (id: number) => ({
+			trip_id: id,
+			open: true,
+			accepted_count: 1,
+			enrollment: pending(id, id === 50 ? 'note A' : undefined)
+		}));
+		vi.mocked(updateTripSignUpNote).mockRejectedValue(new Error('notatka odrzucona'));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Edytuj notatkę' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz notatkę' }));
+		expect(await screen.findByText('notatka odrzucona')).toBeInTheDocument();
+
+		await view.rerender({ data: await runLoad('51') });
+
+		expect(screen.getByRole('heading', { name: 'Jacht B' })).toBeInTheDocument();
+		expect(screen.queryByText('notatka odrzucona')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Zapisz notatkę' })).not.toBeInTheDocument();
+		expect(screen.queryByDisplayValue('note A')).not.toBeInTheDocument();
 	});
 });
 

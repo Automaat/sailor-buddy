@@ -432,7 +432,11 @@
 
 	<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 		<h2 class="mb-3 font-semibold text-[var(--navy)]">Odwiedzone porty ({ports.length})</h2>
+		<!-- Keyed on the voyage so a link to another voyage starts the picker
+	afresh: no typed search, alert or busy flag from the previous voyage. -->
+	{#key id}
 		<PortPicker {ports} readonly={!canLog} onAdd={addPort} onRemove={removePort} onReorder={reorderPorts} />
+	{/key}
 	</div>
 
 	{#if canManageCrew}

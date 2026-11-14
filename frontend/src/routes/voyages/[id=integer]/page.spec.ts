@@ -302,6 +302,26 @@ describe('voyage page same-route navigation', () => {
 	});
 });
 
+describe('voyage page same-route navigation: port picker', () => {
+	it('clears a failed port add and the typed name from the previous voyage', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(getVoyage).mockImplementation(async (id: number) =>
+			makeVoyage({ id, name: id === 5 ? 'Rejs A' : 'Rejs B', captain_person_id: 70 })
+		);
+		vi.mocked(addVoyagePort).mockRejectedValue(new Error('500'));
+		const view = await renderPage();
+		await fireEvent.input(await screen.findByLabelText('Odwiedzone porty'), { target: { value: 'Hel' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj bez lokalizacji na mapie' }));
+		expect(await screen.findByText('Nie udało się dodać portu')).toBeInTheDocument();
+
+		await view.rerender({ data: await runLoad('6') });
+
+		expect(screen.getByRole('heading', { name: 'Rejs B' })).toBeInTheDocument();
+		expect(screen.queryByText('Nie udało się dodać portu')).not.toBeInTheDocument();
+		expect(screen.getByLabelText('Odwiedzone porty')).toHaveValue('');
+	});
+});
+
 describe('voyage page load', () => {
 	it('throws a 404 with the voyage copy for +error.svelte', async () => {
 		vi.mocked(getVoyage).mockRejectedValue(new ApiError(404, 'not found'));
