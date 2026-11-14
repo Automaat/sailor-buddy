@@ -130,6 +130,68 @@ func TestGeocode_CachesNormalizedQuery(t *testing.T) {
 	}
 }
 
+// TestGeocode_CoalescesConcurrentIdenticalQueries checks that identical
+// lookups arriving while the first is still upstream share its result even
+// when the upstream call outlasts the limiter interval.
+func TestGeocode_CoalescesConcurrentIdenticalQueries(t *testing.T) {
+	var hits atomic.Int64
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		<-release
+		_, _ = w.Write([]byte(splitBody))
+	}))
+	t.Cleanup(srv.Close)
+	h := &GeocodeHandler{
+		baseURL:    srv.URL,
+		httpClient: srv.Client(),
+		limiter:    rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
+		maxWait:    time.Minute,
+		cache:      newGeocodeCache(time.Hour, 10, time.Now),
+	}
+
+	queries := []string{"Split", "split ", " SPLIT"}
+	errs := make(chan error, len(queries))
+	var wg sync.WaitGroup
+	for _, q := range queries {
+		wg.Go(func() {
+			out, err := h.search(context.Background(), &geocodeInput{Query: q})
+			if err == nil && (len(out.Body) != 1 || out.Body[0].Name != "Split") {
+				err = errors.New("unexpected results")
+			}
+			errs <- err
+		})
+	}
+	// Hold the first upstream call well past the limiter interval so a
+	// follower that only re-checked the cache would fetch again.
+	time.Sleep(200 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("upstream hits = %d, want 1", got)
+	}
+}
+
+// TestGeocode_LookupSurvivesCallerCancel checks that a cancelled request
+// does not fail other callers sharing its lookup.
+func TestGeocode_LookupSurvivesCallerCancel(t *testing.T) {
+	h, hits := countingNominatim(t, http.StatusOK, splitBody, rate.NewLimiter(rate.Inf, 1))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := h.search(ctx, &geocodeInput{Query: "Split"}); err != nil {
+		t.Fatalf("search with cancelled caller: %v", err)
+	}
+	if got := hits.Load(); got != 1 {
+		t.Fatalf("upstream hits = %d, want 1", got)
+	}
+}
+
 // TestGeocode_CachesEmptyResults checks that a query with no matches is not
 // re-sent upstream either.
 func TestGeocode_CachesEmptyResults(t *testing.T) {

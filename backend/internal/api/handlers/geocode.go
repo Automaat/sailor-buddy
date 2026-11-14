@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/time/rate"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
@@ -31,15 +32,17 @@ const (
 )
 
 // GeocodeHandler proxies town-name lookups to an OpenStreetMap Nominatim
-// instance. Upstream calls share one rate limiter and responses are cached
-// by normalized query. The base URL, HTTP client, limiter and cache are
-// injectable so tests can stub the upstream service.
+// instance. Upstream calls share one rate limiter, responses are cached by
+// normalized query and concurrent identical lookups share one upstream call.
+// The base URL, HTTP client, limiter and cache are injectable so tests can
+// stub the upstream service.
 type GeocodeHandler struct {
 	baseURL    string
 	httpClient *http.Client
 	limiter    *rate.Limiter
 	maxWait    time.Duration
 	cache      *geocodeCache
+	inflight   singleflight.Group
 }
 
 func NewGeocodeHandler() *GeocodeHandler {
@@ -155,24 +158,39 @@ func (h *GeocodeHandler) search(ctx context.Context, in *geocodeInput) (*geocode
 		return &geocodeOutput{Body: cached}, nil
 	}
 
+	// Followers share the leader's lookup, so it must not die with the
+	// leader's request; maxWait and the client timeout still bound it.
+	lookupCtx := context.WithoutCancel(ctx)
+	v, err, _ := h.inflight.Do(key, func() (any, error) {
+		return h.lookup(lookupCtx, key, in.Query)
+	})
+	if err != nil {
+		return nil, err
+	}
+	results, _ := v.([]dto.GeocodeResult)
+	return &geocodeOutput{Body: results}, nil
+}
+
+// lookup waits for the rate limiter, then fetches and caches one query.
+func (h *GeocodeHandler) lookup(ctx context.Context, key, query string) ([]dto.GeocodeResult, error) {
+	// A lookup that finished just before this one joined the flight has
+	// already filled the cache.
+	if cached, ok := h.cache.get(key); ok {
+		return cached, nil
+	}
 	waitCtx, cancel := context.WithTimeout(ctx, h.maxWait)
 	err := h.limiter.Wait(waitCtx)
 	cancel()
 	if err != nil {
-		slog.Warn("geocode rate limited", "query", in.Query, "err", err)
+		slog.Warn("geocode rate limited", "query", query, "err", err)
 		return nil, huma.Error503ServiceUnavailable("geocoding service busy, try again")
 	}
-	// Another request may have filled the cache while this one waited.
-	if cached, ok := h.cache.get(key); ok {
-		return &geocodeOutput{Body: cached}, nil
-	}
-
-	results, err := h.fetch(ctx, in.Query)
+	results, err := h.fetch(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	h.cache.put(key, results)
-	return &geocodeOutput{Body: results}, nil
+	return results, nil
 }
 
 func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.GeocodeResult, error) {
