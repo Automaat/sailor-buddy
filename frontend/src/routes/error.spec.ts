@@ -35,6 +35,8 @@ describe('root error page', () => {
 		render(ErrorPage);
 
 		expect(screen.getByRole('heading', { name: 'Nie znaleziono' })).toBeInTheDocument();
+		expect(screen.queryByText('Not Found')).not.toBeInTheDocument();
+		expect(screen.getByText(/Nie znaleźliśmy tego, czego szukasz/)).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Wróć na start' })).toHaveAttribute('href', '/');
 	});
 

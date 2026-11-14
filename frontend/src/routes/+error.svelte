@@ -4,12 +4,13 @@
 </script>
 
 <!-- A page load function throws error(404, message, { title, backHref,
-backLabel }) when its record is missing (see found in #lib/api/load.ts);
-anything else is a failed load. -->
+backLabel }) when its record is missing (see found in #lib/api/load.ts).
+SvelteKit's own 404 for an unknown URL carries an English message and no
+title, so it gets NotFound's default copy. Anything else is a failed load. -->
 {#if page.status === 404}
 	<NotFound
 		title={page.error?.title}
-		message={page.error?.message}
+		message={page.error?.title ? page.error.message : undefined}
 		backHref={page.error?.backHref}
 		backLabel={page.error?.backLabel}
 	/>

@@ -61,8 +61,16 @@
 		enrollments.filter((e) => e.trip_id == null || !trips.some((t) => t.id === e.trip_id))
 	);
 
-	async function reloadEnrollments() {
-		enrollments = (await listCruiseEnrollments(id)) ?? [];
+	// A request started on one cruise may answer after a link has moved the
+	// page to another; its reply (or error) then belongs to a page the user
+	// has left and is dropped.
+	function leftCruise(cruiseId: number) {
+		return cruiseId !== id;
+	}
+
+	async function reloadEnrollments(cruiseId: number) {
+		const list = (await listCruiseEnrollments(cruiseId)) ?? [];
+		if (!leftCruise(cruiseId)) enrollments = list;
 	}
 
 	// Enrollment lists are admin-only, and auth.isAdmin turns true only once
@@ -73,6 +81,8 @@
 		enrollments = [];
 		legEnrollments = [];
 		adminLoadErrors = [];
+		deleteError = '';
+		enrollmentError = '';
 		if (!isAdmin) return;
 		let current = true;
 		const errors: string[] = [];
@@ -129,14 +139,15 @@
 	}
 
 	async function toggleEnrollment() {
+		const cruiseId = id;
 		togglingEnroll = true;
 		try {
 			if (enrollToken) {
-				await clearCruiseEnrollToken(id);
-				enrollToken = null;
+				await clearCruiseEnrollToken(cruiseId);
+				if (!leftCruise(cruiseId)) enrollToken = null;
 			} else {
-				const res = await generateCruiseEnrollToken(id);
-				enrollToken = res.token;
+				const res = await generateCruiseEnrollToken(cruiseId);
+				if (!leftCruise(cruiseId)) enrollToken = res.token;
 			}
 		} catch (err) {
 			console.error('Failed to toggle enrollment:', err);
@@ -151,31 +162,36 @@
 	}
 
 	async function setEnrollmentStatus(enrollmentId: number, status: EnrollStatus) {
+		const cruiseId = id;
 		enrollmentError = '';
 		try {
-			await updateCruiseEnrollmentStatus(id, enrollmentId, status);
+			await updateCruiseEnrollmentStatus(cruiseId, enrollmentId, status);
+			if (leftCruise(cruiseId)) return;
 			enrollments = enrollments.map((e) => (e.id === enrollmentId ? { ...e, status } : e));
 		} catch (err) {
-			enrollmentFailure(err, 'Nie udało się zmienić statusu.');
+			if (!leftCruise(cruiseId)) enrollmentFailure(err, 'Nie udało się zmienić statusu.');
 			console.error('Failed to set status:', err);
 		}
 	}
 
 	async function assignEnrollmentToTrip(enrollmentId: number, tripId: number | null) {
+		const cruiseId = id;
 		enrollmentError = '';
 		try {
-			await assignCruiseEnrollmentTrip(id, enrollmentId, tripId ?? undefined);
-			await reloadEnrollments();
+			await assignCruiseEnrollmentTrip(cruiseId, enrollmentId, tripId ?? undefined);
+			await reloadEnrollments(cruiseId);
 		} catch (err) {
-			enrollmentFailure(err, 'Nie udało się przypisać zapisu do etapu.');
+			if (!leftCruise(cruiseId)) enrollmentFailure(err, 'Nie udało się przypisać zapisu do etapu.');
 			console.error('Failed to assign to trip:', err);
 		}
 	}
 
 	async function deleteEnrollment(enrollmentId: number) {
 		if (!confirm('Usunąć ten zapis?')) return;
+		const cruiseId = id;
 		try {
-			await deleteCruiseEnrollment(id, enrollmentId);
+			await deleteCruiseEnrollment(cruiseId, enrollmentId);
+			if (leftCruise(cruiseId)) return;
 			enrollments = enrollments.filter((e) => e.id !== enrollmentId);
 		} catch (err) {
 			console.error('Failed to delete enrollment:', err);

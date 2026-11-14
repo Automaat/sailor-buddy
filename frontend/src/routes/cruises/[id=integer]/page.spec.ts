@@ -317,6 +317,56 @@ describe('cruise page admin flows', () => {
 	});
 });
 
+// SvelteKit reuses this component when a link goes from one cruise to
+// another; it rerenders with the new load data instead of remounting.
+describe('cruise page same-route navigation', () => {
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		mockGet.mockImplementation(async (id: number) =>
+			id === 7
+				? cruise({ name: 'Sycylia 2026', enroll_token: 'tokA' })
+				: cruise({ id, name: 'Chorwacja 2026', enroll_token: undefined })
+		);
+	});
+
+	it('swaps to the second cruise and resets per-cruise state', async () => {
+		fn(listCruiseTrips).mockImplementation(async (id: number) => (id === 7 ? [tripRow(50, 'Jacht A', 'planned')] : []));
+		fn(listCruiseEnrollments).mockImplementation(async (id: number) => (id === 7 ? [enrollmentRow] : []));
+		const view = await renderPage();
+		expect(await screen.findByText(enrollmentRow.user_name as string)).toBeInTheDocument();
+		const header = screen.getByRole('heading', { name: 'Sycylia 2026' }).closest('div')!.parentElement!;
+		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
+		expect(screen.getByText(/Nie można usunąć wydarzenia/)).toBeInTheDocument();
+
+		await view.rerender({ data: await runLoad('8') });
+
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		expect(screen.queryByText(/Nie można usunąć wydarzenia/)).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument();
+		await waitFor(() => expect(fn(listCruiseEnrollments)).toHaveBeenCalledWith(8));
+		expect(screen.queryByText(enrollmentRow.user_name as string)).not.toBeInTheDocument();
+	});
+
+	it('drops an enroll-token reply for the cruise the page has left', async () => {
+		mockGet.mockImplementation(async (id: number) =>
+			cruise({ id, name: id === 7 ? 'Sycylia 2026' : 'Chorwacja 2026', enroll_token: undefined })
+		);
+		let answer: (v: { token: string }) => void = () => {};
+		fn(generateCruiseEnrollToken).mockReturnValue(new Promise((r) => (answer = r)));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Włącz zapisy' }));
+
+		await view.rerender({ data: await runLoad('8') });
+		answer({ token: 'tokA' });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument());
+		expect(screen.queryByRole('button', { name: 'Wyłącz zapisy' })).not.toBeInTheDocument();
+	});
+});
+
 describe('cruise page load errors', () => {
 	it('throws a 404 with the cruise copy for +error.svelte', async () => {
 		mockGet.mockRejectedValue(new ApiError(404, 'not found'));

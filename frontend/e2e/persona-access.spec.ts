@@ -126,7 +126,9 @@ test.describe.serial('Single-club persona matrix', () => {
 	// cruise the link points at, not the one it was opened on.
 	test('admin: a link from one cruise to another shows the second', async ({ page }) => {
 		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
-		const otherName = `Other cruise ${RUN_ID}`;
+		// The name must not contain cruiseName: Playwright matches names as
+		// case-insensitive substrings, here and in the later cruise-list steps.
+		const otherName = `Second ${RUN_ID}`;
 		const other = (await apiRequest(idToken, 'POST', '/cruises', { name: otherName })) as {
 			id: number;
 		};
@@ -144,7 +146,7 @@ test.describe.serial('Single-club persona matrix', () => {
 
 		await page.waitForURL(`/cruises/${other.id}`);
 		await expect(page.getByRole('heading', { name: otherName })).toBeVisible();
-		await expect(page.getByRole('heading', { name: cruiseName })).toHaveCount(0);
+		await expect(page.getByRole('heading', { name: cruiseName, exact: true })).toHaveCount(0);
 	});
 
 	test('admin: creates a planned trip', async ({ page }) => {
