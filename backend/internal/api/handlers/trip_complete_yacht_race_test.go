@@ -65,9 +65,9 @@ func assertVoyageKeepsYacht(t *testing.T, conn *sql.DB, leg legFixture, voyage s
 // TestCompleteTrip_ConcurrentYachtDelete replays a trip completion racing the
 // delete of the trip's yacht. In either order completion commits and the
 // delete is refused cleanly, without a deadlock abort on either side. In the
-// second case a row lock on the trip stalls the delete's foreign-key check
-// while it already holds the yacht row, so completion starts against a
-// delete still in flight.
+// second case the deleting transaction locks the yacht row before completion
+// starts and deletes it only once completion waits, so the delete's
+// foreign-key check on trips runs while completion is still in flight.
 func TestCompleteTrip_ConcurrentYachtDelete(t *testing.T) {
 	t.Run("completion locks first", func(t *testing.T) {
 		conn := lockTestDB(t)
@@ -105,30 +105,28 @@ func TestCompleteTrip_ConcurrentYachtDelete(t *testing.T) {
 		yacht := seedLegYacht(t, conn, leg, "Ilmatar")
 		ctx := context.Background()
 
-		holder, err := conn.BeginTx(ctx, nil)
+		deleter, err := conn.BeginTx(ctx, nil)
 		if err != nil {
-			t.Fatalf("begin holder: %v", err)
+			t.Fatalf("begin delete: %v", err)
 		}
-		defer func() { _ = holder.Rollback() }()
-		if _, err := holder.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR UPDATE", leg.tripID); err != nil {
-			t.Fatalf("hold trip: %v", err)
+		defer func() { _ = deleter.Rollback() }()
+		if _, err := deleter.ExecContext(ctx, "SELECT id FROM yachts WHERE id = $1 FOR UPDATE", yacht); err != nil {
+			t.Fatalf("lock yacht: %v", err)
 		}
-
-		deleted := make(chan error, 1)
-		go func() { deleted <- sqlcdb.New(conn).DeleteYacht(ctx, yacht) }()
-		waitForLockWaiters(t, conn, 1)
 
 		completed := make(chan result[sqlcdb.Voyage], 1)
 		go func() {
 			v, err := completeTripTx(ctx, conn, leg.tripID, dto.CompleteTripBody{})
 			completed <- result[sqlcdb.Voyage]{v, err}
 		}()
-		waitForLockWaiters(t, conn, 2)
-		if err := holder.Commit(); err != nil {
-			t.Fatalf("release trip: %v", err)
+		waitForLockWaiters(t, conn, 1)
+
+		_, err = deleter.ExecContext(ctx, "DELETE FROM yachts WHERE id = $1", yacht)
+		assertYachtDeleteRefused(t, err)
+		if err := deleter.Rollback(); err != nil {
+			t.Fatalf("end delete: %v", err)
 		}
 
-		assertYachtDeleteRefused(t, <-deleted)
 		done := <-completed
 		if done.err != nil {
 			t.Fatalf("complete trip: %v", done.err)
