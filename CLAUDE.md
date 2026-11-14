@@ -47,6 +47,8 @@ cd backend && go run cmd/api/main.go  # run directly
 cd frontend && npm run dev            # dev server on :5173
 cd frontend && npm run build          # production build
 cd frontend && npx svelte-check       # type check
+cd frontend && npm run lint           # prettier --check + eslint
+cd frontend && npm run format         # prettier --write
 
 # sqlc (after editing queries/*.sql)
 cd backend && mise exec -- sqlc generate

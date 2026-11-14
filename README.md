@@ -33,3 +33,13 @@ mise run dev-frontend        # frontend on :5173
 cd backend && go test ./...                       # backend
 cd frontend && npm test && npx playwright test    # frontend unit + e2e
 ```
+
+## Lint and format
+
+```bash
+cd frontend && npm run lint     # prettier --check + eslint
+cd frontend && npm run format   # prettier --write
+```
+
+ESLint keeps `svelte/no-navigation-without-resolve` off: the app is served at
+the site root with no `paths.base`, so `resolve()` would not change any URL.
