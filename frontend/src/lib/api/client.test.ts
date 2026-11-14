@@ -151,6 +151,20 @@ describe('api.list pagination', () => {
 		expect(fetchMock.mock.calls[1][0]).toBe('/api/voyages?limit=100&offset=100');
 	});
 
+	it('returns each id once when pages overlap', async () => {
+		const first = Array.from({ length: 100 }, (_, i) => ({ id: i, v: 'first' }));
+		const second = Array.from({ length: 60 }, (_, i) => ({ id: 95 + i, v: 'second' }));
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse(page(first, true)))
+			.mockResolvedValueOnce(jsonResponse(page(second, false)));
+
+		const all = await api.list('/crew');
+
+		expect(all.map((p) => p.id)).toEqual(Array.from({ length: 155 }, (_, i) => i));
+		expect(all.find((p) => p.id === 97)).toEqual({ id: 97, v: 'first' });
+		expect(fetchMock.mock.calls[1][0]).toBe('/api/crew?limit=100&offset=100');
+	});
+
 	it('stops when a page returns no items even if has_more is true', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(page([], true)));
 		await expect(api.list('/trips')).resolves.toEqual([]);
