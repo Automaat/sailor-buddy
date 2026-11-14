@@ -5,6 +5,7 @@ go 1.27
 toolchain go1.27.4
 
 require (
+	cloud.google.com/go/auth v0.24.3
 	firebase.google.com/go/v4 v4.23.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/chromedp/chromedp v0.23.1
@@ -24,7 +25,6 @@ require (
 require (
 	cel.dev/expr v0.26.0 // indirect
 	cloud.google.com/go v0.123.0 // indirect
-	cloud.google.com/go/auth v0.24.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/firestore v1.29.2 // indirect

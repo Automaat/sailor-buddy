@@ -27,7 +27,7 @@ import (
 
 type securityVerifier map[string]*fbauth.Token
 
-func (v securityVerifier) VerifyIDToken(_ context.Context, token string) (*fbauth.Token, error) {
+func (v securityVerifier) VerifyIDTokenAndCheckRevoked(_ context.Context, token string) (*fbauth.Token, error) {
 	tokenValue, ok := v[token]
 	if !ok {
 		return nil, fmt.Errorf("invalid test token")

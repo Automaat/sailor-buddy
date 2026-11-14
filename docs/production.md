@@ -73,19 +73,36 @@ runtime server credentials must never use that prefix. See
    Application suspension blocks the next authenticated request, including
    profile and enrollment writes.
 2. In Firebase Authentication, disable the account to prevent further sign-in.
-   For compromised sessions, use a trusted operator Admin SDK to call
-   `RevokeRefreshTokens` for the exact UID. Do both for a compromised account.
+   For compromised sessions, run `/app/revoke-sessions` privately with an
+   operator ADC identity and the exact `SAILOR_REVOKE_FIREBASE_UID` and
+   `SAILOR_FIREBASE_PROJECT_ID`. Local use:
+   `cd backend && mise exec -- go run ./cmd/revoke-sessions`. Do both for a
+   compromised account. The operator needs `firebaseauth.users.get` and
+   `firebaseauth.users.update`; keep those credentials out of the running API.
 3. Keep a retained pre-action ID token and confirm a private API request returns
    401. A valid account must still succeed. Record this check for the actual
    deployment in #690.
 
 Every authenticated request uses `VerifyIDTokenAndCheckRevoked`, with a
-5-second deadline and no application cache of account status. The application
-adds **zero seconds** of acceptance after Firebase reports a disable/revocation:
-the next lookup rejects the retained token for members and admins. Firebase
-propagation time is external and must be measured at deployment; no fixed
-end-to-end propagation guarantee is claimed. Requests already authorized may
-finish. Application suspension provides the database-controlled cutoff.
+5-second deadline covering credential refresh and account lookup, and no
+application cache of account status. Disabling an account rejects the next
+lookup for members and admins. Application suspension provides the
+database-controlled cutoff; requests already authorized may finish.
+
+Firebase's SDK accepts a token issued in the same UTC second as a single
+`RevokeRefreshTokens` call. Use `revoke-sessions` to revoke, wait for the next
+second, revoke again, and confirm the later cutoff. This rejects tokens held
+when the command started without rejecting new accounts' first sign-in. Keep
+the operator clock synchronized. The extra boundary wait is less than one
+second; the whole command has a 15-second deadline and exits unsuccessfully
+unless Firebase confirms the later cutoff. Keep the account suspended/disabled
+on any failure. A standalone SDK revoke call has the same-second exception
+and is not this app's incident procedure.
+
+After the successful operator command's cutoff is visible to Firebase lookup,
+the application adds zero seconds of acceptance: the next request rejects a
+retained token. Firebase propagation time is external and must be measured at
+deployment; no fixed end-to-end propagation guarantee is claimed.
 
 Invalid, expired, revoked, disabled, or deleted sessions receive 401 and the
 client signs out. Provider/credential failures receive 503 without granting

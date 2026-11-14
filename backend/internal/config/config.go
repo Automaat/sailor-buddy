@@ -90,13 +90,13 @@ func (c *Config) Validate() error {
 
 func (c *Config) validateProduction() error {
 	if c.AuthEmulatorHost != "" {
-		return errors.New("Firebase emulator is forbidden in production")
+		return errors.New("emulator authentication is forbidden in production")
 	}
 	if c.FirebaseProjectID == "" || c.FirebaseProjectID == "sailor-buddy-dev" || strings.HasPrefix(c.FirebaseProjectID, "demo-") {
 		return errors.New("explicit production Firebase project ID is required")
 	}
 	if c.ChromeNoSandbox {
-		return errors.New("Chromium sandbox must remain enabled in production")
+		return errors.New("production requires the Chromium sandbox")
 	}
 	if len(c.CORSAllowedOrigins) == 0 {
 		return errors.New("production HTTPS origins are required")

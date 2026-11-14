@@ -4,6 +4,7 @@ server
 sailor-buddy
 seed-dev
 bootstrap-admin
+revoke-sessions
 
 .env
 .env.*

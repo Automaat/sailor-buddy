@@ -75,12 +75,14 @@ func TestProductionRetainedToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := unsigned + "." + base64.RawURLEncoding.EncodeToString(signature)
-	var disabled, revoked, unavailable, timeout atomic.Bool
+	var disabled, revoked, unavailable, timeout, oauthBlocked atomic.Bool
+	var operatorCutoff atomic.Int64
 	var lookups atomic.Int32
 	oldTransport := http.DefaultTransport
 	t.Cleanup(func() { http.DefaultTransport = oldTransport })
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
 			t.Errorf("read RPC: %v", err)
 			return
 		}
@@ -89,8 +91,35 @@ func TestProductionRetainedToken(t *testing.T) {
 		case r.Host == "www.googleapis.com" && strings.Contains(r.URL.Path, "securetoken"):
 			payload = map[string]string{"local-test": certPEM}
 		case r.Host == "oauth2.googleapis.com":
+			if oauthBlocked.Load() {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-time.After(2 * time.Second):
+				}
+			}
 			payload = map[string]any{"access_token": "synthetic-access-token", "expires_in": 3600, "token_type": "Bearer"}
+		case r.Host == "identitytoolkit.googleapis.com" && strings.HasSuffix(r.URL.Path, "/accounts:update"):
+			var update struct {
+				UID        string `json:"localId"`
+				ValidSince string `json:"validSince"`
+			}
+			if err := json.Unmarshal(body, &update); err != nil || update.UID != "test-user" {
+				t.Errorf("invalid revocation RPC: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			cutoff, err := strconv.ParseInt(update.ValidSince, 10, 64)
+			if err != nil {
+				t.Errorf("invalid cutoff: %v", err)
+				return
+			}
+			operatorCutoff.Store(cutoff)
+			payload = map[string]string{"localId": update.UID}
 		case r.Host == "identitytoolkit.googleapis.com" && strings.HasSuffix(r.URL.Path, "/accounts:lookup"):
+			if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+				t.Error("account lookup omitted runtime credentials")
+			}
 			lookups.Add(1)
 			if timeout.Load() {
 				<-r.Context().Done()
@@ -104,6 +133,9 @@ func TestProductionRetainedToken(t *testing.T) {
 			validSince := now - 60
 			if revoked.Load() {
 				validSince = now + 1
+			}
+			if operatorCutoff.Load() != 0 {
+				validSince = operatorCutoff.Load()
 			}
 			payload = map[string]any{"users": []any{map[string]any{"localId": "test-user", "disabled": disabled.Load(), "validSince": strconv.FormatInt(validSince, 10)}}}
 		default:
@@ -149,6 +181,7 @@ func TestProductionRetainedToken(t *testing.T) {
 			disabled.Store(false)
 			revoked.Store(false)
 			unavailable.Store(false)
+			operatorCutoff.Store(0)
 			request(http.StatusNoContent)
 			disabled.Store(true)
 			request(http.StatusUnauthorized)
@@ -160,11 +193,33 @@ func TestProductionRetainedToken(t *testing.T) {
 			request(http.StatusServiceUnavailable)
 			unavailable.Store(false)
 			request(http.StatusNoContent)
+			// The SDK accepts equality. The private operator command must
+			// advance the cutoff past all tokens held when revocation began.
+			operatorCutoff.Store(now)
+			request(http.StatusNoContent)
+			if err := auth.RevokeSessions(t.Context(), client, "test-user"); err != nil {
+				t.Fatal(err)
+			}
+			request(http.StatusUnauthorized)
 		})
 	}
 	if lookups.Load() < 11 {
 		t.Fatalf("lookups=%d; every verification must query Firebase", lookups.Load())
 	}
+	operatorCutoff.Store(0)
+	oauthBlocked.Store(true)
+	uncached, err := auth.NewFirebaseAuth(t.Context(), "sailor-club")
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentialCtx, credentialCancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	started := time.Now()
+	_, credentialErr := uncached.VerifyIDTokenAndCheckRevoked(credentialCtx, token)
+	credentialCancel()
+	if credentialErr == nil || time.Since(started) > 500*time.Millisecond {
+		t.Fatalf("credential timeout: elapsed=%v err=%v", time.Since(started), credentialErr)
+	}
+	oauthBlocked.Store(false)
 	timeout.Store(true)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -217,5 +272,14 @@ func TestFirebaseProductionEmulatorRejected(t *testing.T) {
 	t.Setenv("FIREBASE_AUTH_EMULATOR_HOST", "localhost:9099")
 	if client, err := auth.NewFirebaseAuth(context.Background(), "sailor-club"); client != nil || err == nil {
 		t.Fatal("production accepted Firebase emulator")
+	}
+}
+
+func TestFirebaseDevelopmentEmulatorNeedsNoCredentials(t *testing.T) {
+	t.Setenv("SAILOR_ENV", "development")
+	t.Setenv("FIREBASE_AUTH_EMULATOR_HOST", "localhost:9099")
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(t.TempDir(), "absent.json"))
+	if client, err := auth.NewFirebaseAuth(context.Background(), "sailor-buddy-dev"); client == nil || err != nil {
+		t.Fatalf("development emulator initialization: %v", err)
 	}
 }

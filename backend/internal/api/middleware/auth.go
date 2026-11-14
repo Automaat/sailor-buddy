@@ -74,11 +74,10 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 					next.ServeHTTP(w, r)
 					return
 				}
+				w.Header().Set("Content-Type", "application/json")
 				if invalidSession(err) {
-					w.Header().Set("Content-Type", "application/json")
 					http.Error(w, `{"detail":"invalid or expired session"}`, http.StatusUnauthorized)
 				} else {
-					w.Header().Set("Content-Type", "application/json")
 					http.Error(w, `{"detail":"authentication service unavailable; try again"}`, http.StatusServiceUnavailable)
 				}
 				return
