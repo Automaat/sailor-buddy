@@ -996,12 +996,15 @@ type Querier interface {
 	//  UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
 	//  WHERE crew_member_id = $2::BIGINT
 	MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinionsParams) (int64, error)
-	// PromoteIfNoAdmin makes the user admin only while the club has none; it
-	// reports 0 rows when an admin already exists.
+	// PromoteIfNoAdmin makes the user admin only while no other user is; it
+	// reports 0 rows when another admin exists. Ignoring the user itself lets
+	// a second concurrent first request of the promoted account report admin.
 	//
 	//  UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
 	//  WHERE users.id = $1
-	//    AND NOT EXISTS (SELECT 1 FROM users AS admins WHERE admins.role = 'admin')
+	//    AND NOT EXISTS (
+	//      SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+	//    )
 	PromoteIfNoAdmin(ctx context.Context, id int64) (int64, error)
 	// Takes a user's person off a trip's crew when the entry came from an
 	// accepted sign-up and the user no longer has any accepted sign-up for the

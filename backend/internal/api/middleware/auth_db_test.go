@@ -193,3 +193,50 @@ func TestAuth_ConcurrentFirstSignInsPromoteOneAdmin(t *testing.T) {
 		t.Fatalf("admins after concurrent first sign-ins = %d, want 1", n)
 	}
 }
+
+// TestAuth_ConcurrentFirstRequestsOfOneAccountBothAdmin replays a fresh
+// account sending two requests at once while the club has no admin. Both
+// pass the unlocked admin count; the one that waits for the first-admin
+// lock must still report admin once the other has promoted the account.
+func TestAuth_ConcurrentFirstRequestsOfOneAccountBothAdmin(t *testing.T) {
+	conn := freshDB(t)
+	ctx := context.Background()
+	q := sqlcdb.New(conn)
+	verifier := fakeVerifier{
+		"tok-a": {UID: "fb-a", Claims: map[string]any{"email": "a@example.dev", "name": "A"}},
+	}
+	handler := Auth(verifier, q, conn)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(GetUser(r.Context()).Role))
+	}))
+	signIn := func() string {
+		req := httptest.NewRequest(http.MethodGet, "/api/auth/me", http.NoBody)
+		req.Header.Set("Authorization", "Bearer tok-a")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return fmt.Sprintf("%d %s", rec.Code, rec.Body)
+	}
+	holder, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = holder.Rollback() }()
+	if err := sqlcdb.New(holder).LockFirstAdmin(ctx); err != nil {
+		t.Fatalf("hold first-admin lock: %v", err)
+	}
+	first := make(chan string, 1)
+	go func() { first <- signIn() }()
+	waitForLockWaiters(t, conn, 1)
+
+	second := make(chan string, 1)
+	go func() { second <- signIn() }()
+	waitForLockWaiters(t, conn, 2)
+	if err := holder.Rollback(); err != nil {
+		t.Fatalf("release first-admin lock: %v", err)
+	}
+
+	for _, got := range []string{<-first, <-second} {
+		if got != "200 admin" {
+			t.Fatalf("sign-in result = %q, want 200 admin for both requests", got)
+		}
+	}
+}

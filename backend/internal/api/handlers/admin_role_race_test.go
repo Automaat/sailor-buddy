@@ -196,3 +196,49 @@ func TestUpdateRole_DemoteLastAdminWhilePromoting(t *testing.T) {
 		t.Fatalf("admins = %v, want only %d", ids, member.ID)
 	}
 }
+
+// TestUpdateRole_DoesNotDeadlockWithAccountLink replays a role change of a
+// user whose row another transaction already holds, the way linkAccount
+// does before it writes decided_by, a foreign key to the acting admin. The
+// admin-set lock must not block that foreign-key check, or the two would
+// deadlock. The handler runs without deadlock retry, so a deadlock fails.
+func TestUpdateRole_DoesNotDeadlockWithAccountLink(t *testing.T) {
+	conn := lockTestDB(t)
+	ctx := context.Background()
+	q := sqlcdb.New(conn)
+	admin := seedAdmins(t, conn, 1)[0]
+	member, err := q.CreateUser(ctx, sqlcdb.CreateUserParams{Email: "member@example.com", Name: "Member"})
+	if err != nil {
+		t.Fatalf("create member: %v", err)
+	}
+
+	link, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin link: %v", err)
+	}
+	defer func() { _ = link.Rollback() }()
+	if _, err := sqlcdb.New(link).LockUserForUpdate(ctx, member.ID); err != nil {
+		t.Fatalf("lock member: %v", err)
+	}
+
+	h := &MembersHandler{q: q, runTx: sqlTxRunner(conn)}
+	promoted := make(chan error, 1)
+	go func() {
+		_, err := h.updateRole(userCtx(ctx), &updateMemberRoleInput{
+			UserID: member.ID, Body: dto.RoleBody{Role: "admin"},
+		})
+		promoted <- err
+	}()
+	waitForLockWaiters(t, conn, 1)
+
+	if _, err := link.ExecContext(ctx,
+		"INSERT INTO yachts (name, created_by) VALUES ('Link', $1)", admin); err != nil {
+		t.Fatalf("write row referencing the admin: %v", err)
+	}
+	if err := link.Commit(); err != nil {
+		t.Fatalf("commit link: %v", err)
+	}
+	if err := <-promoted; err != nil {
+		t.Fatalf("promote member: %v", err)
+	}
+}

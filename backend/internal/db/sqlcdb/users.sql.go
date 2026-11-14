@@ -336,15 +336,20 @@ func (q *Queries) LockFirstAdmin(ctx context.Context) error {
 const promoteIfNoAdmin = `-- name: PromoteIfNoAdmin :execrows
 UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
 WHERE users.id = $1
-  AND NOT EXISTS (SELECT 1 FROM users AS admins WHERE admins.role = 'admin')
+  AND NOT EXISTS (
+    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+  )
 `
 
-// PromoteIfNoAdmin makes the user admin only while the club has none; it
-// reports 0 rows when an admin already exists.
+// PromoteIfNoAdmin makes the user admin only while no other user is; it
+// reports 0 rows when another admin exists. Ignoring the user itself lets
+// a second concurrent first request of the promoted account report admin.
 //
 //	UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
 //	WHERE users.id = $1
-//	  AND NOT EXISTS (SELECT 1 FROM users AS admins WHERE admins.role = 'admin')
+//	  AND NOT EXISTS (
+//	    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+//	  )
 func (q *Queries) PromoteIfNoAdmin(ctx context.Context, id int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, promoteIfNoAdmin, id)
 	if err != nil {

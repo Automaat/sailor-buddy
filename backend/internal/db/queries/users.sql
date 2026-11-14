@@ -79,12 +79,15 @@ SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE;
 -- name: LockFirstAdmin :exec
 SELECT pg_advisory_xact_lock(hashtext('first-admin'));
 
--- PromoteIfNoAdmin makes the user admin only while the club has none; it
--- reports 0 rows when an admin already exists.
+-- PromoteIfNoAdmin makes the user admin only while no other user is; it
+-- reports 0 rows when another admin exists. Ignoring the user itself lets
+-- a second concurrent first request of the promoted account report admin.
 -- name: PromoteIfNoAdmin :execrows
 UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
 WHERE users.id = $1
-  AND NOT EXISTS (SELECT 1 FROM users AS admins WHERE admins.role = 'admin');
+  AND NOT EXISTS (
+    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+  );
 
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY role, name, id;
