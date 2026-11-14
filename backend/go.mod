@@ -5,7 +5,7 @@ go 1.27
 toolchain go1.27.4
 
 require (
-	cloud.google.com/go/auth v0.24.3
+	cloud.google.com/go/auth v0.24.4
 	firebase.google.com/go/v4 v4.23.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/chromedp/chromedp v0.23.1
