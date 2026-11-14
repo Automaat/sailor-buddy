@@ -19,8 +19,16 @@ export const load: PageLoad = async ({ params }) => {
 	});
 	const loadErrors: string[] = [];
 	const [trips, voyages, signUps, series] = await Promise.all([
-		settle(listCruiseTrips(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'planowane etapy')),
-		settle(listCruiseVoyages(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'zrealizowane etapy')),
+		settle(
+			listCruiseTrips(id).then((r) => r ?? []),
+			[],
+			noteFailure(loadErrors, 'planowane etapy')
+		),
+		settle(
+			listCruiseVoyages(id).then((r) => r ?? []),
+			[],
+			noteFailure(loadErrors, 'zrealizowane etapy')
+		),
 		settle(
 			listCruiseLegSignUps(id).then((r) => r ?? []),
 			[],

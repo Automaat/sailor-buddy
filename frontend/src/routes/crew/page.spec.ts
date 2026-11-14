@@ -155,7 +155,9 @@ describe('people page "To ja" requests', () => {
 		expect(row.textContent).toContain('Zofia Łęcka');
 		expect(linkRequests.pending).toBe(1);
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Zatwierdź: Ola Nowa → Zofia Łęcka' }));
+		await fireEvent.click(
+			screen.getByRole('button', { name: 'Zatwierdź: Ola Nowa → Zofia Łęcka' })
+		);
 
 		await waitFor(() => expect(approveMock).toHaveBeenCalledWith(9));
 		expect(await screen.findByText('Połączono konto Ola Nowa z osobą Zofia Łęcka.')).toBeTruthy();
@@ -168,7 +170,9 @@ describe('people page "To ja" requests', () => {
 		requestsMock.mockResolvedValueOnce([pendingRequest()]).mockResolvedValueOnce([]);
 		rejectMock.mockResolvedValue({ ...pendingRequest(), status: 'rejected' });
 		await renderPage();
-		await fireEvent.click(await screen.findByRole('button', { name: 'Odrzuć: Ola Nowa → Zofia Łęcka' }));
+		await fireEvent.click(
+			await screen.findByRole('button', { name: 'Odrzuć: Ola Nowa → Zofia Łęcka' })
+		);
 		await waitFor(() => expect(rejectMock).toHaveBeenCalledWith(9));
 		expect(approveMock).not.toHaveBeenCalled();
 	});
@@ -177,7 +181,9 @@ describe('people page "To ja" requests', () => {
 		requestsMock.mockResolvedValue([pendingRequest()]);
 		approveMock.mockRejectedValue(new ApiError(409, 'stale'));
 		await renderPage();
-		await fireEvent.click(await screen.findByRole('button', { name: 'Zatwierdź: Ola Nowa → Zofia Łęcka' }));
+		await fireEvent.click(
+			await screen.findByRole('button', { name: 'Zatwierdź: Ola Nowa → Zofia Łęcka' })
+		);
 		expect(await screen.findByText(/Prośba jest nieaktualna/)).toBeTruthy();
 	});
 

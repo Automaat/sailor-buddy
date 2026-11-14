@@ -22,6 +22,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 import {
 	getCrew,
 	updateCrew,
+	deleteCrew,
 	listCrew,
 	previewCrewMerge,
 	mergeCrew,
@@ -40,6 +41,7 @@ const updateMock = vi.mocked(updateCrew);
 const listMock = vi.mocked(listCrew);
 const previewMock = vi.mocked(previewCrewMerge);
 const mergeMock = vi.mocked(mergeCrew);
+const deleteMock = vi.mocked(deleteCrew);
 
 beforeEach(() => {
 	getMock.mockReset();
@@ -47,10 +49,15 @@ beforeEach(() => {
 	listMock.mockReset();
 	previewMock.mockReset();
 	mergeMock.mockReset();
+	deleteMock.mockReset().mockResolvedValue(undefined);
 	vi.mocked(goto).mockReset();
 });
 
-function mergeOf(person: CrewMember, duplicate: CrewMember, counts: Partial<PersonMerge> = {}): PersonMerge {
+function mergeOf(
+	person: CrewMember,
+	duplicate: CrewMember,
+	counts: Partial<PersonMerge> = {}
+): PersonMerge {
 	return {
 		person,
 		duplicate,
@@ -98,7 +105,9 @@ describe('person page', () => {
 	});
 
 	it('hides delete for a person with an account', async () => {
-		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Anna Nowak', has_account: true, user_id: 5 }));
+		getMock.mockResolvedValue(
+			makePerson({ id: 4, full_name: 'Anna Nowak', has_account: true, user_id: 5 })
+		);
 		render(PersonPage);
 		await screen.findByText('ma konto');
 		expect(screen.queryByRole('button', { name: 'Usuń' })).not.toBeInTheDocument();
@@ -108,7 +117,11 @@ describe('person page', () => {
 		const historical = makePerson({ id: 4, full_name: 'Ewa Maj', other_names: ['Ewa Kos'] });
 		const account = makePerson({ id: 9, full_name: 'Ewa Majówna', has_account: true, user_id: 3 });
 		getMock.mockResolvedValue(historical);
-		listMock.mockResolvedValue([historical, account, makePerson({ id: 7, full_name: 'Jan Kowalski' })]);
+		listMock.mockResolvedValue([
+			historical,
+			account,
+			makePerson({ id: 7, full_name: 'Jan Kowalski' })
+		]);
 		const kept = { ...account, other_names: ['Ewa Maj', 'Ewa Kos'] };
 		previewMock.mockResolvedValue(
 			mergeOf(kept, historical, {
@@ -124,7 +137,9 @@ describe('person page', () => {
 		render(PersonPage);
 		await screen.findByRole('heading', { name: 'Ewa Maj' });
 		await fireEvent.click(screen.getByRole('button', { name: 'Połącz z…' }));
-		await fireEvent.input(await screen.findByLabelText('Szukaj osoby'), { target: { value: 'majowna' } });
+		await fireEvent.input(await screen.findByLabelText('Szukaj osoby'), {
+			target: { value: 'majowna' }
+		});
 		expect(screen.queryByRole('button', { name: /Jan Kowalski/ })).not.toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('button', { name: /Ewa Majówna/ }));
 
@@ -168,7 +183,9 @@ describe('person page', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
 		await waitFor(() => expect(mergeMock).toHaveBeenCalledWith(4, 7));
 		expect(goto).not.toHaveBeenCalled();
-		expect(await screen.findByRole('status')).toHaveTextContent('Połączono: Ewa Maj (stara) → Ewa Maj.');
+		expect(await screen.findByRole('status')).toHaveTextContent(
+			'Połączono: Ewa Maj (stara) → Ewa Maj.'
+		);
 		expect(screen.getByText('Ewa Maj (stara)')).toBeInTheDocument();
 	});
 
@@ -194,7 +211,13 @@ describe('person page', () => {
 		const account = makePerson({ id: 9, full_name: 'Mira Member', has_account: true, user_id: 3 });
 		getMock.mockResolvedValue(current);
 		listMock.mockResolvedValue([current, account]);
-		const renamed = { ...current, full_name: 'Mira Member', other_names: ['Zofia Duplikat'], has_account: true, user_id: 3 };
+		const renamed = {
+			...current,
+			full_name: 'Mira Member',
+			other_names: ['Zofia Duplikat'],
+			has_account: true,
+			user_id: 3
+		};
 		previewMock.mockImplementation(async (keptID) =>
 			keptID === 4 ? mergeOf(renamed, account) : mergeOf(account, current)
 		);
@@ -210,7 +233,9 @@ describe('person page', () => {
 		const summary = await screen.findByTestId('merge-summary');
 		expect(summary).toHaveTextContent('Zostanie Zofia Duplikat, a Mira Member zostanie usunięta.');
 		expect(summary).toHaveTextContent('Imię i nazwisko po połączeniu (z konta): Mira Member');
-		expect(summary).toHaveTextContent('Konto osoby Mira Member zostanie przypisane do Zofia Duplikat.');
+		expect(summary).toHaveTextContent(
+			'Konto osoby Mira Member zostanie przypisane do Zofia Duplikat.'
+		);
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Połącz' }));
 		await waitFor(() => expect(mergeMock).toHaveBeenCalledWith(4, 9));
@@ -238,8 +263,12 @@ describe('person page', () => {
 describe('person page account link', () => {
 	it('links a person without an account to a chosen account', async () => {
 		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
-		vi.mocked(listMembers).mockResolvedValue([makeMember({ id: 8, name: 'Ewa Nowa', email: 'ewa@example.dev' })]);
-		vi.mocked(linkCrewAccount).mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Nowa', has_account: true, user_id: 8 }));
+		vi.mocked(listMembers).mockResolvedValue([
+			makeMember({ id: 8, name: 'Ewa Nowa', email: 'ewa@example.dev' })
+		]);
+		vi.mocked(linkCrewAccount).mockResolvedValue(
+			makePerson({ id: 4, full_name: 'Ewa Nowa', has_account: true, user_id: 8 })
+		);
 		render(PersonPage);
 		await fireEvent.click(await screen.findByRole('button', { name: 'Połącz z kontem' }));
 		const select = (await screen.findByLabelText('Konto')) as HTMLSelectElement;
@@ -266,7 +295,9 @@ describe('person page account link', () => {
 	});
 
 	it('unlinks the account after confirmation', async () => {
-		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj', has_account: true, user_id: 8 }));
+		getMock.mockResolvedValue(
+			makePerson({ id: 4, full_name: 'Ewa Maj', has_account: true, user_id: 8 })
+		);
 		vi.mocked(unlinkCrewAccount).mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
 		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 		render(PersonPage);
@@ -276,5 +307,34 @@ describe('person page account link', () => {
 		expect(await screen.findByText('Odłączono konto.')).toBeTruthy();
 		expect(screen.getByText('bez konta')).toBeTruthy();
 		confirmSpy.mockRestore();
+	});
+
+	it('deletes a person without an account after confirmation', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/crew'));
+		expect(deleteMock).toHaveBeenCalledWith(4);
+		confirmSpy.mockRestore();
+	});
+
+	it('shows the error and keeps the person when deletion fails', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		deleteMock.mockRejectedValue(new ApiError(409, 'person has crew assignments'));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć osoby: person has crew assignments'
+		);
+		expect(screen.getByRole('heading', { name: 'Ewa Maj' })).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'Usuń' })).toBeTruthy();
+		expect(goto).not.toHaveBeenCalled();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
 	});
 });

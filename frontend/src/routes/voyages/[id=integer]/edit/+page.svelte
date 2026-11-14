@@ -15,7 +15,9 @@
 	const cruises = $derived(data.cruises);
 	const loadErrors = $derived(data.loadErrors);
 	let yachts = $derived(data.yachts);
-	const legacyCaptainName = $derived(data.voyage.captain_person_id ? '' : (data.voyage.captain_name ?? ''));
+	const legacyCaptainName = $derived(
+		data.voyage.captain_person_id ? '' : (data.voyage.captain_name ?? '')
+	);
 
 	let form = $derived(perLoad(data, voyageForm(data.voyage)));
 	let submit = $derived(perLoad(data, { error: '', saving: false }));
@@ -23,7 +25,7 @@
 	// Editing voyages is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto(`/voyages/${id}`);
+			void goto(`/voyages/${id}`);
 		}
 	});
 
@@ -83,7 +85,7 @@
 				captain_name: form.captain_person_id ? undefined : legacyCaptainName || undefined
 			};
 			await updateVoyage(voyageId, payload);
-			if (run === submit) goto(`/voyages/${voyageId}`);
+			if (run === submit) void goto(`/voyages/${voyageId}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {
@@ -111,11 +113,22 @@
 				</div>
 				<div class="sm:col-span-2">
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
-					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="name"
+						type="text"
+						bind:value={form.name}
+						required
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="year" class="mb-1 block text-sm font-medium">Rok</label>
-					<input id="year" type="number" bind:value={form.year} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="year"
+						type="number"
+						bind:value={form.year}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="yacht" class="mb-1 block text-sm font-medium">Jacht</label>
@@ -123,23 +136,48 @@
 				</div>
 				<div>
 					<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
-					<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="embark"
+						type="date"
+						bind:value={form.embark_date}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
-					<input id="disembark" type="date" bind:value={form.disembark_date} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="disembark"
+						type="date"
+						bind:value={form.disembark_date}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-					<input id="start_port" type="text" bind:value={form.start_port} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="start_port"
+						type="text"
+						bind:value={form.start_port}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-					<input id="end_port" type="text" bind:value={form.end_port} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="end_port"
+						type="text"
+						bind:value={form.end_port}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-					<input id="countries" type="text" bind:value={form.countries} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="countries"
+						type="text"
+						bind:value={form.countries}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
@@ -152,27 +190,62 @@
 			<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
 				<div>
 					<label for="ht" class="mb-1 block text-sm font-medium">Godziny łącznie</label>
-					<input id="ht" type="number" step="0.1" bind:value={form.hours_total} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="ht"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_total}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="hs" class="mb-1 block text-sm font-medium">Godziny żagli</label>
-					<input id="hs" type="number" step="0.1" bind:value={form.hours_sail} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="hs"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_sail}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="he" class="mb-1 block text-sm font-medium">Godziny silnika</label>
-					<input id="he" type="number" step="0.1" bind:value={form.hours_engine} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="he"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_engine}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="h6" class="mb-1 block text-sm font-medium">Godziny &gt;6Bf</label>
-					<input id="h6" type="number" step="0.1" bind:value={form.hours_over_6bf} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="h6"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_over_6bf}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="mi" class="mb-1 block text-sm font-medium">Mile</label>
-					<input id="mi" type="number" step="0.1" bind:value={form.miles} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="mi"
+						type="number"
+						step="0.1"
+						bind:value={form.miles}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="da" class="mb-1 block text-sm font-medium">Dni</label>
-					<input id="da" type="number" bind:value={form.days} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="da"
+						type="number"
+						bind:value={form.days}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div class="flex items-end">
 					<label class="flex items-center gap-2 text-sm">
@@ -187,35 +260,71 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label for="ct" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
-					<input id="ct" type="number" step="0.01" bind:value={form.cost_total} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="ct"
+						type="number"
+						step="0.01"
+						bind:value={form.cost_total}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="cp" class="mb-1 block text-sm font-medium">Koszt na osobę</label>
-					<input id="cp" type="number" step="0.01" bind:value={form.cost_per_person} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="cp"
+						type="number"
+						step="0.01"
+						bind:value={form.cost_per_person}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 			</div>
 
 			<div>
 				<label for="desc" class="mb-1 block text-sm font-medium">Opis</label>
-				<textarea id="desc" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+				<textarea
+					id="desc"
+					bind:value={form.description}
+					rows="4"
+					class="w-full rounded-lg border px-3 py-2"></textarea>
 			</div>
 
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label for="track_url" class="mb-1 block text-sm font-medium">Link do śladu rejsu</label>
-					<input id="track_url" type="url" bind:value={form.track_url} placeholder="https://..." class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="track_url"
+						type="url"
+						bind:value={form.track_url}
+						placeholder="https://..."
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="voyage_card" class="mb-1 block text-sm font-medium">Karta rejsu</label>
-					<input id="voyage_card" type="text" bind:value={form.voyage_card} placeholder="np. u kapitana, w klubie" class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="voyage_card"
+						type="text"
+						bind:value={form.voyage_card}
+						placeholder="np. u kapitana, w klubie"
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 			</div>
 
 			<div class="flex gap-3">
-				<button type="submit" disabled={submit.saving} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+				<button
+					type="submit"
+					disabled={submit.saving}
+					class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+				>
 					{submit.saving ? 'Zapisywanie...' : 'Zapisz zmiany'}
 				</button>
-				<a href="/voyages/{id}" class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+				<a
+					href="/voyages/{id}"
+					class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50"
+					>Anuluj</a
+				>
 			</div>
 		</form>
 	{/key}

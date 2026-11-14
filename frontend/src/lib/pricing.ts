@@ -27,7 +27,8 @@ function amount(v: number | null | undefined): number | null {
 function tiers(p: Priced): { member: number | null; nonMember: number | null } {
 	const member = p.cost_per_person ?? null;
 	const nonMember = p.cost_per_person_non_member ?? null;
-	if (amount(member) === null && amount(nonMember) === null) return { member: null, nonMember: null };
+	if (amount(member) === null && amount(nonMember) === null)
+		return { member: null, nonMember: null };
 	return { member, nonMember };
 }
 

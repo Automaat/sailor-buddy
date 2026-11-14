@@ -91,7 +91,10 @@ describe('api write verbs', () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/api/trips',
-			expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'Nowy', cruise_id: 1 }) })
+			expect.objectContaining({
+				method: 'POST',
+				body: JSON.stringify({ name: 'Nowy', cruise_id: 1 })
+			})
 		);
 	});
 
@@ -105,11 +108,17 @@ describe('api write verbs', () => {
 
 	it('serializes the body and uses PUT', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}, { status: 204 }));
-		await api.put('/trips/{tripID}', { path: { tripID: 1 }, body: { name: 'Edytowany', cruise_id: 1 } });
+		await api.put('/trips/{tripID}', {
+			path: { tripID: 1 },
+			body: { name: 'Edytowany', cruise_id: 1 }
+		});
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/api/trips/1',
-			expect.objectContaining({ method: 'PUT', body: JSON.stringify({ name: 'Edytowany', cruise_id: 1 }) })
+			expect.objectContaining({
+				method: 'PUT',
+				body: JSON.stringify({ name: 'Edytowany', cruise_id: 1 })
+			})
 		);
 	});
 
@@ -140,6 +149,20 @@ describe('api.list pagination', () => {
 		expect(all).toHaveLength(130);
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(fetchMock.mock.calls[1][0]).toBe('/api/voyages?limit=100&offset=100');
+	});
+
+	it('returns each id once when pages overlap', async () => {
+		const first = Array.from({ length: 100 }, (_, i) => ({ id: i, v: 'first' }));
+		const second = Array.from({ length: 60 }, (_, i) => ({ id: 95 + i, v: 'second' }));
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse(page(first, true)))
+			.mockResolvedValueOnce(jsonResponse(page(second, false)));
+
+		const all = await api.list('/crew');
+
+		expect(all.map((p) => p.id)).toEqual(Array.from({ length: 155 }, (_, i) => i));
+		expect(all.find((p) => p.id === 97)).toEqual({ id: 97, v: 'first' });
+		expect(fetchMock.mock.calls[1][0]).toBe('/api/crew?limit=100&offset=100');
 	});
 
 	it('stops when a page returns no items even if has_more is true', async () => {

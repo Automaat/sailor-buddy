@@ -102,7 +102,8 @@ beforeEach(() => {
 	(listCruiseTrips as unknown as ReturnType<typeof vi.fn>).mockReset().mockResolvedValue([]);
 	(listCruiseVoyages as unknown as ReturnType<typeof vi.fn>).mockReset().mockResolvedValue([]);
 	(listCruiseEnrollments as unknown as ReturnType<typeof vi.fn>).mockReset().mockResolvedValue([]);
-	for (const f of [listCruiseTripEnrollments, listCruiseLegSignUps]) fn(f).mockReset().mockResolvedValue([]);
+	for (const f of [listCruiseTripEnrollments, listCruiseLegSignUps])
+		fn(f).mockReset().mockResolvedValue([]);
 	for (const f of [signUpForTrip, updateTripSignUpNote, withdrawTripSignUp]) fn(f).mockReset();
 });
 
@@ -189,18 +190,38 @@ describe('cruise page admin flows', () => {
 		mockAuth.isAdmin = true;
 		mockGet.mockResolvedValue(cruise({ series_id: 3, edition: '2026', enroll_token: 'tok' }));
 		fn(getSeries).mockResolvedValue({ id: 3, name: 'May I Sail' });
-		fn(listCruiseTrips).mockResolvedValue([tripRow(50, 'Jacht A', 'planned'), tripRow(51, 'Jacht B', 'cancelled')]);
+		fn(listCruiseTrips).mockResolvedValue([
+			tripRow(50, 'Jacht A', 'planned'),
+			tripRow(51, 'Jacht B', 'cancelled')
+		]);
 		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120.4, days: 7 }]);
-		fn(listCruiseEnrollments).mockResolvedValue([enrollmentRow, { ...enrollmentRow, id: 32, user_name: undefined, status: 'pending', note: undefined, trip_id: undefined, trip_name: undefined }]);
+		fn(listCruiseEnrollments).mockResolvedValue([
+			enrollmentRow,
+			{
+				...enrollmentRow,
+				id: 32,
+				user_name: undefined,
+				status: 'pending',
+				note: undefined,
+				trip_id: undefined,
+				trip_name: undefined
+			}
+		]);
 	});
 
 	it('renders series, enrollments, trips and voyages', async () => {
 		await renderPage();
 
-		expect(await screen.findByRole('link', { name: 'May I Sail' })).toHaveAttribute('href', '/series/3');
+		expect(await screen.findByRole('link', { name: 'May I Sail' })).toHaveAttribute(
+			'href',
+			'/series/3'
+		);
 		expect(screen.getByText('Ala Kowalska')).toBeInTheDocument();
 		expect(screen.getByText('Nieznany')).toBeInTheDocument();
-		expect(screen.getAllByRole('link', { name: '+48 600 100 200' })[0]).toHaveAttribute('href', 'tel:+48 600 100 200');
+		expect(screen.getAllByRole('link', { name: '+48 600 100 200' })[0]).toHaveAttribute(
+			'href',
+			'tel:+48 600 100 200'
+		);
 		expect(screen.getAllByText('Jachtowy Sternik Morski · JSM-7')).toHaveLength(2);
 		expect(screen.getByText('Mogę być kukiem')).toBeInTheDocument();
 		expect(screen.getByText('Planowane etapy (2)')).toBeInTheDocument();
@@ -215,17 +236,25 @@ describe('cruise page admin flows', () => {
 		await screen.findByText('Ala Kowalska');
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
-		await waitFor(() => expect(updateCruiseEnrollmentStatus).toHaveBeenCalledWith(7, 32, 'accepted'));
+		await waitFor(() =>
+			expect(updateCruiseEnrollmentStatus).toHaveBeenCalledWith(7, 32, 'accepted')
+		);
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Rezerwa' })[0]);
-		await waitFor(() => expect(updateCruiseEnrollmentStatus).toHaveBeenCalledWith(7, 31, 'waitlisted'));
+		await waitFor(() =>
+			expect(updateCruiseEnrollmentStatus).toHaveBeenCalledWith(7, 31, 'waitlisted')
+		);
 
 		const select = screen.getAllByRole('combobox')[0];
 		await fireEvent.change(select, { target: { value: '' } });
-		await waitFor(() => expect(assignCruiseEnrollmentTrip).toHaveBeenCalledWith(7, expect.any(Number), undefined));
+		await waitFor(() =>
+			expect(assignCruiseEnrollmentTrip).toHaveBeenCalledWith(7, expect.any(Number), undefined)
+		);
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Odrzuć' })[0]);
-		await waitFor(() => expect(updateCruiseEnrollmentStatus).toHaveBeenCalledWith(7, expect.any(Number), 'rejected'));
+		await waitFor(() =>
+			expect(updateCruiseEnrollmentStatus).toHaveBeenCalledWith(7, expect.any(Number), 'rejected')
+		);
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Usuń' }).at(-1)!);
 		await waitFor(() => expect(deleteCruiseEnrollment).toHaveBeenCalledWith(7, 32));
@@ -233,7 +262,9 @@ describe('cruise page admin flows', () => {
 	});
 
 	it('explains a full leg when accepting a cruise enrollment is refused', async () => {
-		fn(updateCruiseEnrollmentStatus).mockRejectedValueOnce(new ApiError(409, 'leg is full: all 1 places are taken'));
+		fn(updateCruiseEnrollmentStatus).mockRejectedValueOnce(
+			new ApiError(409, 'leg is full: all 1 places are taken')
+		);
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		await renderPage();
 		await screen.findByText('Ala Kowalska');
@@ -244,7 +275,7 @@ describe('cruise page admin flows', () => {
 	});
 
 	it('toggles enrollment off and on and copies the link', async () => {
-		const writeText = vi.fn();
+		const writeText = vi.fn().mockResolvedValue(undefined);
 		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 		fn(generateCruiseEnrollToken).mockResolvedValue({ token: 'new' });
 		await renderPage();
@@ -262,11 +293,15 @@ describe('cruise page admin flows', () => {
 	it('refuses to delete a cruise that still has legs', async () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		await renderPage();
-		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
+		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest(
+			'div'
+		)!.parentElement!;
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 
-		expect(await screen.findByRole('alert')).toHaveTextContent('Nie można usunąć wydarzenia, które ma etapy');
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie można usunąć wydarzenia, które ma etapy'
+		);
 		expect(deleteCruise).not.toHaveBeenCalled();
 	});
 
@@ -274,9 +309,13 @@ describe('cruise page admin flows', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
-		fn(deleteCruise).mockRejectedValue(new Error('cruise still has trips or voyages; delete them first'));
+		fn(deleteCruise).mockRejectedValue(
+			new Error('cruise still has trips or voyages; delete them first')
+		);
 		await renderPage();
-		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
+		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest(
+			'div'
+		)!.parentElement!;
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 
@@ -289,7 +328,9 @@ describe('cruise page admin flows', () => {
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
 		await renderPage();
-		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
+		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest(
+			'div'
+		)!.parentElement!;
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 		await waitFor(() => expect(deleteCruise).toHaveBeenCalledWith(7));
@@ -330,11 +371,17 @@ describe('cruise page same-route navigation', () => {
 	});
 
 	it('swaps to the second cruise and resets per-cruise state', async () => {
-		fn(listCruiseTrips).mockImplementation(async (id: number) => (id === 7 ? [tripRow(50, 'Jacht A', 'planned')] : []));
-		fn(listCruiseEnrollments).mockImplementation(async (id: number) => (id === 7 ? [enrollmentRow] : []));
+		fn(listCruiseTrips).mockImplementation(async (id: number) =>
+			id === 7 ? [tripRow(50, 'Jacht A', 'planned')] : []
+		);
+		fn(listCruiseEnrollments).mockImplementation(async (id: number) =>
+			id === 7 ? [enrollmentRow] : []
+		);
 		const view = await renderPage();
 		expect(await screen.findByText(enrollmentRow.user_name as string)).toBeInTheDocument();
-		const header = screen.getByRole('heading', { name: 'Sycylia 2026' }).closest('div')!.parentElement!;
+		const header = screen
+			.getByRole('heading', { name: 'Sycylia 2026' })
+			.closest('div')!.parentElement!;
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 		expect(screen.getByText(/Nie można usunąć wydarzenia/)).toBeInTheDocument();
 
@@ -362,7 +409,9 @@ describe('cruise page same-route navigation', () => {
 		await Promise.resolve();
 
 		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
-		await waitFor(() => expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument()
+		);
 		expect(screen.queryByRole('button', { name: 'Wyłącz zapisy' })).not.toBeInTheDocument();
 	});
 
@@ -515,7 +564,10 @@ describe('cruise page leg sign-up', () => {
 	});
 
 	it('shows each leg with captain, dates, price and free places', async () => {
-		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A'), legTrip(51, 'Jacht B', { max_crew: undefined })]);
+		fn(listCruiseTrips).mockResolvedValue([
+			legTrip(50, 'Jacht A'),
+			legTrip(51, 'Jacht B', { max_crew: undefined })
+		]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
 		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
@@ -540,14 +592,24 @@ describe('cruise page leg sign-up', () => {
 	it.each([
 		['open, not signed up', signUp(50), 'button', 'Zapisz się: Jacht A'],
 		['pending', signUp(50, { enrollment: pending(50) }), 'text', 'oczekujący'],
-		['accepted', signUp(50, { enrollment: pending(50, { status: 'accepted' }) }), 'text', 'zaakceptowany'],
+		[
+			'accepted',
+			signUp(50, { enrollment: pending(50, { status: 'accepted' }) }),
+			'text',
+			'zaakceptowany'
+		],
 		[
 			'waitlisted',
 			signUp(50, { enrollment: pending(50, { status: 'waitlisted' }), waitlist_position: 1 }),
 			'text',
 			'lista rezerwowa (1.)'
 		],
-		['rejected', signUp(50, { enrollment: pending(50, { status: 'rejected' }) }), 'text', 'odrzucony'],
+		[
+			'rejected',
+			signUp(50, { enrollment: pending(50, { status: 'rejected' }) }),
+			'text',
+			'odrzucony'
+		],
 		['closed', signUp(50, { open: false }), 'text', 'Zapisy zamknięte']
 	] as const)('shows the %s state', async (_name, state, kind, want) => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
@@ -574,12 +636,16 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
 		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
-		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
+		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent(
+			'Zapisy do 1 cze 2026'
+		);
 		expect(within(rowOf('Jacht B')).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
 	});
 
 	it('shows Zapisy zamknięte instead of the button once the deadline has passed', async () => {
-		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' })]);
+		fn(listCruiseTrips).mockResolvedValue([
+			legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' })
+		]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { open: false })]);
 		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
@@ -615,7 +681,9 @@ describe('cruise page leg sign-up', () => {
 		const row = rowOf('Jacht A');
 		expect(within(row).getByText('oczekujący')).toBeInTheDocument();
 		expect(within(row).getByTestId('cruise-level')).toHaveTextContent('zapis na wydarzenie');
-		expect(within(row).queryByRole('button', { name: /Zapisz się|Wycofaj|notatkę/ })).not.toBeInTheDocument();
+		expect(
+			within(row).queryByRole('button', { name: /Zapisz się|Wycofaj|notatkę/ })
+		).not.toBeInTheDocument();
 	});
 
 	it('shows a cancelled leg without a sign-up button', async () => {
@@ -632,7 +700,11 @@ describe('cruise page leg sign-up', () => {
 	it('signs up with one click and switches to pending without a reload', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50)]);
-		fn(signUpForTrip).mockResolvedValue({ trip_id: 50, result: 'created', enrollment: pending(50) });
+		fn(signUpForTrip).mockResolvedValue({
+			trip_id: 50,
+			result: 'created',
+			enrollment: pending(50)
+		});
 		await renderPage();
 		const row = await screen.findByTestId('leg-row');
 		expect(within(row).queryByRole('button', { name: 'Dodaj notatkę' })).not.toBeInTheDocument();
@@ -674,7 +746,9 @@ describe('cruise page leg sign-up', () => {
 		await fireEvent.click(within(row).getByRole('button', { name: 'Wycofaj zapis: Jacht A' }));
 
 		await waitFor(() => expect(withdrawTripSignUp).toHaveBeenCalledWith(50));
-		expect(await within(row).findByRole('button', { name: 'Zapisz się: Jacht A' })).toBeInTheDocument();
+		expect(
+			await within(row).findByRole('button', { name: 'Zapisz się: Jacht A' })
+		).toBeInTheDocument();
 		expect(within(row).queryByText('oczekujący')).not.toBeInTheDocument();
 	});
 
@@ -706,8 +780,22 @@ describe('cruise page admin sign-ups by leg', () => {
 		mockGet.mockResolvedValue(cruise({ enroll_token: 'tok' }));
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A'), legTrip(51, 'Jacht B')]);
 		fn(listCruiseTripEnrollments).mockResolvedValue([
-			{ ...pending(50), id: 1, user_id: 4, user_name: 'Ola Nowak', user_email: 'ola@example.com', note: 'koja dziobowa' },
-			{ ...pending(51), id: 2, user_id: 5, user_name: '', user_email: 'piotr@example.com', status: 'accepted' }
+			{
+				...pending(50),
+				id: 1,
+				user_id: 4,
+				user_name: 'Ola Nowak',
+				user_email: 'ola@example.com',
+				note: 'koja dziobowa'
+			},
+			{
+				...pending(51),
+				id: 2,
+				user_id: 5,
+				user_name: '',
+				user_email: 'piotr@example.com',
+				status: 'accepted'
+			}
 		]);
 		fn(listCruiseEnrollments).mockResolvedValue([
 			enrollmentRow,
@@ -720,8 +808,14 @@ describe('cruise page admin sign-ups by leg', () => {
 		const a = await screen.findByRole('region', { name: 'Zapisy: Jacht A' });
 		const b = screen.getByRole('region', { name: 'Zapisy: Jacht B' });
 
-		expect(within(a).getByRole('link', { name: 'Zarządzaj zapisami' })).toHaveAttribute('href', '/trips/50/enrollments');
-		expect(within(b).getByRole('link', { name: 'Zarządzaj zapisami' })).toHaveAttribute('href', '/trips/51/enrollments');
+		expect(within(a).getByRole('link', { name: 'Zarządzaj zapisami' })).toHaveAttribute(
+			'href',
+			'/trips/50/enrollments'
+		);
+		expect(within(b).getByRole('link', { name: 'Zarządzaj zapisami' })).toHaveAttribute(
+			'href',
+			'/trips/51/enrollments'
+		);
 		expect(within(a).getByText('Ola Nowak')).toBeInTheDocument();
 		expect(within(a).getByText('koja dziobowa')).toBeInTheDocument();
 		expect(within(a).getByText('Ala Kowalska')).toBeInTheDocument();
@@ -735,7 +829,9 @@ describe('cruise page admin sign-ups by leg', () => {
 		expect(within(none).getByText('Ewa Stara')).toBeInTheDocument();
 		expect(within(none).queryByText('Ala Kowalska')).not.toBeInTheDocument();
 
-		await fireEvent.change(within(none).getByRole('combobox', { name: 'Etap:' }), { target: { value: '51' } });
+		await fireEvent.change(within(none).getByRole('combobox', { name: 'Etap:' }), {
+			target: { value: '51' }
+		});
 		await waitFor(() => expect(assignCruiseEnrollmentTrip).toHaveBeenCalledWith(7, 33, 51));
 	});
 
@@ -767,7 +863,10 @@ describe('cruise page past planned legs', () => {
 		await screen.findByRole('link', { name: 'Jacht A' });
 
 		const overdue = rowOf('Jacht A');
-		expect(within(overdue).getByRole('link', { name: 'Jacht A' })).toHaveAttribute('href', '/trips/50');
+		expect(within(overdue).getByRole('link', { name: 'Jacht A' })).toHaveAttribute(
+			'href',
+			'/trips/50'
+		);
 		expect(within(overdue).getByText('Do rozliczenia')).toBeInTheDocument();
 		expect(within(overdue).getByText('Zrealizuj →')).toBeInTheDocument();
 

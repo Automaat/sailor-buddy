@@ -28,7 +28,8 @@ function parseDate(value: DateValue): Date | null {
 	if (!m) return null;
 	const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
 	const date = new Date(Date.UTC(y, mo - 1, d));
-	const exists = date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+	const exists =
+		date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
 	return exists ? date : null;
 }
 
@@ -69,7 +70,8 @@ export function formatDateRange(start: DateValue, end: DateValue): string {
 	if (from.getTime() === to.getTime()) return dateFormat.format(from);
 	const a = parts(from);
 	const b = parts(to);
-	if (a.year !== b.year || to < from) return `${dateFormat.format(from)} – ${dateFormat.format(to)}`;
+	if (a.year !== b.year || to < from)
+		return `${dateFormat.format(from)} – ${dateFormat.format(to)}`;
 	if (a.month !== b.month) return `${a.day} ${a.month} – ${dateFormat.format(to)}`;
 	return `${a.day}–${dateFormat.format(to)}`;
 }

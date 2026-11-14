@@ -13,7 +13,7 @@
 		getTripSignUp
 	} from '#lib/api/routes.js';
 	import type { CompleteTripPayload, LegSignUp } from '#lib/api/types.js';
-	import { clearFailure, noteFailure, settle } from '#lib/api/errors.js';
+	import { clearFailure, errorMessage, noteFailure, settle } from '#lib/api/errors.js';
 	import { goto } from '$app/navigation';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
 	import ActionsMenu from '#lib/components/ActionsMenu.svelte';
@@ -44,6 +44,7 @@
 	let assignCrewId = $state('');
 	let assignRole = $state('');
 	let showCompleteModal = $state(false);
+	let deleteError = $state('');
 	// The *For values name the trip whose request is in flight, so a button
 	// stays busy only on that trip, not on one a link moved to.
 	let assigningFor = $state<number | null>(null);
@@ -58,7 +59,9 @@
 	const canManageCrew = $derived(auth.isAdmin);
 	// Failures of admin-only sections join the banner only for admins. The
 	// check is reactive: on a direct load the role arrives after the load.
-	const visibleLoadErrors = $derived(canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors);
+	const visibleLoadErrors = $derived(
+		canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors
+	);
 
 	// Form input and the complete dialog belong to one trip: a link to
 	// another clears them.
@@ -67,6 +70,7 @@
 		assignCrewId = '';
 		assignRole = '';
 		showCompleteModal = false;
+		deleteError = '';
 	});
 
 	// A request started on one trip may answer after a link has moved the
@@ -86,9 +90,16 @@
 		if (!confirm('Usunąć ten rejs?')) return;
 		const tripId = id;
 		const cruiseId = trip.cruise_id;
-		await deleteTrip(tripId);
+		deleteError = '';
+		try {
+			await deleteTrip(tripId);
+		} catch (err) {
+			console.error('Failed to delete trip:', err);
+			if (!leftTrip(tripId)) deleteError = `Nie udało się usunąć etapu: ${errorMessage(err)}`;
+			return;
+		}
 		if (leftTrip(tripId)) return;
-		goto(`/cruises/${cruiseId}`);
+		void goto(`/cruises/${cruiseId}`);
 	}
 
 	async function toggleEnrollment() {
@@ -120,9 +131,13 @@
 		}
 	}
 
-	function copyEnrollLink() {
+	async function copyEnrollLink() {
 		if (!enrollToken) return;
-		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
+		try {
+			await navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`);
+		} catch (err) {
+			console.error('Failed to copy enrollment link:', err);
+		}
 	}
 
 	async function assignCrew(e: Event) {
@@ -188,7 +203,7 @@
 		const voyage = await completeTrip(tripId, payload);
 		if (leftTrip(tripId)) return;
 		showCompleteModal = false;
-		goto(`/voyages/${voyage.id}`);
+		void goto(`/voyages/${voyage.id}`);
 	}
 
 	const status = $derived(legStatus(trip, cruise));
@@ -213,7 +228,8 @@
 				{#if trip.start_port && trip.end_port}
 					{trip.start_port} → {trip.end_port}
 				{/if}
-				{#if trip.countries} · {trip.countries}{/if}
+				{#if trip.countries}
+					· {trip.countries}{/if}
 			</p>
 		</div>
 		{#if canManageCrew}
@@ -227,7 +243,10 @@
 						Zrealizuj
 					</button>
 				{/if}
-				<a href="/trips/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+				<a
+					href="/trips/{id}/edit"
+					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
+				>
 				<ActionsMenu>
 					{#snippet children(close)}
 						{#if trip.status === 'planned'}
@@ -237,7 +256,7 @@
 								disabled={completing}
 								onclick={() => {
 									close();
-									handleCancel();
+									void handleCancel();
 								}}
 								class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
 							>
@@ -249,7 +268,7 @@
 							role="menuitem"
 							onclick={() => {
 								close();
-								handleDelete();
+								void handleDelete();
 							}}
 							class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
 						>
@@ -261,9 +280,19 @@
 		{/if}
 	</div>
 
+	{#if deleteError}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
+	{/if}
+
 	{#if canManageCrew && status === 'overdue'}
-		<div role="status" class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ocean)]/30 bg-[var(--ocean-tint)] p-4 text-sm text-[var(--navy)]">
-			<p>Rejs się zakończył, ale nadal czeka na rozliczenie. Zrealizuj go, aby wpisać przebieg do dziennika.</p>
+		<div
+			role="status"
+			class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ocean)]/30 bg-[var(--ocean-tint)] p-4 text-sm text-[var(--navy)]"
+		>
+			<p>
+				Rejs się zakończył, ale nadal czeka na rozliczenie. Zrealizuj go, aby wpisać przebieg do
+				dziennika.
+			</p>
 			<button
 				onclick={() => (showCompleteModal = true)}
 				disabled={completing}
@@ -313,7 +342,10 @@
 	{/if}
 
 	{#if signUp}
-		<div class="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-6 shadow-sm" data-testid="my-sign-up">
+		<div
+			class="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-6 shadow-sm"
+			data-testid="my-sign-up"
+		>
 			<div>
 				<h2 class="font-semibold text-[var(--navy)]">Twój zapis</h2>
 				{#if places && trip.status !== 'cancelled'}
@@ -352,11 +384,17 @@
 					{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
 				</button>
 				{#if enrollToken}
-					<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+					<button
+						onclick={copyEnrollLink}
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+					>
 						Kopiuj link
 					</button>
 				{/if}
-				<a href="/trips/{id}/enrollments" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+				<a
+					href="/trips/{id}/enrollments"
+					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+				>
 					Zarządzaj zapisami
 				</a>
 			</div>
@@ -373,16 +411,26 @@
 				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
 					<div class="min-w-0 max-w-full">
 						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="assign-crew" bind:value={assignCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
+						<select
+							id="assign-crew"
+							bind:value={assignCrewId}
+							class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
+						>
 							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member}
+							{#each allCrewMembers as member (member.id)}
 								<option value={member.id}>{member.full_name}</option>
 							{/each}
 						</select>
 					</div>
 					<div>
 						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
-						<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
+						<input
+							id="assign-role"
+							type="text"
+							bind:value={assignRole}
+							placeholder="np. Sternik"
+							class="rounded-lg border px-3 py-1.5 text-sm"
+						/>
 					</div>
 					<button
 						type="submit"
@@ -398,16 +446,21 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each crew as member}
+					{#each crew as member (member.id)}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{member.full_name}</span>
-								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+								<span
+									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+								>
 									{member.role}
 								</span>
 							</div>
 							{#if trip.status === 'planned'}
-								<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
+								<button
+									onclick={() => removeCrew(member.id)}
+									class="text-sm text-red-500 hover:underline"
+								>
 									Usuń
 								</button>
 							{/if}

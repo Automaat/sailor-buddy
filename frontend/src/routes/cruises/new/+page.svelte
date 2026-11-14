@@ -13,7 +13,7 @@
 
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/cruises');
+			void goto('/cruises');
 		}
 	});
 
@@ -52,7 +52,7 @@
 				included: parseList(included),
 				not_included: parseList(notIncluded)
 			});
-			goto(`/cruises/${cruise.id}`);
+			void goto(`/cruises/${cruise.id}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się utworzyć wydarzenia';
 		} finally {
@@ -72,7 +72,13 @@
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			<div class="sm:col-span-2">
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa wydarzenia *</label>
-				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="name"
+					type="text"
+					bind:value={form.name}
+					required
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div class="sm:col-span-2">
 				<label for="kind" class="mb-1 block text-sm font-medium">Rodzaj rejsu</label>
@@ -85,27 +91,60 @@
 			<CruiseSeriesFields bind:seriesId={form.series_id} bind:edition={form.edition} />
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
-				<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="embark"
+					type="date"
+					bind:value={form.embark_date}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div>
 				<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
-				<input id="disembark" type="date" bind:value={form.disembark_date} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="disembark"
+					type="date"
+					bind:value={form.disembark_date}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div>
 				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-				<input id="start_port" type="text" bind:value={form.start_port} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="start_port"
+					type="text"
+					bind:value={form.start_port}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div>
 				<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-				<input id="end_port" type="text" bind:value={form.end_port} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="end_port"
+					type="text"
+					bind:value={form.end_port}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-				<input id="countries" type="text" bind:value={form.countries} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="countries"
+					type="text"
+					bind:value={form.countries}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div>
-				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. liczba uczestników</label>
-				<input id="max_crew" type="number" bind:value={form.max_crew} min="0" class="w-full rounded-lg border px-3 py-2" placeholder="0 = bez limitu" />
+				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. liczba uczestników</label
+				>
+				<input
+					id="max_crew"
+					type="number"
+					bind:value={form.max_crew}
+					min="0"
+					class="w-full rounded-lg border px-3 py-2"
+					placeholder="0 = bez limitu"
+				/>
 			</div>
 			<PriceFields bind:price bind:included bind:notIncluded />
 			<CruiseLogisticsFields
@@ -117,14 +156,26 @@
 
 		<div>
 			<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
-			<textarea id="description" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+			<textarea
+				id="description"
+				bind:value={form.description}
+				rows="4"
+				class="w-full rounded-lg border px-3 py-2"></textarea>
 		</div>
 
 		<div class="flex gap-3">
-			<button type="submit" disabled={loading} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+			<button
+				type="submit"
+				disabled={loading}
+				class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
 				{loading ? 'Tworzenie...' : 'Utwórz wydarzenie'}
 			</button>
-			<a href="/cruises" class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+			<a
+				href="/cruises"
+				class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50"
+				>Anuluj</a
+			>
 		</div>
 	</form>
 </div>

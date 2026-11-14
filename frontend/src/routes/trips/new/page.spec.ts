@@ -8,7 +8,12 @@ const authState = vi.hoisted(() => ({
 	user: { id: 1, role: 'admin', is_captain: false, person_id: undefined as number | undefined }
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: authState }));
-vi.mock('#lib/api/routes.js', () => ({ listCruises: vi.fn(), createTrip: vi.fn(), listMembers: vi.fn(), listCrew: vi.fn() }));
+vi.mock('#lib/api/routes.js', () => ({
+	listCruises: vi.fn(),
+	createTrip: vi.fn(),
+	listMembers: vi.fn(),
+	listCrew: vi.fn()
+}));
 
 import { listCruises, createTrip, listMembers, listCrew } from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
@@ -32,17 +37,23 @@ beforeEach(() => {
 	authState.user = { id: 1, role: 'admin', is_captain: false, person_id: undefined };
 	fn(listMembers).mockResolvedValue([]);
 	fn(listCrew).mockResolvedValue([]);
-	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025', start_port: 'Turku' })]);
+	fn(listCruises).mockResolvedValue([
+		makeCruise({ id: 13, name: 'NNE 2025', start_port: 'Turku' })
+	]);
 	fn(createTrip).mockResolvedValue(makeTrip({ id: 77 }));
 });
 
 describe('new trip page', () => {
 	it('refuses to submit without a cruise', async () => {
 		await renderPage();
-		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
+		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Etap 1' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
 
-		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(
+			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
+		).toBeInTheDocument();
 		expect(createTrip).not.toHaveBeenCalled();
 	});
 
@@ -63,7 +74,9 @@ describe('new trip page', () => {
 describe('new trip page captain', () => {
 	it("preselects a captain's own person as the leg captain", async () => {
 		authState.user = { id: 1, role: 'admin', is_captain: true, person_id: 40 };
-		fn(listCrew).mockResolvedValue([makePerson({ id: 40, full_name: 'Kasia Admin', user_id: 1, has_account: true })]);
+		fn(listCrew).mockResolvedValue([
+			makePerson({ id: 40, full_name: 'Kasia Admin', user_id: 1, has_account: true })
+		]);
 		await renderPage('http://localhost/trips/new?cruise_id=13');
 		await screen.findByRole('option', { name: 'Kasia Admin' });
 		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
@@ -78,14 +91,30 @@ describe('new trip page captain', () => {
 describe('new trip page event switch', () => {
 	it('replaces untouched prefilled fields but keeps edited ones', async () => {
 		fn(listCruises).mockResolvedValue([
-			makeCruise({ id: 13, name: 'NNE', start_port: 'Turku', end_port: 'Vaasa', cost_per_person: 900 }),
-			makeCruise({ id: 14, name: 'WRM', start_port: 'Giżycko', end_port: 'Mikołajki', cost_per_person: 870 })
+			makeCruise({
+				id: 13,
+				name: 'NNE',
+				start_port: 'Turku',
+				end_port: 'Vaasa',
+				cost_per_person: 900
+			}),
+			makeCruise({
+				id: 14,
+				name: 'WRM',
+				start_port: 'Giżycko',
+				end_port: 'Mikołajki',
+				cost_per_person: 870
+			})
 		]);
 		await renderPage('http://localhost/trips/new?cruise_id=13');
 		await waitFor(() => expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Turku'));
-		await fireEvent.input(screen.getByLabelText('Port docelowy'), { target: { value: 'Sztokholm' } });
+		await fireEvent.input(screen.getByLabelText('Port docelowy'), {
+			target: { value: 'Sztokholm' }
+		});
 
-		await fireEvent.change(screen.getByLabelText('Wydarzenie klubu *'), { target: { value: '14' } });
+		await fireEvent.change(screen.getByLabelText('Wydarzenie klubu *'), {
+			target: { value: '14' }
+		});
 
 		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Giżycko');
 		expect(screen.getByLabelText('Port docelowy')).toHaveValue('Sztokholm');
@@ -112,9 +141,12 @@ describe('new trip page load', () => {
 		expect(data.loadErrors).toEqual([]);
 	});
 
-	it.each(['', '?cruise_id=abc', '?cruise_id=-3', '?cruise_id=1.5'])('preselects no event for "%s"', async (query) => {
-		expect((await runLoad(`http://localhost/trips/new${query}`)).cruiseId).toBe(0);
-	});
+	it.each(['', '?cruise_id=abc', '?cruise_id=-3', '?cruise_id=1.5'])(
+		'preselects no event for "%s"',
+		async (query) => {
+			expect((await runLoad(`http://localhost/trips/new${query}`)).cruiseId).toBe(0);
+		}
+	);
 
 	it('names a failed event list instead of showing no events', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -148,15 +180,19 @@ describe('new trip page same-route navigation', () => {
 		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/cruises/14');
 	});
 
-	it('clears the first draft\'s error', async () => {
+	it("clears the first draft's error", async () => {
 		const view = await renderPage();
 		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
-		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(
+			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
+		).toBeInTheDocument();
 
 		await view.rerender({ data: await runLoad('http://localhost/trips/new?cruise_id=14') });
 
-		expect(screen.queryByText('Wybierz wydarzenie, do którego należy rejs')).not.toBeInTheDocument();
+		expect(
+			screen.queryByText('Wybierz wydarzenie, do którego należy rejs')
+		).not.toBeInTheDocument();
 	});
 
 	it('drops a create reply for the draft the page has left', async () => {
@@ -177,7 +213,9 @@ describe('new trip page same-route navigation', () => {
 
 	it("preselects a captain's own person again in the new draft", async () => {
 		authState.user = { id: 1, role: 'admin', is_captain: true, person_id: 40 };
-		fn(listCrew).mockResolvedValue([makePerson({ id: 40, full_name: 'Kasia Admin', user_id: 1, has_account: true })]);
+		fn(listCrew).mockResolvedValue([
+			makePerson({ id: 40, full_name: 'Kasia Admin', user_id: 1, has_account: true })
+		]);
 		const view = await renderPage('http://localhost/trips/new?cruise_id=13');
 		await screen.findByRole('option', { name: 'Kasia Admin' });
 		await fireEvent.change(screen.getByLabelText('Kapitan'), { target: { value: '0' } });

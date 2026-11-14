@@ -61,10 +61,9 @@ type JsonBody<O> = O extends { requestBody?: infer RB }
 
 // Response collapses the JSON success bodies (200/201) and a 204 to `void`.
 type OpResponse<O> = O extends { responses: infer R }
-	?
-			| (R extends { 200: { content: { 'application/json': infer T } } } ? T : never)
-			| (R extends { 201: { content: { 'application/json': infer T } } } ? T : never)
-			| (R extends { 204: unknown } ? void : never)
+	? | (R extends { 200: { content: { 'application/json': infer T } } } ? T : never)
+		| (R extends { 201: { content: { 'application/json': infer T } } } ? T : never)
+		| (R extends { 204: unknown } ? void : never)
 	: never;
 
 // RequestOpts is the per-call argument: a key is required when the operation
@@ -76,22 +75,26 @@ type RequestOpts<O> = (PathParams<O> extends undefined
 	([JsonBody<O>] extends [never] ? { body?: undefined } : { body: JsonBody<O> });
 
 // OptsArg makes the opts argument optional only when nothing in it is required.
-type OptsArg<O> = Record<string, never> extends RequestOpts<O>
-	? [opts?: RequestOpts<O>]
-	: [opts: RequestOpts<O>];
+type OptsArg<O> =
+	Record<string, never> extends RequestOpts<O> ? [opts?: RequestOpts<O>] : [opts: RequestOpts<O>];
 
-// Page-shaped GET responses, the only ones `list` accepts.
+// Page-shaped GET responses, the only ones `list` accepts. Items must carry
+// an id: `listAll` drops repeats by it.
 type ListPath = {
-	[P in GetPath]: OpResponse<Op<P, 'get'>> extends { items: unknown; has_more: boolean }
+	[P in GetPath]: OpResponse<Op<P, 'get'>> extends {
+		items: readonly { id: unknown }[] | null;
+		has_more: boolean;
+	}
 		? P
 		: never;
 }[GetPath];
 
-type PageItem<O> = OpResponse<O> extends { items: infer I }
-	? NonNullable<I> extends readonly (infer E)[]
-		? E
-		: never
-	: never;
+type PageItem<O> =
+	OpResponse<O> extends { items: infer I }
+		? NonNullable<I> extends readonly (infer E)[]
+			? E
+			: never
+		: never;
 
 interface CallOpts {
 	path?: Record<string, string | number>;
@@ -160,8 +163,13 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
 // listAll walks every page of a paginated endpoint and returns the flattened
 // items, so callers without pagination UI keep getting a full array.
-async function listAll<T>(template: string, opts?: CallOpts): Promise<T[]> {
+async function listAll<T extends { id: unknown }>(template: string, opts?: CallOpts): Promise<T[]> {
+	// Offset paging is no snapshot: a row added or removed between two pages
+	// shifts the window, so a later page can repeat an earlier item. Callers
+	// key {#each} on id and Svelte throws on duplicate keys, so keep the first.
+	// EXC:FILE011:documents-a-non-obvious-invariant
 	const out: T[] = [];
+	const seen = new Set<unknown>();
 	const limit = 100;
 	let offset = 0;
 	for (;;) {
@@ -171,7 +179,11 @@ async function listAll<T>(template: string, opts?: CallOpts): Promise<T[]> {
 		});
 		const page = await request<{ items: T[] | null; has_more: boolean }>('GET', url);
 		const items = page.items ?? [];
-		out.push(...items);
+		for (const item of items) {
+			if (seen.has(item.id)) continue;
+			seen.add(item.id);
+			out.push(item);
+		}
 		if (!page.has_more || items.length === 0) break;
 		offset += items.length;
 	}
@@ -212,10 +224,16 @@ async function download(template: string, opts?: CallOpts): Promise<void> {
 // api is the typed low-level client: every path is checked against the
 // generated OpenAPI `paths`, and params / body / response are derived from it.
 export const api = {
-	get<P extends GetPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<OpResponse<Op<P, 'get'>>> {
+	get<P extends GetPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'get'>>
+	): Promise<OpResponse<Op<P, 'get'>>> {
 		return request('GET', resolvePath(path, args[0] as CallOpts));
 	},
-	list<P extends ListPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<PageItem<Op<P, 'get'>>[]> {
+	list<P extends ListPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'get'>>
+	): Promise<PageItem<Op<P, 'get'>>[]> {
 		return listAll(path, args[0] as CallOpts);
 	},
 	post<P extends PostPath>(
@@ -225,7 +243,10 @@ export const api = {
 		const opts = args[0] as CallOpts | undefined;
 		return request('POST', resolvePath(path, opts), opts?.body);
 	},
-	put<P extends PutPath>(path: P, ...args: OptsArg<Op<P, 'put'>>): Promise<OpResponse<Op<P, 'put'>>> {
+	put<P extends PutPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'put'>>
+	): Promise<OpResponse<Op<P, 'put'>>> {
 		const opts = args[0] as CallOpts | undefined;
 		return request('PUT', resolvePath(path, opts), opts?.body);
 	},

@@ -96,7 +96,10 @@ describe('PortPicker', () => {
 
 	it('renders a port name in the map tooltip as text, not HTML', async () => {
 		const { container } = render(PortPicker, {
-			props: { ports: [{ name: '<img src=x onerror=alert(1)>', latitude: 43.5, longitude: 16.4 }], readonly: true }
+			props: {
+				ports: [{ name: '<img src=x onerror=alert(1)>', latitude: 43.5, longitude: 16.4 }],
+				readonly: true
+			}
 		});
 		await waitFor(() => expect(container.querySelector('.leaflet-tooltip')).not.toBeNull());
 		const tooltip = container.querySelector('.leaflet-tooltip')!;

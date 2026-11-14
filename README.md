@@ -34,6 +34,16 @@ sandbox on.
   `security_opt: ["seccomp=backend/seccomp-chromium.json"]` in Compose. It is
   Docker's default profile ([moby/profiles](https://github.com/moby/profiles)
   `seccomp/v0.3.0`) plus one rule that allows `clone` and `unshare`.
+- **AppArmor**: keep Docker's default AppArmor profile (`docker-default`).
+  Hosts that restrict unprivileged user namespaces
+  (`kernel.apparmor_restrict_unprivileged_userns=1`, the default from Ubuntu
+  24.04) need no change with it. Do not add
+  `--security-opt apparmor=unconfined`: on those hosts the kernel then moves
+  Chromium into the `unprivileged_userns` profile, which denies the
+  `CAP_SYS_ADMIN` the sandbox needs, and PDF renders fail with `Failed to move
+  to new namespace`. The startup log names AppArmor when this happens. The
+  seccomp profile is still required with either AppArmor setting.
+  Verified on Ubuntu 24.04.5 (kernel 6.8, Docker 29.9).
 - **Uploads**: `SAILOR_UPLOAD_DIR` (default `/app/uploads`) must be
   writable by UID 10001. A new named volume at `/app/uploads` gets that owner
   from the image. A bind mount, or a volume written by an older root image,
@@ -56,3 +66,13 @@ sandbox on.
 cd backend && go test ./...                       # backend
 cd frontend && npm test && npx playwright test    # frontend unit + e2e
 ```
+
+## Lint and format
+
+```bash
+cd frontend && npm run lint     # prettier --check + eslint
+cd frontend && npm run format   # prettier --write
+```
+
+ESLint keeps `svelte/no-navigation-without-resolve` off: the app is served at
+the site root with no `paths.base`, so `resolve()` would not change any URL.

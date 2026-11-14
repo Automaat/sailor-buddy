@@ -38,7 +38,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		verb: 'get',
 		args: ['/trips/{tripID}', { path: { tripID: 5 } }]
 	},
-	{ name: 'createTrip', run: () => routes.createTrip(body), verb: 'post', args: ['/trips', { body }] },
+	{
+		name: 'createTrip',
+		run: () => routes.createTrip(body),
+		verb: 'post',
+		args: ['/trips', { body }]
+	},
 	{
 		name: 'updateTrip',
 		run: () => routes.updateTrip(5, body),
@@ -288,7 +293,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		verb: 'get',
 		args: ['/crew/{crewID}', { path: { crewID: 5 } }]
 	},
-	{ name: 'createCrew', run: () => routes.createCrew(body), verb: 'post', args: ['/crew', { body }] },
+	{
+		name: 'createCrew',
+		run: () => routes.createCrew(body),
+		verb: 'post',
+		args: ['/crew', { body }]
+	},
 	{
 		name: 'updateCrew',
 		run: () => routes.updateCrew(5, body),
@@ -323,7 +333,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		verb: 'get',
 		args: ['/series/{seriesID}', { path: { seriesID: 4 } }]
 	},
-	{ name: 'createSeries', run: () => routes.createSeries(body), verb: 'post', args: ['/series', { body }] },
+	{
+		name: 'createSeries',
+		run: () => routes.createSeries(body),
+		verb: 'post',
+		args: ['/series', { body }]
+	},
 	{
 		name: 'updateSeries',
 		run: () => routes.updateSeries(4, body),
@@ -420,7 +435,10 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		name: 'deleteCruiseEnrollment',
 		run: () => routes.deleteCruiseEnrollment(5, 9),
 		verb: 'del',
-		args: ['/cruises/{cruiseID}/enrollments/{enrollmentID}', { path: { cruiseID: 5, enrollmentID: 9 } }]
+		args: [
+			'/cruises/{cruiseID}/enrollments/{enrollmentID}',
+			{ path: { cruiseID: 5, enrollmentID: 9 } }
+		]
 	},
 
 	{ name: 'listMembers', run: () => routes.listMembers(), verb: 'get', args: ['/members'] },
@@ -440,7 +458,10 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		name: 'updateMemberMembership',
 		run: () => routes.updateMemberMembership(7, 'sympatyk'),
 		verb: 'put',
-		args: ['/members/{userID}/membership', { path: { userID: 7 }, body: { membership: 'sympatyk' } }]
+		args: [
+			'/members/{userID}/membership',
+			{ path: { userID: 7 }, body: { membership: 'sympatyk' } }
+		]
 	},
 
 	{ name: 'getMe', run: () => routes.getMe(), verb: 'get', args: ['/auth/me'] },
@@ -455,7 +476,10 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		name: 'enrollLegs',
 		run: () => routes.enrollLegs('tok', [3, 4], 'hi'),
 		verb: 'post',
-		args: ['/enroll/{token}/legs', { path: { token: 'tok' }, body: { trip_ids: [3, 4], note: 'hi' } }]
+		args: [
+			'/enroll/{token}/legs',
+			{ path: { token: 'tok' }, body: { trip_ids: [3, 4], note: 'hi' } }
+		]
 	},
 	{
 		name: 'uploadImage',

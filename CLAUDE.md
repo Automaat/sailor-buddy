@@ -48,6 +48,8 @@ cd backend && SAILOR_DATABASE_URL=... go run ./cmd/api  # run directly
 cd frontend && npm run dev            # dev server on :5173
 cd frontend && npm run build          # production build
 cd frontend && npx svelte-check       # type check
+cd frontend && npm run lint           # prettier --check + eslint
+cd frontend && npm run format         # prettier --write
 
 # Migrations (api and seed-dev also migrate on start)
 mise run migrate                      # local dev DB on localhost:5432

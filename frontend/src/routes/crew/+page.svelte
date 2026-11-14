@@ -36,7 +36,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 
 	async function handleAdd(e: Event) {
@@ -82,10 +82,18 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label for="name" class="mb-1 block text-sm font-medium">Imię i nazwisko *</label>
-					<input id="name" type="text" bind:value={form.full_name} required class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="name"
+						type="text"
+						bind:value={form.full_name}
+						required
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
-					<label for="other-names" class="mb-1 block text-sm font-medium">Inne nazwiska / pisownie</label>
+					<label for="other-names" class="mb-1 block text-sm font-medium"
+						>Inne nazwiska / pisownie</label
+					>
 					<input
 						id="other-names"
 						type="text"
@@ -96,14 +104,28 @@
 				</div>
 				<div>
 					<label for="email" class="mb-1 block text-sm font-medium">Email</label>
-					<input id="email" type="email" bind:value={form.email} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="email"
+						type="email"
+						bind:value={form.email}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="patent" class="mb-1 block text-sm font-medium">Numer patentu</label>
-					<input id="patent" type="text" bind:value={form.patent_number} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="patent"
+						type="text"
+						bind:value={form.patent_number}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 			</div>
-			<button type="submit" disabled={saving} class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+			<button
+				type="submit"
+				disabled={saving}
+				class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
 				{saving ? 'Dodawanie...' : 'Dodaj'}
 			</button>
 		</form>
@@ -153,7 +175,9 @@
 					<div class="min-w-0">
 						<span class="font-semibold text-[var(--navy)]">{person.full_name}</span>
 						{#if person.other_names?.length}
-							<span class="ml-1 text-sm text-[var(--text-muted)]">({person.other_names.join(', ')})</span>
+							<span class="ml-1 text-sm text-[var(--text-muted)]"
+								>({person.other_names.join(', ')})</span
+							>
 						{/if}
 						{#if person.email}
 							<span class="ml-2 text-sm break-all text-[var(--text-muted)]">{person.email}</span>
@@ -164,9 +188,14 @@
 							<span class="text-sm text-[var(--text-muted)]">Patent: {person.patent_number}</span>
 						{/if}
 						{#if person.has_account}
-							<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">ma konto</span>
+							<span
+								class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+								>ma konto</span
+							>
 						{:else}
-							<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">bez konta</span>
+							<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
+								>bez konta</span
+							>
 						{/if}
 					</div>
 				</a>

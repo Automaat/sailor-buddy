@@ -35,7 +35,13 @@
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
 		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
-		{ href: '/crew', label: 'Osoby', icon: Contact, adminOnly: true, badge: () => linkRequests.pending }
+		{
+			href: '/crew',
+			label: 'Osoby',
+			icon: Contact,
+			adminOnly: true,
+			badge: () => linkRequests.pending
+		}
 	];
 
 	// Phone navigation drawer (below md). It closes on every navigation so a
@@ -49,7 +55,7 @@
 
 	$effect(() => {
 		void page.url.pathname;
-		if (auth.isAdmin) linkRequests.refresh();
+		if (auth.isAdmin) void linkRequests.refresh();
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -58,7 +64,7 @@
 
 	async function handleLogout() {
 		await auth.logout();
-		goto('/login');
+		void goto('/login');
 	}
 
 	// The public enrollment preview shared via invite link. Matched on the
@@ -75,7 +81,7 @@
 
 	$effect(() => {
 		if (!auth.loading && !auth.isAuthenticated && !isPublicRoute(page.url.pathname)) {
-			goto('/login');
+			void goto('/login');
 		}
 	});
 
@@ -85,7 +91,7 @@
 	$effect(() => {
 		if (!auth.user) return;
 		const target = onboardingRedirect(auth.user.onboarded, page.url);
-		if (target) goto(target, { replaceState: true });
+		if (target) void goto(target, { replaceState: true });
 	});
 
 	$effect(() => {
@@ -93,15 +99,11 @@
 			const currentUid = auth.firebaseUser?.uid;
 			let cancelled = false;
 
-			(async () => {
+			void (async () => {
 				try {
 					const u = await getMe();
 
-					if (
-						!cancelled &&
-						auth.isAuthenticated &&
-						auth.firebaseUser?.uid === currentUid
-					) {
+					if (!cancelled && auth.isAuthenticated && auth.firebaseUser?.uid === currentUid) {
 						auth.user = u;
 					}
 				} catch (err) {
@@ -126,7 +128,7 @@
 	{@render children()}
 {:else}
 	{#snippet navLinks(itemClass: string)}
-		{#each navItems as item}
+		{#each navItems as item (item.href)}
 			{#if !item.adminOnly || auth.isAdmin}
 				{@const active =
 					page.url.pathname === item.href ||
