@@ -4,6 +4,7 @@
 	import { updateSeries, deleteSeries } from '#lib/api/routes.js';
 	import { cruiseKindLabels } from '#lib/cruise.js';
 	import { goto } from '$app/navigation';
+	import { errorMessage } from '#lib/api/errors.js';
 
 	// data comes from +page.ts, which reruns when the URL's series changes.
 	let { data } = $props();
@@ -16,6 +17,7 @@
 	let editing = $state(false);
 	let saving = $state(false);
 	let error = $state('');
+	let deleteError = $state('');
 	let form = $state({ name: '', description: '' });
 
 	const totalMiles = $derived(editions.reduce((sum, e) => sum + e.total_miles, 0));
@@ -28,6 +30,7 @@
 		editing = false;
 		saving = false;
 		error = '';
+		deleteError = '';
 	});
 
 	function formatNumber(n: number) {
@@ -63,7 +66,16 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć serię? Wydarzenia zostaną, ale stracą powiązanie z serią.')) return;
-		await deleteSeries(id);
+		const seriesId = id;
+		deleteError = '';
+		try {
+			await deleteSeries(seriesId);
+		} catch (err) {
+			console.error('Failed to delete series:', err);
+			if (seriesId === id) deleteError = `Nie udało się usunąć serii: ${errorMessage(err)}`;
+			return;
+		}
+		if (seriesId !== id) return;
 		void goto('/series');
 	}
 </script>
@@ -130,6 +142,10 @@
 				</div>
 			{/if}
 		</div>
+	{/if}
+
+	{#if deleteError}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
 	{/if}
 
 	<div class="rounded-2xl bg-white p-6 shadow-sm">

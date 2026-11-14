@@ -31,10 +31,12 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
+import { goto } from '$app/navigation';
 import {
 	addVoyagePort,
 	addVoyageYacht,
 	createYacht,
+	deleteVoyage,
 	getVoyage,
 	listAssignableCrew,
 	listVoyageCrew,
@@ -289,6 +291,36 @@ describe('voyage page load errors', () => {
 
 		await screen.findByText('Odwiedzone porty (0)');
 		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+});
+
+describe('voyage page delete', () => {
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, cruise_id: 1 }));
+	});
+
+	it('goes back to the event after the voyage is deleted', async () => {
+		vi.mocked(deleteVoyage).mockResolvedValue(undefined);
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/cruises/1'));
+		expect(deleteVoyage).toHaveBeenCalledWith(5);
+	});
+
+	it('shows the error and stays on the voyage when deletion fails', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(deleteVoyage).mockRejectedValue(new ApiError(409, 'voyage has crew'));
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć rejsu: voyage has crew'
+		);
+		expect(screen.getByRole('heading', { name: 'Rejs Bałtyk' })).toBeInTheDocument();
+		expect(goto).not.toHaveBeenCalled();
 	});
 });
 

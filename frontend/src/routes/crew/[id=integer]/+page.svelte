@@ -9,6 +9,7 @@
 	import PersonAccountLink from '#lib/components/PersonAccountLink.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { errorMessage } from '#lib/api/errors.js';
 
 	let person = $state<CrewMember | null>(null);
 	let loading = $state(true);
@@ -19,6 +20,7 @@
 	let merged = $state('');
 	let saving = $state(false);
 	let error = $state('');
+	let deleteError = $state('');
 	let form = $state({ full_name: '', other_names: '', email: '', phone: '', patent_number: '' });
 
 	const id = $derived(Number(page.params.id));
@@ -27,6 +29,7 @@
 		loading = true;
 		notFound = false;
 		person = null;
+		deleteError = '';
 		try {
 			person = await getCrew(personID);
 		} catch (err) {
@@ -124,7 +127,16 @@
 
 	async function handleDelete() {
 		if (!confirm('Usunąć tę osobę?')) return;
-		await deleteCrew(id);
+		const personID = id;
+		deleteError = '';
+		try {
+			await deleteCrew(personID);
+		} catch (err) {
+			console.error('Failed to delete person:', err);
+			if (personID === id) deleteError = `Nie udało się usunąć osoby: ${errorMessage(err)}`;
+			return;
+		}
+		if (personID !== id) return;
 		void goto('/crew');
 	}
 </script>
@@ -180,6 +192,12 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if deleteError}
+			<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+				{deleteError}
+			</div>
+		{/if}
 
 		{#if editing}
 			<form onsubmit={handleSave} class="rounded-2xl bg-white p-6 shadow-sm">
