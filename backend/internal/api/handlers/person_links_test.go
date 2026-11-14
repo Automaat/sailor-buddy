@@ -405,7 +405,7 @@ func TestPersonLinks_LinkRemovesMergedOpinionFile(t *testing.T) {
 				t.Fatalf("create admin: %v", err)
 			}
 			_, api := humatest.New(t)
-			registerPersonLinkRoutes(api, &PersonLinkHandler{q: q, runTx: sqlTxRunner(f.conn), uploads: f.uploads})
+			RegisterPersonLinkRoutes(api, q, f.conn, f.uploads)
 
 			link(t, f, api, callerCtx(admin.ID, "admin"))
 
