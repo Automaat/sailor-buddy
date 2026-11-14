@@ -16,8 +16,10 @@ Every `/api/*` endpoint requires a Firebase ID token:
 Authorization: Bearer <firebase_id_token>
 ```
 
-The `Auth` middleware verifies the token, then upserts a `users` row keyed by
-Firebase UID (linking by verified email if the UID is new). The **first user
+The `Auth` middleware verifies the token, then reads the `users` row keyed by
+Firebase UID. It upserts the row (linking by verified email if the UID is
+new) only when the account is new or the token's email or name changed, so
+a known account's request writes nothing. The **first user
 ever provisioned becomes the club admin**; every account after is a regular
 `member`. Admins manage other members' roles on the members page.
 

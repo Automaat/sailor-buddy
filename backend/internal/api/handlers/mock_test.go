@@ -906,6 +906,10 @@ func (m *mockQuerier) GetUserByFirebaseUID(context.Context, types.NullString) (s
 	panic("unexpected call to GetUserByFirebaseUID")
 }
 
+func (m *mockQuerier) GetAuthUserByFirebaseUID(context.Context, types.NullString) (sqlcdb.GetAuthUserByFirebaseUIDRow, error) {
+	panic("unexpected call to GetAuthUserByFirebaseUID")
+}
+
 func (m *mockQuerier) LinkFirebaseUIDByEmail(context.Context, sqlcdb.LinkFirebaseUIDByEmailParams) (sqlcdb.User, error) {
 	panic("unexpected call to LinkFirebaseUIDByEmail")
 }
