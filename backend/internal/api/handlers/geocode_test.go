@@ -43,13 +43,13 @@ func countingNominatim(t *testing.T, status int, body string, limiter *rate.Limi
 	}, &hits
 }
 
-const splitBody = `[{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","class":"place"}]`
+const splitBody = `[{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place"}]`
 
 func TestGeocode_Search(t *testing.T) {
 	h := stubNominatim(t, http.StatusOK, `[
-		{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","class":"place"},
-		{"name":"","display_name":"Hvar, Croatia","lat":"43.1729","lon":"16.4412","class":"boundary"},
-		{"name":"Bad","display_name":"Bad","lat":"not-a-number","lon":"0","class":"place"}
+		{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place"},
+		{"name":"","display_name":"Hvar, Croatia","lat":"43.1729","lon":"16.4412","category":"boundary"},
+		{"name":"Bad","display_name":"Bad","lat":"not-a-number","lon":"0","category":"place"}
 	]`)
 	out, err := h.search(context.Background(), &geocodeInput{Query: "Split"})
 	if err != nil {
@@ -71,15 +71,15 @@ func TestGeocode_Search(t *testing.T) {
 	}
 }
 
-// TestGeocode_FiltersAndDedups checks that non-place classes (streets, POIs)
+// TestGeocode_FiltersAndDedups checks that non-place categories (streets, POIs)
 // are dropped and that a town listed as both a place node and an admin
 // boundary collapses to one result.
 func TestGeocode_FiltersAndDedups(t *testing.T) {
 	h := stubNominatim(t, http.StatusOK, `[
-		{"name":"Gdańsk","display_name":"Gdańsk, Poland","lat":"54.3520","lon":"18.6466","class":"place"},
-		{"name":"Gdańsk","display_name":"Gdańsk, Pomerania, Poland","lat":"54.3521","lon":"18.6467","class":"boundary"},
-		{"name":"Gdańska","display_name":"Gdańska street","lat":"52.2300","lon":"21.0100","class":"highway"},
-		{"name":"Gdansk","display_name":"Gdansk, North Dakota, USA","lat":"48.4100","lon":"-98.3700","class":"place"}
+		{"name":"Gdańsk","display_name":"Gdańsk, Poland","lat":"54.3520","lon":"18.6466","category":"place"},
+		{"name":"Gdańsk","display_name":"Gdańsk, Pomerania, Poland","lat":"54.3521","lon":"18.6467","category":"boundary"},
+		{"name":"Gdańska","display_name":"Gdańska street","lat":"52.2300","lon":"21.0100","category":"highway"},
+		{"name":"Gdansk","display_name":"Gdansk, North Dakota, USA","lat":"48.4100","lon":"-98.3700","category":"place"}
 	]`)
 	out, err := h.search(context.Background(), &geocodeInput{Query: "Gdansk"})
 	if err != nil {
@@ -91,6 +91,44 @@ func TestGeocode_FiltersAndDedups(t *testing.T) {
 	}
 	if out.Body[1].Label != "Gdansk, North Dakota, USA" {
 		t.Fatalf("unexpected second result: %+v", out.Body[1])
+	}
+}
+
+// TestGeocode_ReadsJSONv2Category feeds full Nominatim jsonv2 records, which
+// carry the feature class as "category" and no "class" key, and checks the
+// handler asks for jsonv2 and keeps places and boundaries but drops streets.
+func TestGeocode_ReadsJSONv2Category(t *testing.T) {
+	var format string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		format = r.URL.Query().Get("format")
+		_, _ = w.Write([]byte(`[
+			{"place_id":1,"licence":"ODbL","osm_type":"relation","osm_id":1597935,"lat":"54.3482907","lon":"18.6540233","category":"boundary","type":"administrative","place_rank":16,"importance":0.71,"addresstype":"city","name":"Gdańsk","display_name":"Gdańsk, Pomeranian Voivodeship, Poland","boundingbox":["54.27","54.45","18.43","18.95"]},
+			{"place_id":2,"licence":"ODbL","osm_type":"node","osm_id":31560326,"lat":"44.1194","lon":"15.2314","category":"place","type":"city","place_rank":16,"importance":0.6,"addresstype":"city","name":"Zadar","display_name":"Zadar, Croatia","boundingbox":["43.9","44.3","15.0","15.4"]},
+			{"place_id":3,"licence":"ODbL","osm_type":"way","osm_id":4229281,"lat":"52.2300","lon":"21.0100","category":"highway","type":"residential","place_rank":26,"importance":0.1,"addresstype":"road","name":"Gdańska","display_name":"Gdańska, Warsaw, Poland","boundingbox":["52.22","52.24","21.00","21.02"]}
+		]`))
+	}))
+	t.Cleanup(srv.Close)
+	h := &GeocodeHandler{
+		baseURL:    srv.URL,
+		httpClient: srv.Client(),
+		limiter:    rate.NewLimiter(rate.Inf, 1),
+		maxWait:    time.Minute,
+		cache:      newGeocodeCache(time.Hour, 10, time.Now),
+	}
+
+	out, err := h.search(context.Background(), &geocodeInput{Query: "Gdańsk"})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if format != "jsonv2" {
+		t.Fatalf("upstream format = %q, want jsonv2", format)
+	}
+	var names []string
+	for _, r := range out.Body {
+		names = append(names, r.Name)
+	}
+	if len(names) != 2 || names[0] != "Gdańsk" || names[1] != "Zadar" {
+		t.Fatalf("got %v, want [Gdańsk Zadar]", names)
 	}
 }
 
