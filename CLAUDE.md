@@ -124,6 +124,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   per-page `notFound` flags. Sections the user can edit in place use a
   writable `$derived(data.x)`. Admin-only lists stay in an `$effect` keyed on
   the record id, since `auth.isAdmin` is false until `/auth/me` answers.
+  Forms filled from load data use `let form = $derived(perLoad(data, …))`
+  (`src/lib/state.svelte.ts`): the form, its error and busy flag start over
+  on the next record, and a save acts on its reply only while its held state
+  is still the current one. Wrap a form with a `YachtSelect` in
+  `{#key data}` so a yacht still being added is dropped with the record.
   Migration of the remaining `onMount` pages is tracked in #600.
 - Go code must pass `gofumpt` formatting
 - Handler tests use `mockQuerier` (`internal/api/handlers/mock_test.go`),

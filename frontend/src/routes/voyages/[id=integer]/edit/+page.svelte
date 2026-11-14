@@ -1,114 +1,72 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { getVoyage, updateVoyage, listYachts, listCruises } from '#lib/api/routes.js';
-	import type { Cruise, Yacht } from '#lib/api/types.js';
-	import { page } from '$app/state';
+	import { updateVoyage } from '#lib/api/routes.js';
+	import type { Voyage } from '#lib/api/types.js';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
-	import { noteFailure, settle } from '#lib/api/errors.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
+	import { perLoad } from '#lib/state.svelte.js';
 
-	let error = $state('');
-	let loading = $state(true);
-	let loadErrors = $state<string[]>([]);
-	let saving = $state(false);
-	let yachts = $state<Yacht[]>([]);
-	let cruises = $state<Cruise[]>([]);
+	let { data } = $props();
+
+	const id = $derived(data.voyage.id);
+	const cruises = $derived(data.cruises);
+	const loadErrors = $derived(data.loadErrors);
+	let yachts = $derived(data.yachts);
+	const legacyCaptainName = $derived(data.voyage.captain_person_id ? '' : (data.voyage.captain_name ?? ''));
+
+	let form = $derived(perLoad(data, voyageForm(data.voyage)));
+	let submit = $derived(perLoad(data, { error: '', saving: false }));
 
 	// Editing voyages is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto(`/voyages/${page.params.id}`);
+			goto(`/voyages/${id}`);
 		}
 	});
 
-	let legacyCaptainName = $state('');
-
-	let form = $state({
-		name: '',
-		year: 0,
-		embark_date: '',
-		disembark_date: '',
-		countries: '',
-		start_port: '',
-		end_port: '',
-		cruise_id: 0,
-		hours_total: 0,
-		hours_sail: 0,
-		hours_engine: 0,
-		hours_over_6bf: 0,
-		miles: 0,
-		days: 0,
-		captain_person_id: 0,
-		yacht_id: 0,
-		tidal_waters: false,
-		cost_total: 0,
-		cost_per_person: 0,
-		description: '',
-		image_logo_url: '',
-		image_photo_url: '',
-		image_route_url: '',
-		track_url: '',
-		voyage_card: ''
-	});
-
-	const id = $derived(Number(page.params.id));
-
-	onMount(async () => {
-		try {
-			const [voyage, y, c] = await Promise.all([
-				getVoyage(id),
-				listYachts(),
-				settle(listCruises(), [], noteFailure(loadErrors, 'lista wydarzeń'))
-			]);
-			yachts = y;
-			cruises = c ?? [];
-			legacyCaptainName = voyage.captain_person_id ? '' : (voyage.captain_name ?? '');
-			form = {
-				name: voyage.name,
-				year: voyage.year ?? 0,
-				embark_date: voyage.embark_date ?? '',
-				disembark_date: voyage.disembark_date ?? '',
-				countries: voyage.countries ?? '',
-				start_port: voyage.start_port ?? '',
-				end_port: voyage.end_port ?? '',
-				cruise_id: voyage.cruise_id,
-				hours_total: voyage.hours_total,
-				hours_sail: voyage.hours_sail,
-				hours_engine: voyage.hours_engine,
-				hours_over_6bf: voyage.hours_over_6bf,
-				miles: voyage.miles,
-				days: voyage.days,
-				captain_person_id: voyage.captain_person_id ?? 0,
-				yacht_id: voyage.yacht_id ?? 0,
-				tidal_waters: voyage.tidal_waters > 0,
-				cost_total: voyage.cost_total ?? 0,
-				cost_per_person: voyage.cost_per_person ?? 0,
-				description: voyage.description ?? '',
-				image_logo_url: voyage.image_logo_url ?? '',
-				image_photo_url: voyage.image_photo_url ?? '',
-				image_route_url: voyage.image_route_url ?? '',
-				track_url: voyage.track_url ?? '',
-				voyage_card: voyage.voyage_card ?? ''
-			};
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Nie udało się wczytać';
-		} finally {
-			loading = false;
-		}
-	});
+	function voyageForm(voyage: Voyage) {
+		return {
+			name: voyage.name,
+			year: voyage.year ?? 0,
+			embark_date: voyage.embark_date ?? '',
+			disembark_date: voyage.disembark_date ?? '',
+			countries: voyage.countries ?? '',
+			start_port: voyage.start_port ?? '',
+			end_port: voyage.end_port ?? '',
+			cruise_id: voyage.cruise_id,
+			hours_total: voyage.hours_total,
+			hours_sail: voyage.hours_sail,
+			hours_engine: voyage.hours_engine,
+			hours_over_6bf: voyage.hours_over_6bf,
+			miles: voyage.miles,
+			days: voyage.days,
+			captain_person_id: voyage.captain_person_id ?? 0,
+			yacht_id: voyage.yacht_id ?? 0,
+			tidal_waters: voyage.tidal_waters > 0,
+			cost_total: voyage.cost_total ?? 0,
+			cost_per_person: voyage.cost_per_person ?? 0,
+			description: voyage.description ?? '',
+			image_logo_url: voyage.image_logo_url ?? '',
+			image_photo_url: voyage.image_photo_url ?? '',
+			image_route_url: voyage.image_route_url ?? '',
+			track_url: voyage.track_url ?? '',
+			voyage_card: voyage.voyage_card ?? ''
+		};
+	}
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		const run = submit;
 		if (!form.cruise_id) {
-			error = 'Wybierz wydarzenie, do którego należy rejs';
+			run.error = 'Wybierz wydarzenie, do którego należy rejs';
 			return;
 		}
-		saving = true;
-		error = '';
+		const voyageId = id;
+		run.saving = true;
+		run.error = '';
 		try {
 			const payload = {
 				...form,
@@ -124,27 +82,27 @@
 				captain_person_id: form.captain_person_id || undefined,
 				captain_name: form.captain_person_id ? undefined : legacyCaptainName || undefined
 			};
-			await updateVoyage(id, payload);
-			goto(`/voyages/${id}`);
+			await updateVoyage(voyageId, payload);
+			if (run === submit) goto(`/voyages/${voyageId}`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Nie udało się zapisać';
+			run.error = err instanceof Error ? err.message : 'Nie udało się zapisać';
 		} finally {
-			saving = false;
+			run.saving = false;
 		}
 	}
 </script>
 
-{#if loading}
-	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
-{:else}
-	<div class="mx-auto max-w-3xl">
-		<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj rejs</h1>
-		<LoadErrorBanner errors={loadErrors} />
+<div class="mx-auto max-w-3xl">
+	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj rejs</h1>
+	<LoadErrorBanner errors={loadErrors} />
 
-		{#if error}
-			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
-		{/if}
+	{#if submit.error}
+		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{submit.error}</div>
+	{/if}
 
+	<!-- Remounts the pickers for each voyage, so a yacht still being added for
+	the previous voyage is never picked, or its held save replayed, on this one. -->
+	{#key data}
 		<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="sm:col-span-2">
@@ -254,11 +212,11 @@
 			</div>
 
 			<div class="flex gap-3">
-				<button type="submit" disabled={saving} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
-					{saving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+				<button type="submit" disabled={submit.saving} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+					{submit.saving ? 'Zapisywanie...' : 'Zapisz zmiany'}
 				</button>
 				<a href="/voyages/{id}" class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
 			</div>
 		</form>
-	</div>
-{/if}
+	{/key}
+</div>
