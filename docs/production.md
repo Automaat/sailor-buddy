@@ -68,8 +68,8 @@ runtime server credentials must never use that prefix. See
 
 ## Disable access or revoke sessions
 
-1. For immediate club access removal, suspend the account from the members
-   screen. Demote an admin first; the app preserves the last active admin.
+1. For immediate club access removal, suspend the account using the people
+   screen's account controls. Demote an admin first; the app preserves the last active admin.
    Application suspension blocks the next authenticated request, including
    profile and enrollment writes.
 2. In Firebase Authentication, disable the account to prevent further sign-in.
