@@ -58,7 +58,9 @@ async function pageWidth(page: Page, path: string): Promise<number> {
 
 async function smallTapTargets(page: Page): Promise<string[]> {
 	return page.evaluate((min) => {
-		const els = document.querySelectorAll<HTMLElement>('button, a.tap-target, header a, #mobile-menu a, main a.inline-block, main a[class*="px-"]');
+		const els = document.querySelectorAll<HTMLElement>(
+			'button, a.tap-target, header a, #mobile-menu a, main a.inline-block, main a[class*="px-"]'
+		);
 		const small: string[] = [];
 		for (const el of els) {
 			const r = el.getBoundingClientRect();

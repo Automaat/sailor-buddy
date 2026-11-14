@@ -9,8 +9,10 @@ import {
 
 const firebaseConfig = {
 	apiKey: PUBLIC_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY || 'fake-api-key',
-	authDomain: PUBLIC_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
-	projectId: PUBLIC_FIREBASE_PROJECT_ID || import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sailor-buddy-dev'
+	authDomain:
+		PUBLIC_FIREBASE_AUTH_DOMAIN || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
+	projectId:
+		PUBLIC_FIREBASE_PROJECT_ID || import.meta.env.VITE_FIREBASE_PROJECT_ID || 'sailor-buddy-dev'
 };
 
 const app = initializeApp(firebaseConfig);

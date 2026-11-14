@@ -69,7 +69,9 @@ describe('trainings page', () => {
 		mockCreate.mockResolvedValue(training({ id: 2, name: 'Jachtowy sternik morski' }));
 		await renderPage();
 		await fireEvent.click(screen.getByRole('button', { name: '+ Dodaj szkolenie' }));
-		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'Jachtowy sternik morski' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), {
+			target: { value: 'Jachtowy sternik morski' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
 
 		expect(await screen.findByText('Jachtowy sternik morski')).toBeInTheDocument();
@@ -81,7 +83,9 @@ describe('trainings page', () => {
 		await renderPage();
 		await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
 
-		await vi.waitFor(() => expect(screen.queryByText('Sternik motorowodny')).not.toBeInTheDocument());
+		await vi.waitFor(() =>
+			expect(screen.queryByText('Sternik motorowodny')).not.toBeInTheDocument()
+		);
 		expect(mockDelete).toHaveBeenCalledWith(1);
 	});
 
@@ -89,7 +93,9 @@ describe('trainings page', () => {
 		mockCreate.mockResolvedValue(training({ id: 2, name: 'Jachtowy sternik morski' }));
 		const view = await renderPage();
 		await fireEvent.click(screen.getByRole('button', { name: '+ Dodaj szkolenie' }));
-		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'Jachtowy sternik morski' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), {
+			target: { value: 'Jachtowy sternik morski' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
 		expect(await screen.findByText('Jachtowy sternik morski')).toBeInTheDocument();
 

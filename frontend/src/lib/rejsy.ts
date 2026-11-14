@@ -115,7 +115,12 @@ export function legStatus(
  * Completed once a leg sailed and none is still planned; overdue when a planned
  * leg already ended; cancelled when only cancelled legs remain.
  */
-function cruiseStatus(planned: number, overdue: number, cancelled: number, completed: number): RejsStatus {
+function cruiseStatus(
+	planned: number,
+	overdue: number,
+	cancelled: number,
+	completed: number
+): RejsStatus {
 	if (overdue > 0) return 'overdue';
 	if (completed > 0 && planned === 0) return 'completed';
 	if (planned === 0 && completed === 0 && cancelled > 0) return 'cancelled';

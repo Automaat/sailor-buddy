@@ -46,7 +46,10 @@ export function freePlaces(maxCrew: number | null | undefined, accepted: number)
  * freePlacesLabel renders a leg's free places as "wolne 5 z 8", or null when
  * the leg has no crew limit.
  */
-export function freePlacesLabel(maxCrew: number | null | undefined, accepted: number): string | null {
+export function freePlacesLabel(
+	maxCrew: number | null | undefined,
+	accepted: number
+): string | null {
 	const free = freePlaces(maxCrew, accepted);
 	return free === null ? null : `wolne ${free} z ${maxCrew}`;
 }
@@ -118,7 +121,10 @@ export function nextWaitlisted(
  * Europe/Warsaw, see warsawToday) is after the leg's sign-up deadline. The
  * deadline day itself is still open; a leg without a deadline never closes.
  */
-export function signUpClosedByDeadline(deadline: string | null | undefined, today: string): boolean {
+export function signUpClosedByDeadline(
+	deadline: string | null | undefined,
+	today: string
+): boolean {
 	return !!deadline && today > deadline;
 }
 

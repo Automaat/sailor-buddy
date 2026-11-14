@@ -39,7 +39,12 @@ const candidatesMock = listPersonClaimCandidates as unknown as ReturnType<typeof
 const createRequestMock = createPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
 const cancelRequestMock = cancelPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
 
-const pastPerson = { id: 40, full_name: 'Jan Kowalski', other_names: ['J. Kowalski'], email_match: true };
+const pastPerson = {
+	id: 40,
+	full_name: 'Jan Kowalski',
+	other_names: ['J. Kowalski'],
+	email_match: true
+};
 
 function linkRequest(status: string) {
 	return {
@@ -57,7 +62,13 @@ beforeEach(() => {
 	candidatesMock.mockReset().mockResolvedValue([pastPerson]);
 	createRequestMock.mockReset().mockResolvedValue(linkRequest('pending'));
 	cancelRequestMock.mockReset().mockResolvedValue(undefined);
-	h.store.user = { id: 1, name: 'Jan Maria Kowalski', first_name: '', last_name: '', onboarded: false };
+	h.store.user = {
+		id: 1,
+		name: 'Jan Maria Kowalski',
+		first_name: '',
+		last_name: '',
+		onboarded: false
+	};
 	updateMeMock.mockReset().mockImplementation(async (body) => ({ ...body, onboarded: true }));
 });
 
@@ -68,8 +79,12 @@ describe('onboarding page', () => {
 		expect(first.value).toBe('Jan');
 		expect((screen.getByLabelText('Nazwisko *') as HTMLInputElement).value).toBe('Maria Kowalski');
 
-		await fireEvent.input(screen.getByLabelText('Telefon'), { target: { value: '+48 600 100 200' } });
-		await fireEvent.change(screen.getByLabelText('Patent żeglarski'), { target: { value: 'zeglarz_jachtowy' } });
+		await fireEvent.input(screen.getByLabelText('Telefon'), {
+			target: { value: '+48 600 100 200' }
+		});
+		await fireEvent.change(screen.getByLabelText('Patent żeglarski'), {
+			target: { value: 'zeglarz_jachtowy' }
+		});
 		await fireEvent.input(screen.getByLabelText('Numer patentu'), { target: { value: 'ZJ-1' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz i przejdź dalej' }));
 
@@ -90,7 +105,9 @@ describe('onboarding page', () => {
 		const number = (await screen.findByLabelText('Numer patentu')) as HTMLInputElement;
 		expect(number.disabled).toBe(true);
 		expect(number.required).toBe(false);
-		await fireEvent.change(screen.getByLabelText('Patent żeglarski'), { target: { value: 'kapitan_jachtowy' } });
+		await fireEvent.change(screen.getByLabelText('Patent żeglarski'), {
+			target: { value: 'kapitan_jachtowy' }
+		});
 		expect(number.disabled).toBe(false);
 		expect(number.required).toBe(true);
 	});
@@ -121,7 +138,9 @@ describe('onboarding person claim', () => {
 	});
 
 	it('searches people by name', async () => {
-		candidatesMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...pastPerson, email_match: false }]);
+		candidatesMock
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([{ ...pastPerson, email_match: false }]);
 		render(OnboardingPage);
 		const search = await screen.findByLabelText('Szukaj osoby');
 		await fireEvent.input(search, { target: { value: 'Kowal' } });

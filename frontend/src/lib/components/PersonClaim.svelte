@@ -82,15 +82,18 @@
 	}
 </script>
 
-<section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm" aria-label="Moja historia w klubie">
+<section
+	class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+	aria-label="Moja historia w klubie"
+>
 	<h2 class="mb-2 font-semibold text-[var(--navy)]">Moja historia w klubie</h2>
 
 	{#if !loaded}
 		<p class="text-sm text-[var(--text-muted)]">Wczytywanie...</p>
 	{:else if pending && request}
 		<p class="text-sm" role="status">
-			Prośba o połączenie z osobą <strong>{request.person_name}</strong> czeka na zatwierdzenie
-			przez zarząd.
+			Prośba o połączenie z osobą <strong>{request.person_name}</strong> czeka na zatwierdzenie przez
+			zarząd.
 		</p>
 		<button
 			type="button"
@@ -114,7 +117,9 @@
 				Zarząd odrzucił prośbę o połączenie z osobą {request.person_name}.
 			</p>
 		{/if}
-		<label for="claim-search" class="mb-1 block text-sm font-medium text-gray-700">Szukaj osoby</label>
+		<label for="claim-search" class="mb-1 block text-sm font-medium text-gray-700"
+			>Szukaj osoby</label
+		>
 		<input
 			id="claim-search"
 			type="search"

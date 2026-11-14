@@ -9,6 +9,10 @@ import type { PageLoad } from './$types';
  */
 export const load: PageLoad = async ({ url }) => {
 	const loadErrors: string[] = [];
-	const cruises = await settle(listCruises().then((r) => r ?? []), [], noteFailure(loadErrors, 'lista wydarzeń'));
+	const cruises = await settle(
+		listCruises().then((r) => r ?? []),
+		[],
+		noteFailure(loadErrors, 'lista wydarzeń')
+	);
 	return { cruises, cruiseId: cruiseIdParam(url), loadErrors };
 };

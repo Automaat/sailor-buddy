@@ -10,8 +10,16 @@ import type { PageLoad } from './$types';
 export const load: PageLoad = async ({ url }) => {
 	const loadErrors: string[] = [];
 	const [yachts, cruises] = await Promise.all([
-		settle(listYachts().then((r) => r ?? []), [], noteFailure(loadErrors, 'jachty')),
-		settle(listCruises().then((r) => r ?? []), [], noteFailure(loadErrors, 'lista wydarzeń'))
+		settle(
+			listYachts().then((r) => r ?? []),
+			[],
+			noteFailure(loadErrors, 'jachty')
+		),
+		settle(
+			listCruises().then((r) => r ?? []),
+			[],
+			noteFailure(loadErrors, 'lista wydarzeń')
+		)
 	]);
 	return { yachts, cruises, cruiseId: cruiseIdParam(url), loadErrors };
 };

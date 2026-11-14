@@ -16,12 +16,20 @@ describe('PriceInfo', () => {
 		expect(screen.getByText('Goście')).toBeInTheDocument();
 	});
 
-	it.each(['czlonek', 'sympatyk', 'gosc'] as const)('shows %s the single price when only one is set', (membership) => {
-		render(PriceInfo, { priced: { currency: 'EUR', cost_per_person: 760, yacht_fund: 150 }, membership });
-		expect(screen.getByTestId('your-price')).toHaveTextContent('Twoja cena: 760 EUR');
-		expect(screen.queryByText('Goście')).not.toBeInTheDocument();
-		expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent('150 EUR');
-	});
+	it.each(['czlonek', 'sympatyk', 'gosc'] as const)(
+		'shows %s the single price when only one is set',
+		(membership) => {
+			render(PriceInfo, {
+				priced: { currency: 'EUR', cost_per_person: 760, yacht_fund: 150 },
+				membership
+			});
+			expect(screen.getByTestId('your-price')).toHaveTextContent('Twoja cena: 760 EUR');
+			expect(screen.queryByText('Goście')).not.toBeInTheDocument();
+			expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent(
+				'150 EUR'
+			);
+		}
+	);
 
 	it('shows both tiers without Twoja cena when membership is unknown', () => {
 		render(PriceInfo, { priced: wrm, membership: undefined });

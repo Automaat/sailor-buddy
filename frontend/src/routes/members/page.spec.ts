@@ -165,10 +165,7 @@ describe('members page: captain cell', () => {
 		await renderPage();
 		const box = screen.getByRole('checkbox', { name: 'Kapitan: Zofia Sympatyk' });
 		expect(box).toBeDisabled();
-		expect(box.closest('label')).toHaveAttribute(
-			'title',
-			'Kapitanem może być tylko członek klubu'
-		);
+		expect(box.closest('label')).toHaveAttribute('title', 'Kapitanem może być tylko członek klubu');
 	});
 });
 

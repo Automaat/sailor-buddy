@@ -66,13 +66,20 @@
 		{#if requests.length}
 			<ul class="divide-y text-sm">
 				{#each requests as r (r.id)}
-					<li class="flex items-center justify-between gap-3 py-2 max-md:flex-wrap" data-testid="link-request">
+					<li
+						class="flex items-center justify-between gap-3 py-2 max-md:flex-wrap"
+						data-testid="link-request"
+					>
 						<span>
 							<strong>{r.user_name}</strong>
 							<span class="text-[var(--text-muted)]">({r.user_email})</span>
 							→
-							<a href="/crew/{r.person_id}" class="text-[var(--ocean)] hover:underline">{r.person_name}</a>
-							{#if r.person_email}<span class="text-[var(--text-muted)]"> · {r.person_email}</span>{/if}
+							<a href="/crew/{r.person_id}" class="text-[var(--ocean)] hover:underline"
+								>{r.person_name}</a
+							>
+							{#if r.person_email}<span class="text-[var(--text-muted)]">
+									· {r.person_email}</span
+								>{/if}
 						</span>
 						<span class="flex gap-2">
 							<button

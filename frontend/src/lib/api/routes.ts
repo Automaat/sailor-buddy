@@ -432,7 +432,10 @@ export function updateMemberRole(userID: number, role: Schemas['RoleBody']['role
 }
 
 export function updateMemberCaptain(userID: number, isCaptain: boolean) {
-	return api.put('/members/{userID}/captain', { path: { userID }, body: { is_captain: isCaptain } });
+	return api.put('/members/{userID}/captain', {
+		path: { userID },
+		body: { is_captain: isCaptain }
+	});
 }
 
 export function updateMemberMembership(

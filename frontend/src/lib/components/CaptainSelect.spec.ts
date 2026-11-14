@@ -11,15 +11,19 @@ const people = listCrew as unknown as ReturnType<typeof vi.fn>;
 const members = listMembers as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-	people.mockReset().mockResolvedValue([
-		makePerson({ id: 10, full_name: 'Zofia Załogantka', user_id: 2, has_account: true }),
-		makePerson({ id: 11, full_name: 'Bartek Bez Konta' }),
-		makePerson({ id: 12, full_name: 'Anna Kapitan', user_id: 1, has_account: true })
-	]);
-	members.mockReset().mockResolvedValue([
-		makeMember({ id: 1, name: 'Anna Kapitan', is_captain: true }),
-		makeMember({ id: 2, name: 'Zofia Załogantka', is_captain: false })
-	]);
+	people
+		.mockReset()
+		.mockResolvedValue([
+			makePerson({ id: 10, full_name: 'Zofia Załogantka', user_id: 2, has_account: true }),
+			makePerson({ id: 11, full_name: 'Bartek Bez Konta' }),
+			makePerson({ id: 12, full_name: 'Anna Kapitan', user_id: 1, has_account: true })
+		]);
+	members
+		.mockReset()
+		.mockResolvedValue([
+			makeMember({ id: 1, name: 'Anna Kapitan', is_captain: true }),
+			makeMember({ id: 2, name: 'Zofia Załogantka', is_captain: false })
+		]);
 });
 
 function optionNames(select: HTMLElement) {

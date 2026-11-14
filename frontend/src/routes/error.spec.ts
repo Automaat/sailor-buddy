@@ -26,8 +26,13 @@ describe('root error page', () => {
 		render(ErrorPage);
 
 		expect(screen.getByRole('heading', { name: 'Nie znaleziono wydarzenia' })).toBeInTheDocument();
-		expect(screen.getByText('To wydarzenie nie istnieje lub nie masz do niego dostępu.')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Wszystkie rejsy' })).toHaveAttribute('href', '/cruises');
+		expect(
+			screen.getByText('To wydarzenie nie istnieje lub nie masz do niego dostępu.')
+		).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Wszystkie rejsy' })).toHaveAttribute(
+			'href',
+			'/cruises'
+		);
 	});
 
 	it('falls back to the generic not-found copy for an unknown route', () => {
@@ -45,7 +50,9 @@ describe('root error page', () => {
 		page.error = { status: 500, message: 'Internal Error' };
 		render(ErrorPage);
 
-		expect(screen.getByRole('heading', { name: 'Nie udało się wczytać strony' })).toBeInTheDocument();
+		expect(
+			screen.getByRole('heading', { name: 'Nie udało się wczytać strony' })
+		).toBeInTheDocument();
 		expect(screen.queryByText('Internal Error')).not.toBeInTheDocument();
 	});
 });

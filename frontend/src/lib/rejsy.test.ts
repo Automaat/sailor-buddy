@@ -41,14 +41,49 @@ describe('warsawToday', () => {
 describe('isLegOverdue', () => {
 	const today = '2026-08-10';
 	it.each([
-		{ name: 'ended yesterday', leg: { status: 'planned', disembark_date: '2026-08-09' }, cruise: {}, want: true },
-		{ name: 'ends today', leg: { status: 'planned', disembark_date: '2026-08-10' }, cruise: {}, want: false },
-		{ name: 'ends tomorrow', leg: { status: 'planned', disembark_date: '2026-08-11' }, cruise: {}, want: false },
+		{
+			name: 'ended yesterday',
+			leg: { status: 'planned', disembark_date: '2026-08-09' },
+			cruise: {},
+			want: true
+		},
+		{
+			name: 'ends today',
+			leg: { status: 'planned', disembark_date: '2026-08-10' },
+			cruise: {},
+			want: false
+		},
+		{
+			name: 'ends tomorrow',
+			leg: { status: 'planned', disembark_date: '2026-08-11' },
+			cruise: {},
+			want: false
+		},
 		{ name: 'no dates at all', leg: { status: 'planned' }, cruise: {}, want: false },
-		{ name: 'no leg date, cruise ended', leg: { status: 'planned' }, cruise: { disembark_date: '2026-08-09' }, want: true },
-		{ name: 'no leg date, cruise ends today', leg: { status: 'planned' }, cruise: { disembark_date: '2026-08-10' }, want: false },
-		{ name: 'leg date wins over cruise date', leg: { status: 'planned', disembark_date: '2026-08-12' }, cruise: { disembark_date: '2026-08-01' }, want: false },
-		{ name: 'cancelled past leg', leg: { status: 'cancelled', disembark_date: '2026-08-01' }, cruise: {}, want: false }
+		{
+			name: 'no leg date, cruise ended',
+			leg: { status: 'planned' },
+			cruise: { disembark_date: '2026-08-09' },
+			want: true
+		},
+		{
+			name: 'no leg date, cruise ends today',
+			leg: { status: 'planned' },
+			cruise: { disembark_date: '2026-08-10' },
+			want: false
+		},
+		{
+			name: 'leg date wins over cruise date',
+			leg: { status: 'planned', disembark_date: '2026-08-12' },
+			cruise: { disembark_date: '2026-08-01' },
+			want: false
+		},
+		{
+			name: 'cancelled past leg',
+			leg: { status: 'cancelled', disembark_date: '2026-08-01' },
+			cruise: {},
+			want: false
+		}
 	] as const)('$name -> $want', ({ leg, cruise, want }) => {
 		expect(isLegOverdue(leg, cruise, today)).toBe(want);
 	});
@@ -56,7 +91,9 @@ describe('isLegOverdue', () => {
 	it('compares in Warsaw just after midnight, not in UTC', () => {
 		// 00:30 on 10 Aug in Warsaw is still 9 Aug in UTC.
 		const today = warsawToday(new Date('2026-08-09T22:30:00Z'));
-		expect(isLegOverdue({ status: 'planned', disembark_date: '2026-08-09' }, null, today)).toBe(true);
+		expect(isLegOverdue({ status: 'planned', disembark_date: '2026-08-09' }, null, today)).toBe(
+			true
+		);
 	});
 });
 
@@ -65,7 +102,11 @@ describe('default today', () => {
 		// 00:30 on 10 Aug in Warsaw (CEST) is 22:30 on 9 Aug in UTC.
 		vi.setSystemTime(new Date('2026-08-09T22:30:00Z'));
 		try {
-			const leg = makeTrip({ cruise_id: 1, embark_date: '2026-08-01', disembark_date: '2026-08-09' });
+			const leg = makeTrip({
+				cruise_id: 1,
+				embark_date: '2026-08-01',
+				disembark_date: '2026-08-09'
+			});
 			expect(legStatus(leg, null)).toBe('overdue');
 			expect(buildRejsEntries([makeCruise({ id: 1 })], [leg], [])[0].status).toBe('overdue');
 		} finally {
@@ -113,10 +154,30 @@ describe('buildRejsEntries', () => {
 	});
 
 	it.each([
-		{ name: 'all legs sailed', trips: [], voyages: [makeVoyage({ cruise_id: 1 })], want: 'completed' },
-		{ name: 'a leg still planned', trips: [makeTrip({ cruise_id: 1 })], voyages: [makeVoyage({ cruise_id: 1 })], want: 'upcoming' },
-		{ name: 'only cancelled legs', trips: [makeTrip({ cruise_id: 1, status: 'cancelled' })], voyages: [], want: 'cancelled' },
-		{ name: 'cancelled leg plus a sailed one', trips: [makeTrip({ cruise_id: 1, status: 'cancelled' })], voyages: [makeVoyage({ cruise_id: 1 })], want: 'completed' },
+		{
+			name: 'all legs sailed',
+			trips: [],
+			voyages: [makeVoyage({ cruise_id: 1 })],
+			want: 'completed'
+		},
+		{
+			name: 'a leg still planned',
+			trips: [makeTrip({ cruise_id: 1 })],
+			voyages: [makeVoyage({ cruise_id: 1 })],
+			want: 'upcoming'
+		},
+		{
+			name: 'only cancelled legs',
+			trips: [makeTrip({ cruise_id: 1, status: 'cancelled' })],
+			voyages: [],
+			want: 'cancelled'
+		},
+		{
+			name: 'cancelled leg plus a sailed one',
+			trips: [makeTrip({ cruise_id: 1, status: 'cancelled' })],
+			voyages: [makeVoyage({ cruise_id: 1 })],
+			want: 'completed'
+		},
 		{ name: 'no legs yet', trips: [], voyages: [], want: 'upcoming' }
 	])('marks a cruise with $name as $want', ({ trips, voyages, want }) => {
 		const [entry] = buildRejsEntries([makeCruise({ id: 1 })], trips, voyages);
@@ -125,15 +186,20 @@ describe('buildRejsEntries', () => {
 
 	describe('past planned legs', () => {
 		const today = '2026-11-13';
-		const status = (trips: ReturnType<typeof makeTrip>[], cruise = makeCruise({ id: 1 }), voyages: ReturnType<typeof makeVoyage>[] = []) =>
-			buildRejsEntries([cruise], trips, voyages, today)[0].status;
+		const status = (
+			trips: ReturnType<typeof makeTrip>[],
+			cruise = makeCruise({ id: 1 }),
+			voyages: ReturnType<typeof makeVoyage>[] = []
+		) => buildRejsEntries([cruise], trips, voyages, today)[0].status;
 
 		it.each([
 			{ name: 'a leg that ended yesterday', disembark: '2026-11-12', want: 'overdue' },
 			{ name: 'a leg that ends today', disembark: '2026-11-13', want: 'upcoming' },
 			{ name: 'a leg in progress', disembark: '2026-11-20', want: 'upcoming' }
 		])('marks a cruise with $name as $want', ({ disembark, want }) => {
-			expect(status([makeTrip({ cruise_id: 1, embark_date: '2026-11-10', disembark_date: disembark })])).toBe(want);
+			expect(
+				status([makeTrip({ cruise_id: 1, embark_date: '2026-11-10', disembark_date: disembark })])
+			).toBe(want);
 		});
 
 		it('falls back to the cruise end when the leg has no dates', () => {
@@ -149,7 +215,9 @@ describe('buildRejsEntries', () => {
 
 		it('ignores cancelled past legs', () => {
 			const trip = makeTrip({ cruise_id: 1, status: 'cancelled', disembark_date: '2026-08-09' });
-			expect(status([trip], makeCruise({ id: 1 }), [makeVoyage({ cruise_id: 1 })])).toBe('completed');
+			expect(status([trip], makeCruise({ id: 1 }), [makeVoyage({ cruise_id: 1 })])).toBe(
+				'completed'
+			);
 		});
 
 		it('labels the status "Do rozliczenia"', () => {
@@ -161,7 +229,10 @@ describe('buildRejsEntries', () => {
 		const [entry] = buildRejsEntries(
 			[makeCruise({ id: 1 })],
 			[],
-			[makeVoyage({ cruise_id: 1, miles: 100, hours_total: 30 }), makeVoyage({ id: 2, cruise_id: 1, miles: 50, hours_total: 12 })]
+			[
+				makeVoyage({ cruise_id: 1, miles: 100, hours_total: 30 }),
+				makeVoyage({ id: 2, cruise_id: 1, miles: 50, hours_total: 12 })
+			]
 		);
 		expect(entry).toMatchObject({ miles: 150, hoursTotal: 42 });
 	});
@@ -201,7 +272,8 @@ describe('filterRejsEntries', () => {
 			makeVoyage({ id: 60, cruise_id: 6, embark_date: undefined })
 		]
 	);
-	const names = (tab: 'upcoming' | 'completed' | 'all') => filterRejsEntries(entries, tab).map((e) => e.name);
+	const names = (tab: 'upcoming' | 'completed' | 'all') =>
+		filterRejsEntries(entries, tab).map((e) => e.name);
 
 	it('shows upcoming soonest first with undated last', () => {
 		expect(names('upcoming')).toEqual(['Soon', 'Late', 'Undated']);
@@ -219,7 +291,12 @@ describe('filterRejsEntries', () => {
 		const today = '2026-11-13';
 		const listed = buildRejsEntries(
 			[
-				makeCruise({ id: 1, name: 'Bornholm 2026', embark_date: '2026-08-01', disembark_date: '2026-08-09' }),
+				makeCruise({
+					id: 1,
+					name: 'Bornholm 2026',
+					embark_date: '2026-08-01',
+					disembark_date: '2026-08-09'
+				}),
 				makeCruise({ id: 2, name: 'Now', embark_date: '2026-11-10', disembark_date: '2026-11-20' }),
 				makeCruise({ id: 3, name: 'Done', embark_date: '2026-06-01' })
 			],
@@ -230,7 +307,8 @@ describe('filterRejsEntries', () => {
 			[makeVoyage({ id: 30, cruise_id: 3 })],
 			today
 		);
-		const pick = (tab: 'upcoming' | 'completed' | 'all') => filterRejsEntries(listed, tab).map((e) => e.name);
+		const pick = (tab: 'upcoming' | 'completed' | 'all') =>
+			filterRejsEntries(listed, tab).map((e) => e.name);
 		expect(pick('upcoming')).toEqual(['Now']);
 		expect(pick('completed')).toEqual(['Bornholm 2026', 'Done']);
 		expect(pick('all')).toEqual(['Now', 'Bornholm 2026', 'Done']);
@@ -254,7 +332,7 @@ describe('filterRejsEntries', () => {
 		expect(filterRejsEntries(listed, 'completed')).toEqual([]);
 	});
 
-	it('moves a past leg\'s cruise to completed once its last leg ended', () => {
+	it("moves a past leg's cruise to completed once its last leg ended", () => {
 		const listed = buildRejsEntries(
 			[makeCruise({ id: 1, name: 'Baltic', embark_date: '2026-11-01' })],
 			[makeTrip({ id: 10, cruise_id: 1, embark_date: '2026-11-01', disembark_date: '2026-11-07' })],
@@ -302,7 +380,11 @@ describe('isMineFilter', () => {
 describe('onlyMine', () => {
 	it('keeps only cruises the user took part in', () => {
 		const entries = buildRejsEntries(
-			[makeCruise({ id: 1, name: 'A' }), makeCruise({ id: 2, name: 'B' }), makeCruise({ id: 3, name: 'C' })],
+			[
+				makeCruise({ id: 1, name: 'A' }),
+				makeCruise({ id: 2, name: 'B' }),
+				makeCruise({ id: 3, name: 'C' })
+			],
 			[],
 			[]
 		);

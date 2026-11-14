@@ -1,4 +1,10 @@
-import { getCruise, getTrip, getTripSignUp, listAssignableCrew, listTripCrew } from '#lib/api/routes.js';
+import {
+	getCruise,
+	getTrip,
+	getTripSignUp,
+	listAssignableCrew,
+	listTripCrew
+} from '#lib/api/routes.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
 import type { PageLoad } from './$types';
@@ -16,7 +22,11 @@ export const load: PageLoad = async ({ params }) => {
 	// failures only to an admin.
 	const adminLoadErrors: string[] = [];
 	const [crew, allCrewMembers, signUp, cruise] = await Promise.all([
-		settle(listTripCrew(id).then((c) => c ?? []), [], noteFailure(adminLoadErrors, 'załoga')),
+		settle(
+			listTripCrew(id).then((c) => c ?? []),
+			[],
+			noteFailure(adminLoadErrors, 'załoga')
+		),
 		settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
 		settle(getTripSignUp(id), null, noteFailure(loadErrors, 'zapis na etap')),
 		trip.cruise_id
