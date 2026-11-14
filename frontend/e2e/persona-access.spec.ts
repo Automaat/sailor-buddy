@@ -107,7 +107,7 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('admin: creates a cruise', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
-		await page.getByRole('link', { name: 'Rejsy' }).click();
+		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
 		await page.waitForURL('/cruises');
 		await page.getByRole('link', { name: '+ Nowe wydarzenie' }).click();
 		await page.waitForURL('/cruises/new');
@@ -155,7 +155,7 @@ test.describe.serial('Single-club persona matrix', () => {
 
 	test('fully sailed cruise appears in the completed tab', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
-		await page.getByRole('link', { name: 'Rejsy' }).click();
+		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
 		await page.waitForURL('/cruises');
 		await page.getByRole('tab', { name: 'Zrealizowane' }).click();
 		await expect(page.getByText(cruiseName)).toBeVisible();

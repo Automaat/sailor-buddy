@@ -65,6 +65,7 @@ export async function apiRequest(
 		},
 		body: body ? JSON.stringify(body) : undefined
 	});
+	if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
 	if (res.status === 204) return undefined;
 	return res.json();
 }
