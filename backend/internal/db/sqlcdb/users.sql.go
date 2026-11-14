@@ -76,6 +76,56 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getAuthUserByFirebaseUID = `-- name: GetAuthUserByFirebaseUID :one
+SELECT users.id, users.email, users.name, users.password_hash, users.avatar_url, users.firebase_uid, users.role, users.patent_type, users.patent_number, users.created_at, users.updated_at, users.is_captain, users.membership, users.first_name, users.last_name, users.phone, users.onboarded_at,
+  EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+  EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+FROM users
+WHERE users.firebase_uid = $1
+`
+
+type GetAuthUserByFirebaseUIDRow struct {
+	User        User `json:"user"`
+	HasPerson   bool `json:"has_person"`
+	AdminExists bool `json:"admin_exists"`
+}
+
+// GetAuthUserByFirebaseUID is the auth middleware's read-only lookup. One
+// snapshot also reports whether the account has its person and whether any
+// admin exists, so a known, unchanged account needs no write.
+//
+//	SELECT users.id, users.email, users.name, users.password_hash, users.avatar_url, users.firebase_uid, users.role, users.patent_type, users.patent_number, users.created_at, users.updated_at, users.is_captain, users.membership, users.first_name, users.last_name, users.phone, users.onboarded_at,
+//	  EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+//	  EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+//	FROM users
+//	WHERE users.firebase_uid = $1
+func (q *Queries) GetAuthUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (GetAuthUserByFirebaseUIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuthUserByFirebaseUID, firebaseUid)
+	var i GetAuthUserByFirebaseUIDRow
+	err := row.Scan(
+		&i.User.ID,
+		&i.User.Email,
+		&i.User.Name,
+		&i.User.PasswordHash,
+		&i.User.AvatarUrl,
+		&i.User.FirebaseUid,
+		&i.User.Role,
+		&i.User.PatentType,
+		&i.User.PatentNumber,
+		&i.User.CreatedAt,
+		&i.User.UpdatedAt,
+		&i.User.IsCaptain,
+		&i.User.Membership,
+		&i.User.FirstName,
+		&i.User.LastName,
+		&i.User.Phone,
+		&i.User.OnboardedAt,
+		&i.HasPerson,
+		&i.AdminExists,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE email = $1
 `

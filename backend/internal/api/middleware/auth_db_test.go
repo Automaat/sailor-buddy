@@ -16,6 +16,7 @@ import (
 
 	fbauth "firebase.google.com/go/v4/auth"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -238,5 +239,125 @@ func TestAuth_ConcurrentFirstRequestsOfOneAccountBothAdmin(t *testing.T) {
 		if got != "200 admin" {
 			t.Fatalf("sign-in result = %q, want 200 admin for both requests", got)
 		}
+	}
+}
+
+// authProbe runs Auth over conn and returns a sign-in helper that reports
+// the claims the handler saw.
+func authProbe(t *testing.T, conn *sql.DB, verifier fakeVerifier) func(token string) auth.Claims {
+	t.Helper()
+	var seen *auth.Claims
+	handler := Auth(verifier, sqlcdb.New(conn), conn)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = GetUser(r.Context())
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	return func(token string) auth.Claims {
+		t.Helper()
+		seen = nil
+		req := httptest.NewRequest(http.MethodGet, "/api/auth/me", http.NoBody)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent || seen == nil {
+			t.Fatalf("sign in %s: got %d; body=%s", token, rec.Code, rec.Body)
+		}
+		return *seen
+	}
+}
+
+func userUpdatedAt(t *testing.T, conn *sql.DB, id int64) time.Time {
+	t.Helper()
+	var at time.Time
+	if err := conn.QueryRow(`SELECT updated_at FROM users WHERE id = $1`, id).Scan(&at); err != nil {
+		t.Fatalf("updated_at of user %d: %v", id, err)
+	}
+	return at
+}
+
+func TestAuth_KnownAccountIsNotWritten(t *testing.T) {
+	conn := freshDB(t)
+	signIn := authProbe(t, conn, fakeVerifier{
+		"tok-admin": {UID: "fb-admin", Claims: map[string]any{"email": "admin@example.dev", "name": "Ada"}},
+		"tok-ola":   {UID: "fb-ola", Claims: map[string]any{"email": "ola@example.dev", "name": "Ola Nowak"}},
+	})
+
+	for _, token := range []string{"tok-admin", "tok-ola"} {
+		first := signIn(token)
+		before := userUpdatedAt(t, conn, first.UserID)
+		again := signIn(token)
+		if again != first {
+			t.Errorf("%s: repeat claims = %+v, want %+v", token, again, first)
+		}
+		if after := userUpdatedAt(t, conn, first.UserID); !after.Equal(before) {
+			t.Errorf("%s: users.updated_at moved from %v to %v on a repeat request", token, before, after)
+		}
+	}
+	if got := signIn("tok-ola").Role; got != "member" {
+		t.Errorf("second account role = %q, want member", got)
+	}
+}
+
+func TestAuth_ChangedAccountIsProvisioned(t *testing.T) {
+	cases := []struct {
+		name   string
+		change string
+		claims map[string]any
+		want   auth.Claims
+	}{
+		{
+			name:   "new token name before onboarding",
+			claims: map[string]any{"email": "ola@example.dev", "name": "Ola Kowalska"},
+			want:   auth.Claims{Email: "ola@example.dev", Name: "Ola Kowalska", Role: "admin"},
+		},
+		{
+			name:   "new token name after onboarding",
+			change: `UPDATE users SET onboarded_at = now() WHERE firebase_uid = 'fb-ola'`,
+			claims: map[string]any{"email": "ola@example.dev", "name": "Ola Kowalska"},
+			want:   auth.Claims{Email: "ola@example.dev", Name: "Ola Nowak", Role: "admin"},
+		},
+		{
+			name:   "new token email",
+			claims: map[string]any{"email": "ola@sail.example.dev", "name": "Ola Nowak"},
+			want:   auth.Claims{Email: "ola@sail.example.dev", Name: "Ola Nowak", Role: "admin"},
+		},
+		{
+			name:   "person removed",
+			change: `DELETE FROM crew_members WHERE user_id = (SELECT id FROM users WHERE firebase_uid = 'fb-ola')`,
+			claims: map[string]any{"email": "ola@example.dev", "name": "Ola Nowak"},
+			want:   auth.Claims{Email: "ola@example.dev", Name: "Ola Nowak", Role: "admin"},
+		},
+		{
+			name:   "no admin left",
+			change: `UPDATE users SET role = 'member'`,
+			claims: map[string]any{"email": "ola@example.dev", "name": "Ola Nowak"},
+			want:   auth.Claims{Email: "ola@example.dev", Name: "Ola Nowak", Role: "admin"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := freshDB(t)
+			signIn := authProbe(t, conn, fakeVerifier{
+				"tok-ola":     {UID: "fb-ola", Claims: map[string]any{"email": "ola@example.dev", "name": "Ola Nowak"}},
+				"tok-changed": {UID: "fb-ola", Claims: tc.claims},
+			})
+			tc.want.UserID = signIn("tok-ola").UserID
+			if tc.change != "" {
+				if _, err := conn.Exec(tc.change); err != nil {
+					t.Fatalf("apply change: %v", err)
+				}
+			}
+			for _, attempt := range []string{"first", "repeat"} {
+				if got := signIn("tok-changed"); got != tc.want {
+					t.Errorf("%s request claims = %+v, want %+v", attempt, got, tc.want)
+				}
+			}
+			var people int
+			if err := conn.QueryRow(`SELECT COUNT(*) FROM crew_members WHERE user_id = $1`, tc.want.UserID).Scan(&people); err != nil {
+				t.Fatalf("count people: %v", err)
+			}
+			if people != 1 {
+				t.Errorf("people of the account = %d, want 1", people)
+			}
+		})
 	}
 }

@@ -116,7 +116,7 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 	}
 
 	data := opinionDocData(voyage, assignment, yachtName, yachtType)
-	filePath, err := storeOpinionFile(h.uploadDir, in.VoyageID, in.Body.CrewMemberID, format, data)
+	filePath, err := storeOpinionFile(ctx, h.uploadDir, in.VoyageID, in.Body.CrewMemberID, format, data)
 	if err != nil {
 		slog.Error("store opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
 		return nil, huma.Error500InternalServerError("failed to generate opinion document")
@@ -236,9 +236,10 @@ func getOpinionCrewAssignment(ctx context.Context, q sqlcdb.Querier, voyageID, c
 }
 
 // storeOpinionFile renders the opinion document and writes it under the upload
-// directory, removing any prior file in a different format.
-func storeOpinionFile(uploadDir string, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
-	fileBytes, err := renderOpinionFile(format, data)
+// directory, removing any prior file in a different format. ctx bounds the
+// render, so a disconnected client stops its Chromium process.
+func storeOpinionFile(ctx context.Context, uploadDir string, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
+	fileBytes, err := renderOpinionFile(ctx, format, data)
 	if err != nil {
 		return "", err
 	}
@@ -293,14 +294,14 @@ func opinionDocData(voyage sqlcdb.Voyage, assignment sqlcdb.GetVoyageCrewAssignm
 
 // renderOpinionFile produces the opinion document bytes for the requested
 // format. PDF goes through the HTML template; docx is generated directly.
-func renderOpinionFile(format string, data docgen.OpinionData) ([]byte, error) {
+func renderOpinionFile(ctx context.Context, format string, data docgen.OpinionData) ([]byte, error) {
 	switch format {
 	case "pdf":
 		html, err := docgen.RenderHTML(data)
 		if err != nil {
 			return nil, err
 		}
-		return docgen.GeneratePDF(html)
+		return docgen.GeneratePDF(ctx, html)
 	case "docx":
 		return docgen.GenerateDOCX(data)
 	default:

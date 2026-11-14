@@ -10,6 +10,16 @@ SELECT * FROM users WHERE id = $1;
 -- name: GetUserByFirebaseUID :one
 SELECT * FROM users WHERE firebase_uid = $1;
 
+-- GetAuthUserByFirebaseUID is the auth middleware's read-only lookup. One
+-- snapshot also reports whether the account has its person and whether any
+-- admin exists, so a known, unchanged account needs no write.
+-- name: GetAuthUserByFirebaseUID :one
+SELECT sqlc.embed(users),
+  EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+  EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+FROM users
+WHERE users.firebase_uid = $1;
+
 -- name: UpsertUserByFirebaseUID :one
 INSERT INTO users (email, name, firebase_uid)
 VALUES ($1, $2, $3)
