@@ -35,9 +35,17 @@ func Load() *Config {
 // "https://*.github.io" all allow origins anyone can serve.
 var ErrWildcardCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: a wildcard is allowed only in the first label of a host under a registrable domain (https://*.example.com, https://app-*.example.com) or as the port of a named host (http://localhost:*)`)
 
+// ErrNullCORSOrigin rejects a CORS_ALLOWED_ORIGINS entry of "null". Browsers
+// send "Origin: null" from sandboxed iframes, data: URLs and file: pages, so
+// any site can claim it.
+var ErrNullCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: "null" is not an allowed origin; any site can send it from a sandboxed iframe or a data: URL`)
+
 // Validate reports settings the API server must not start with.
 func (c *Config) Validate() error {
 	for _, o := range c.CORSAllowedOrigins {
+		if strings.EqualFold(strings.TrimSpace(o), "null") {
+			return fmt.Errorf("%w: %q", ErrNullCORSOrigin, o)
+		}
 		if strings.Contains(o, "*") && !isSafeWildcard(strings.ToLower(o)) {
 			return fmt.Errorf("%w: %q", ErrWildcardCORSOrigin, o)
 		}

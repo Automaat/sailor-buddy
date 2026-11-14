@@ -115,55 +115,59 @@ func TestValidate_CORSOrigins(t *testing.T) {
 	tests := []struct {
 		name    string
 		env     string
-		wantErr bool
+		wantErr error
 	}{
-		{"default localhost", "", false},
-		{"listed origins", "https://a.com,https://b.com", false},
-		{"subdomain pattern", "https://*.example.com", false},
-		{"wildcard", "*", true},
-		{"wildcard among origins", "https://a.com, *", true},
-		{"scheme wildcard", "https://*", true},
-		{"prefix wildcard", "http*", true},
-		{"top-level domain wildcard", "https://*.com", true},
-		{"wildcard in domain", "https://*.*.example.com", true},
-		{"wildcard with path", "https://*.example.com/x", true},
-		{"wildcard after host", "https://example.com*", true},
-		{"non-http scheme", "ftp://*.example.com", true},
-		{"empty label", "https://*.example..com", true},
-		{"subdomain pattern with port", "https://*.example.com:8443", false},
-		{"upper-case subdomain pattern", "HTTPS://*.Example.COM", false},
-		{"deeper subdomain pattern", "https://*.app.example.com", false},
-		{"subdomain of a private suffix owner", "https://*.club.github.io", false},
-		{"wildcard inside first label", "https://app-*.example.com", false},
-		{"any port of localhost", "http://localhost:*", false},
-		{"any port of a named host", "https://api.example.com:*", false},
-		{"any port of an IPv4 host", "http://127.0.0.1:*", false},
-		{"any port of an IPv6 host", "http://[::1]:*", false},
-		{"public suffix wildcard", "https://*.co.uk", true},
-		{"private suffix wildcard", "https://*.github.io", true},
-		{"hosting suffix wildcard", "https://*.vercel.app", true},
-		{"upper-case public suffix wildcard", "HTTPS://*.GitHub.IO", true},
-		{"wildcard label under a public suffix", "https://app-*.github.io", true},
-		{"wildcard in second label", "https://app.*.example.com", true},
-		{"single-label domain", "https://*.localhost", true},
-		{"numeric tail", "https://*.0.0.1", true},
-		{"wildcard host with any port", "https://*.example.com:*", true},
-		{"any port without host", "http://:*", true},
-		{"any port after a port", "http://localhost:5173:*", true},
-		{"wildcard inside port", "http://localhost:80*", true},
-		{"non-numeric port", "https://*.example.com:https", true},
-		{"wildcard with userinfo", "https://user@*.example.com", true},
-		{"wildcard with query", "https://*.example.com?x", true},
+		{"default localhost", "", nil},
+		{"listed origins", "https://a.com,https://b.com", nil},
+		{"subdomain pattern", "https://*.example.com", nil},
+		{"wildcard", "*", ErrWildcardCORSOrigin},
+		{"wildcard among origins", "https://a.com, *", ErrWildcardCORSOrigin},
+		{"scheme wildcard", "https://*", ErrWildcardCORSOrigin},
+		{"prefix wildcard", "http*", ErrWildcardCORSOrigin},
+		{"top-level domain wildcard", "https://*.com", ErrWildcardCORSOrigin},
+		{"wildcard in domain", "https://*.*.example.com", ErrWildcardCORSOrigin},
+		{"wildcard with path", "https://*.example.com/x", ErrWildcardCORSOrigin},
+		{"wildcard after host", "https://example.com*", ErrWildcardCORSOrigin},
+		{"non-http scheme", "ftp://*.example.com", ErrWildcardCORSOrigin},
+		{"empty label", "https://*.example..com", ErrWildcardCORSOrigin},
+		{"subdomain pattern with port", "https://*.example.com:8443", nil},
+		{"upper-case subdomain pattern", "HTTPS://*.Example.COM", nil},
+		{"deeper subdomain pattern", "https://*.app.example.com", nil},
+		{"subdomain of a private suffix owner", "https://*.club.github.io", nil},
+		{"wildcard inside first label", "https://app-*.example.com", nil},
+		{"any port of localhost", "http://localhost:*", nil},
+		{"any port of a named host", "https://api.example.com:*", nil},
+		{"any port of an IPv4 host", "http://127.0.0.1:*", nil},
+		{"any port of an IPv6 host", "http://[::1]:*", nil},
+		{"public suffix wildcard", "https://*.co.uk", ErrWildcardCORSOrigin},
+		{"private suffix wildcard", "https://*.github.io", ErrWildcardCORSOrigin},
+		{"hosting suffix wildcard", "https://*.vercel.app", ErrWildcardCORSOrigin},
+		{"upper-case public suffix wildcard", "HTTPS://*.GitHub.IO", ErrWildcardCORSOrigin},
+		{"wildcard label under a public suffix", "https://app-*.github.io", ErrWildcardCORSOrigin},
+		{"wildcard in second label", "https://app.*.example.com", ErrWildcardCORSOrigin},
+		{"single-label domain", "https://*.localhost", ErrWildcardCORSOrigin},
+		{"numeric tail", "https://*.0.0.1", ErrWildcardCORSOrigin},
+		{"wildcard host with any port", "https://*.example.com:*", ErrWildcardCORSOrigin},
+		{"any port without host", "http://:*", ErrWildcardCORSOrigin},
+		{"any port after a port", "http://localhost:5173:*", ErrWildcardCORSOrigin},
+		{"wildcard inside port", "http://localhost:80*", ErrWildcardCORSOrigin},
+		{"non-numeric port", "https://*.example.com:https", ErrWildcardCORSOrigin},
+		{"wildcard with userinfo", "https://user@*.example.com", ErrWildcardCORSOrigin},
+		{"wildcard with query", "https://*.example.com?x", ErrWildcardCORSOrigin},
+		{"null origin", "null", ErrNullCORSOrigin},
+		{"upper-case null origin", "NULL", ErrNullCORSOrigin},
+		{"null among origins", "https://a.com, Null", ErrNullCORSOrigin},
+		{"null as a host", "https://null.example.com", nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("CORS_ALLOWED_ORIGINS", tc.env)
 			err := Load().Validate()
-			if tc.wantErr != errors.Is(err, ErrWildcardCORSOrigin) {
-				t.Fatalf("Validate() = %v, want wildcard error %v", err, tc.wantErr)
-			}
-			if !tc.wantErr && err != nil {
+			if tc.wantErr == nil && err != nil {
 				t.Fatalf("Validate() = %v, want nil", err)
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Validate() = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}
