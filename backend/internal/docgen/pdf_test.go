@@ -206,6 +206,25 @@ func TestChromeOptions_Sandboxed(t *testing.T) {
 	}
 }
 
+// TestGeneratePDF_ChromeLongDocument renders a long page with a script, which
+// takes long enough for Chromium to start its GPU work. On Alpine arm64 a
+// sandboxed GPU process crashed here and aborted the browser.
+func TestGeneratePDF_ChromeLongDocument(t *testing.T) {
+	requireChrome(t)
+
+	html := "<script>document.title = 'Opinia'</script><h1>Opinia</h1>" +
+		strings.Repeat("<p>Rejs po Bałtyku: Polska, Dania, Szwecja, Niemcy.</p>", 1000)
+	for range 3 {
+		pdf, err := GeneratePDF(t.Context(), []byte(html))
+		if err != nil {
+			t.Fatalf("render failed: %v", err)
+		}
+		if !bytes.HasPrefix(pdf, []byte("%PDF")) {
+			t.Fatalf("output is not a PDF: %q", pdf[:min(len(pdf), 16)])
+		}
+	}
+}
+
 // slowLoadHTML blocks the page's load event for 5 s, so a render is still
 // navigating when a shorter deadline expires.
 const slowLoadHTML = `<script>const end = Date.now() + 5000; while (Date.now() < end) {}</script><h1>Opinia</h1>`

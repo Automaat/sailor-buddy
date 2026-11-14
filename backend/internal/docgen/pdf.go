@@ -56,9 +56,14 @@ func GeneratePDF(ctx context.Context, htmlBytes []byte) ([]byte, error) {
 // stays on unless SAILOR_CHROME_NO_SANDBOX is true. Chromium cannot sandbox
 // itself as root, so only a container running as root (the dev image) sets
 // it; an unset or invalid value keeps the sandbox on.
+//
+// The GPU process alone runs unsandboxed: on Alpine arm64 its seccomp policy
+// kills it on pwritev2, which aborts the browser mid-render. Renderers, which
+// parse the opinion HTML, keep the namespace and seccomp-BPF sandbox.
 func chromeOptions() []chromedp.ExecAllocatorOption {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("disable-gpu-sandbox", true),
 	)
 	if noSandbox, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX")); noSandbox {
 		opts = append(opts, chromedp.NoSandbox)
