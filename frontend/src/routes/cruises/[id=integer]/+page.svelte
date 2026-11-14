@@ -43,7 +43,10 @@
 	let legEnrollments = $state<TripEnrollment[]>([]);
 	let adminLoadErrors = $state<string[]>([]);
 	const loadErrors = $derived([...data.loadErrors, ...adminLoadErrors]);
-	let togglingEnroll = $state(false);
+	// togglingFor is the cruise whose enroll-link request is in flight; the
+	// toggle is disabled only on that cruise, not on one a link moved to.
+	let togglingFor = $state<number | null>(null);
+	const togglingEnroll = $derived(togglingFor === data.cruise.id);
 
 	const id = $derived(data.cruise.id);
 	const isAdmin = $derived(auth.isAdmin);
@@ -140,7 +143,7 @@
 
 	async function toggleEnrollment() {
 		const cruiseId = id;
-		togglingEnroll = true;
+		togglingFor = cruiseId;
 		try {
 			if (enrollToken) {
 				await clearCruiseEnrollToken(cruiseId);
@@ -152,7 +155,7 @@
 		} catch (err) {
 			console.error('Failed to toggle enrollment:', err);
 		} finally {
-			togglingEnroll = false;
+			if (togglingFor === cruiseId) togglingFor = null;
 		}
 	}
 

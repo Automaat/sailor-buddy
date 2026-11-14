@@ -365,6 +365,22 @@ describe('cruise page same-route navigation', () => {
 		await waitFor(() => expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument());
 		expect(screen.queryByRole('button', { name: 'Wyłącz zapisy' })).not.toBeInTheDocument();
 	});
+
+	it('keeps the enroll toggle usable on a cruise reached while another toggles', async () => {
+		mockGet.mockImplementation(async (id: number) =>
+			cruise({ id, name: id === 7 ? 'Sycylia 2026' : 'Chorwacja 2026', enroll_token: undefined })
+		);
+		fn(generateCruiseEnrollToken).mockReturnValue(new Promise(() => {}));
+		const view = await renderPage();
+		const toggle = await screen.findByRole('button', { name: 'Włącz zapisy' });
+		await fireEvent.click(toggle);
+		expect(toggle).toBeDisabled();
+
+		await view.rerender({ data: await runLoad('8') });
+
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeEnabled();
+	});
 });
 
 describe('cruise page load errors', () => {
