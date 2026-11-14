@@ -63,7 +63,11 @@
 		const current = signUp;
 		return run(async () => {
 			const res = await signUpForTrip(current.trip_id);
-			onchange({ ...current, enrollment: res.enrollment, waitlist_position: res.waitlist_position });
+			onchange({
+				...current,
+				enrollment: res.enrollment,
+				waitlist_position: res.waitlist_position
+			});
 		}, 'Nie udało się zapisać');
 	}
 
@@ -96,21 +100,26 @@
 	{#if enrollment}
 		<div class="flex flex-wrap items-center justify-end gap-2">
 			<span
-				class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}"
+				class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ??
+					'bg-gray-100'}"
 				data-testid="sign-up-status"
 			>
 				{statusText}
 			</span>
 			{#if enrollment.payment_status}
 				<span
-					class="rounded-full px-2 py-0.5 text-xs font-medium {paymentColors[enrollment.payment_status] ?? 'bg-gray-100'}"
+					class="rounded-full px-2 py-0.5 text-xs font-medium {paymentColors[
+						enrollment.payment_status
+					] ?? 'bg-gray-100'}"
 					data-testid="sign-up-payment"
 				>
 					{paymentLabels[enrollment.payment_status]}
 				</span>
 			{/if}
 			{#if cruiseLevel}
-				<span class="text-xs text-[var(--text-muted)]" data-testid="cruise-level">zapis na wydarzenie</span>
+				<span class="text-xs text-[var(--text-muted)]" data-testid="cruise-level"
+					>zapis na wydarzenie</span
+				>
 			{/if}
 			{#if canWithdraw}
 				<button
@@ -135,7 +144,9 @@
 			{/if}
 		</div>
 		{#if enrollment.note && !editingNote}
-			<p class="max-w-xs text-right text-xs text-[var(--text-muted)]" data-testid="sign-up-note">{enrollment.note}</p>
+			<p class="max-w-xs text-right text-xs text-[var(--text-muted)]" data-testid="sign-up-note">
+				{enrollment.note}
+			</p>
 		{/if}
 		{#if editingNote}
 			<form onsubmit={saveNote} class="flex w-full max-w-xs flex-col items-end gap-1">
@@ -146,10 +157,13 @@
 					rows="2"
 					maxlength="2000"
 					placeholder="Wiadomość dla organizatora..."
-					class="w-full rounded-lg border px-2 py-1 text-xs"
-				></textarea>
+					class="w-full rounded-lg border px-2 py-1 text-xs"></textarea>
 				<div class="flex gap-1">
-					<button type="button" onclick={() => (editingNote = false)} class="rounded px-2 py-1 text-xs hover:bg-gray-100">
+					<button
+						type="button"
+						onclick={() => (editingNote = false)}
+						class="rounded px-2 py-1 text-xs hover:bg-gray-100"
+					>
 						Anuluj
 					</button>
 					<button

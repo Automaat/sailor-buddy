@@ -3,16 +3,26 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { makeCruise, makeVoyage } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAdmin: true, user: { id: 1, role: 'admin' } } }));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
+	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
+}));
 vi.mock('#lib/api/routes.js', () => ({
 	listCruises: vi.fn(),
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	createVoyage: vi.fn(),
-	listMembers: vi.fn(), listCrew: vi.fn()
+	listMembers: vi.fn(),
+	listCrew: vi.fn()
 }));
 
-import { listCruises, listYachts, createVoyage, createYacht, listMembers, listCrew } from '#lib/api/routes.js';
+import {
+	listCruises,
+	listYachts,
+	createVoyage,
+	createYacht,
+	listMembers,
+	listCrew
+} from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import NewVoyagePage from './+page.svelte';
 import { load } from './+page.js';
@@ -41,17 +51,23 @@ beforeEach(() => {
 describe('new voyage page', () => {
 	it('refuses to submit without a cruise', async () => {
 		await renderPage();
-		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
 
-		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(
+			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
+		).toBeInTheDocument();
 		expect(createVoyage).not.toHaveBeenCalled();
 	});
 
 	it('logs the voyage into the cruise named in the URL', async () => {
 		await renderPage('http://localhost/voyages/new?cruise_id=13');
 		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
 
@@ -70,20 +86,30 @@ describe('new voyage page', () => {
 		});
 		await renderPage('http://localhost/voyages/new?cruise_id=13');
 		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 
 		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
 		await fireEvent.input(screen.getByLabelText('Typ jachtu'), { target: { value: 'Hanse 415' } });
 		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
-		await fireEvent.input(screen.getByLabelText('Numer rejestracyjny (opcjonalnie)'), { target: { value: 'POL-1' } });
+		await fireEvent.input(screen.getByLabelText('Numer rejestracyjny (opcjonalnie)'), {
+			target: { value: 'POL-1' }
+		});
 		await fireEvent.keyDown(screen.getByLabelText('Nazwa jachtu *'), { key: 'Enter' });
 
 		await waitFor(() => expect(screen.getByLabelText('Jacht')).toHaveValue('21'));
-		expect(createYacht).toHaveBeenCalledWith({ name: 'Selma', yacht_type: 'Hanse 415', registration_no: 'POL-1' });
+		expect(createYacht).toHaveBeenCalledWith({
+			name: 'Selma',
+			yacht_type: 'Hanse 415',
+			registration_no: 'POL-1'
+		});
 		expect(createVoyage).not.toHaveBeenCalled();
 		expect(screen.getByRole('option', { name: 'Selma (Hanse 415)' })).toBeInTheDocument();
 
-		await fireEvent.input(screen.getByLabelText('Link do śladu rejsu'), { target: { value: 'https://example.com/t' } });
+		await fireEvent.input(screen.getByLabelText('Link do śladu rejsu'), {
+			target: { value: 'https://example.com/t' }
+		});
 		await fireEvent.input(screen.getByLabelText('Karta rejsu'), { target: { value: 'w klubie' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
 
@@ -100,7 +126,9 @@ describe('new voyage page', () => {
 		fn(createYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
 		await renderPage('http://localhost/voyages/new?cruise_id=13');
 		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 
 		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
 		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
@@ -143,7 +171,6 @@ describe('new voyage page load errors', () => {
 	});
 });
 
-
 describe('new voyage page load', () => {
 	it('reads the preselected event from ?cruise_id=', async () => {
 		const data = await runLoad('http://localhost/voyages/new?cruise_id=13');
@@ -167,12 +194,17 @@ describe('new voyage page load', () => {
 
 describe('new voyage page same-route navigation', () => {
 	beforeEach(() => {
-		fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025' }), makeCruise({ id: 14, name: 'WRM 2025' })]);
+		fn(listCruises).mockResolvedValue([
+			makeCruise({ id: 13, name: 'NNE 2025' }),
+			makeCruise({ id: 14, name: 'WRM 2025' })
+		]);
 	});
 
 	it('starts a fresh form for the second event', async () => {
 		const view = await renderPage('http://localhost/voyages/new?cruise_id=13');
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 
 		await view.rerender({ data: await runLoad('http://localhost/voyages/new?cruise_id=14') });
 
@@ -181,22 +213,30 @@ describe('new voyage page same-route navigation', () => {
 		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/cruises/14');
 	});
 
-	it('clears the first form\'s error', async () => {
+	it("clears the first form's error", async () => {
 		const view = await renderPage();
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
-		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(
+			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
+		).toBeInTheDocument();
 
 		await view.rerender({ data: await runLoad('http://localhost/voyages/new?cruise_id=14') });
 
-		expect(screen.queryByText('Wybierz wydarzenie, do którego należy rejs')).not.toBeInTheDocument();
+		expect(
+			screen.queryByText('Wybierz wydarzenie, do którego należy rejs')
+		).not.toBeInTheDocument();
 	});
 
 	it('drops a create reply for the form the page has left', async () => {
 		let answer: (v: unknown) => void = () => {};
 		fn(createVoyage).mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
 		const view = await renderPage('http://localhost/voyages/new?cruise_id=13');
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Rejs 2019' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
 		expect(screen.getByRole('button', { name: 'Tworzenie...' })).toBeDisabled();
 

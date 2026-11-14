@@ -1,32 +1,8 @@
-<script lang="ts" module>
-	import type { Yacht } from '#lib/api/types.js';
-
-	// Creates still waiting for the server, shared by every picker on the page,
-	// so a draft re-added after a cancel or remount reuses the pending request
-	// instead of saving the same yacht twice.
-	const pendingCreates = new Map<string, Promise<Yacht>>();
-
-	function pendingKey(name: string, type: string) {
-		return JSON.stringify([type.toLocaleLowerCase(), name.toLocaleLowerCase()]);
-	}
-
-	function createOnce(key: string, start: () => Promise<Yacht>) {
-		const pending = pendingCreates.get(key);
-		if (pending) return pending;
-		const request = start();
-		pendingCreates.set(key, request);
-		const forget = () => {
-			if (pendingCreates.get(key) === request) pendingCreates.delete(key);
-		};
-		request.then(forget, forget);
-		return request;
-	}
-</script>
-
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { createYacht } from '#lib/api/routes.js';
-	import type { YachtBody } from '#lib/api/types.js';
+	import type { Yacht, YachtBody } from '#lib/api/types.js';
+	import { createOnce, pendingKey } from '#lib/yachtCreates.js';
 
 	// Picks a yacht from the club list, or adds a new one (e.g. a charter yacht
 	// used once) without leaving the surrounding form. `create` defaults to the
@@ -38,7 +14,12 @@
 		id?: string;
 	};
 
-	let { value = $bindable(), yachts = $bindable(), create = createYacht, id = 'yacht' }: Props = $props();
+	let {
+		value = $bindable(),
+		yachts = $bindable(),
+		create = createYacht,
+		id = 'yacht'
+	}: Props = $props();
 
 	let adding = $state(false);
 	let saving = $state(false);
@@ -145,14 +126,20 @@
 	function saveOnEnterInsteadOfSubmittingParentForm(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
 			e.preventDefault();
-			save();
+			void save();
 		}
 	}
 </script>
 
 <svelte:window onsubmitcapture={holdParentSubmitWhileSaving} />
 
-<select {id} bind:this={select} bind:value onchange={() => (pickedWhileSaving = saving)} class="w-full rounded-lg border px-3 py-2">
+<select
+	{id}
+	bind:this={select}
+	bind:value
+	onchange={() => (pickedWhileSaving = saving)}
+	class="w-full rounded-lg border px-3 py-2"
+>
 	<option value={0}>-- Wybierz --</option>
 	{#each yachts as yacht (yacht.id)}
 		<option value={yacht.id}>{yachtLabel(yacht)}</option>
@@ -163,25 +150,55 @@
 		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 			<div>
 				<label for="{id}-new-type" class="mb-1 block text-xs font-medium">Typ jachtu</label>
-				<input id="{id}-new-type" type="text" bind:value={draft.yacht_type} onkeydown={saveOnEnterInsteadOfSubmittingParentForm} placeholder="np. Bavaria 46" class="w-full rounded-lg border px-3 py-1.5 text-sm" />
+				<input
+					id="{id}-new-type"
+					type="text"
+					bind:value={draft.yacht_type}
+					onkeydown={saveOnEnterInsteadOfSubmittingParentForm}
+					placeholder="np. Bavaria 46"
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
 			</div>
 			<div>
 				<label for="{id}-new-name" class="mb-1 block text-xs font-medium">Nazwa jachtu *</label>
-				<input id="{id}-new-name" type="text" bind:value={draft.name} onkeydown={saveOnEnterInsteadOfSubmittingParentForm} class="w-full rounded-lg border px-3 py-1.5 text-sm" />
+				<input
+					id="{id}-new-name"
+					type="text"
+					bind:value={draft.name}
+					onkeydown={saveOnEnterInsteadOfSubmittingParentForm}
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
 			</div>
 			<div class="sm:col-span-2">
-				<label for="{id}-new-reg" class="mb-1 block text-xs font-medium">Numer rejestracyjny (opcjonalnie)</label>
-				<input id="{id}-new-reg" type="text" bind:value={draft.registration_no} onkeydown={saveOnEnterInsteadOfSubmittingParentForm} class="w-full rounded-lg border px-3 py-1.5 text-sm" />
+				<label for="{id}-new-reg" class="mb-1 block text-xs font-medium"
+					>Numer rejestracyjny (opcjonalnie)</label
+				>
+				<input
+					id="{id}-new-reg"
+					type="text"
+					bind:value={draft.registration_no}
+					onkeydown={saveOnEnterInsteadOfSubmittingParentForm}
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
 			</div>
 		</div>
 		{#if error}
 			<p class="text-xs text-red-600">{error}</p>
 		{/if}
 		<div class="flex gap-2">
-			<button type="button" onclick={save} disabled={saving} class="rounded-lg bg-[var(--ocean)] px-3 py-1 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+			<button
+				type="button"
+				onclick={save}
+				disabled={saving}
+				class="rounded-lg bg-[var(--ocean)] px-3 py-1 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
 				{saving ? 'Dodawanie...' : 'Dodaj jacht'}
 			</button>
-			<button type="button" onclick={cancelAdd} class="rounded-lg border px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-gray-50">
+			<button
+				type="button"
+				onclick={cancelAdd}
+				class="rounded-lg border px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-gray-50"
+			>
 				Anuluj
 			</button>
 		</div>

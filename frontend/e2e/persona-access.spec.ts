@@ -79,8 +79,14 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('setup: first user becomes admin, second becomes member', async ({ page }) => {
 		await signInAdmin(page);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
-		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute('href', '/crew');
-		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveAttribute('href', '/trainings');
+		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute(
+			'href',
+			'/crew'
+		);
+		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveAttribute(
+			'href',
+			'/trainings'
+		);
 		await expect(page.getByRole('link', { name: 'Szkolenia' })).toHaveCount(0);
 
 		const member = await createTestUser(memberEmail, PASSWORD, 'Persona Member');
@@ -112,7 +118,9 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL('/', { timeout: 10_000 });
 
 		expect(await mutationStatus(memberToken, 'POST', '/cruises', { name: 'X' })).toBe(403);
-		expect(await mutationStatus(memberToken, 'POST', '/trips', { name: 'X', cruise_id: 1 })).toBe(403);
+		expect(await mutationStatus(memberToken, 'POST', '/trips', { name: 'X', cruise_id: 1 })).toBe(
+			403
+		);
 		expect(await mutationStatus(memberToken, 'POST', '/yachts', { name: 'X' })).toBe(403);
 		expect(await mutationStatus(memberToken, 'POST', '/crew', { full_name: 'X' })).toBe(403);
 	});
@@ -187,7 +195,9 @@ test.describe.serial('Single-club persona matrix', () => {
 	test("admin: a link from one trip's edit page to another shows the second", async ({ page }) => {
 		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
 		// A separate cruise keeps cruiseName fully sailed for the completed-tab step, and neither name may contain cruiseName or tripName because Playwright matches substrings. EXC:FILE011:documents-a-non-obvious-invariant
-		const otherCruise = (await apiRequest(idToken, 'POST', '/cruises', { name: `Third ${RUN_ID}` })) as {
+		const otherCruise = (await apiRequest(idToken, 'POST', '/cruises', {
+			name: `Third ${RUN_ID}`
+		})) as {
 			id: number;
 		};
 		const otherName = `Leg ${RUN_ID}`;
@@ -210,7 +220,10 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(`/trips/${other.id}/edit`);
 		await expect(page.getByLabel('Nazwa rejsu *')).toHaveValue(otherName);
 		await expect(page.getByLabel('Wydarzenie klubu *')).toHaveValue(String(otherCruise.id));
-		await expect(page.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', `/trips/${other.id}`);
+		await expect(page.getByRole('link', { name: 'Anuluj' })).toHaveAttribute(
+			'href',
+			`/trips/${other.id}`
+		);
 	});
 
 	test('admin: completes the trip into a voyage', async ({ page }) => {

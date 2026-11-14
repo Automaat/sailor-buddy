@@ -32,7 +32,7 @@
 	// Managing members is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			goto('/');
+			void goto('/');
 		}
 	});
 
@@ -48,7 +48,7 @@
 	}
 
 	$effect(() => {
-		load();
+		void load();
 	});
 
 	$effect(() => () => clearTimeout(successTimer));
@@ -104,7 +104,10 @@
 	async function setRole(member: Member, role: Role, el: HTMLSelectElement) {
 		if (member.role === role) return;
 		const revert = () => (el.value = stored(member).role);
-		if (member.role === 'admin' && !confirm(`Odebrać uprawnienia administratora: ${member.name}?`)) {
+		if (
+			member.role === 'admin' &&
+			!confirm(`Odebrać uprawnienia administratora: ${member.name}?`)
+		) {
 			revert();
 			return;
 		}
@@ -165,8 +168,8 @@
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Członkowie</h1>
 		<p class="mt-1 text-sm text-[var(--text-muted)]">
-			Każdy zalogowany użytkownik dołącza automatycznie. Administratorzy (zarząd i opiekun) zarządzają
-			danymi klubu, a kapitanowie z kadry uzupełniają raporty po swoich rejsach.
+			Każdy zalogowany użytkownik dołącza automatycznie. Administratorzy (zarząd i opiekun)
+			zarządzają danymi klubu, a kapitanowie z kadry uzupełniają raporty po swoich rejsach.
 		</p>
 	</div>
 
@@ -177,13 +180,20 @@
 				class="flex items-start gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-600 shadow-lg"
 			>
 				<span class="flex-1">{failure}</span>
-				<button type="button" onclick={() => (failure = '')} class="text-xs font-medium hover:underline">
+				<button
+					type="button"
+					onclick={() => (failure = '')}
+					class="text-xs font-medium hover:underline"
+				>
 					Zamknij
 				</button>
 			</div>
 		{/if}
 		{#if success}
-			<div role="status" class="rounded-lg bg-[var(--ocean-tint)] p-3 text-sm text-[var(--ocean)] shadow-lg">
+			<div
+				role="status"
+				class="rounded-lg bg-[var(--ocean-tint)] p-3 text-sm text-[var(--ocean)] shadow-lg"
+			>
 				{success}
 			</div>
 		{/if}
@@ -265,13 +275,14 @@
 										value={member.role}
 										disabled={busy || isLastAdmin}
 										title={isLastAdmin ? 'Klub musi mieć co najmniej jednego administratora' : ''}
-										onchange={(e) => setRole(member, e.currentTarget.value as Role, e.currentTarget)}
+										onchange={(e) =>
+											setRole(member, e.currentTarget.value as Role, e.currentTarget)}
 										class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40 {member.role ===
 										'admin'
 											? 'bg-[var(--ocean-tint)] text-[var(--ocean)]'
 											: ''}"
 									>
-										{#each Object.entries(roleLabels) as [value, label]}
+										{#each Object.entries(roleLabels) as [value, label] (value)}
 											<option {value}>{label}</option>
 										{/each}
 									</select>
@@ -289,7 +300,7 @@
 											)}
 										class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
 									>
-										{#each Object.entries(membershipLabels) as [value, label]}
+										{#each Object.entries(membershipLabels) as [value, label] (value)}
 											<option {value}>{label}</option>
 										{/each}
 									</select>

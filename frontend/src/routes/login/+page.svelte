@@ -39,7 +39,7 @@
 			} else {
 				await signInWithEmailAndPassword(firebaseAuth, email, password);
 			}
-			goto(target);
+			void goto(target);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
@@ -52,7 +52,7 @@
 		loading = true;
 		try {
 			await signInWithPopup(firebaseAuth, googleProvider);
-			goto(target);
+			void goto(target);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Coś poszło nie tak';
 		} finally {
@@ -62,7 +62,7 @@
 
 	$effect(() => {
 		if (auth.isAuthenticated) {
-			goto(target);
+			void goto(target);
 		}
 	});
 </script>

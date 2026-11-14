@@ -24,9 +24,12 @@ describe('formatDate', () => {
 		expect(formatDate('')).toBe('');
 	});
 
-	it.each(['soon', '2026-02-30', '2026-13-01'])('returns the invalid value %s unchanged', (value) => {
-		expect(formatDate(value)).toBe(value);
-	});
+	it.each(['soon', '2026-02-30', '2026-13-01'])(
+		'returns the invalid value %s unchanged',
+		(value) => {
+			expect(formatDate(value)).toBe(value);
+		}
+	);
 });
 
 describe('formatDateRange', () => {

@@ -52,14 +52,21 @@ function row(id: number, status: string, day: number) {
 }
 
 // A two-place leg: both places accepted, two people waiting.
-const fullLeg = () => [row(1, 'accepted', 1), row(2, 'accepted', 2), row(4, 'waitlisted', 4), row(3, 'waitlisted', 3)];
+const fullLeg = () => [
+	row(1, 'accepted', 1),
+	row(2, 'accepted', 2),
+	row(4, 'waitlisted', 4),
+	row(3, 'waitlisted', 3)
+];
 
 function card(name: string) {
 	return screen.getByText(name).closest('div.rounded-xl') as HTMLElement;
 }
 
 beforeEach(() => {
-	fn(getTrip).mockReset().mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 2 }));
+	fn(getTrip)
+		.mockReset()
+		.mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 2 }));
 	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 2 });
 	fn(listTripEnrollments).mockReset().mockResolvedValue(fullLeg());
 	fn(updateTripEnrollmentStatus).mockReset().mockResolvedValue(undefined);
@@ -76,7 +83,9 @@ describe('trip enrollments page capacity', () => {
 	});
 
 	it('explains a full leg when an accept is refused and keeps the status', async () => {
-		fn(updateTripEnrollmentStatus).mockRejectedValue(new ApiError(409, 'leg is full: all 2 places are taken'));
+		fn(updateTripEnrollmentStatus).mockRejectedValue(
+			new ApiError(409, 'leg is full: all 2 places are taken')
+		);
 		await renderPage();
 		await screen.findByText('Osoba 3');
 

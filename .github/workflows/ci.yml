@@ -156,6 +156,7 @@ jobs:
           restore-keys: npm-${{ runner.os }}-
       - run: npm ci
       - run: npx svelte-check
+      - run: npm run lint
 
   frontend-test:
     name: Frontend Test

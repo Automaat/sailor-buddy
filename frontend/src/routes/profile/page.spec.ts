@@ -57,7 +57,12 @@ const candidatesMock = listPersonClaimCandidates as unknown as ReturnType<typeof
 const createRequestMock = createPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
 const cancelRequestMock = cancelPersonLinkRequest as unknown as ReturnType<typeof vi.fn>;
 
-const pastPerson = { id: 40, full_name: 'Jan Kowalski', other_names: ['J. Kowalski'], email_match: true };
+const pastPerson = {
+	id: 40,
+	full_name: 'Jan Kowalski',
+	other_names: ['J. Kowalski'],
+	email_match: true
+};
 
 function linkRequest(status: string) {
 	return {

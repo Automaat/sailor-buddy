@@ -31,10 +31,12 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
+import { goto } from '$app/navigation';
 import {
 	addVoyagePort,
 	addVoyageYacht,
 	createYacht,
+	deleteVoyage,
 	getVoyage,
 	listAssignableCrew,
 	listVoyageCrew,
@@ -58,7 +60,10 @@ async function renderPage() {
 	return render(VoyagePage, { props: { data: await runLoad() } });
 }
 
-const mockAuth = auth as unknown as { isAdmin: boolean; user: { id: number; role: string; person_id?: number } };
+const mockAuth = auth as unknown as {
+	isAdmin: boolean;
+	user: { id: number; role: string; person_id?: number };
+};
 
 function yacht(overrides: Partial<Yacht> = {}): Yacht {
 	return {
@@ -89,7 +94,16 @@ describe('voyage page record', () => {
 			})
 		);
 		vi.mocked(listVoyagePorts).mockResolvedValue([
-			{ id: 1, voyage_id: 5, name: 'Gdynia', latitude: 54.5, longitude: 18.5, anchorage: false, position: 0, created_at: '' },
+			{
+				id: 1,
+				voyage_id: 5,
+				name: 'Gdynia',
+				latitude: 54.5,
+				longitude: 18.5,
+				anchorage: false,
+				position: 0,
+				created_at: ''
+			},
 			{ id: 2, voyage_id: 5, name: 'Zatoka Puck', anchorage: true, position: 1, created_at: '' }
 		]);
 		await renderPage();
@@ -111,22 +125,34 @@ describe('voyage page record', () => {
 	it('lets the captain add a name-only anchorage port', async () => {
 		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
 		vi.mocked(addVoyagePort).mockResolvedValue({
-			id: 9, voyage_id: 5, name: 'Zatoka Puck', anchorage: true, position: 0, created_at: ''
+			id: 9,
+			voyage_id: 5,
+			name: 'Zatoka Puck',
+			anchorage: true,
+			position: 0,
+			created_at: ''
 		});
 		await renderPage();
 
-		await fireEvent.input(await screen.findByLabelText('Odwiedzone porty'), { target: { value: 'Zatoka Puck' } });
+		await fireEvent.input(await screen.findByLabelText('Odwiedzone porty'), {
+			target: { value: 'Zatoka Puck' }
+		});
 		await fireEvent.click(screen.getByLabelText('⚓ Kotwicowisko'));
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj bez lokalizacji na mapie' }));
 
 		await waitFor(() => expect(addVoyagePort).toHaveBeenCalled());
-		expect(vi.mocked(addVoyagePort).mock.calls[0]).toEqual([5, { name: 'Zatoka Puck', anchorage: true, position: 0 }]);
+		expect(vi.mocked(addVoyagePort).mock.calls[0]).toEqual([
+			5,
+			{ name: 'Zatoka Puck', anchorage: true, position: 0 }
+		]);
 		expect(await screen.findByText('(bez mapy)')).toBeInTheDocument();
 	});
 
 	it('lets the captain add a charter yacht and log the track and card', async () => {
 		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
-		vi.mocked(addVoyageYacht).mockResolvedValue(yacht({ id: 12, name: 'Selma', yacht_type: 'Hanse 415' }));
+		vi.mocked(addVoyageYacht).mockResolvedValue(
+			yacht({ id: 12, name: 'Selma', yacht_type: 'Hanse 415' })
+		);
 		vi.mocked(updateVoyageLog).mockResolvedValue(undefined as never);
 		await renderPage();
 
@@ -137,10 +163,16 @@ describe('voyage page record', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
 
 		await waitFor(() => expect(screen.getByLabelText('Jacht')).toHaveValue('12'));
-		expect(addVoyageYacht).toHaveBeenCalledWith(5, { name: 'Selma', yacht_type: 'Hanse 415', registration_no: undefined });
+		expect(addVoyageYacht).toHaveBeenCalledWith(5, {
+			name: 'Selma',
+			yacht_type: 'Hanse 415',
+			registration_no: undefined
+		});
 		expect(createYacht).not.toHaveBeenCalled();
 
-		await fireEvent.input(screen.getByLabelText('Link do śladu rejsu'), { target: { value: 'https://example.com/t' } });
+		await fireEvent.input(screen.getByLabelText('Link do śladu rejsu'), {
+			target: { value: 'https://example.com/t' }
+		});
 		await fireEvent.input(screen.getByLabelText('Karta rejsu'), { target: { value: 'w klubie' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz raport' }));
 
@@ -223,7 +255,16 @@ describe('voyage page load errors', () => {
 		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5 }));
 		vi.mocked(listVoyageCrew).mockRejectedValueOnce(new Error('500'));
 		vi.mocked(listVoyagePorts).mockResolvedValue([
-			{ id: 1, voyage_id: 5, name: 'Gdynia', latitude: 54.5, longitude: 18.5, anchorage: false, position: 0, created_at: '' }
+			{
+				id: 1,
+				voyage_id: 5,
+				name: 'Gdynia',
+				latitude: 54.5,
+				longitude: 18.5,
+				anchorage: false,
+				position: 0,
+				created_at: ''
+			}
 		]);
 		await renderPage();
 
@@ -253,18 +294,64 @@ describe('voyage page load errors', () => {
 	});
 });
 
+describe('voyage page delete', () => {
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, cruise_id: 1 }));
+	});
+
+	it('goes back to the event after the voyage is deleted', async () => {
+		vi.mocked(deleteVoyage).mockResolvedValue(undefined);
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/cruises/1'));
+		expect(deleteVoyage).toHaveBeenCalledWith(5);
+	});
+
+	it('shows the error and stays on the voyage when deletion fails', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(deleteVoyage).mockRejectedValue(new ApiError(409, 'voyage has crew'));
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć rejsu: voyage has crew'
+		);
+		expect(screen.getByRole('heading', { name: 'Rejs Bałtyk' })).toBeInTheDocument();
+		expect(goto).not.toHaveBeenCalled();
+	});
+});
+
 describe('voyage page same-route navigation', () => {
 	beforeEach(() => {
 		mockAuth.user = { id: 7, role: 'member', person_id: 70 };
 		vi.mocked(getVoyage).mockImplementation(async (id: number) =>
-			makeVoyage({ id, name: id === 5 ? 'Rejs A' : 'Rejs B', captain_person_id: 70, captain_notes: undefined })
+			makeVoyage({
+				id,
+				name: id === 5 ? 'Rejs A' : 'Rejs B',
+				captain_person_id: 70,
+				captain_notes: undefined
+			})
 		);
 	});
 
 	it('swaps to the second voyage and closes the log form of the first', async () => {
 		vi.mocked(listVoyagePorts).mockImplementation(async (id: number) =>
 			id === 5
-				? [{ id: 1, voyage_id: 5, name: 'Gdynia', latitude: 54.5, longitude: 18.5, anchorage: false, position: 0, created_at: '' }]
+				? [
+						{
+							id: 1,
+							voyage_id: 5,
+							name: 'Gdynia',
+							latitude: 54.5,
+							longitude: 18.5,
+							anchorage: false,
+							position: 0,
+							created_at: ''
+						}
+					]
 				: []
 		);
 		vi.mocked(updateVoyageLog).mockRejectedValue(new Error('zapis odrzucony'));
@@ -284,10 +371,14 @@ describe('voyage page same-route navigation', () => {
 
 	it('drops a log save that answers after a link moved to another voyage', async () => {
 		let answer: () => void = () => {};
-		vi.mocked(updateVoyageLog).mockReturnValue(new Promise<never>((r) => (answer = r as () => void)));
+		vi.mocked(updateVoyageLog).mockReturnValue(
+			new Promise<never>((r) => (answer = r as () => void))
+		);
 		const view = await renderPage();
 		await fireEvent.click(await screen.findByRole('button', { name: 'Uzupełnij po rejsie' }));
-		await fireEvent.input(screen.getByLabelText('Notatka z rejsu'), { target: { value: 'Notatka A' } });
+		await fireEvent.input(screen.getByLabelText('Notatka z rejsu'), {
+			target: { value: 'Notatka A' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz raport' }));
 
 		await view.rerender({ data: await runLoad('6') });
@@ -310,7 +401,9 @@ describe('voyage page same-route navigation: port picker', () => {
 		);
 		vi.mocked(addVoyagePort).mockRejectedValue(new Error('500'));
 		const view = await renderPage();
-		await fireEvent.input(await screen.findByLabelText('Odwiedzone porty'), { target: { value: 'Hel' } });
+		await fireEvent.input(await screen.findByLabelText('Odwiedzone porty'), {
+			target: { value: 'Hel' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj bez lokalizacji na mapie' }));
 		expect(await screen.findByText('Nie udało się dodać portu')).toBeInTheDocument();
 

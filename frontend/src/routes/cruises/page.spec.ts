@@ -21,7 +21,12 @@ const apiGet = api.get as unknown as ReturnType<typeof vi.fn>;
 const mockGoto = goto as unknown as ReturnType<typeof vi.fn>;
 const mockAuth = auth as unknown as { isAdmin: boolean };
 
-function serve(data: { cruises?: unknown[]; trips?: unknown[]; voyages?: unknown[]; mine?: number[] }) {
+function serve(data: {
+	cruises?: unknown[];
+	trips?: unknown[];
+	voyages?: unknown[];
+	mine?: number[];
+}) {
 	apiGet.mockImplementation((path: string) =>
 		path === '/auth/me/cruises'
 			? Promise.resolve({ cruise_ids: data.mine ?? [] })
@@ -69,7 +74,16 @@ describe('rejsy page', () => {
 
 	it('renders an upcoming cruise card with its legs and open enrollment', async () => {
 		serve({
-			cruises: [makeCruise({ id: 9, name: 'Regaty Klubowe', start_port: 'Gdynia', end_port: 'Sopot', max_crew: 12, enroll_token: 'abc' })],
+			cruises: [
+				makeCruise({
+					id: 9,
+					name: 'Regaty Klubowe',
+					start_port: 'Gdynia',
+					end_port: 'Sopot',
+					max_crew: 12,
+					enroll_token: 'abc'
+				})
+			],
 			trips: [makeTrip({ id: 1, cruise_id: 9 }), makeTrip({ id: 2, cruise_id: 9 })]
 		});
 		render(RejsyPage);
@@ -98,22 +112,38 @@ describe('rejsy page', () => {
 		expect(card).toHaveTextContent('53h');
 		expect(card).toHaveTextContent('310');
 		expect(card).not.toHaveTextContent('Zapisy otwarte');
-		expect(mockGoto).toHaveBeenCalledWith('/cruises?tab=completed', { replace: true, shallow: true });
+		expect(mockGoto).toHaveBeenCalledWith('/cruises?tab=completed', {
+			replace: true,
+			shallow: true
+		});
 	});
 
 	it('opens on the tab named in the URL', async () => {
 		pageState.url = new URL('http://localhost/cruises?tab=completed');
-		serve({ cruises: [makeCruise({ id: 3, name: 'NNE 2025' })], voyages: [makeVoyage({ cruise_id: 3 })] });
+		serve({
+			cruises: [makeCruise({ id: 3, name: 'NNE 2025' })],
+			voyages: [makeVoyage({ cruise_id: 3 })]
+		});
 		render(RejsyPage);
 
 		expect(await screen.findByText('NNE 2025')).toBeInTheDocument();
-		expect(screen.getByRole('tab', { name: 'Zrealizowane' })).toHaveAttribute('aria-selected', 'true');
+		expect(screen.getByRole('tab', { name: 'Zrealizowane' })).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
 	});
 
 	it('flags a past cruise with a planned leg for completion and lists it as sailed', async () => {
 		vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
 		serve({
-			cruises: [makeCruise({ id: 5, name: 'Bornholm 2026', embark_date: '2026-08-01', disembark_date: '2026-08-09' })],
+			cruises: [
+				makeCruise({
+					id: 5,
+					name: 'Bornholm 2026',
+					embark_date: '2026-08-01',
+					disembark_date: '2026-08-09'
+				})
+			],
 			trips: [makeTrip({ cruise_id: 5, embark_date: undefined, disembark_date: undefined })]
 		});
 		render(RejsyPage);
@@ -129,7 +159,10 @@ describe('rejsy page', () => {
 	});
 
 	it('lists cancelled cruises only under all', async () => {
-		serve({ cruises: [makeCruise({ id: 4, name: 'Odwołany' })], trips: [makeTrip({ cruise_id: 4, status: 'cancelled' })] });
+		serve({
+			cruises: [makeCruise({ id: 4, name: 'Odwołany' })],
+			trips: [makeTrip({ cruise_id: 4, status: 'cancelled' })]
+		});
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
 
@@ -228,7 +261,10 @@ describe('rejsy page', () => {
 
 			await fireEvent.click(screen.getByRole('tab', { name: 'Zrealizowane' }));
 			expect(screen.getByText('Mój stary rejs')).toBeInTheDocument();
-			expect(mockGoto).toHaveBeenLastCalledWith('/cruises?tab=completed&mine=1', { replace: true, shallow: true });
+			expect(mockGoto).toHaveBeenLastCalledWith('/cruises?tab=completed&mine=1', {
+				replace: true,
+				shallow: true
+			});
 		});
 
 		it('opens with the filter on from the URL and explains an empty result', async () => {
@@ -237,10 +273,13 @@ describe('rejsy page', () => {
 			render(RejsyPage);
 
 			expect(await screen.findByText('Nie masz nadchodzących rejsów')).toBeInTheDocument();
-			expect(screen.getByRole('button', { name: 'Moje rejsy' })).toHaveAttribute('aria-pressed', 'true');
+			expect(screen.getByRole('button', { name: 'Moje rejsy' })).toHaveAttribute(
+				'aria-pressed',
+				'true'
+			);
 		});
 
-		it('still lists all cruises when loading the user\'s cruises fails', async () => {
+		it("still lists all cruises when loading the user's cruises fails", async () => {
 			serve({ cruises, trips, voyages });
 			apiGet.mockRejectedValue(new Error('boom'));
 			render(RejsyPage);

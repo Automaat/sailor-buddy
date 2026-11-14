@@ -30,7 +30,9 @@
 		{#if price !== null}
 			<p data-testid="your-price">
 				<span class="text-[var(--text-muted)]">Twoja cena:</span>
-				<span class="text-lg font-semibold text-[var(--navy)]">{formatPrice(price, priced.currency)}</span>
+				<span class="text-lg font-semibold text-[var(--navy)]"
+					>{formatPrice(price, priced.currency)}</span
+				>
 				<span class="text-[var(--text-muted)]">/ os.</span>
 			</p>
 		{/if}

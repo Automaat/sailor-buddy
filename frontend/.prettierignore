@@ -1,0 +1,8 @@
+package-lock.json
+build/
+.svelte-kit/
+coverage/
+test-results/
+playwright-report/
+static/
+src/lib/api/schema.d.ts
