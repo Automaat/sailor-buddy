@@ -73,7 +73,12 @@
 		>
 			{busy ? 'Łączenie...' : 'Połącz'}
 		</button>
-		<button type="button" onclick={oncancel} disabled={busy} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50">
+		<button
+			type="button"
+			onclick={oncancel}
+			disabled={busy}
+			class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+		>
 			Anuluj
 		</button>
 	</div>

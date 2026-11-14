@@ -17,7 +17,12 @@ const mockListSeries = listSeries as unknown as ReturnType<typeof vi.fn>;
 beforeEach(() => {
 	mockCreate.mockReset().mockResolvedValue({ id: 5 });
 	mockListSeries.mockReset().mockResolvedValue([
-		{ id: 3, name: 'May I Sail', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
+		{
+			id: 3,
+			name: 'May I Sail',
+			created_at: '2026-01-01T00:00:00Z',
+			updated_at: '2026-01-01T00:00:00Z'
+		}
 	]);
 	vi.mocked(goto).mockReset();
 });
@@ -27,12 +32,16 @@ describe('new cruise page series fields', () => {
 		render(NewCruisePage);
 		await screen.findByRole('option', { name: 'May I Sail' });
 
-		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'MIS 2026' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), {
+			target: { value: 'MIS 2026' }
+		});
 		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: '3' } });
 		await fireEvent.input(screen.getByLabelText('Edycja'), { target: { value: '2026' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz wydarzenie' }));
 
-		expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'MIS 2026', series_id: 3, edition: '2026' }));
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ name: 'MIS 2026', series_id: 3, edition: '2026' })
+		);
 		expect(goto).toHaveBeenCalledWith('/cruises/5');
 	});
 
@@ -40,10 +49,14 @@ describe('new cruise page series fields', () => {
 		render(NewCruisePage);
 		await screen.findByRole('option', { name: 'May I Sail' });
 
-		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'Solo' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), {
+			target: { value: 'Solo' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz wydarzenie' }));
 
-		expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ name: 'Solo', series_id: undefined, edition: '' }));
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ name: 'Solo', series_id: undefined, edition: '' })
+		);
 	});
 });
 
@@ -52,11 +65,15 @@ describe('new cruise page logistics fields', () => {
 		render(NewCruisePage);
 		await screen.findByRole('option', { name: 'May I Sail' });
 
-		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'Sycylia' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), {
+			target: { value: 'Sycylia' }
+		});
 		await fireEvent.input(screen.getByLabelText('Link do czatu grupy'), {
 			target: { value: 'https://discord.gg/sycylia' }
 		});
-		await fireEvent.input(screen.getByLabelText('Dojazd'), { target: { value: 'Tanie loty do Katanii' } });
+		await fireEvent.input(screen.getByLabelText('Dojazd'), {
+			target: { value: 'Tanie loty do Katanii' }
+		});
 		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '18' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz wydarzenie' }));
 
@@ -73,7 +90,9 @@ describe('new cruise page logistics fields', () => {
 		render(NewCruisePage);
 		await screen.findByRole('option', { name: 'May I Sail' });
 
-		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'Solo' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), {
+			target: { value: 'Solo' }
+		});
 		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '18' } });
 		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz wydarzenie' }));

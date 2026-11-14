@@ -58,7 +58,9 @@
 	const canManageCrew = $derived(auth.isAdmin);
 	// Failures of admin-only sections join the banner only for admins. The
 	// check is reactive: on a direct load the role arrives after the load.
-	const visibleLoadErrors = $derived(canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors);
+	const visibleLoadErrors = $derived(
+		canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors
+	);
 
 	// Form input and the complete dialog belong to one trip: a link to
 	// another clears them.
@@ -122,9 +124,11 @@
 
 	function copyEnrollLink() {
 		if (!enrollToken) return;
-		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`).catch((err) => {
-			console.error('Failed to copy enrollment link:', err);
-		});
+		navigator.clipboard
+			.writeText(`${window.location.origin}/enroll/${enrollToken}`)
+			.catch((err) => {
+				console.error('Failed to copy enrollment link:', err);
+			});
 	}
 
 	async function assignCrew(e: Event) {
@@ -215,7 +219,8 @@
 				{#if trip.start_port && trip.end_port}
 					{trip.start_port} → {trip.end_port}
 				{/if}
-				{#if trip.countries} · {trip.countries}{/if}
+				{#if trip.countries}
+					· {trip.countries}{/if}
 			</p>
 		</div>
 		{#if canManageCrew}
@@ -229,7 +234,10 @@
 						Zrealizuj
 					</button>
 				{/if}
-				<a href="/trips/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
+				<a
+					href="/trips/{id}/edit"
+					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
+				>
 				<ActionsMenu>
 					{#snippet children(close)}
 						{#if trip.status === 'planned'}
@@ -264,8 +272,14 @@
 	</div>
 
 	{#if canManageCrew && status === 'overdue'}
-		<div role="status" class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ocean)]/30 bg-[var(--ocean-tint)] p-4 text-sm text-[var(--navy)]">
-			<p>Rejs się zakończył, ale nadal czeka na rozliczenie. Zrealizuj go, aby wpisać przebieg do dziennika.</p>
+		<div
+			role="status"
+			class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ocean)]/30 bg-[var(--ocean-tint)] p-4 text-sm text-[var(--navy)]"
+		>
+			<p>
+				Rejs się zakończył, ale nadal czeka na rozliczenie. Zrealizuj go, aby wpisać przebieg do
+				dziennika.
+			</p>
 			<button
 				onclick={() => (showCompleteModal = true)}
 				disabled={completing}
@@ -315,7 +329,10 @@
 	{/if}
 
 	{#if signUp}
-		<div class="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-6 shadow-sm" data-testid="my-sign-up">
+		<div
+			class="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-2xl bg-white p-6 shadow-sm"
+			data-testid="my-sign-up"
+		>
 			<div>
 				<h2 class="font-semibold text-[var(--navy)]">Twój zapis</h2>
 				{#if places && trip.status !== 'cancelled'}
@@ -354,11 +371,17 @@
 					{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
 				</button>
 				{#if enrollToken}
-					<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+					<button
+						onclick={copyEnrollLink}
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+					>
 						Kopiuj link
 					</button>
 				{/if}
-				<a href="/trips/{id}/enrollments" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+				<a
+					href="/trips/{id}/enrollments"
+					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+				>
 					Zarządzaj zapisami
 				</a>
 			</div>
@@ -375,7 +398,11 @@
 				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
 					<div class="min-w-0 max-w-full">
 						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="assign-crew" bind:value={assignCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
+						<select
+							id="assign-crew"
+							bind:value={assignCrewId}
+							class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
+						>
 							<option value="">Wybierz...</option>
 							{#each allCrewMembers as member (member.id)}
 								<option value={member.id}>{member.full_name}</option>
@@ -384,7 +411,13 @@
 					</div>
 					<div>
 						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
-						<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
+						<input
+							id="assign-role"
+							type="text"
+							bind:value={assignRole}
+							placeholder="np. Sternik"
+							class="rounded-lg border px-3 py-1.5 text-sm"
+						/>
 					</div>
 					<button
 						type="submit"
@@ -404,12 +437,17 @@
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{member.full_name}</span>
-								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+								<span
+									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+								>
 									{member.role}
 								</span>
 							</div>
 							{#if trip.status === 'planned'}
-								<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
+								<button
+									onclick={() => removeCrew(member.id)}
+									class="text-sm text-red-500 hover:underline"
+								>
 									Usuń
 								</button>
 							{/if}

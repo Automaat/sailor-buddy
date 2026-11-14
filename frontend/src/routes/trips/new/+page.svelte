@@ -23,7 +23,13 @@
 	});
 
 	type Prefillable = 'embark_date' | 'disembark_date' | 'countries' | 'start_port' | 'end_port';
-	const prefillable: Prefillable[] = ['embark_date', 'disembark_date', 'countries', 'start_port', 'end_port'];
+	const prefillable: Prefillable[] = [
+		'embark_date',
+		'disembark_date',
+		'countries',
+		'start_port',
+		'end_port'
+	];
 
 	type Draft = {
 		form: {
@@ -68,7 +74,11 @@
 			error: '',
 			saving: false
 		};
-		if (cruiseID) prefill(draft, list.find((c) => c.id === cruiseID));
+		if (cruiseID)
+			prefill(
+				draft,
+				list.find((c) => c.id === cruiseID)
+			);
 		return draft;
 	}
 
@@ -95,7 +105,10 @@
 	const form = $derived(draft.form);
 
 	function prefillFromCruise(cruiseID: number) {
-		prefill(draft, cruises.find((c) => c.id === cruiseID));
+		prefill(
+			draft,
+			cruises.find((c) => c.id === cruiseID)
+		);
 	}
 
 	/** The draft whose captain was preselected: a captain planning their own trip is preselected once per draft, so picking "Brak" afterwards sticks. */
@@ -104,7 +117,8 @@
 		const current = draft;
 		if (captainDefaultedFor === current || !auth.user) return;
 		captainDefaultedFor = current;
-		if (auth.user.is_captain && auth.user.person_id) current.form.captain_person_id = auth.user.person_id;
+		if (auth.user.is_captain && auth.user.person_id)
+			current.form.captain_person_id = auth.user.person_id;
 	});
 
 	const cancelHref = $derived(form.cruise_id ? `/cruises/${form.cruise_id}` : '/cruises');
@@ -147,7 +161,13 @@
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			<div class="sm:col-span-2">
 				<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
-				<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="name"
+					type="text"
+					bind:value={form.name}
+					required
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div class="sm:col-span-2">
 				<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
@@ -159,14 +179,26 @@
 			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
-				<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="embark"
+					type="date"
+					bind:value={form.embark_date}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div>
 				<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
-				<input id="disembark" type="date" bind:value={form.disembark_date} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="disembark"
+					type="date"
+					bind:value={form.disembark_date}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div class="col-span-2">
-				<label for="sign_up_deadline" class="mb-1 block text-sm font-medium">Zapisy do (włącznie)</label>
+				<label for="sign_up_deadline" class="mb-1 block text-sm font-medium"
+					>Zapisy do (włącznie)</label
+				>
 				<input
 					id="sign_up_deadline"
 					type="date"
@@ -174,19 +206,36 @@
 					max={form.embark_date || undefined}
 					class="w-full rounded-lg border px-3 py-2"
 				/>
-				<p class="mt-1 text-xs text-[var(--text-muted)]">Puste — zapisy otwarte, dopóki ich nie wyłączysz.</p>
+				<p class="mt-1 text-xs text-[var(--text-muted)]">
+					Puste — zapisy otwarte, dopóki ich nie wyłączysz.
+				</p>
 			</div>
 			<div>
 				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-				<input id="start_port" type="text" bind:value={form.start_port} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="start_port"
+					type="text"
+					bind:value={form.start_port}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div>
 				<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-				<input id="end_port" type="text" bind:value={form.end_port} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="end_port"
+					type="text"
+					bind:value={form.end_port}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-				<input id="countries" type="text" bind:value={form.countries} class="w-full rounded-lg border px-3 py-2" />
+				<input
+					id="countries"
+					type="text"
+					bind:value={form.countries}
+					class="w-full rounded-lg border px-3 py-2"
+				/>
 			</div>
 		</div>
 
@@ -196,20 +245,39 @@
 			<PriceFields bind:price={draft.price} />
 			<div>
 				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. załoga</label>
-				<input id="max_crew" type="number" bind:value={form.max_crew} class="w-full rounded-lg border px-3 py-2" min="0" placeholder="0 = bez limitu" />
+				<input
+					id="max_crew"
+					type="number"
+					bind:value={form.max_crew}
+					class="w-full rounded-lg border px-3 py-2"
+					min="0"
+					placeholder="0 = bez limitu"
+				/>
 			</div>
 		</div>
 
 		<div>
 			<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
-			<textarea id="description" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+			<textarea
+				id="description"
+				bind:value={form.description}
+				rows="4"
+				class="w-full rounded-lg border px-3 py-2"></textarea>
 		</div>
 
 		<div class="flex gap-3">
-			<button type="submit" disabled={draft.saving} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+			<button
+				type="submit"
+				disabled={draft.saving}
+				class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
 				{draft.saving ? 'Tworzenie...' : 'Zaplanuj rejs'}
 			</button>
-			<a href={cancelHref} class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+			<a
+				href={cancelHref}
+				class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50"
+				>Anuluj</a
+			>
 		</div>
 	</form>
 </div>

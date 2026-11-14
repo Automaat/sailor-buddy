@@ -30,9 +30,7 @@
 		}
 	});
 
-	const hasPasswordProvider = !!fbUser?.providerData.some(
-		(p) => p.providerId === 'password'
-	);
+	const hasPasswordProvider = !!fbUser?.providerData.some((p) => p.providerId === 'password');
 
 	let pwForm = $state({ current: '', next: '', confirm: '' });
 	let pwSaving = $state(false);
@@ -142,11 +140,7 @@
 				/>
 			</div>
 			{#if photoURL}
-				<img
-					src={photoURL}
-					alt="Podgląd zdjęcia"
-					class="h-20 w-20 rounded-full object-cover"
-				/>
+				<img src={photoURL} alt="Podgląd zdjęcia" class="h-20 w-20 rounded-full object-cover" />
 			{/if}
 			<button
 				type="submit"
@@ -170,7 +164,9 @@
 				<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{pwError}</div>
 			{/if}
 			{#if pwSuccess}
-				<div class="mb-4 rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-3 text-sm">{pwSuccess}</div>
+				<div class="mb-4 rounded-lg bg-[var(--ocean-tint)] text-[var(--ocean)] p-3 text-sm">
+					{pwSuccess}
+				</div>
 			{/if}
 
 			<form onsubmit={handlePasswordSave} class="space-y-4">
@@ -187,9 +183,7 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-1 block text-sm font-medium text-gray-700" for="newPw"
-						>Nowe hasło</label
-					>
+					<label class="mb-1 block text-sm font-medium text-gray-700" for="newPw">Nowe hasło</label>
 					<input
 						id="newPw"
 						type="password"

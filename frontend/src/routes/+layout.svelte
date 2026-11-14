@@ -35,7 +35,13 @@
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
 		{ href: '/members', label: 'Członkowie', icon: Users, adminOnly: true },
-		{ href: '/crew', label: 'Osoby', icon: Contact, adminOnly: true, badge: () => linkRequests.pending }
+		{
+			href: '/crew',
+			label: 'Osoby',
+			icon: Contact,
+			adminOnly: true,
+			badge: () => linkRequests.pending
+		}
 	];
 
 	// Phone navigation drawer (below md). It closes on every navigation so a
@@ -97,11 +103,7 @@
 				try {
 					const u = await getMe();
 
-					if (
-						!cancelled &&
-						auth.isAuthenticated &&
-						auth.firebaseUser?.uid === currentUid
-					) {
+					if (!cancelled && auth.isAuthenticated && auth.firebaseUser?.uid === currentUid) {
 						auth.user = u;
 					}
 				} catch (err) {

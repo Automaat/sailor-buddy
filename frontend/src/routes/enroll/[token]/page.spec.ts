@@ -107,7 +107,9 @@ describe('enroll page — cruise legs', () => {
 		expect(b.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
 		expect(screen.getByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })).toBeInTheDocument();
-		expect(screen.getByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })).toBeInTheDocument();
+		expect(
+			screen.getByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })
+		).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox', { name: /Etap 3/ })).not.toBeInTheDocument();
 		expect(screen.getByText('odwołany — niedostępny')).toBeInTheDocument();
 	});
@@ -175,7 +177,10 @@ describe('enroll page — cruise legs', () => {
 
 	it('keeps a cruise-level sign-up visible while offering legs', async () => {
 		resolveMock.mockResolvedValue(
-			cruiseData({ enrolled: true, enrollment: { id: 9, cruise_id: 7, user_id: 1, status: 'pending' } })
+			cruiseData({
+				enrolled: true,
+				enrollment: { id: 9, cruise_id: 7, user_id: 1, status: 'pending' }
+			})
 		);
 		await renderPage();
 		expect(await screen.findByText(/Jesteś zapisany na wydarzenie/)).toBeInTheDocument();
@@ -363,7 +368,9 @@ describe('enroll page — prices', () => {
 		resolveMock.mockResolvedValue(nne);
 		await renderPage();
 		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
-		expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent('400 PLN');
+		expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent(
+			'400 PLN'
+		);
 		expect(screen.getByTestId('price-included')).toHaveTextContent('skipper');
 		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
 	});
@@ -415,7 +422,10 @@ describe('enroll page — cruise logistics', () => {
 
 		expect(await screen.findByText('Tanie loty do Katanii')).toBeInTheDocument();
 		expect(screen.getByText('18+')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Czat grupy' })).toHaveAttribute('href', 'https://discord.gg/nne');
+		expect(screen.getByRole('link', { name: 'Czat grupy' })).toHaveAttribute(
+			'href',
+			'https://discord.gg/nne'
+		);
 	});
 
 	it('shows no logistics when none are set', async () => {
@@ -459,7 +469,9 @@ describe('enroll page — sign-up deadline', () => {
 	it('shows the deadline and keeps the form open on the deadline day in Warsaw', async () => {
 		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
 		await renderPage();
-		expect(await screen.findByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 10 maj 2026');
+		expect(await screen.findByTestId('sign-up-deadline')).toHaveTextContent(
+			'Zapisy do 10 maj 2026'
+		);
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
 	});
 
@@ -500,8 +512,12 @@ describe('enroll page — sign-up deadline', () => {
 			})
 		);
 		await renderPage();
-		expect(await screen.findByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })).toBeInTheDocument();
-		expect(screen.queryByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })).not.toBeInTheDocument();
+		expect(
+			await screen.findByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })
+		).not.toBeInTheDocument();
 		expect(screen.getByText('Zapisy zamknięte')).toBeInTheDocument();
 		const deadlines = screen.getAllByTestId('sign-up-deadline').map((e) => e.textContent?.trim());
 		expect(deadlines).toEqual(['Zapisy do 9 maj 2026', 'Zapisy do 10 maj 2026']);
@@ -513,7 +529,10 @@ describe('enroll page same-route navigation', () => {
 		resolveMock.mockImplementation(async (token: string) =>
 			token === 'tok'
 				? cruiseData()
-				: cruiseData({ cruise: { id: 8, name: 'Bałtyk 2025' }, trips: [trip(21, 'Gdynia – Hel', '2025-08-01')] })
+				: cruiseData({
+						cruise: { id: 8, name: 'Bałtyk 2025' },
+						trips: [trip(21, 'Gdynia – Hel', '2025-08-01')]
+					})
 		);
 		let answer: () => void = () => {};
 		enrollLegsMock.mockReturnValue(new Promise<void>((r) => (answer = r)));

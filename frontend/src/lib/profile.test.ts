@@ -31,7 +31,13 @@ describe('splitName', () => {
 describe('profileFormFromUser', () => {
 	it('prefers the stored structured name', () => {
 		const form = profileFormFromUser(
-			user({ first_name: 'Anna Maria', last_name: 'Nowak', phone: '+48 600', patent_type: 'zeglarz_jachtowy', patent_number: 'ZJ-1' })
+			user({
+				first_name: 'Anna Maria',
+				last_name: 'Nowak',
+				phone: '+48 600',
+				patent_type: 'zeglarz_jachtowy',
+				patent_number: 'ZJ-1'
+			})
 		);
 		expect(form).toEqual({
 			firstName: 'Anna Maria',
@@ -52,14 +58,23 @@ describe('profileFormFromUser', () => {
 	});
 
 	it('uses the Firebase display name before the profile loads', () => {
-		expect(profileFormFromUser(null, 'Ewa Klubowa')).toMatchObject({ firstName: 'Ewa', lastName: 'Klubowa' });
+		expect(profileFormFromUser(null, 'Ewa Klubowa')).toMatchObject({
+			firstName: 'Ewa',
+			lastName: 'Klubowa'
+		});
 	});
 });
 
 describe('profileBody', () => {
 	it('trims values and omits blank optionals', () => {
 		expect(
-			profileBody({ firstName: ' Jan ', lastName: ' Kowalski ', phone: '  ', patentType: '', patentNumber: 'X' })
+			profileBody({
+				firstName: ' Jan ',
+				lastName: ' Kowalski ',
+				phone: '  ',
+				patentType: '',
+				patentNumber: 'X'
+			})
 		).toEqual({
 			first_name: 'Jan',
 			last_name: 'Kowalski',
@@ -71,7 +86,13 @@ describe('profileBody', () => {
 
 	it('keeps the patent number only with a patent type', () => {
 		expect(
-			profileBody({ firstName: 'Jan', lastName: 'K', phone: '+48 1', patentType: 'kapitan_jachtowy', patentNumber: ' KPT-1 ' })
+			profileBody({
+				firstName: 'Jan',
+				lastName: 'K',
+				phone: '+48 1',
+				patentType: 'kapitan_jachtowy',
+				patentNumber: ' KPT-1 '
+			})
 		).toMatchObject({ phone: '+48 1', patent_type: 'kapitan_jachtowy', patent_number: 'KPT-1' });
 	});
 });

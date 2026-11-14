@@ -14,7 +14,12 @@
 		id?: string;
 	};
 
-	let { value = $bindable(), yachts = $bindable(), create = createYacht, id = 'yacht' }: Props = $props();
+	let {
+		value = $bindable(),
+		yachts = $bindable(),
+		create = createYacht,
+		id = 'yacht'
+	}: Props = $props();
 
 	let adding = $state(false);
 	let saving = $state(false);
@@ -128,7 +133,13 @@
 
 <svelte:window onsubmitcapture={holdParentSubmitWhileSaving} />
 
-<select {id} bind:this={select} bind:value onchange={() => (pickedWhileSaving = saving)} class="w-full rounded-lg border px-3 py-2">
+<select
+	{id}
+	bind:this={select}
+	bind:value
+	onchange={() => (pickedWhileSaving = saving)}
+	class="w-full rounded-lg border px-3 py-2"
+>
 	<option value={0}>-- Wybierz --</option>
 	{#each yachts as yacht (yacht.id)}
 		<option value={yacht.id}>{yachtLabel(yacht)}</option>
@@ -139,25 +150,55 @@
 		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 			<div>
 				<label for="{id}-new-type" class="mb-1 block text-xs font-medium">Typ jachtu</label>
-				<input id="{id}-new-type" type="text" bind:value={draft.yacht_type} onkeydown={saveOnEnterInsteadOfSubmittingParentForm} placeholder="np. Bavaria 46" class="w-full rounded-lg border px-3 py-1.5 text-sm" />
+				<input
+					id="{id}-new-type"
+					type="text"
+					bind:value={draft.yacht_type}
+					onkeydown={saveOnEnterInsteadOfSubmittingParentForm}
+					placeholder="np. Bavaria 46"
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
 			</div>
 			<div>
 				<label for="{id}-new-name" class="mb-1 block text-xs font-medium">Nazwa jachtu *</label>
-				<input id="{id}-new-name" type="text" bind:value={draft.name} onkeydown={saveOnEnterInsteadOfSubmittingParentForm} class="w-full rounded-lg border px-3 py-1.5 text-sm" />
+				<input
+					id="{id}-new-name"
+					type="text"
+					bind:value={draft.name}
+					onkeydown={saveOnEnterInsteadOfSubmittingParentForm}
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
 			</div>
 			<div class="sm:col-span-2">
-				<label for="{id}-new-reg" class="mb-1 block text-xs font-medium">Numer rejestracyjny (opcjonalnie)</label>
-				<input id="{id}-new-reg" type="text" bind:value={draft.registration_no} onkeydown={saveOnEnterInsteadOfSubmittingParentForm} class="w-full rounded-lg border px-3 py-1.5 text-sm" />
+				<label for="{id}-new-reg" class="mb-1 block text-xs font-medium"
+					>Numer rejestracyjny (opcjonalnie)</label
+				>
+				<input
+					id="{id}-new-reg"
+					type="text"
+					bind:value={draft.registration_no}
+					onkeydown={saveOnEnterInsteadOfSubmittingParentForm}
+					class="w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
 			</div>
 		</div>
 		{#if error}
 			<p class="text-xs text-red-600">{error}</p>
 		{/if}
 		<div class="flex gap-2">
-			<button type="button" onclick={save} disabled={saving} class="rounded-lg bg-[var(--ocean)] px-3 py-1 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+			<button
+				type="button"
+				onclick={save}
+				disabled={saving}
+				class="rounded-lg bg-[var(--ocean)] px-3 py-1 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
 				{saving ? 'Dodawanie...' : 'Dodaj jacht'}
 			</button>
-			<button type="button" onclick={cancelAdd} class="rounded-lg border px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-gray-50">
+			<button
+				type="button"
+				onclick={cancelAdd}
+				class="rounded-lg border px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-gray-50"
+			>
 				Anuluj
 			</button>
 		</div>

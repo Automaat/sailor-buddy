@@ -122,7 +122,11 @@
 		<ul class="mt-3 divide-y text-sm">
 			{#each candidates as p (p.id)}
 				<li>
-					<button type="button" onclick={() => pick(p)} class="w-full px-2 py-2 text-left hover:bg-gray-50">
+					<button
+						type="button"
+						onclick={() => pick(p)}
+						class="w-full px-2 py-2 text-left hover:bg-gray-50"
+					>
 						{p.full_name}
 						{#if p.email}<span class="text-[var(--text-muted)]"> · {p.email}</span>{/if}
 						{#if p.has_account}<span class="text-xs text-emerald-700"> · ma konto</span>{/if}
@@ -161,8 +165,22 @@
 				{/if}
 				<p class="mt-2 font-medium">Przeniesione do {keptName}:</p>
 				<ul class="ml-5 list-disc">
-					<li>{count(preview.trip_assignments, 'przypisanie do etapu', 'przypisania do etapów', 'przypisań do etapów')}</li>
-					<li>{count(preview.voyage_assignments, 'przypisanie do rejsu', 'przypisania do rejsów', 'przypisań do rejsów')}</li>
+					<li>
+						{count(
+							preview.trip_assignments,
+							'przypisanie do etapu',
+							'przypisania do etapów',
+							'przypisań do etapów'
+						)}
+					</li>
+					<li>
+						{count(
+							preview.voyage_assignments,
+							'przypisanie do rejsu',
+							'przypisania do rejsów',
+							'przypisań do rejsów'
+						)}
+					</li>
 					<li>{count(preview.opinions, 'opinia', 'opinie', 'opinii')}</li>
 					{#if preview.captained_trips || preview.captained_voyages}
 						<li>
@@ -182,7 +200,9 @@
 					<p class="mt-2">Inne nazwiska po połączeniu: {preview.person.other_names.join(', ')}</p>
 				{/if}
 				{#if preview.duplicate.has_account}
-					<p class="mt-2">Konto osoby {preview.duplicate.full_name} zostanie przypisane do {keptName}.</p>
+					<p class="mt-2">
+						Konto osoby {preview.duplicate.full_name} zostanie przypisane do {keptName}.
+					</p>
 				{/if}
 			</div>
 		{/if}
@@ -202,11 +222,21 @@
 			>
 				{busy ? 'Łączenie...' : 'Połącz'}
 			</button>
-			<button type="button" onclick={reset} disabled={busy} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50">
+			<button
+				type="button"
+				onclick={reset}
+				disabled={busy}
+				class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+			>
 				Wybierz inną osobę
 			</button>
 		{/if}
-		<button type="button" onclick={oncancel} disabled={busy} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50">
+		<button
+			type="button"
+			onclick={oncancel}
+			disabled={busy}
+			class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+		>
 			Anuluj
 		</button>
 	</div>

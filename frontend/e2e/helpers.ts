@@ -45,10 +45,9 @@ export async function signInTestUser(
 }
 
 export async function clearFirebaseUsers(): Promise<void> {
-	await fetch(
-		`${FIREBASE_EMULATOR}/emulator/v1/projects/${FIREBASE_PROJECT}/accounts`,
-		{ method: 'DELETE' }
-	);
+	await fetch(`${FIREBASE_EMULATOR}/emulator/v1/projects/${FIREBASE_PROJECT}/accounts`, {
+		method: 'DELETE'
+	});
 }
 
 export async function apiRequest(

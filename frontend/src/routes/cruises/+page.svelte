@@ -197,11 +197,15 @@
 					<div>
 						<div class="flex flex-wrap items-center gap-2">
 							<h3 class="font-semibold text-[var(--navy)]">{entry.name}</h3>
-							<span class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadge(entry.status)}">
+							<span
+								class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadge(entry.status)}"
+							>
 								{rejsStatusLabels[entry.status]}
 							</span>
 							{#if entry.kind}
-								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+								<span
+									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+								>
 									{cruiseKindLabels[entry.kind]}
 								</span>
 							{/if}
@@ -210,7 +214,8 @@
 							{#if entry.startPort && entry.endPort}
 								{entry.startPort} → {entry.endPort}
 							{/if}
-							{#if entry.countries} · {entry.countries}{/if}
+							{#if entry.countries}
+								· {entry.countries}{/if}
 						</div>
 						<div class="mt-1 text-xs text-[var(--text-muted)]">
 							{#if entry.embarkDate}
@@ -225,7 +230,9 @@
 						{#if entry.completedLegs > 0}
 							<div class="flex gap-4">
 								<div>
-									<div class="text-lg font-bold text-[var(--ocean)]">{Math.round(entry.hoursTotal)}h</div>
+									<div class="text-lg font-bold text-[var(--ocean)]">
+										{Math.round(entry.hoursTotal)}h
+									</div>
 									<div class="text-xs">godziny</div>
 								</div>
 								<div>
@@ -234,9 +241,13 @@
 								</div>
 							</div>
 						{/if}
-						{#if entry.maxCrew && entry.status === 'upcoming'}<div>max {entry.maxCrew} os.</div>{/if}
+						{#if entry.maxCrew && entry.status === 'upcoming'}<div>
+								max {entry.maxCrew} os.
+							</div>{/if}
 						{#if entry.enrollOpen && entry.status === 'upcoming'}
-							<div class="mt-1 inline-block rounded-full bg-[var(--ocean)] px-2 py-0.5 text-xs text-white">
+							<div
+								class="mt-1 inline-block rounded-full bg-[var(--ocean)] px-2 py-0.5 text-xs text-white"
+							>
 								Zapisy otwarte
 							</div>
 						{/if}

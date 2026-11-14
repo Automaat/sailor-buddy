@@ -39,7 +39,9 @@ describe('series page', () => {
 	});
 
 	it('links each series to its page', async () => {
-		mockList.mockResolvedValue([makeSeries({ id: 4, name: 'AGH Winter Sail Expedition', description: 'Od 2012' })]);
+		mockList.mockResolvedValue([
+			makeSeries({ id: 4, name: 'AGH Winter Sail Expedition', description: 'Od 2012' })
+		]);
 		render(SeriesPage);
 		const link = (await screen.findByText('AGH Winter Sail Expedition')).closest('a');
 		expect(link).toHaveAttribute('href', '/series/4');
@@ -52,10 +54,15 @@ describe('series page', () => {
 		await screen.findByText('Brak serii');
 
 		await fireEvent.click(screen.getByRole('button', { name: '+ Dodaj serię' }));
-		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'Navigare Necesse Est' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), {
+			target: { value: 'Navigare Necesse Est' }
+		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
 
-		expect(mockCreate).toHaveBeenCalledWith({ name: 'Navigare Necesse Est', description: undefined });
+		expect(mockCreate).toHaveBeenCalledWith({
+			name: 'Navigare Necesse Est',
+			description: undefined
+		});
 		expect(await screen.findByText('Navigare Necesse Est')).toBeInTheDocument();
 	});
 

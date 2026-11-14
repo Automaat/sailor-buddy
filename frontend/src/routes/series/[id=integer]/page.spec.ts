@@ -79,8 +79,21 @@ describe('series detail page', () => {
 
 	it('lists editions in API order with per-edition and overall totals', async () => {
 		mockEditions.mockResolvedValue([
-			makeEdition({ cruise_id: 20, name: 'MIS 2025', edition: '2025', total_miles: 200, total_hours: 40 }),
-			makeEdition({ cruise_id: 10, name: 'MIS 2024', edition: '2024', kind: 'inland', total_miles: 100.5, total_hours: 20 })
+			makeEdition({
+				cruise_id: 20,
+				name: 'MIS 2025',
+				edition: '2025',
+				total_miles: 200,
+				total_hours: 40
+			}),
+			makeEdition({
+				cruise_id: 10,
+				name: 'MIS 2024',
+				edition: '2024',
+				kind: 'inland',
+				total_miles: 100.5,
+				total_hours: 20
+			})
 		]);
 		await renderPage();
 		await screen.findByText('May I Sail');
@@ -88,7 +101,10 @@ describe('series detail page', () => {
 		const rows = screen.getAllByTestId('edition-row');
 		expect(rows).toHaveLength(2);
 		expect(within(rows[0]).getByText('2025')).toBeInTheDocument();
-		expect(within(rows[0]).getByRole('link', { name: 'MIS 2025' })).toHaveAttribute('href', '/cruises/20');
+		expect(within(rows[0]).getByRole('link', { name: 'MIS 2025' })).toHaveAttribute(
+			'href',
+			'/cruises/20'
+		);
 		expect(within(rows[1]).getByText('Śródlądowy')).toBeInTheDocument();
 		expect(within(rows[1]).getByText('100,5')).toBeInTheDocument();
 
@@ -118,12 +134,18 @@ describe('series detail page', () => {
 
 	it('throws the series 404 when the editions 404 arrives first', async () => {
 		mockGet.mockImplementation(
-			() => new Promise((_, reject) => setTimeout(() => reject(new ApiError(404, 'series not found')), 10))
+			() =>
+				new Promise((_, reject) =>
+					setTimeout(() => reject(new ApiError(404, 'series not found')), 10)
+				)
 		);
 		mockEditions.mockRejectedValue(new ApiError(404, 'series not found'));
 		await expect(runLoad()).rejects.toMatchObject({
 			status: 404,
-			body: { message: 'Ta seria nie istnieje lub nie masz do niej dostępu.', title: 'Nie znaleziono serii' }
+			body: {
+				message: 'Ta seria nie istnieje lub nie masz do niej dostępu.',
+				title: 'Nie znaleziono serii'
+			}
 		});
 	});
 
@@ -199,7 +221,10 @@ describe('series page same-route navigation', () => {
 
 		expect(screen.getByRole('heading', { name: 'Baltic Cup' })).toBeInTheDocument();
 		expect(screen.queryByText('May I Sail')).not.toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Baltic Cup 2025' })).toHaveAttribute('href', '/cruises/50');
+		expect(screen.getByRole('link', { name: 'Baltic Cup 2025' })).toHaveAttribute(
+			'href',
+			'/cruises/50'
+		);
 	});
 
 	it('closes the edit form of the previous series', async () => {

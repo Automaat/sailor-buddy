@@ -61,10 +61,9 @@ type JsonBody<O> = O extends { requestBody?: infer RB }
 
 // Response collapses the JSON success bodies (200/201) and a 204 to `void`.
 type OpResponse<O> = O extends { responses: infer R }
-	?
-			| (R extends { 200: { content: { 'application/json': infer T } } } ? T : never)
-			| (R extends { 201: { content: { 'application/json': infer T } } } ? T : never)
-			| (R extends { 204: unknown } ? void : never)
+	? | (R extends { 200: { content: { 'application/json': infer T } } } ? T : never)
+		| (R extends { 201: { content: { 'application/json': infer T } } } ? T : never)
+		| (R extends { 204: unknown } ? void : never)
 	: never;
 
 // RequestOpts is the per-call argument: a key is required when the operation
@@ -76,9 +75,8 @@ type RequestOpts<O> = (PathParams<O> extends undefined
 	([JsonBody<O>] extends [never] ? { body?: undefined } : { body: JsonBody<O> });
 
 // OptsArg makes the opts argument optional only when nothing in it is required.
-type OptsArg<O> = Record<string, never> extends RequestOpts<O>
-	? [opts?: RequestOpts<O>]
-	: [opts: RequestOpts<O>];
+type OptsArg<O> =
+	Record<string, never> extends RequestOpts<O> ? [opts?: RequestOpts<O>] : [opts: RequestOpts<O>];
 
 // Page-shaped GET responses, the only ones `list` accepts.
 type ListPath = {
@@ -87,11 +85,12 @@ type ListPath = {
 		: never;
 }[GetPath];
 
-type PageItem<O> = OpResponse<O> extends { items: infer I }
-	? NonNullable<I> extends readonly (infer E)[]
-		? E
-		: never
-	: never;
+type PageItem<O> =
+	OpResponse<O> extends { items: infer I }
+		? NonNullable<I> extends readonly (infer E)[]
+			? E
+			: never
+		: never;
 
 interface CallOpts {
 	path?: Record<string, string | number>;
@@ -212,10 +211,16 @@ async function download(template: string, opts?: CallOpts): Promise<void> {
 // api is the typed low-level client: every path is checked against the
 // generated OpenAPI `paths`, and params / body / response are derived from it.
 export const api = {
-	get<P extends GetPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<OpResponse<Op<P, 'get'>>> {
+	get<P extends GetPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'get'>>
+	): Promise<OpResponse<Op<P, 'get'>>> {
 		return request('GET', resolvePath(path, args[0] as CallOpts));
 	},
-	list<P extends ListPath>(path: P, ...args: OptsArg<Op<P, 'get'>>): Promise<PageItem<Op<P, 'get'>>[]> {
+	list<P extends ListPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'get'>>
+	): Promise<PageItem<Op<P, 'get'>>[]> {
 		return listAll(path, args[0] as CallOpts);
 	},
 	post<P extends PostPath>(
@@ -225,7 +230,10 @@ export const api = {
 		const opts = args[0] as CallOpts | undefined;
 		return request('POST', resolvePath(path, opts), opts?.body);
 	},
-	put<P extends PutPath>(path: P, ...args: OptsArg<Op<P, 'put'>>): Promise<OpResponse<Op<P, 'put'>>> {
+	put<P extends PutPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'put'>>
+	): Promise<OpResponse<Op<P, 'put'>>> {
 		const opts = args[0] as CallOpts | undefined;
 		return request('PUT', resolvePath(path, opts), opts?.body);
 	},

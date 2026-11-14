@@ -38,7 +38,10 @@
 <div>
 	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Moje kursy</h1>
-		<button onclick={() => (showForm = !showForm)} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]">
+		<button
+			onclick={() => (showForm = !showForm)}
+			class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]"
+		>
 			{showForm ? 'Anuluj' : '+ Dodaj szkolenie'}
 		</button>
 	</div>
@@ -48,26 +51,57 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa *</label>
-					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="name"
+						type="text"
+						bind:value={form.name}
+						required
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="date" class="mb-1 block text-sm font-medium">Data</label>
-					<input id="date" type="date" bind:value={form.date} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="date"
+						type="date"
+						bind:value={form.date}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="org" class="mb-1 block text-sm font-medium">Organizator</label>
-					<input id="org" type="text" bind:value={form.organizer} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="org"
+						type="text"
+						bind:value={form.organizer}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="cost" class="mb-1 block text-sm font-medium">Koszt</label>
-					<input id="cost" type="number" step="0.01" bind:value={form.cost} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="cost"
+						type="number"
+						step="0.01"
+						bind:value={form.cost}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div class="sm:col-span-2">
 					<label for="url" class="mb-1 block text-sm font-medium">URL</label>
-					<input id="url" type="url" bind:value={form.url} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="url"
+						type="url"
+						bind:value={form.url}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 			</div>
-			<button type="submit" disabled={saving} class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+			<button
+				type="submit"
+				disabled={saving}
+				class="mt-4 rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
 				{saving ? 'Dodawanie...' : 'Dodaj'}
 			</button>
 		</form>
@@ -96,9 +130,16 @@
 							<span class="text-sm font-medium text-[var(--sand)]">{training.cost} PLN</span>
 						{/if}
 						{#if training.url}
-							<a href={training.url} target="_blank" class="text-sm text-[var(--ocean)] hover:underline">Link</a>
+							<a
+								href={training.url}
+								target="_blank"
+								class="text-sm text-[var(--ocean)] hover:underline">Link</a
+							>
 						{/if}
-						<button onclick={() => handleDelete(training.id)} class="text-sm text-red-400 hover:text-red-600">Usuń</button>
+						<button
+							onclick={() => handleDelete(training.id)}
+							class="text-sm text-red-400 hover:text-red-600">Usuń</button
+						>
 					</div>
 				</div>
 			{/each}

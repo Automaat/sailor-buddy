@@ -21,7 +21,12 @@
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { isHttpUrl } from '#lib/cruise.js';
-	import { freePlacesLabel, numberLegs, signUpDeadlineLabel, statusLabels } from '#lib/enrollment.js';
+	import {
+		freePlacesLabel,
+		numberLegs,
+		signUpDeadlineLabel,
+		statusLabels
+	} from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 	import { goto } from '$app/navigation';
 
@@ -161,9 +166,11 @@
 
 	function copyEnrollLink() {
 		if (!enrollToken) return;
-		navigator.clipboard.writeText(`${window.location.origin}/enroll/${enrollToken}`).catch((err) => {
-			console.error('Failed to copy enrollment link:', err);
-		});
+		navigator.clipboard
+			.writeText(`${window.location.origin}/enroll/${enrollToken}`)
+			.catch((err) => {
+				console.error('Failed to copy enrollment link:', err);
+			});
 	}
 
 	async function setEnrollmentStatus(enrollmentId: number, status: EnrollStatus) {
@@ -218,33 +225,50 @@
 				<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
 				<span class="text-sm text-[var(--text-muted)]">{enrollment.user_email ?? ''}</span>
 				{#if enrollment.user_phone}
-					<a href="tel:{enrollment.user_phone}" class="text-sm text-[var(--ocean)] hover:underline">{enrollment.user_phone}</a>
+					<a href="tel:{enrollment.user_phone}" class="text-sm text-[var(--ocean)] hover:underline"
+						>{enrollment.user_phone}</a
+					>
 				{/if}
 				<span class="text-xs text-[var(--text-muted)]">
 					{patentSummary(enrollment.user_patent_type, enrollment.user_patent_number)}
 				</span>
-				<span class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}">
+				<span
+					class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ??
+						'bg-gray-100'}"
+				>
 					{statusLabels[enrollment.status] ?? enrollment.status}
 				</span>
 				<span class="text-xs text-[var(--text-muted)]">zapis na wydarzenie</span>
 			</div>
 			<div class="flex flex-wrap gap-1">
 				{#if enrollment.status !== 'accepted'}
-					<button onclick={() => setEnrollmentStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]">
+					<button
+						onclick={() => setEnrollmentStatus(enrollment.id, 'accepted')}
+						class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]"
+					>
 						Akceptuj
 					</button>
 				{/if}
 				{#if enrollment.status !== 'waitlisted'}
-					<button onclick={() => setEnrollmentStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-[var(--navy)] hover:bg-[var(--ocean-tint)]">
+					<button
+						onclick={() => setEnrollmentStatus(enrollment.id, 'waitlisted')}
+						class="rounded px-2 py-1 text-xs text-[var(--navy)] hover:bg-[var(--ocean-tint)]"
+					>
 						Rezerwa
 					</button>
 				{/if}
 				{#if enrollment.status !== 'rejected'}
-					<button onclick={() => setEnrollmentStatus(enrollment.id, 'rejected')} class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-100">
+					<button
+						onclick={() => setEnrollmentStatus(enrollment.id, 'rejected')}
+						class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-100"
+					>
 						Odrzuć
 					</button>
 				{/if}
-				<button onclick={() => deleteEnrollment(enrollment.id)} class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-100">
+				<button
+					onclick={() => deleteEnrollment(enrollment.id)}
+					class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-100"
+				>
 					Usuń
 				</button>
 			</div>
@@ -279,27 +303,37 @@
 			<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
 			{#if series}
 				<p class="mt-1 text-sm">
-					<a href="/series/{series.id}" class="text-[var(--ocean)] hover:underline">{series.name}</a>
-					{#if cruise.edition} · edycja {cruise.edition}{/if}
+					<a href="/series/{series.id}" class="text-[var(--ocean)] hover:underline">{series.name}</a
+					>
+					{#if cruise.edition}
+						· edycja {cruise.edition}{/if}
 				</p>
 			{/if}
 			<p class="mt-1 text-[var(--text-muted)]">
 				{#if cruise.start_port && cruise.end_port}
 					{cruise.start_port} → {cruise.end_port}
 				{/if}
-				{#if cruise.countries} · {cruise.countries}{/if}
+				{#if cruise.countries}
+					· {cruise.countries}{/if}
 			</p>
 			<p class="mt-1 text-sm text-[var(--text-muted)]">
 				{#if cruise.embark_date}
 					{formatDateRangeWithDays(cruise.embark_date, cruise.disembark_date)}
 				{/if}
-				{#if cruise.max_crew} · max {cruise.max_crew} os.{/if}
+				{#if cruise.max_crew}
+					· max {cruise.max_crew} os.{/if}
 			</p>
 		</div>
 		{#if isAdmin}
 			<div class="flex gap-2">
-				<a href="/cruises/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
-				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+				<a
+					href="/cruises/{id}/edit"
+					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
+				>
+				<button
+					onclick={handleDelete}
+					class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+				>
 					Usuń
 				</button>
 			</div>
@@ -362,7 +396,10 @@
 					{@const signUp = signUpByTrip.get(trip.id)}
 					{@const price = yourPrice(trip, auth.user?.membership)}
 					{@const places = signUp ? freePlacesLabel(trip.max_crew, signUp.accepted_count) : null}
-					<div class="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-gray-50 px-4 py-3" data-testid="leg-row">
+					<div
+						class="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-gray-50 px-4 py-3"
+						data-testid="leg-row"
+					>
 						<div class="min-w-0">
 							<div class="flex flex-wrap items-center gap-2">
 								<a href="/trips/{trip.id}" class="font-medium hover:underline">{trip.name}</a>
@@ -379,9 +416,13 @@
 									<span>{formatDateRangeWithDays(trip.embark_date, trip.disembark_date)}</span>
 								{/if}
 								{#if price !== null}<span>{formatPrice(price, trip.currency)}</span>{/if}
-								{#if places && trip.status !== 'cancelled'}<span data-testid="free-places">{places}</span>{/if}
+								{#if places && trip.status !== 'cancelled'}<span data-testid="free-places"
+										>{places}</span
+									>{/if}
 								{#if trip.sign_up_deadline && trip.status !== 'cancelled'}
-									<span data-testid="sign-up-deadline">{signUpDeadlineLabel(trip.sign_up_deadline)}</span>
+									<span data-testid="sign-up-deadline"
+										>{signUpDeadlineLabel(trip.sign_up_deadline)}</span
+									>
 								{/if}
 							</div>
 						</div>
@@ -413,15 +454,22 @@
 					{enrollToken ? 'Wyłącz zapisy' : 'Włącz zapisy'}
 				</button>
 				{#if enrollToken}
-					<button onclick={copyEnrollLink} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+					<button
+						onclick={copyEnrollLink}
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+					>
 						Kopiuj link
 					</button>
 				{/if}
-				<span class="text-xs text-[var(--text-muted)]">Link do podglądu wydarzenia, z którego można zapisać się na etapy.</span>
+				<span class="text-xs text-[var(--text-muted)]"
+					>Link do podglądu wydarzenia, z którego można zapisać się na etapy.</span
+				>
 			</div>
 
 			{#if enrollmentError}
-				<p role="alert" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{enrollmentError}</p>
+				<p role="alert" class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+					{enrollmentError}
+				</p>
 			{/if}
 			{#if legGroups.length === 0 && unassigned.length === 0}
 				<p class="text-sm text-[var(--text-muted)]">Brak zapisów.</p>
@@ -431,7 +479,10 @@
 					<section aria-label={`Zapisy: ${group.trip.name}`}>
 						<div class="mb-1 flex items-center justify-between">
 							<h3 class="text-sm font-medium">{group.trip.name}</h3>
-							<a href="/trips/{group.trip.id}/enrollments" class="tap-target text-xs text-[var(--ocean)] hover:underline">
+							<a
+								href="/trips/{group.trip.id}/enrollments"
+								class="tap-target text-xs text-[var(--ocean)] hover:underline"
+							>
 								Zarządzaj zapisami
 							</a>
 						</div>
@@ -440,9 +491,14 @@
 						{/if}
 						<div class="space-y-1">
 							{#each group.signUps as e (e.id)}
-								<div class="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+								<div
+									class="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
+								>
 									<span class="font-medium">{e.user_name || e.user_email}</span>
-									<span class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[e.status] ?? 'bg-gray-100'}">
+									<span
+										class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[e.status] ??
+											'bg-gray-100'}"
+									>
 										{statusLabels[e.status] ?? e.status}
 									</span>
 									{#if e.note}<span class="text-xs text-[var(--text-muted)]">{e.note}</span>{/if}
@@ -457,7 +513,9 @@
 				{#if unassigned.length > 0}
 					<section aria-label="Zapisy: Bez etapu">
 						<h3 class="mb-1 text-sm font-medium">Bez etapu</h3>
-						<p class="mb-1 text-xs text-[var(--text-muted)]">Zapisy na całe wydarzenie sprzed zapisów na etapy. Przypisz je do etapu.</p>
+						<p class="mb-1 text-xs text-[var(--text-muted)]">
+							Zapisy na całe wydarzenie sprzed zapisów na etapy. Przypisz je do etapu.
+						</p>
 						<div class="space-y-1">
 							{#each unassigned as enrollment (enrollment.id)}
 								{@render legacyEnrollment(enrollment)}
@@ -474,7 +532,10 @@
 			<div class="mb-3 flex items-center justify-between">
 				<h2 class="font-semibold text-[var(--navy)]">Zrealizowane etapy ({voyages.length})</h2>
 				{#if isAdmin}
-					<a href="/voyages/new?cruise_id={id}" class="tap-target rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50">
+					<a
+						href="/voyages/new?cruise_id={id}"
+						class="tap-target rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
+					>
 						+ Wpisz zrealizowany
 					</a>
 				{/if}
@@ -484,7 +545,10 @@
 			{/if}
 			<div class="space-y-2">
 				{#each voyages as voyage (voyage.id)}
-					<a href="/voyages/{voyage.id}" class="block rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100">
+					<a
+						href="/voyages/{voyage.id}"
+						class="block rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100"
+					>
 						<div class="flex items-center justify-between">
 							<span class="font-medium">{voyage.name}</span>
 							<span class="text-sm text-[var(--text-muted)]">

@@ -172,7 +172,11 @@ describe('YachtSelect when a create ends late', () => {
 
 	it('selects a listed yacht with the same type and name instead of creating it again', async () => {
 		const create = vi.fn();
-		const props = $state({ value: 0, yachts: [wega, { ...selma, yacht_type: 'Hanse 415' }], create });
+		const props = $state({
+			value: 0,
+			yachts: [wega, { ...selma, yacht_type: 'Hanse 415' }],
+			create
+		});
 		render(YachtSelect, { props });
 
 		await fillDraft(' selma ');

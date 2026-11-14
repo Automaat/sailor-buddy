@@ -4,18 +4,31 @@ import { makeCruise, makeVoyage } from '#lib/test-utils.js';
 import { ApiError } from '#lib/api/client.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$app/state', () => ({ page: { params: { id: '8' }, url: new URL('http://localhost/voyages/8/edit') } }));
-vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAdmin: true, user: { id: 1, role: 'admin' } } }));
+vi.mock('$app/state', () => ({
+	page: { params: { id: '8' }, url: new URL('http://localhost/voyages/8/edit') }
+}));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
+	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
+}));
 vi.mock('#lib/api/routes.js', () => ({
 	getVoyage: vi.fn(),
 	updateVoyage: vi.fn(),
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	listCruises: vi.fn(),
-	listMembers: vi.fn(), listCrew: vi.fn()
+	listMembers: vi.fn(),
+	listCrew: vi.fn()
 }));
 
-import { getVoyage, updateVoyage, listYachts, createYacht, listCruises, listMembers, listCrew } from '#lib/api/routes.js';
+import {
+	getVoyage,
+	updateVoyage,
+	listYachts,
+	createYacht,
+	listCruises,
+	listMembers,
+	listCrew
+} from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import EditVoyagePage from './+page.svelte';
 import { load } from './+page.js';
@@ -41,7 +54,13 @@ const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 beforeEach(() => {
 	vi.clearAllMocks();
 	fn(getVoyage).mockResolvedValue(
-		makeVoyage({ id: 8, cruise_id: 13, name: 'Etap 1', image_photo_url: '/uploads/photo.png', image_route_url: '/uploads/route.png' })
+		makeVoyage({
+			id: 8,
+			cruise_id: 13,
+			name: 'Etap 1',
+			image_photo_url: '/uploads/photo.png',
+			image_route_url: '/uploads/route.png'
+		})
 	);
 	fn(listYachts).mockResolvedValue([]);
 	fn(listMembers).mockResolvedValue([]);
@@ -88,7 +107,9 @@ describe('voyage edit page', () => {
 		await renderPage();
 		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
 
-		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(
+			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
+		).toBeInTheDocument();
 		expect(updateVoyage).not.toHaveBeenCalled();
 	});
 
@@ -153,13 +174,20 @@ describe('voyage edit page load', () => {
 describe('voyage edit page same-route navigation', () => {
 	beforeEach(() => {
 		fn(getVoyage).mockImplementation(async (id: number) =>
-			makeVoyage({ id, cruise_id: 13, name: id === 8 ? 'Etap 1' : 'Etap 2', miles: id === 8 ? 120 : 340 })
+			makeVoyage({
+				id,
+				cruise_id: 13,
+				name: id === 8 ? 'Etap 1' : 'Etap 2',
+				miles: id === 8 ? 120 : 340
+			})
 		);
 	});
 
 	it('shows the second voyage and drops edits made to the first', async () => {
 		const view = await renderPage();
-		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), { target: { value: 'Zmieniony etap' } });
+		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Zmieniony etap' }
+		});
 
 		await view.rerender({ data: await runLoad('9') });
 
@@ -170,7 +198,7 @@ describe('voyage edit page same-route navigation', () => {
 		expect(body).toMatchObject({ name: 'Etap 2', miles: 340 });
 	});
 
-	it('clears the first voyage\'s save error', async () => {
+	it("clears the first voyage's save error", async () => {
 		fn(updateVoyage).mockRejectedValueOnce(new Error('cruise not found'));
 		const view = await renderPage();
 		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));

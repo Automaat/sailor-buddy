@@ -10,11 +10,27 @@
 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 	<div>
 		<label class={label} for="firstName">Imię *</label>
-		<input id="firstName" type="text" bind:value={form.firstName} required maxlength="100" autocomplete="given-name" class={input} />
+		<input
+			id="firstName"
+			type="text"
+			bind:value={form.firstName}
+			required
+			maxlength="100"
+			autocomplete="given-name"
+			class={input}
+		/>
 	</div>
 	<div>
 		<label class={label} for="lastName">Nazwisko *</label>
-		<input id="lastName" type="text" bind:value={form.lastName} required maxlength="100" autocomplete="family-name" class={input} />
+		<input
+			id="lastName"
+			type="text"
+			bind:value={form.lastName}
+			required
+			maxlength="100"
+			autocomplete="family-name"
+			class={input}
+		/>
 	</div>
 </div>
 <div>
@@ -30,7 +46,9 @@
 		autocomplete="tel"
 		class={input}
 	/>
-	<p class="mt-1 text-xs text-[var(--text-muted)]">Kapitan zadzwoni przed rejsem, jeśli będzie trzeba.</p>
+	<p class="mt-1 text-xs text-[var(--text-muted)]">
+		Kapitan zadzwoni przed rejsem, jeśli będzie trzeba.
+	</p>
 </div>
 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 	<div>

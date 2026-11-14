@@ -84,7 +84,8 @@
 			console.error('Failed to update status:', err);
 			if (leftTrip(tripId)) return;
 			if (err instanceof ApiError && err.status === 409) {
-				error = 'Etap jest pełny: wszystkie miejsca są zajęte. Zwolnij miejsce, zanim zaakceptujesz kolejną osobę.';
+				error =
+					'Etap jest pełny: wszystkie miejsca są zajęte. Zwolnij miejsce, zanim zaakceptujesz kolejną osobę.';
 			} else {
 				error = 'Nie udało się zmienić statusu.';
 			}
@@ -101,7 +102,9 @@
 			const updated = await updateTripEnrollmentPaymentStatus(tripId, enrollmentId, paymentStatus);
 			if (leftTrip(tripId)) return;
 			enrollments = enrollments.map((e) =>
-				e.id === enrollmentId ? { ...e, payment_status: updated.payment_status ?? paymentStatus } : e
+				e.id === enrollmentId
+					? { ...e, payment_status: updated.payment_status ?? paymentStatus }
+					: e
 			);
 		} catch (err) {
 			console.error('Failed to update payment status:', err);
@@ -141,7 +144,8 @@
 			<p class="mt-1 text-[var(--text-muted)]">
 				{trip.name}
 				{#if trip.max_crew}
-					· {accepted} / {trip.max_crew} zaakceptowanych · <span data-testid="free-places">{places}</span>
+					· {accepted} / {trip.max_crew} zaakceptowanych ·
+					<span data-testid="free-places">{places}</span>
 				{/if}
 			</p>
 		</div>
@@ -179,12 +183,21 @@
 					<div class="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
 						<div class="min-w-0 break-words">
 							<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
-							<span class="ml-2 text-sm text-[var(--text-muted)]">{enrollment.user_email ?? ''}</span>
-							<span class="ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[enrollment.status] ?? 'bg-gray-100'}">
+							<span class="ml-2 text-sm text-[var(--text-muted)]"
+								>{enrollment.user_email ?? ''}</span
+							>
+							<span
+								class="ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[
+									enrollment.status
+								] ?? 'bg-gray-100'}"
+							>
 								{statusLabels[enrollment.status] ?? enrollment.status}
 							</span>
 							{#if enrollment.id === nextId}
-								<span class="ml-2 inline-block rounded-full bg-[var(--ocean)] px-2 py-0.5 text-xs font-medium text-white" data-testid="next-waitlisted">
+								<span
+									class="ml-2 inline-block rounded-full bg-[var(--ocean)] px-2 py-0.5 text-xs font-medium text-white"
+									data-testid="next-waitlisted"
+								>
 									następny w kolejce
 								</span>
 							{/if}
@@ -205,21 +218,33 @@
 								{/each}
 							</select>
 							{#if enrollment.status !== 'accepted'}
-								<button onclick={() => updateStatus(enrollment.id, 'accepted')} class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]">
+								<button
+									onclick={() => updateStatus(enrollment.id, 'accepted')}
+									class="rounded px-2 py-1 text-xs text-[var(--ocean)] hover:bg-[var(--ocean-tint)]"
+								>
 									Akceptuj
 								</button>
 							{/if}
 							{#if enrollment.status !== 'waitlisted'}
-								<button onclick={() => updateStatus(enrollment.id, 'waitlisted')} class="rounded px-2 py-1 text-xs text-[var(--navy)] hover:bg-[var(--ocean-tint)]">
+								<button
+									onclick={() => updateStatus(enrollment.id, 'waitlisted')}
+									class="rounded px-2 py-1 text-xs text-[var(--navy)] hover:bg-[var(--ocean-tint)]"
+								>
 									Rezerwa
 								</button>
 							{/if}
 							{#if enrollment.status !== 'rejected'}
-								<button onclick={() => updateStatus(enrollment.id, 'rejected')} class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-50">
+								<button
+									onclick={() => updateStatus(enrollment.id, 'rejected')}
+									class="rounded px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+								>
 									Odrzuć
 								</button>
 							{/if}
-							<button onclick={() => deleteEnrollment(enrollment.id)} class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50">
+							<button
+								onclick={() => deleteEnrollment(enrollment.id)}
+								class="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+							>
 								Usuń
 							</button>
 						</div>

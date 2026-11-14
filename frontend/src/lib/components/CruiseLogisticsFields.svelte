@@ -38,6 +38,5 @@
 		rows="3"
 		maxlength="5000"
 		placeholder="np. tanie loty do Katanii, transport z lotniska do portu"
-		class="w-full rounded-lg border px-3 py-2"
-	></textarea>
+		class="w-full rounded-lg border px-3 py-2"></textarea>
 </div>

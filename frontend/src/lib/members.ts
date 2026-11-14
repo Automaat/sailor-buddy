@@ -13,11 +13,7 @@ export const memberFilters: { value: MemberFilter; label: string }[] = [
 
 /** fold lowercases text and strips Polish diacritics so "gosc" finds "Gość". */
 export function fold(text: string): string {
-	return text
-		.toLocaleLowerCase('pl')
-		.normalize('NFD')
-		.replace(/\p{M}/gu, '')
-		.replace(/ł/g, 'l');
+	return text.toLocaleLowerCase('pl').normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l');
 }
 
 export function matchesFilter(member: Member, filter: MemberFilter): boolean {

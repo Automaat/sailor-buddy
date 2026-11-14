@@ -27,7 +27,7 @@
 >
 	<option value={0} disabled>-- Wybierz wydarzenie --</option>
 	{#if missingLinked}
-		<option value={value}>Wydarzenie #{value}</option>
+		<option {value}>Wydarzenie #{value}</option>
 	{/if}
 	{#each cruises as cruise (cruise.id)}
 		<option value={cruise.id}>{cruise.name}</option>

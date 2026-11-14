@@ -17,7 +17,9 @@
 	const cruises = $derived(data.cruises);
 	const loadErrors = $derived(data.loadErrors);
 	let yachts = $derived(data.yachts);
-	const legacyCaptainName = $derived(data.trip.captain_person_id ? '' : (data.trip.captain_name ?? ''));
+	const legacyCaptainName = $derived(
+		data.trip.captain_person_id ? '' : (data.trip.captain_name ?? '')
+	);
 
 	let form = $derived(perLoad(data, tripForm(data.trip)));
 	let price = $derived(perLoad(data, priceFormFrom(data.trip)));
@@ -100,7 +102,13 @@
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div class="sm:col-span-2">
 					<label for="name" class="mb-1 block text-sm font-medium">Nazwa rejsu *</label>
-					<input id="name" type="text" bind:value={form.name} required class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="name"
+						type="text"
+						bind:value={form.name}
+						required
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div class="sm:col-span-2">
 					<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
@@ -116,14 +124,26 @@
 				</div>
 				<div>
 					<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
-					<input id="embark" type="date" bind:value={form.embark_date} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="embark"
+						type="date"
+						bind:value={form.embark_date}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
-					<input id="disembark" type="date" bind:value={form.disembark_date} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="disembark"
+						type="date"
+						bind:value={form.disembark_date}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div class="col-span-2">
-					<label for="sign_up_deadline" class="mb-1 block text-sm font-medium">Zapisy do (włącznie)</label>
+					<label for="sign_up_deadline" class="mb-1 block text-sm font-medium"
+						>Zapisy do (włącznie)</label
+					>
 					<input
 						id="sign_up_deadline"
 						type="date"
@@ -131,19 +151,36 @@
 						max={form.embark_date || undefined}
 						class="w-full rounded-lg border px-3 py-2"
 					/>
-					<p class="mt-1 text-xs text-[var(--text-muted)]">Puste — zapisy otwarte, dopóki ich nie wyłączysz.</p>
+					<p class="mt-1 text-xs text-[var(--text-muted)]">
+						Puste — zapisy otwarte, dopóki ich nie wyłączysz.
+					</p>
 				</div>
 				<div>
 					<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-					<input id="start_port" type="text" bind:value={form.start_port} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="start_port"
+						type="text"
+						bind:value={form.start_port}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-					<input id="end_port" type="text" bind:value={form.end_port} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="end_port"
+						type="text"
+						bind:value={form.end_port}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div class="sm:col-span-2">
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-					<input id="countries" type="text" bind:value={form.countries} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="countries"
+						type="text"
+						bind:value={form.countries}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 			</div>
 
@@ -153,24 +190,49 @@
 				<PriceFields bind:price />
 				<div>
 					<label for="ct" class="mb-1 block text-sm font-medium">Koszt całkowity</label>
-					<input id="ct" type="number" step="0.01" bind:value={form.cost_total} class="w-full rounded-lg border px-3 py-2" />
+					<input
+						id="ct"
+						type="number"
+						step="0.01"
+						bind:value={form.cost_total}
+						class="w-full rounded-lg border px-3 py-2"
+					/>
 				</div>
 				<div>
 					<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. załoga</label>
-					<input id="max_crew" type="number" bind:value={form.max_crew} class="w-full rounded-lg border px-3 py-2" min="0" placeholder="0 = bez limitu" />
+					<input
+						id="max_crew"
+						type="number"
+						bind:value={form.max_crew}
+						class="w-full rounded-lg border px-3 py-2"
+						min="0"
+						placeholder="0 = bez limitu"
+					/>
 				</div>
 			</div>
 
 			<div>
 				<label for="desc" class="mb-1 block text-sm font-medium">Opis</label>
-				<textarea id="desc" bind:value={form.description} rows="4" class="w-full rounded-lg border px-3 py-2"></textarea>
+				<textarea
+					id="desc"
+					bind:value={form.description}
+					rows="4"
+					class="w-full rounded-lg border px-3 py-2"></textarea>
 			</div>
 
 			<div class="flex gap-3">
-				<button type="submit" disabled={submit.saving} class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+				<button
+					type="submit"
+					disabled={submit.saving}
+					class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+				>
 					{submit.saving ? 'Zapisywanie...' : 'Zapisz zmiany'}
 				</button>
-				<a href="/trips/{id}" class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50">Anuluj</a>
+				<a
+					href="/trips/{id}"
+					class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50"
+					>Anuluj</a
+				>
 			</div>
 		</form>
 	{/key}

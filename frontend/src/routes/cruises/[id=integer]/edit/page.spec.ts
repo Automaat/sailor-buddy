@@ -5,7 +5,9 @@ import { ApiError } from '#lib/api/client.js';
 import type { CruiseSeries } from '#lib/api/types.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAdmin: true, user: { id: 1, role: 'admin' } } }));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
+	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
+}));
 vi.mock('#lib/api/routes.js', () => ({
 	getCruise: vi.fn(),
 	updateCruise: vi.fn(),
@@ -43,7 +45,13 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	fn(getCruise).mockImplementation(async (id: number) =>
 		id === 7
-			? makeCruise({ id: 7, name: 'Sycylia 2026', series_id: 3, edition: '2026', included: ['Jacht'] })
+			? makeCruise({
+					id: 7,
+					name: 'Sycylia 2026',
+					series_id: 3,
+					edition: '2026',
+					included: ['Jacht']
+				})
 			: makeCruise({ id, name: 'Chorwacja 2026', start_port: 'Split' })
 	);
 	fn(listSeries).mockResolvedValue([seriesRow(3, 'Sycylia'), seriesRow(4, 'Chorwacja')]);
@@ -66,7 +74,12 @@ describe('cruise edit page', () => {
 		const [id, body] = await save();
 
 		expect(id).toBe(7);
-		expect(body).toMatchObject({ name: 'Sycylia 2026', series_id: 3, edition: '2026', included: ['Jacht'] });
+		expect(body).toMatchObject({
+			name: 'Sycylia 2026',
+			series_id: 3,
+			edition: '2026',
+			included: ['Jacht']
+		});
 		expect(goto).toHaveBeenCalledWith('/cruises/7');
 	});
 
@@ -125,7 +138,9 @@ describe('cruise edit page load', () => {
 describe('cruise edit page same-route navigation', () => {
 	it('shows the second cruise and drops edits made to the first', async () => {
 		const view = await renderPage();
-		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), { target: { value: 'Zmienione' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa wydarzenia *'), {
+			target: { value: 'Zmienione' }
+		});
 
 		await view.rerender({ data: await runLoad('8') });
 
@@ -137,7 +152,7 @@ describe('cruise edit page same-route navigation', () => {
 		expect(body).toMatchObject({ name: 'Chorwacja 2026', start_port: 'Split', included: [] });
 	});
 
-	it('clears the first cruise\'s save error', async () => {
+	it("clears the first cruise's save error", async () => {
 		fn(updateCruise).mockRejectedValueOnce(new Error('boom'));
 		const view = await renderPage();
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
