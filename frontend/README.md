@@ -40,3 +40,7 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Isolated end-to-end tests
+
+The persona suite requires a freshly migrated local database without seed data and `SAILOR_DATABASE_URL` pointing to it. The suite registers its admin through the UI, then invokes the private `bootstrap-admin` command for that exact Firebase UID. Go must be available to the test process. Never point this suite at a database containing real accounts; the setup clears the local Firebase emulator.

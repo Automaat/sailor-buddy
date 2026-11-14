@@ -113,13 +113,13 @@ func TestAuth_KnownAccountUsesLookupOnly(t *testing.T) {
 			Role:      "member",
 		},
 		HasPerson:   true,
-		AdminExists: true,
+		AdminExists: false,
 	}}
 	verifier := fakeVerifier{
 		"tok-ola": {UID: "fb-ola", Claims: map[string]any{"email": "ola@example.dev", "name": "Ola Nowak"}},
 	}
 	var got *auth.Claims
-	handler := Auth(verifier, q, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Auth(verifier, q)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got = GetUser(r.Context())
 		w.WriteHeader(http.StatusNoContent)
 	}))

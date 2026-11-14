@@ -6,6 +6,7 @@ RUN go mod download
 COPY . .
 RUN go build -o /app/sailor-buddy ./cmd/api
 RUN go build -o /app/seed-dev ./cmd/seed-dev
+RUN go build -o /app/bootstrap-admin ./cmd/bootstrap-admin
 
 FROM golang:1.27-alpine AS dev
 RUN apk add --no-cache ca-certificates chromium git
@@ -26,6 +27,7 @@ ENV CHROME_PATH=/usr/bin/chromium-browser
 WORKDIR /app
 COPY --from=builder /app/sailor-buddy .
 COPY --from=builder /app/seed-dev .
+COPY --from=builder /app/bootstrap-admin .
 # Default SAILOR_UPLOAD_DIR is ./uploads; create it owned by the app user so
 # a fresh named volume mounted here inherits that ownership.
 RUN install -d -o sailor -g sailor /app/uploads

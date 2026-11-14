@@ -7,7 +7,7 @@ Sailing cruise tracker and crew document generator.
 - **Backend**: Go + chi router + PostgreSQL 18 (pgx/v5) + sqlc
 - **Frontend**: SvelteKit + Svelte 5 (runes) + Tailwind CSS
 - **Auth**: Firebase Auth (ID token verified server-side); `users.role`
-  (`admin`|`member`) — first registered user becomes admin
+  (`admin`|`member`) — initial admin provisioned privately
 - **Tool versions**: Go, Node, linters and codegen tools are pinned in
   `mise.toml`. Docs point there instead of repeating those versions.
 
@@ -21,7 +21,7 @@ backend/
     api/router.go           # chi router setup
     api/handlers/            # HTTP handlers: one file per resource, plus shared helpers
     api/handlers/authz.go    # requireAdmin role gate
-    api/middleware/auth.go   # Firebase auth middleware + first-user-admin
+    api/middleware/auth.go   # Firebase auth middleware
     auth/firebase.go         # Firebase client + Claims
     cli/cli.go               # -h / argument parsing for migrate and seed-dev
     config/config.go         # env-based config
@@ -99,8 +99,7 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   NOT NULL. The UI has one "Rejsy" list (`/cruises`) of events with
   Nadchodzące/Zrealizowane/Wszystkie tabs; trips and voyages are legs shown
   on the event page. There are no standalone trip/voyage list pages.
-- Roles on `users.role` (`admin`|`member`); first registered user becomes
-  admin. Admins are the board (Zarząd) and the Opiekun. Reads open to any
+- Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Reads open to any
   member; mutations require admin (`requireAdmin`).
 - Captains: `users.is_captain` (admin-curated captain group; requires
   `membership = czlonek` and a patent number). A leg's or voyage's captain is
