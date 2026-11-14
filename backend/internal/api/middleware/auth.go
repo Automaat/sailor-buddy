@@ -171,7 +171,10 @@ func upsertAccount(ctx context.Context, q sqlcdb.Querier, arg sqlcdb.UpsertUserB
 
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23505"
 }
 
 func withClaims(ctx context.Context, user sqlcdb.User, role string) context.Context {
