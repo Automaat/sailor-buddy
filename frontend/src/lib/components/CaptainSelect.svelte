@@ -18,6 +18,7 @@
 
 	let captains = $state<Option[]>([]);
 	let others = $state<Option[]>([]);
+	let loadFailed = $state(false);
 
 	onMount(async () => {
 		try {
@@ -41,6 +42,7 @@
 				.sort(byName);
 		} catch (err) {
 			console.error('Failed to load people:', err);
+			loadFailed = true;
 		}
 	});
 </script>
@@ -62,6 +64,11 @@
 		</optgroup>
 	{/if}
 </select>
+{#if loadFailed}
+	<p role="alert" class="mt-1 text-xs text-red-700">
+		Nie udało się wczytać listy osób. Odśwież stronę, aby spróbować ponownie.
+	</p>
+{/if}
 {#if !value && legacyName}
 	<p class="mt-1 text-xs text-[var(--text-muted)]">Obecnie: {legacyName} (nie wybrano osoby)</p>
 {/if}

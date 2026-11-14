@@ -34,6 +34,9 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 	}
 
 	t.Run("docx success", func(t *testing.T) {
+		dir := t.TempDir()
+		writeUpload(t, dir, "opinions/3_4.pdf", "old pdf")
+		var stored string
 		m := &mockQuerier{
 			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
 				return sqlcdb.Voyage{ID: id, Name: "Baltic", YachtID: types.NullInt64{Int64: 2, Valid: true}}, nil
@@ -45,13 +48,25 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 				return sqlcdb.Yacht{ID: id, Name: "Bavaria"}, nil
 			},
 			upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
+				stored = arg.FilePath
 				return sqlcdb.VoyageOpinion{ID: 7, VoyageID: arg.VoyageID, FileFormat: arg.FileFormat}, nil
 			},
 		}
-		resp := opinionTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
+		resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
 			map[string]any{"crew_member_id": 4, "format": "docx"})
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+		}
+		// The record keeps the upload directory joined with the file name,
+		// the format older rows use too.
+		if want := filepath.Join(dir, "opinions", "3_4.docx"); stored != want {
+			t.Fatalf("stored path = %q, want %q", stored, want)
+		}
+		if info, err := os.Stat(stored); err != nil || info.Size() == 0 {
+			t.Fatalf("stored file: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "opinions", "3_4.pdf")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("old pdf kept: err=%v", err)
 		}
 	})
 
@@ -138,21 +153,55 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 func TestVoyageOpinion_Download(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		dir := t.TempDir()
-		file := filepath.Join(dir, "op.docx")
-		if err := os.WriteFile(file, []byte("body"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		writeUpload(t, dir, "opinions/3_4.docx", "body")
+		file := filepath.Join(dir, "opinions", "3_4.docx")
 		m := &mockQuerier{
 			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
 				return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: file, FileFormat: "docx"}, nil
 			},
 		}
-		resp := opinionTestAPI(t, m).GetCtx(userCtx(context.Background()), "/voyages/3/opinions/1/download")
+		resp := opinionTestAPIIn(t, m, dir).GetCtx(userCtx(context.Background()), "/voyages/3/opinions/1/download")
 		if resp.Code != http.StatusOK {
 			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
 		}
+		if resp.Body.String() != "body" {
+			t.Fatalf("body = %q, want the stored file", resp.Body.String())
+		}
 	})
+
+	// A record path outside the upload directory, directly or through a
+	// symlink in it, must not be read.
+	for _, tc := range []struct{ name, rel string }{
+		{"path outside uploads", "outside"},
+		{"symlink out of uploads", "opinions/link.pdf"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outside := t.TempDir()
+			writeUpload(t, outside, "secret.pdf", "secret")
+			dir := t.TempDir()
+			file := filepath.Join(outside, "secret.pdf")
+			if tc.rel != "outside" {
+				if err := os.MkdirAll(filepath.Join(dir, "opinions"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(file, filepath.Join(dir, tc.rel)); err != nil {
+					t.Fatal(err)
+				}
+				file = filepath.Join(dir, tc.rel)
+			}
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
+					return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: file, FileFormat: "pdf"}, nil
+				},
+			}
+			resp := opinionTestAPIIn(t, m, dir).GetCtx(userCtx(context.Background()), "/voyages/3/opinions/1/download")
+			if resp.Code != http.StatusInternalServerError {
+				t.Fatalf("got %d, want 500; body=%s", resp.Code, resp.Body)
+			}
+		})
+	}
 
 	t.Run("voyage not found", func(t *testing.T) {
 		m := &mockQuerier{
@@ -206,6 +255,38 @@ func TestVoyageOpinion_Download(t *testing.T) {
 	})
 }
 
+func TestVoyageOpinion_DeleteRemovesFile(t *testing.T) {
+	outside := t.TempDir()
+	writeUpload(t, outside, "keep.pdf", "keep")
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/3_4.pdf", "pdf")
+	for _, tc := range []struct {
+		name, stored, check string
+		wantGone            bool
+	}{
+		{"inside uploads", filepath.Join(dir, "opinions", "3_4.pdf"), filepath.Join(dir, "opinions", "3_4.pdf"), true},
+		{"outside uploads", filepath.Join(outside, "keep.pdf"), filepath.Join(outside, "keep.pdf"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
+					return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: tc.stored}, nil
+				},
+				deleteVoyageOpinionFn: func(context.Context, int64) error { return nil },
+			}
+			resp := opinionTestAPIIn(t, m, dir).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
+			if resp.Code != http.StatusNoContent {
+				t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
+			}
+			_, err := os.Stat(tc.check)
+			if gone := errors.Is(err, os.ErrNotExist); gone != tc.wantGone {
+				t.Fatalf("file gone = %v (err %v), want %v", gone, err, tc.wantGone)
+			}
+		})
+	}
+}
+
 func TestVoyageOpinion_Delete_DBError(t *testing.T) {
 	m := &mockQuerier{
 		getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
@@ -240,7 +321,7 @@ func TestOpinionFormat(t *testing.T) {
 
 func TestRenderOpinionFile(t *testing.T) {
 	t.Run("docx renders bytes", func(t *testing.T) {
-		out, err := renderOpinionFile("docx", docgen.OpinionData{CrewMemberName: "Jan"})
+		out, err := renderOpinionFile(t.Context(), "docx", docgen.OpinionData{CrewMemberName: "Jan"})
 		if err != nil {
 			t.Fatalf("render docx: %v", err)
 		}
@@ -250,14 +331,22 @@ func TestRenderOpinionFile(t *testing.T) {
 	})
 
 	t.Run("unsupported format errors", func(t *testing.T) {
-		if _, err := renderOpinionFile("rtf", docgen.OpinionData{}); err == nil {
+		if _, err := renderOpinionFile(t.Context(), "rtf", docgen.OpinionData{}); err == nil {
 			t.Fatal("expected error for unsupported format")
+		}
+	})
+
+	t.Run("pdf stops on cancelled request", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := renderOpinionFile(ctx, "pdf", docgen.OpinionData{CrewMemberName: "Jan"}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("want context.Canceled, got %v", err)
 		}
 	})
 }
 
 func TestNewVoyageOpinionHandler(t *testing.T) {
-	if NewVoyageOpinionHandler(&mockQuerier{}, "/tmp") == nil {
+	if NewVoyageOpinionHandler(&mockQuerier{}, nil) == nil {
 		t.Fatal("want non-nil handler")
 	}
 }

@@ -70,11 +70,13 @@ describe('trip edit page', () => {
 	});
 
 	it('keeps the link when the cruise list fails to load', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		fn(listCruises).mockRejectedValue(new Error('down'));
 		render(EditTripPage);
 		const select = await screen.findByLabelText('Wydarzenie klubu *');
 		expect(screen.getByRole('option', { name: 'Wydarzenie #13' })).toBeInTheDocument();
 		expect(select).toHaveValue('13');
+		expect(screen.getByText(/Nie udało się wczytać: lista wydarzeń\./)).toBeInTheDocument();
 
 		expect(await save()).toMatchObject({ cruise_id: 13 });
 	});

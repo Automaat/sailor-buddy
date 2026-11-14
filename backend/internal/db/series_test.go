@@ -31,7 +31,7 @@ func unpriced(p sqlcdb.CreateCruiseParams) sqlcdb.CreateCruiseParams {
 func TestCruiseSeries_Editions(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ctx := context.Background()
@@ -119,7 +119,7 @@ func TestCruiseSeries_Editions(t *testing.T) {
 func TestCruiseSeries_DeleteKeepsCruises(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ctx := context.Background()

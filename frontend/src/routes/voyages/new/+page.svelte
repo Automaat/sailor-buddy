@@ -7,12 +7,15 @@
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
+	import { noteFailure, settle } from '#lib/api/errors.js';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 
 	let yachts = $state<Yacht[]>([]);
 	let cruises = $state<Cruise[]>([]);
 	let error = $state('');
 	let loading = $state(false);
+	let loadErrors = $state<string[]>([]);
 
 	// Logging voyages is an admin task; redirect regular members away.
 	$effect(() => {
@@ -47,7 +50,10 @@
 	});
 
 	onMount(async () => {
-		const [y, c] = await Promise.all([listYachts(), listCruises().catch(() => [])]);
+		const [y, c] = await Promise.all([
+			settle(listYachts(), [], noteFailure(loadErrors, 'jachty')),
+			settle(listCruises(), [], noteFailure(loadErrors, 'lista wydarzeń'))
+		]);
 		yachts = y;
 		cruises = c ?? [];
 		const fromQuery = Number(page.url.searchParams.get('cruise_id') ?? 0);
@@ -85,6 +91,7 @@
 
 <div class="mx-auto max-w-3xl">
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Wpisz zrealizowany rejs</h1>
+	<LoadErrorBanner errors={loadErrors} />
 
 	{#if error}
 		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>

@@ -345,7 +345,7 @@ func TestSignUpOperations_RequireSignedInUser(t *testing.T) {
 func TestSignUpRoutes_RejectRequestsWithoutToken(t *testing.T) {
 	reached := false
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true })
-	h := middleware.Auth(nil, &mockQuerier{})(next)
+	h := middleware.Auth(nil, &mockQuerier{}, nil)(next)
 	for _, r := range []*http.Request{
 		httptest.NewRequest(http.MethodPost, "/api/trips/5/sign-up", http.NoBody),
 		httptest.NewRequest(http.MethodGet, "/api/cruises/7/leg-sign-ups", http.NoBody),

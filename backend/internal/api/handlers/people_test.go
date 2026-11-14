@@ -125,7 +125,7 @@ func TestPeople_DB(t *testing.T) {
 	}
 
 	_, api := humatest.New(t)
-	RegisterCrewRoutes(api, q, conn)
+	RegisterCrewRoutes(api, q, conn, testUploadRoot(t, t.TempDir()))
 	RegisterAuthRoutes(api, q, conn)
 	admin := callerCtx(user.ID, "admin")
 

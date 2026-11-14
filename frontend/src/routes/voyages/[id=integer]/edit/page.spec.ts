@@ -81,3 +81,14 @@ describe('voyage edit page', () => {
 		expect(await screen.findByText('cruise not found')).toBeInTheDocument();
 	});
 });
+
+describe('voyage edit page load errors', () => {
+	it('names the failed cruise list and still renders the form', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listCruises).mockRejectedValue(new Error('down'));
+		render(EditVoyagePage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: lista wydarzeń\./)).toBeInTheDocument();
+		expect(screen.getByLabelText('Nazwa rejsu *')).toHaveValue('Etap 1');
+	});
+});

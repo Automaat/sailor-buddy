@@ -1,9 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
 	createTestUser,
 	registerViaUI,
 	loginViaUI,
-	clearFirebaseUsers,
+	submitLoginForm,
+	completeOnboardingViaUI,
+	signInTestUser,
 	apiRequest,
 	completeOnboarding,
 	SUITE_ADMIN,
@@ -47,17 +49,35 @@ async function mutationStatus(
 	return res.status;
 }
 
+/**
+ * Registers the suite admin through the UI so it is the first account the
+ * backend provisions, which auto-promotes it to admin. A retry of this serial
+ * group signs in to the account the failed attempt created instead: the
+ * backend cannot link a re-registered email, and e2e/global-setup.ts clears
+ * the emulator only once per run. If that attempt did not finish onboarding,
+ * the retry fills the onboarding form in the UI again, so a broken form fails
+ * every attempt.
+ */
+async function signInAdmin(page: Page): Promise<void> {
+	const existing = await signInTestUser(adminEmail, PASSWORD).catch(() => null);
+	if (!existing) {
+		await registerViaUI(page, adminName, adminEmail, PASSWORD);
+		return;
+	}
+	const me = (await apiRequest(existing.idToken, 'GET', '/auth/me')) as { onboarded: boolean };
+	if (me.onboarded) {
+		await loginViaUI(page, adminEmail, PASSWORD);
+		return;
+	}
+	await submitLoginForm(page, adminEmail, PASSWORD);
+	await completeOnboardingViaUI(page, 'Persona', 'Admin');
+}
+
 test.describe.serial('Single-club persona matrix', () => {
 	let memberToken = '';
 
-	test.beforeAll(async () => {
-		await clearFirebaseUsers();
-	});
-
 	test('setup: first user becomes admin, second becomes member', async ({ page }) => {
-		// Register the admin through the UI first so it is the first account
-		// the backend provisions — that account is auto-promoted to admin.
-		await registerViaUI(page, adminName, adminEmail, PASSWORD);
+		await signInAdmin(page);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
 		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute('href', '/crew');
 		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveAttribute('href', '/trainings');
@@ -107,7 +127,7 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('admin: creates a cruise', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
-		await page.getByRole('link', { name: 'Rejsy' }).click();
+		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
 		await page.waitForURL('/cruises');
 		await page.getByRole('link', { name: '+ Nowe wydarzenie' }).click();
 		await page.waitForURL('/cruises/new');
@@ -118,6 +138,34 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
 		cruiseId = Number(page.url().split('/').pop());
 		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+	});
+
+	// SvelteKit reuses the page component when a link stays on the same route,
+	// so the cruise page must take its data from the load function to show the
+	// cruise the link points at, not the one it was opened on.
+	test('admin: a link from one cruise to another shows the second', async ({ page }) => {
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		// The name must not contain cruiseName: Playwright matches names as
+		// case-insensitive substrings, here and in the later cruise-list steps.
+		const otherName = `Second ${RUN_ID}`;
+		const other = (await apiRequest(idToken, 'POST', '/cruises', { name: otherName })) as {
+			id: number;
+		};
+		await loginViaUI(page, adminEmail, PASSWORD);
+
+		await page.goto(`/cruises/${cruiseId}`);
+		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+		await page.evaluate((href) => {
+			const a = document.createElement('a');
+			a.href = href;
+			a.textContent = 'next cruise';
+			document.querySelector('main')?.prepend(a);
+		}, `/cruises/${other.id}`);
+		await page.getByRole('link', { name: 'next cruise' }).click();
+
+		await page.waitForURL(`/cruises/${other.id}`);
+		await expect(page.getByRole('heading', { name: otherName })).toBeVisible();
+		await expect(page.getByRole('heading', { name: cruiseName, exact: true })).toHaveCount(0);
 	});
 
 	test('admin: creates a planned trip', async ({ page }) => {
@@ -155,7 +203,7 @@ test.describe.serial('Single-club persona matrix', () => {
 
 	test('fully sailed cruise appears in the completed tab', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
-		await page.getByRole('link', { name: 'Rejsy' }).click();
+		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
 		await page.waitForURL('/cruises');
 		await page.getByRole('tab', { name: 'Zrealizowane' }).click();
 		await expect(page.getByText(cruiseName)).toBeVisible();

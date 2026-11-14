@@ -140,6 +140,11 @@ type Querier interface {
 	//      WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
 	//  ) accepted_users
 	CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherAcceptedForTripParams) (int64, error)
+	// CountOtherAdmins counts admins other than the given user, so a request
+	// holding a stale role still learns when its own account was promoted.
+	//
+	//  SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1
+	CountOtherAdmins(ctx context.Context, id int64) (int64, error)
 	//CountPendingPersonLinkRequests
 	//
 	//  SELECT COUNT(*)::BIGINT FROM person_link_requests WHERE status = 'pending'
@@ -262,7 +267,7 @@ type Querier interface {
 	CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTripEnrollmentIfAbsentParams) (TripEnrollment, error)
 	//CreateUser
 	//
-	//  INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
+	//  INSERT INTO users (email, name, firebase_uid) VALUES ($1, $2, $3) RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	//CreateVoyage
 	//
@@ -389,6 +394,16 @@ type Querier interface {
 	//    AND NOT EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = u.id)
 	//  ON CONFLICT (user_id) DO NOTHING
 	EnsureUserPerson(ctx context.Context, id int64) error
+	// GetAuthUserByFirebaseUID is the auth middleware's read-only lookup. One
+	// snapshot also reports whether the account has its person and whether any
+	// admin exists, so a known, unchanged account needs no write.
+	//
+	//  SELECT users.id, users.email, users.name, users.avatar_url, users.firebase_uid, users.role, users.patent_type, users.patent_number, users.created_at, users.updated_at, users.is_captain, users.membership, users.first_name, users.last_name, users.phone, users.onboarded_at,
+	//    EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+	//    EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+	//  FROM users
+	//  WHERE users.firebase_uid = $1
+	GetAuthUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (GetAuthUserByFirebaseUIDRow, error)
 	//GetCrewMember
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1
@@ -492,15 +507,15 @@ type Querier interface {
 	GetTripForUpdate(ctx context.Context, id int64) (Trip, error)
 	//GetUserByEmail
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE email = $1
+	//  SELECT id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE email = $1
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	//GetUserByFirebaseUID
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE firebase_uid = $1
+	//  SELECT id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE firebase_uid = $1
 	GetUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (User, error)
 	//GetUserByID
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE id = $1
+	//  SELECT id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users WHERE id = $1
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	//GetUserCruiseEnrollment
 	//
@@ -569,7 +584,7 @@ type Querier interface {
 	//    updated_at = CURRENT_TIMESTAMP
 	//  WHERE email = $3
 	//    AND (firebase_uid IS NULL OR firebase_uid = $1)
-	//  RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
+	//  RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	// A NULL search lists everyone; otherwise it matches a case-insensitive
 	// substring of the name, any other name, or the e-mail.
@@ -773,7 +788,7 @@ type Querier interface {
 	ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]ListUserSeaTimeVoyagesRow, error)
 	//ListUsers
 	//
-	//  SELECT id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users ORDER BY role, name, id
+	//  SELECT id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at FROM users ORDER BY role, name, id
 	ListUsers(ctx context.Context) ([]User, error)
 	//ListVoyageCrewAssignments
 	//
@@ -804,6 +819,18 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// LockAdminRoles serializes role changes for the rest of the transaction.
+	// Run it as its own statement, before LockAdmins, so the admin set is read
+	// from a snapshot taken after the previous role change committed.
+	//
+	//  SELECT pg_advisory_xact_lock(hashtext('admin-roles'))
+	LockAdminRoles(ctx context.Context) error
+	// LockAdmins row-locks every admin, in id order. NO KEY UPDATE still
+	// blocks other role writes but not foreign-key checks on admin rows (e.g.
+	// decided_by), which would otherwise deadlock with a concurrent link.
+	//
+	//  SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE
+	LockAdmins(ctx context.Context) ([]int64, error)
 	// Holds the requested person while a request is created, so a concurrent
 	// link or merge either finishes first and is seen, or waits for the request.
 	//
@@ -872,6 +899,12 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR NO KEY UPDATE
 	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
+	// LockFirstAdmin serializes first-admin promotion for the rest of the
+	// transaction. Run it as its own statement, before PromoteIfNoAdmin, so
+	// the promotion reads a snapshot taken after the lock is held.
+	//
+	//  SELECT pg_advisory_xact_lock(hashtext('first-admin'))
+	LockFirstAdmin(ctx context.Context) error
 	// Locks the request, so a cancel or a second decision waits for this one
 	// and then finds it no longer pending.
 	//
@@ -978,6 +1011,16 @@ type Querier interface {
 	//  UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
 	//  WHERE crew_member_id = $2::BIGINT
 	MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinionsParams) (int64, error)
+	// PromoteIfNoAdmin makes the user admin only while no other user is; it
+	// reports 0 rows when another admin exists. Ignoring the user itself lets
+	// a second concurrent first request of the promoted account report admin.
+	//
+	//  UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+	//  WHERE users.id = $1
+	//    AND NOT EXISTS (
+	//      SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+	//    )
+	PromoteIfNoAdmin(ctx context.Context, id int64) (int64, error)
 	// Takes a user's person off a trip's crew when the entry came from an
 	// accepted sign-up and the user no longer has any accepted sign-up for the
 	// trip, direct or through a cruise enrollment assigned to it.
@@ -1127,7 +1170,7 @@ type Querier interface {
 	//    onboarded_at = COALESCE(onboarded_at, CURRENT_TIMESTAMP),
 	//    updated_at = CURRENT_TIMESTAMP
 	//  WHERE users.id = $6
-	//  RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
+	//  RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	//UpdateUserRole
 	//
@@ -1171,14 +1214,14 @@ type Querier interface {
 	UpdateYacht(ctx context.Context, arg UpdateYachtParams) error
 	//UpsertUserByFirebaseUID
 	//
-	//  INSERT INTO users (email, name, password_hash, firebase_uid)
-	//  VALUES ($1, $2, '', $3)
+	//  INSERT INTO users (email, name, firebase_uid)
+	//  VALUES ($1, $2, $3)
 	//  ON CONFLICT(firebase_uid) DO UPDATE SET
 	//    email = EXCLUDED.email,
 	//    name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
 	//      THEN users.name ELSE EXCLUDED.name END,
 	//    updated_at = CURRENT_TIMESTAMP
-	//  RETURNING id, email, name, password_hash, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
+	//  RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error)
 	//UpsertVoyageOpinion
 	//

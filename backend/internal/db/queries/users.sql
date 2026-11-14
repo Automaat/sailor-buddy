@@ -1,5 +1,5 @@
 -- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING *;
+INSERT INTO users (email, name, firebase_uid) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = $1;
@@ -10,9 +10,19 @@ SELECT * FROM users WHERE id = $1;
 -- name: GetUserByFirebaseUID :one
 SELECT * FROM users WHERE firebase_uid = $1;
 
+-- GetAuthUserByFirebaseUID is the auth middleware's read-only lookup. One
+-- snapshot also reports whether the account has its person and whether any
+-- admin exists, so a known, unchanged account needs no write.
+-- name: GetAuthUserByFirebaseUID :one
+SELECT sqlc.embed(users),
+  EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+  EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+FROM users
+WHERE users.firebase_uid = $1;
+
 -- name: UpsertUserByFirebaseUID :one
-INSERT INTO users (email, name, password_hash, firebase_uid)
-VALUES ($1, $2, '', $3)
+INSERT INTO users (email, name, firebase_uid)
+VALUES ($1, $2, $3)
 ON CONFLICT(firebase_uid) DO UPDATE SET
   email = EXCLUDED.email,
   name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
@@ -60,6 +70,39 @@ SELECT COUNT(*)::BIGINT FROM users;
 
 -- name: CountAdmins :one
 SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin';
+
+-- CountOtherAdmins counts admins other than the given user, so a request
+-- holding a stale role still learns when its own account was promoted.
+-- name: CountOtherAdmins :one
+SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1;
+
+-- LockAdminRoles serializes role changes for the rest of the transaction.
+-- Run it as its own statement, before LockAdmins, so the admin set is read
+-- from a snapshot taken after the previous role change committed.
+-- name: LockAdminRoles :exec
+SELECT pg_advisory_xact_lock(hashtext('admin-roles'));
+
+-- LockAdmins row-locks every admin, in id order. NO KEY UPDATE still
+-- blocks other role writes but not foreign-key checks on admin rows (e.g.
+-- decided_by), which would otherwise deadlock with a concurrent link.
+-- name: LockAdmins :many
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE;
+
+-- LockFirstAdmin serializes first-admin promotion for the rest of the
+-- transaction. Run it as its own statement, before PromoteIfNoAdmin, so
+-- the promotion reads a snapshot taken after the lock is held.
+-- name: LockFirstAdmin :exec
+SELECT pg_advisory_xact_lock(hashtext('first-admin'));
+
+-- PromoteIfNoAdmin makes the user admin only while no other user is; it
+-- reports 0 rows when another admin exists. Ignoring the user itself lets
+-- a second concurrent first request of the promoted account report admin.
+-- name: PromoteIfNoAdmin :execrows
+UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+WHERE users.id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+  );
 
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY role, name, id;

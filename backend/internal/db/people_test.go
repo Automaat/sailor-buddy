@@ -26,7 +26,7 @@ func TestMigrate_BackfillsOnePersonPerAccount(t *testing.T) {
 		t.Fatalf("seed unlinked person: %v", err)
 	}
 
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -72,7 +72,7 @@ func TestMigrate_PeopleRefusesDuplicateLinks(t *testing.T) {
 		t.Fatalf("seed duplicate links: %v", err)
 	}
 
-	err := Migrate(conn)
+	err := Migrate(t.Context(), conn)
 	if err == nil || !strings.Contains(err.Error(), "linked to more than one crew member") {
 		t.Fatalf("migrate = %v, want the duplicate-link refusal", err)
 	}
@@ -86,7 +86,7 @@ func TestMigrate_PeopleRefusesDuplicateLinks(t *testing.T) {
 func TestPeople_OneAccountOnePerson(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ctx := context.Background()

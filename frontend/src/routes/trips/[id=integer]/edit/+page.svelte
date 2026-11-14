@@ -7,12 +7,15 @@
 	import { onMount } from 'svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
+	import { noteFailure, settle } from '#lib/api/errors.js';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 
 	let error = $state('');
 	let loading = $state(true);
+	let loadErrors = $state<string[]>([]);
 	let saving = $state(false);
 	let yachts = $state<Yacht[]>([]);
 	let cruises = $state<Cruise[]>([]);
@@ -53,7 +56,7 @@
 			const [trip, y, c] = await Promise.all([
 				getTrip(id),
 				listYachts(),
-				listCruises().catch(() => [])
+				settle(listCruises(), [], noteFailure(loadErrors, 'lista wydarzeń'))
 			]);
 			yachts = y;
 			cruises = c ?? [];
@@ -121,6 +124,7 @@
 {:else}
 	<div class="mx-auto max-w-3xl">
 		<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj rejs</h1>
+		<LoadErrorBanner errors={loadErrors} />
 
 		{#if error}
 			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>

@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"os"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -28,7 +29,7 @@ func humaConfig() huma.Config {
 // registerHumaRoutes wires every huma-served operation onto the given API.
 // It is shared by the live router and the offline spec generator, so the
 // generated OpenAPI document always matches the routes the server serves.
-func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir string) {
+func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploads *os.Root) {
 	handlers.RegisterAuthRoutes(api, q, db)
 	handlers.RegisterDashboardRoutes(api, q)
 	handlers.RegisterTripRoutes(api, q, db)
@@ -37,14 +38,14 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 	handlers.RegisterGeocodeRoutes(api)
 	handlers.RegisterYachtRoutes(api, q)
 	handlers.RegisterTrainingRoutes(api, q)
-	handlers.RegisterCrewRoutes(api, q, db)
-	handlers.RegisterPersonLinkRoutes(api, q, db)
+	handlers.RegisterCrewRoutes(api, q, db, uploads)
+	handlers.RegisterPersonLinkRoutes(api, q, db, uploads)
 	handlers.RegisterEnrollmentRoutes(api, q, db)
-	handlers.RegisterVoyageOpinionRoutes(api, q, uploadDir)
-	handlers.RegisterUploadRoutes(api, uploadDir)
+	handlers.RegisterVoyageOpinionRoutes(api, q, uploads)
+	handlers.RegisterUploadRoutes(api, uploads)
 	handlers.RegisterCruiseRoutes(api, q, db)
 	handlers.RegisterSeriesRoutes(api, q)
-	handlers.RegisterMembersRoutes(api, q)
+	handlers.RegisterMembersRoutes(api, q, db)
 }
 
 // OpenAPIYAML builds the OpenAPI document for all huma-served routes and
@@ -52,6 +53,6 @@ func registerHumaRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploadDir st
 // document is derived from the operation types only, handlers are never run.
 func OpenAPIYAML() ([]byte, error) {
 	api := humachi.New(chi.NewRouter(), humaConfig())
-	registerHumaRoutes(api, nil, nil, "")
+	registerHumaRoutes(api, nil, nil, nil)
 	return api.OpenAPI().YAML()
 }

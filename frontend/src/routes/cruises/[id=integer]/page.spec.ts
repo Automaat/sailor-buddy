@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/svelte';
 import type { Cruise } from '#lib/api/types.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$app/state', () => ({ page: { params: { id: '7' } } }));
 vi.mock('#lib/api/routes.js', () => ({
 	getCruise: vi.fn(),
 	getSeries: vi.fn(),
@@ -52,6 +51,18 @@ import {
 	withdrawTripSignUp
 } from '#lib/api/routes.js';
 import CruiseDetailPage from './+page.svelte';
+import { load } from './+page.js';
+import type { PageData } from './$types';
+
+function runLoad(id = '7') {
+	return load({ params: { id } } as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
+}
+
+// renderPage runs the route's load function and renders the page with its
+// data, the way SvelteKit does on navigation.
+async function renderPage() {
+	return render(CruiseDetailPage, { props: { data: await runLoad() } });
+}
 
 const mockGet = getCruise as unknown as ReturnType<typeof vi.fn>;
 
@@ -104,7 +115,7 @@ describe('cruise page logistics', () => {
 				group_chat_url: 'https://discord.gg/sycylia'
 			})
 		);
-		render(CruiseDetailPage);
+		await renderPage();
 
 		expect(await screen.findByText('Informacje dla załogi')).toBeInTheDocument();
 		expect(screen.getByText('Tanie loty do Katanii')).toBeInTheDocument();
@@ -117,14 +128,14 @@ describe('cruise page logistics', () => {
 
 	it('shows a minimum age of zero', async () => {
 		mockGet.mockResolvedValue(cruise({ min_age: 0 }));
-		render(CruiseDetailPage);
+		await renderPage();
 
 		expect(await screen.findByText('0+')).toBeInTheDocument();
 	});
 
 	it('renders as before when no logistics are set', async () => {
 		mockGet.mockResolvedValue(cruise());
-		render(CruiseDetailPage);
+		await renderPage();
 
 		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.queryByText('Informacje dla załogi')).not.toBeInTheDocument();
@@ -138,7 +149,7 @@ describe('cruise page logistics', () => {
 describe('cruise page logistics edge cases', () => {
 	it('shows no logistics card when the only field is a non-http link', async () => {
 		mockGet.mockResolvedValue(cruise({ group_chat_url: 'https://chat.example.com:99999/g' }));
-		render(CruiseDetailPage);
+		await renderPage();
 
 		await screen.findByRole('heading', { name: 'Sycylia 2026' });
 		expect(screen.queryByText('Informacje dla załogi')).not.toBeInTheDocument();
@@ -184,7 +195,7 @@ describe('cruise page admin flows', () => {
 	});
 
 	it('renders series, enrollments, trips and voyages', async () => {
-		render(CruiseDetailPage);
+		await renderPage();
 
 		expect(await screen.findByRole('link', { name: 'May I Sail' })).toHaveAttribute('href', '/series/3');
 		expect(screen.getByText('Ala Kowalska')).toBeInTheDocument();
@@ -200,7 +211,7 @@ describe('cruise page admin flows', () => {
 
 	it('changes enrollment status, assigns a trip and deletes an enrollment', async () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByText('Ala Kowalska');
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
@@ -224,7 +235,7 @@ describe('cruise page admin flows', () => {
 	it('explains a full leg when accepting a cruise enrollment is refused', async () => {
 		fn(updateCruiseEnrollmentStatus).mockRejectedValueOnce(new ApiError(409, 'leg is full: all 1 places are taken'));
 		vi.spyOn(console, 'error').mockImplementation(() => {});
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByText('Ala Kowalska');
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
@@ -236,7 +247,7 @@ describe('cruise page admin flows', () => {
 		const writeText = vi.fn();
 		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 		fn(generateCruiseEnrollToken).mockResolvedValue({ token: 'new' });
-		render(CruiseDetailPage);
+		await renderPage();
 
 		await fireEvent.click(await screen.findByRole('button', { name: 'Kopiuj link' }));
 		expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/enroll/tok`);
@@ -250,7 +261,7 @@ describe('cruise page admin flows', () => {
 
 	it('refuses to delete a cruise that still has legs', async () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
-		render(CruiseDetailPage);
+		await renderPage();
 		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
@@ -264,7 +275,7 @@ describe('cruise page admin flows', () => {
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
 		fn(deleteCruise).mockRejectedValue(new Error('cruise still has trips or voyages; delete them first'));
-		render(CruiseDetailPage);
+		await renderPage();
 		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
@@ -277,7 +288,7 @@ describe('cruise page admin flows', () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
-		render(CruiseDetailPage);
+		await renderPage();
 		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest('div')!.parentElement!;
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
@@ -292,7 +303,7 @@ describe('cruise page admin flows', () => {
 		fn(assignCruiseEnrollmentTrip).mockRejectedValue(new Error('x'));
 		fn(deleteCruiseEnrollment).mockRejectedValue(new Error('x'));
 		fn(clearCruiseEnrollToken).mockRejectedValue(new Error('x'));
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByText('Ala Kowalska');
 
 		await fireEvent.click(screen.getAllByRole('button', { name: 'Akceptuj' })[0]);
@@ -306,20 +317,132 @@ describe('cruise page admin flows', () => {
 	});
 });
 
-describe('cruise page load errors', () => {
-	it('shows not found for a 404', async () => {
-		mockGet.mockRejectedValue(new ApiError(404, 'not found'));
-		render(CruiseDetailPage);
-
-		expect(await screen.findByText('Nie znaleziono wydarzenia')).toBeInTheDocument();
+// SvelteKit reuses this component when a link goes from one cruise to
+// another; it rerenders with the new load data instead of remounting.
+describe('cruise page same-route navigation', () => {
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		mockGet.mockImplementation(async (id: number) =>
+			id === 7
+				? cruise({ name: 'Sycylia 2026', enroll_token: 'tokA' })
+				: cruise({ id, name: 'Chorwacja 2026', enroll_token: undefined })
+		);
 	});
 
-	it('shows a generic error for other failures', async () => {
-		vi.spyOn(console, 'error').mockImplementation(() => {});
-		mockGet.mockRejectedValue(new Error('boom'));
-		render(CruiseDetailPage);
+	it('swaps to the second cruise and resets per-cruise state', async () => {
+		fn(listCruiseTrips).mockImplementation(async (id: number) => (id === 7 ? [tripRow(50, 'Jacht A', 'planned')] : []));
+		fn(listCruiseEnrollments).mockImplementation(async (id: number) => (id === 7 ? [enrollmentRow] : []));
+		const view = await renderPage();
+		expect(await screen.findByText(enrollmentRow.user_name as string)).toBeInTheDocument();
+		const header = screen.getByRole('heading', { name: 'Sycylia 2026' }).closest('div')!.parentElement!;
+		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
+		expect(screen.getByText(/Nie można usunąć wydarzenia/)).toBeInTheDocument();
 
-		expect(await screen.findByText('Nie udało się wczytać wydarzenia')).toBeInTheDocument();
+		await view.rerender({ data: await runLoad('8') });
+
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		expect(screen.queryByText(/Nie można usunąć wydarzenia/)).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument();
+		await waitFor(() => expect(fn(listCruiseEnrollments)).toHaveBeenCalledWith(8));
+		expect(screen.queryByText(enrollmentRow.user_name as string)).not.toBeInTheDocument();
+	});
+
+	it('drops an enroll-token reply for the cruise the page has left', async () => {
+		mockGet.mockImplementation(async (id: number) =>
+			cruise({ id, name: id === 7 ? 'Sycylia 2026' : 'Chorwacja 2026', enroll_token: undefined })
+		);
+		let answer: (v: { token: string }) => void = () => {};
+		fn(generateCruiseEnrollToken).mockReturnValue(new Promise((r) => (answer = r)));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Włącz zapisy' }));
+
+		await view.rerender({ data: await runLoad('8') });
+		answer({ token: 'tokA' });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument());
+		expect(screen.queryByRole('button', { name: 'Wyłącz zapisy' })).not.toBeInTheDocument();
+	});
+
+	it('keeps the enroll toggle usable on a cruise reached while another toggles', async () => {
+		mockGet.mockImplementation(async (id: number) =>
+			cruise({ id, name: id === 7 ? 'Sycylia 2026' : 'Chorwacja 2026', enroll_token: undefined })
+		);
+		fn(generateCruiseEnrollToken).mockReturnValue(new Promise(() => {}));
+		const view = await renderPage();
+		const toggle = await screen.findByRole('button', { name: 'Włącz zapisy' });
+		await fireEvent.click(toggle);
+		expect(toggle).toBeDisabled();
+
+		await view.rerender({ data: await runLoad('8') });
+
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeEnabled();
+	});
+});
+
+describe('cruise page load errors', () => {
+	it('throws a 404 with the cruise copy for +error.svelte', async () => {
+		mockGet.mockRejectedValue(new ApiError(404, 'not found'));
+
+		await expect(runLoad()).rejects.toMatchObject({
+			status: 404,
+			body: {
+				message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
+				title: 'Nie znaleziono wydarzenia',
+				backHref: '/cruises'
+			}
+		});
+	});
+
+	it('passes other failures on to +error.svelte', async () => {
+		const boom = new Error('boom');
+		mockGet.mockRejectedValue(boom);
+
+		await expect(runLoad()).rejects.toBe(boom);
+	});
+
+	it('loads the cruise named by the URL', async () => {
+		mockGet.mockResolvedValue(cruise({ id: 9 }));
+		await runLoad('9');
+
+		expect(mockGet).toHaveBeenCalledWith(9);
+		expect(fn(listCruiseTrips)).toHaveBeenCalledWith(9);
+	});
+
+	it('names a failed leg list instead of showing no legs, and renders the rest', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockGet.mockResolvedValue(cruise());
+		fn(listCruiseTrips).mockRejectedValue(new Error('500'));
+		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120.4, days: 7 }]);
+		await renderPage();
+
+		expect(await screen.findByText(/Nie udało się wczytać: planowane etapy\./)).toBeInTheDocument();
+		expect(screen.getByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
+		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
+	});
+
+	it('shows no load banner when every section loads', async () => {
+		mockGet.mockResolvedValue(cruise());
+		await renderPage();
+
+		await screen.findByRole('heading', { name: 'Sycylia 2026' });
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+
+	it('names failed admin sign-up lists for an admin', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
+		mockGet.mockResolvedValue(cruise());
+		fn(listCruiseEnrollments).mockRejectedValue(new Error('500'));
+		fn(listCruiseTripEnrollments).mockRejectedValue(new Error('500'));
+		await renderPage();
+
+		expect(
+			await screen.findByText(/Nie udało się wczytać: zgłoszenia na wydarzenie, zapisy na etapy\./)
+		).toBeInTheDocument();
 	});
 });
 
@@ -338,7 +461,7 @@ describe('cruise page price', () => {
 				not_included: ['dojazd']
 			})
 		);
-		render(CruiseDetailPage);
+		await renderPage();
 		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
 		expect(screen.getByTestId('price-included')).toHaveTextContent('paliwo');
 		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
@@ -346,7 +469,7 @@ describe('cruise page price', () => {
 
 	it('hides the price card for an unpriced cruise', async () => {
 		mockGet.mockResolvedValue(cruise({ cost_per_person: 0 }));
-		render(CruiseDetailPage);
+		await renderPage();
 		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.queryByRole('heading', { name: 'Cena' })).not.toBeInTheDocument();
 	});
@@ -394,7 +517,7 @@ describe('cruise page leg sign-up', () => {
 	it('shows each leg with captain, dates, price and free places', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A'), legTrip(51, 'Jacht B', { max_crew: undefined })]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 
 		const a = rowOf('Jacht A');
@@ -409,7 +532,7 @@ describe('cruise page leg sign-up', () => {
 		mockAuth.user = { id: 2, role: 'member', membership: 'gosc' };
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50)]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 		expect(rowOf('Jacht A')).toHaveTextContent('3100 PLN');
 	});
@@ -429,7 +552,7 @@ describe('cruise page leg sign-up', () => {
 	] as const)('shows the %s state', async (_name, state, kind, want) => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([state]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 		const row = rowOf('Jacht A');
 		if (kind === 'button') {
@@ -449,7 +572,7 @@ describe('cruise page leg sign-up', () => {
 			legTrip(51, 'Jacht B')
 		]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50), signUp(51)]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 		expect(within(rowOf('Jacht A')).getByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 1 cze 2026');
 		expect(within(rowOf('Jacht B')).queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
@@ -458,7 +581,7 @@ describe('cruise page leg sign-up', () => {
 	it('shows Zapisy zamknięte instead of the button once the deadline has passed', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A', { sign_up_deadline: '2026-06-01' })]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { open: false })]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 		const row = rowOf('Jacht A');
 		expect(within(row).getByText('Zapisy zamknięte')).toBeInTheDocument();
@@ -475,7 +598,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseLegSignUps).mockResolvedValue([
 			signUp(50, { enrollment: pending(50, { status: 'accepted', payment_status: payment }) })
 		]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 		const row = rowOf('Jacht A');
 		expect(within(row).getByTestId('sign-up-status')).toHaveTextContent('zaakceptowany');
@@ -487,7 +610,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseLegSignUps).mockResolvedValue([
 			signUp(50, { enrollment: { ...pending(50), cruise_id: 7, status: 'pending' } })
 		]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 		const row = rowOf('Jacht A');
 		expect(within(row).getByText('oczekujący')).toBeInTheDocument();
@@ -498,7 +621,7 @@ describe('cruise page leg sign-up', () => {
 	it('shows a cancelled leg without a sign-up button', async () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(51, 'Jacht B', { status: 'cancelled' })]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(51, { open: false })]);
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht B' });
 		const row = rowOf('Jacht B');
 		expect(within(row).getByText('Anulowany')).toBeInTheDocument();
@@ -510,7 +633,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50)]);
 		fn(signUpForTrip).mockResolvedValue({ trip_id: 50, result: 'created', enrollment: pending(50) });
-		render(CruiseDetailPage);
+		await renderPage();
 		const row = await screen.findByTestId('leg-row');
 		expect(within(row).queryByRole('button', { name: 'Dodaj notatkę' })).not.toBeInTheDocument();
 		expect(within(row).queryByRole('textbox')).not.toBeInTheDocument();
@@ -527,7 +650,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { enrollment: pending(50) })]);
 		fn(updateTripSignUpNote).mockResolvedValue(pending(50, { note: 'Mogę gotować' }));
-		render(CruiseDetailPage);
+		await renderPage();
 		const row = await screen.findByTestId('leg-row');
 
 		await fireEvent.click(within(row).getByRole('button', { name: 'Dodaj notatkę' }));
@@ -545,7 +668,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { enrollment: pending(50) })]);
 		fn(withdrawTripSignUp).mockResolvedValue(undefined);
-		render(CruiseDetailPage);
+		await renderPage();
 		const row = await screen.findByTestId('leg-row');
 
 		await fireEvent.click(within(row).getByRole('button', { name: 'Wycofaj zapis: Jacht A' }));
@@ -559,7 +682,7 @@ describe('cruise page leg sign-up', () => {
 		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50)]);
 		fn(signUpForTrip).mockRejectedValue(new Error('sign-up closed: the leg is not planned'));
-		render(CruiseDetailPage);
+		await renderPage();
 		const row = await screen.findByTestId('leg-row');
 
 		await fireEvent.click(within(row).getByRole('button', { name: 'Zapisz się: Jacht A' }));
@@ -569,7 +692,7 @@ describe('cruise page leg sign-up', () => {
 	});
 
 	it('loads no admin sign-up data for a member', async () => {
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('heading', { name: 'Sycylia 2026' });
 		expect(screen.queryByTestId('admin-sign-ups')).not.toBeInTheDocument();
 		expect(listCruiseTripEnrollments).not.toHaveBeenCalled();
@@ -593,7 +716,7 @@ describe('cruise page admin sign-ups by leg', () => {
 	});
 
 	it('groups sign-ups by leg with a link to each review page', async () => {
-		render(CruiseDetailPage);
+		await renderPage();
 		const a = await screen.findByRole('region', { name: 'Zapisy: Jacht A' });
 		const b = screen.getByRole('region', { name: 'Zapisy: Jacht B' });
 
@@ -607,7 +730,7 @@ describe('cruise page admin sign-ups by leg', () => {
 	});
 
 	it('lists unassigned cruise enrollments under Bez etapu and assigns them', async () => {
-		render(CruiseDetailPage);
+		await renderPage();
 		const none = await screen.findByRole('region', { name: 'Zapisy: Bez etapu' });
 		expect(within(none).getByText('Ewa Stara')).toBeInTheDocument();
 		expect(within(none).queryByText('Ala Kowalska')).not.toBeInTheDocument();
@@ -617,7 +740,7 @@ describe('cruise page admin sign-ups by leg', () => {
 	});
 
 	it('keeps the share-link controls', async () => {
-		render(CruiseDetailPage);
+		await renderPage();
 		const section = await screen.findByTestId('admin-sign-ups');
 		expect(within(section).getByRole('button', { name: 'Wyłącz zapisy' })).toBeInTheDocument();
 		expect(within(section).getByRole('button', { name: 'Kopiuj link' })).toBeInTheDocument();
@@ -640,7 +763,7 @@ describe('cruise page past planned legs', () => {
 
 	it('flags a leg past the cruise end and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 
 		const overdue = rowOf('Jacht A');
@@ -654,7 +777,7 @@ describe('cruise page past planned legs', () => {
 	});
 
 	it('shows the status but no prompt to a member', async () => {
-		render(CruiseDetailPage);
+		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });
 
 		expect(within(rowOf('Jacht A')).getByText('Do rozliczenia')).toBeInTheDocument();
@@ -666,7 +789,7 @@ describe('cruise page leg labels', () => {
 	it('offers an admin to add a leg and shows the empty state', async () => {
 		mockAuth.isAdmin = true;
 		mockGet.mockResolvedValue(cruise());
-		render(CruiseDetailPage);
+		await renderPage();
 
 		const add = await screen.findByRole('link', { name: '+ Dodaj etap' });
 		expect(add).toHaveAttribute('href', '/trips/new?cruise_id=7');
@@ -676,7 +799,7 @@ describe('cruise page leg labels', () => {
 
 	it('hides the add-leg link from a member', async () => {
 		mockGet.mockResolvedValue(cruise());
-		render(CruiseDetailPage);
+		await renderPage();
 
 		expect(await screen.findByText('Brak etapów')).toBeInTheDocument();
 		expect(screen.queryByRole('link', { name: '+ Dodaj etap' })).not.toBeInTheDocument();

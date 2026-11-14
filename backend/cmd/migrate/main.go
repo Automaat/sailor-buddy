@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -15,6 +16,7 @@ func main() {
 }
 
 func run() error {
+	ctx := context.Background()
 	cfg := config.Load()
 
 	database, err := db.Open(cfg.DatabaseURL)
@@ -27,7 +29,7 @@ func run() error {
 		}
 	}()
 
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(ctx, database); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 

@@ -56,7 +56,7 @@ func run() error {
 		}
 	}()
 
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(ctx, database); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
@@ -196,10 +196,10 @@ func upsertDBUser(ctx context.Context, database *sql.DB, user devUser, firebaseU
 			RETURNING id
 		),
 		inserted AS (
-			INSERT INTO users (email, name, first_name, last_name, password_hash,
+			INSERT INTO users (email, name, first_name, last_name,
 				firebase_uid, role, membership, onboarded_at)
 			SELECT $1, $2, split_part($2, ' ', 1),
-				btrim(substr($2, length(split_part($2, ' ', 1)) + 1)), '', $3, $4,
+				btrim(substr($2, length(split_part($2, ' ', 1)) + 1)), $3, $4,
 				'czlonek', CURRENT_TIMESTAMP
 			WHERE NOT EXISTS (SELECT 1 FROM updated)
 			RETURNING id

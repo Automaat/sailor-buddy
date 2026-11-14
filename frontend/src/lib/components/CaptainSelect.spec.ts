@@ -73,3 +73,20 @@ describe('CaptainSelect', () => {
 		expect(screen.queryByText(/nie wybrano osoby/)).not.toBeInTheDocument();
 	});
 });
+
+describe('CaptainSelect load errors', () => {
+	it('says the people list failed instead of offering only -- Brak --', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		people.mockRejectedValue(new Error('500'));
+		render(CaptainSelect, { value: 0 });
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('Nie udało się wczytać listy osób');
+	});
+
+	it('shows no error when the people list loads', async () => {
+		render(CaptainSelect, { value: 0 });
+
+		await screen.findByRole('option', { name: 'Anna Kapitan' });
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+});

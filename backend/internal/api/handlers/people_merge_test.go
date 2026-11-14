@@ -94,6 +94,7 @@ type mergeFixture struct {
 	voyage1, voyage2         int64
 	sharedOpinionFile        string
 	duplicateOnlyOpinionFile string
+	uploads                  *os.Root
 }
 
 func seedMerge(t *testing.T) mergeFixture {
@@ -160,6 +161,7 @@ func seedMerge(t *testing.T) mergeFixture {
 		conn: conn, keptID: kept, duplicateID: dup.ID, userID: user.ID,
 		trip1: trip1, trip2: trip2, voyage1: voyage1, voyage2: voyage2,
 		sharedOpinionFile: shared, duplicateOnlyOpinionFile: only,
+		uploads: testUploadRoot(t, dir),
 	}
 }
 
@@ -198,7 +200,7 @@ func (f mergeFixture) api(t *testing.T, runTx txRunner) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
 	q := sqlcdb.New(f.conn)
-	registerCrewRoutes(api, &CrewHandler{q: q, runTx: runTx})
+	registerCrewRoutes(api, &CrewHandler{q: q, runTx: runTx, uploads: f.uploads})
 	return api
 }
 

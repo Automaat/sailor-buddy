@@ -24,12 +24,14 @@
 		LegSignUp
 	} from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
+	import { clearFailure, noteFailure, settle } from '#lib/api/errors.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
 	import ActionsMenu from '#lib/components/ActionsMenu.svelte';
 	import NotFound from '#lib/components/NotFound.svelte';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
@@ -42,6 +44,8 @@
 	let allCrewMembers = $state<CrewMember[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
+	let loadErrors = $state<string[]>([]);
+	let adminLoadErrors = $state<string[]>([]);
 
 	let assignCrewId = $state('');
 	let assignRole = $state('');
@@ -58,18 +62,21 @@
 	const id = $derived(Number(page.params.id));
 	// Trips are club-managed: only admins create, edit and crew them.
 	const canManageCrew = $derived(auth.isAdmin);
+	// Failures of admin-only sections join the banner only for admins. The
+	// check is reactive: on a direct load the role arrives after onMount.
+	const visibleLoadErrors = $derived(canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors);
 
 	onMount(async () => {
 		try {
 			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers, signUp] = await Promise.all([
-				listTripCrew(id).then((c) => c ?? []).catch(() => []),
-				listAssignableCrew().catch(() => []),
-				getTripSignUp(id).catch(() => null)
+				settle(listTripCrew(id).then((c) => c ?? []), [], noteFailure(adminLoadErrors, 'załoga')),
+				settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
+				settle(getTripSignUp(id), null, noteFailure(loadErrors, 'zapis na etap'))
 			]);
 			if (trip?.cruise_id) {
-				cruise = await getCruise(trip.cruise_id).catch(() => null);
+				cruise = await settle(getCruise(trip.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'));
 			}
 		} catch (err) {
 			if (err instanceof ApiError && err.status === 404) {
@@ -150,7 +157,14 @@
 		try {
 			trip = await cancelTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
-			signUp = await getTripSignUp(id).catch(() => signUp);
+			signUp = await settle(
+				getTripSignUp(id).then((s) => {
+					clearFailure(loadErrors, 'zapis na etap');
+					return s;
+				}),
+				signUp,
+				noteFailure(loadErrors, 'zapis na etap')
+			);
 		} catch (err) {
 			console.error('Failed to cancel trip:', err);
 		} finally {
@@ -172,6 +186,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if trip}
 	<div class="mx-auto max-w-4xl">
+		<LoadErrorBanner errors={visibleLoadErrors} />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				{#if cruise}

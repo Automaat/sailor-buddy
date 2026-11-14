@@ -30,7 +30,7 @@ func TestMigrate_CaptainBecomesPerson(t *testing.T) {
 	orphanVoyage := insert("voyages", withoutPerson, "Kpt. Piotr")
 	freeTextTrip := insert("trips", nil, "Kpt. Spoza Klubu")
 
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

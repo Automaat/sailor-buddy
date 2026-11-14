@@ -301,7 +301,7 @@ func TestCrewHandler_AssignVoyageCrew_Errors(t *testing.T) {
 }
 
 func TestNewCrewHandler(t *testing.T) {
-	if NewCrewHandler(&mockQuerier{}, nil) == nil {
+	if NewCrewHandler(&mockQuerier{}, nil, nil) == nil {
 		t.Fatal("want non-nil handler")
 	}
 }
