@@ -20,7 +20,11 @@ export const load: PageLoad = async ({ params }) => {
 			backLabel: 'Wszystkie rejsy'
 		}),
 		listYachts().then((r) => r ?? []),
-		settle(listCruises().then((r) => r ?? []), [], noteFailure(loadErrors, 'lista wydarzeń'))
+		settle(
+			listCruises().then((r) => r ?? []),
+			[],
+			noteFailure(loadErrors, 'lista wydarzeń')
+		)
 	]);
 	return { trip, yachts, cruises, loadErrors };
 };

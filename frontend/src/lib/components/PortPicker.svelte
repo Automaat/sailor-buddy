@@ -29,13 +29,7 @@
 		onReorder?: (from: number, to: number) => Promise<void> | void;
 	};
 
-	let {
-		ports,
-		readonly = false,
-		onAdd,
-		onRemove,
-		onReorder
-	}: Props = $props();
+	let { ports, readonly = false, onAdd, onRemove, onReorder }: Props = $props();
 
 	let query = $state('');
 	let anchorage = $state(false);
@@ -87,7 +81,8 @@
 			if (!hasCoords(p)) return;
 			const point: [number, number] = [p.latitude, p.longitude];
 			points.push(point);
-			L!.marker(point)
+			L!
+				.marker(point)
 				.bindTooltip(tooltipLabel(`${i + 1}. ${p.anchorage ? '⚓ ' : ''}${p.name}`), {
 					permanent: true,
 					direction: 'top'
@@ -137,7 +132,7 @@
 		// The picker sits inside the trip-completion form; Enter must search,
 		// not submit it.
 		e.preventDefault();
-		if (canSearch) runSearch();
+		if (canSearch) void runSearch();
 	}
 
 	async function runSearch() {
@@ -303,7 +298,7 @@
 					{:else if searchError}
 						<div class="px-3 py-2 text-sm text-[var(--text-muted)]">{searchError}</div>
 					{:else}
-						{#each results as r}
+						{#each results as r, i (i)}
 							<button
 								type="button"
 								onclick={() => pick(r)}
@@ -348,9 +343,11 @@
 						{/if}
 						<span>
 							<span class="text-[var(--text-muted)]">{i + 1}.</span>
-							{#if port.anchorage}<span title="Kotwicowisko" aria-label="Kotwicowisko">⚓</span>{/if}
+							{#if port.anchorage}<span title="Kotwicowisko" aria-label="Kotwicowisko">⚓</span
+								>{/if}
 							{port.name}
-							{#if !hasCoords(port)}<span class="text-xs text-[var(--text-muted)]">(bez mapy)</span>{/if}
+							{#if !hasCoords(port)}<span class="text-xs text-[var(--text-muted)]">(bez mapy)</span
+								>{/if}
 						</span>
 					</span>
 					<span class="flex items-center gap-2">

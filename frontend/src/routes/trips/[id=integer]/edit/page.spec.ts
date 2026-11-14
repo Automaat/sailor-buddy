@@ -4,18 +4,31 @@ import { makeCruise, makeTrip } from '#lib/test-utils.js';
 import { ApiError } from '#lib/api/client.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$app/state', () => ({ page: { params: { id: '5' }, url: new URL('http://localhost/trips/5/edit') } }));
-vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: { isAdmin: true, user: { id: 1, role: 'admin' } } }));
+vi.mock('$app/state', () => ({
+	page: { params: { id: '5' }, url: new URL('http://localhost/trips/5/edit') }
+}));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
+	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
+}));
 vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	updateTrip: vi.fn(),
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	listCruises: vi.fn(),
-	listMembers: vi.fn(), listCrew: vi.fn()
+	listMembers: vi.fn(),
+	listCrew: vi.fn()
 }));
 
-import { getTrip, updateTrip, listYachts, createYacht, listCruises, listMembers, listCrew } from '#lib/api/routes.js';
+import {
+	getTrip,
+	updateTrip,
+	listYachts,
+	createYacht,
+	listCruises,
+	listMembers,
+	listCrew
+} from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import EditTripPage from './+page.svelte';
 import { load } from './+page.js';
@@ -47,7 +60,10 @@ beforeEach(() => {
 	fn(listYachts).mockResolvedValue([]);
 	fn(listMembers).mockResolvedValue([]);
 	fn(listCrew).mockResolvedValue([]);
-	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025' }), makeCruise({ id: 14, name: 'WRM 2025' })]);
+	fn(listCruises).mockResolvedValue([
+		makeCruise({ id: 13, name: 'NNE 2025' }),
+		makeCruise({ id: 14, name: 'WRM 2025' })
+	]);
 	fn(updateTrip).mockResolvedValue(undefined);
 });
 
@@ -115,7 +131,9 @@ describe('trip edit page', () => {
 		await renderPage();
 		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
 
-		expect(await screen.findByText('Wybierz wydarzenie, do którego należy rejs')).toBeInTheDocument();
+		expect(
+			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
+		).toBeInTheDocument();
 		expect(updateTrip).not.toHaveBeenCalled();
 	});
 
@@ -130,14 +148,24 @@ describe('trip edit page', () => {
 
 describe('trip edit page — sign-up deadline', () => {
 	it('keeps the saved deadline on a no-change save', async () => {
-		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01', sign_up_deadline: '2026-06-01' }));
+		fn(getTrip).mockResolvedValue(
+			makeTrip({
+				id: 5,
+				cruise_id: 13,
+				name: 'Etap 1',
+				embark_date: '2026-07-01',
+				sign_up_deadline: '2026-06-01'
+			})
+		);
 		await renderPage();
 		expect(await screen.findByLabelText('Zapisy do (włącznie)')).toHaveValue('2026-06-01');
 		expect((await save()).sign_up_deadline).toBe('2026-06-01');
 	});
 
 	it('sets a deadline no later than the embark date', async () => {
-		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01' }));
+		fn(getTrip).mockResolvedValue(
+			makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01' })
+		);
 		await renderPage();
 		const input = await screen.findByLabelText('Zapisy do (włącznie)');
 		expect(input).toHaveAttribute('max', '2026-07-01');
@@ -146,9 +174,19 @@ describe('trip edit page — sign-up deadline', () => {
 	});
 
 	it('clears the deadline by leaving the field empty', async () => {
-		fn(getTrip).mockResolvedValue(makeTrip({ id: 5, cruise_id: 13, name: 'Etap 1', embark_date: '2026-07-01', sign_up_deadline: '2026-06-01' }));
+		fn(getTrip).mockResolvedValue(
+			makeTrip({
+				id: 5,
+				cruise_id: 13,
+				name: 'Etap 1',
+				embark_date: '2026-07-01',
+				sign_up_deadline: '2026-06-01'
+			})
+		);
 		await renderPage();
-		await fireEvent.input(await screen.findByLabelText('Zapisy do (włącznie)'), { target: { value: '' } });
+		await fireEvent.input(await screen.findByLabelText('Zapisy do (włącznie)'), {
+			target: { value: '' }
+		});
 		const body = await save();
 		expect(body.sign_up_deadline).toBeUndefined();
 	});
@@ -223,7 +261,7 @@ describe('trip edit page same-route navigation', () => {
 		expect(fn(updateTrip).mock.calls[0][0]).toBe(6);
 	});
 
-	it('clears the first trip\'s save error', async () => {
+	it("clears the first trip's save error", async () => {
 		fn(updateTrip).mockRejectedValueOnce(new Error('cruise not found'));
 		const view = await renderPage();
 		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));

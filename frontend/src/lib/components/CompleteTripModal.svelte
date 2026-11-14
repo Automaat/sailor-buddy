@@ -80,7 +80,11 @@
 	}
 </script>
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+<div
+	class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+	role="dialog"
+	aria-modal="true"
+>
 	<div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
 		<h2 class="mb-1 text-xl font-semibold text-[var(--navy)]">Zrealizuj rejs</h2>
 		<p class="mb-4 text-sm text-[var(--text-muted)]">{tripName}</p>
@@ -93,7 +97,13 @@
 			<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 				<div>
 					<label for="m-miles" class="mb-1 block text-xs font-medium">Mile</label>
-					<input id="m-miles" type="number" step="0.1" bind:value={form.miles} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input
+						id="m-miles"
+						type="number"
+						step="0.1"
+						bind:value={form.miles}
+						class="w-full rounded-lg border px-2 py-1.5 text-sm"
+					/>
 				</div>
 				<div class="flex items-end">
 					<label class="flex items-center gap-2 text-sm">
@@ -103,25 +113,51 @@
 				</div>
 				<div>
 					<label for="m-hs" class="mb-1 block text-xs font-medium">Godziny żagli</label>
-					<input id="m-hs" type="number" step="0.1" bind:value={form.hours_sail} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input
+						id="m-hs"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_sail}
+						class="w-full rounded-lg border px-2 py-1.5 text-sm"
+					/>
 				</div>
 				<div>
 					<label for="m-he" class="mb-1 block text-xs font-medium">Godziny silnika</label>
-					<input id="m-he" type="number" step="0.1" bind:value={form.hours_engine} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input
+						id="m-he"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_engine}
+						class="w-full rounded-lg border px-2 py-1.5 text-sm"
+					/>
 				</div>
 				<div>
 					<label for="m-h6" class="mb-1 block text-xs font-medium">Godziny &gt;6Bf</label>
-					<input id="m-h6" type="number" step="0.1" bind:value={form.hours_over_6bf} class="w-full rounded-lg border px-2 py-1.5 text-sm" />
+					<input
+						id="m-h6"
+						type="number"
+						step="0.1"
+						bind:value={form.hours_over_6bf}
+						class="w-full rounded-lg border px-2 py-1.5 text-sm"
+					/>
 				</div>
 			</div>
 
 			<PortPicker {ports} onAdd={addPort} onRemove={removePort} onReorder={reorderPort} />
 
 			<div class="flex justify-end gap-2 pt-2">
-				<button type="button" onclick={onClose} class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50">
+				<button
+					type="button"
+					onclick={onClose}
+					class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50"
+				>
 					Anuluj
 				</button>
-				<button type="submit" disabled={submitting} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+				<button
+					type="submit"
+					disabled={submitting}
+					class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+				>
 					{submitting ? 'Zapisywanie...' : 'Zrealizuj rejs'}
 				</button>
 			</div>

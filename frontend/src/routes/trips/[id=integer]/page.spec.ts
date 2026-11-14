@@ -73,7 +73,9 @@ afterEach(() => {
 describe('trip page status', () => {
 	it('flags a past planned leg and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;
-		serve(makeTrip({ id: 50, name: 'Jacht A', embark_date: '2026-08-01', disembark_date: '2026-08-09' }));
+		serve(
+			makeTrip({ id: 50, name: 'Jacht A', embark_date: '2026-08-01', disembark_date: '2026-08-09' })
+		);
 		await renderPage();
 
 		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
@@ -107,9 +109,21 @@ describe('trip page status', () => {
 	});
 
 	it.each([
-		{ name: 'in progress', trip: { embark_date: '2026-11-10', disembark_date: '2026-11-20' }, want: 'Planowany' },
-		{ name: 'ending today', trip: { embark_date: '2026-11-10', disembark_date: '2026-11-13' }, want: 'Planowany' },
-		{ name: 'cancelled after it ended', trip: { status: 'cancelled' as const, disembark_date: '2026-08-09' }, want: 'Anulowany' }
+		{
+			name: 'in progress',
+			trip: { embark_date: '2026-11-10', disembark_date: '2026-11-20' },
+			want: 'Planowany'
+		},
+		{
+			name: 'ending today',
+			trip: { embark_date: '2026-11-10', disembark_date: '2026-11-13' },
+			want: 'Planowany'
+		},
+		{
+			name: 'cancelled after it ended',
+			trip: { status: 'cancelled' as const, disembark_date: '2026-08-09' },
+			want: 'Anulowany'
+		}
 	])('keeps a leg $name as $want with no prompt', async ({ trip, want }) => {
 		mockAuth.isAdmin = true;
 		serve(makeTrip({ id: 50, ...trip }));
@@ -124,7 +138,14 @@ describe('trip page status', () => {
 describe('trip page sign-up toggle', () => {
 	it('keeps a leg closed after switching sign-ups on past its deadline', async () => {
 		mockAuth.isAdmin = true;
-		serve(makeTrip({ id: 50, name: 'Jacht A', embark_date: '2027-01-10', sign_up_deadline: '2026-11-12' }));
+		serve(
+			makeTrip({
+				id: 50,
+				name: 'Jacht A',
+				embark_date: '2027-01-10',
+				sign_up_deadline: '2026-11-12'
+			})
+		);
 		vi.mocked(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
 		vi.mocked(generateTripEnrollToken).mockResolvedValue({ token: 'tok' });
 		await renderPage();
@@ -137,7 +158,14 @@ describe('trip page sign-up toggle', () => {
 
 	it('opens a leg when sign-ups are switched on before its deadline', async () => {
 		mockAuth.isAdmin = true;
-		serve(makeTrip({ id: 50, name: 'Jacht A', embark_date: '2027-01-10', sign_up_deadline: '2026-11-13' }));
+		serve(
+			makeTrip({
+				id: 50,
+				name: 'Jacht A',
+				embark_date: '2027-01-10',
+				sign_up_deadline: '2026-11-13'
+			})
+		);
 		vi.mocked(getTripSignUp).mockResolvedValue({ trip_id: 50, open: false, accepted_count: 0 });
 		vi.mocked(generateTripEnrollToken).mockResolvedValue({ token: 'tok' });
 		await renderPage();
@@ -162,10 +190,11 @@ describe('trip page actions', () => {
 		await fireEvent.click(toggle);
 		expect(toggle).toHaveAttribute('aria-expanded', 'true');
 		const menu = screen.getByRole('menu');
-		expect(within(menu).getAllByRole('menuitem').map((el) => el.textContent?.trim())).toEqual([
-			'Odwołaj etap',
-			'Usuń'
-		]);
+		expect(
+			within(menu)
+				.getAllByRole('menuitem')
+				.map((el) => el.textContent?.trim())
+		).toEqual(['Odwołaj etap', 'Usuń']);
 	});
 
 	it('asks for confirmation before cancelling the leg', async () => {
@@ -173,7 +202,10 @@ describe('trip page actions', () => {
 		serve(makeTrip({ id: 50, status: 'planned' }));
 		const cancelled = makeTrip({ id: 50, status: 'cancelled' });
 		vi.mocked(cancelTrip).mockResolvedValue(cancelled);
-		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+		const confirmSpy = vi
+			.spyOn(window, 'confirm')
+			.mockReturnValueOnce(false)
+			.mockReturnValueOnce(true);
 		await renderPage();
 
 		await fireEvent.click(await screen.findByRole('button', { name: 'Więcej akcji' }));
@@ -274,7 +306,9 @@ describe('trip page load errors', () => {
 		vi.mocked(getTripSignUp)
 			.mockRejectedValueOnce(new Error('500'))
 			.mockResolvedValueOnce({ trip_id: 50, open: false, accepted_count: 0 });
-		vi.mocked(cancelTrip).mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', status: 'cancelled' }));
+		vi.mocked(cancelTrip).mockResolvedValue(
+			makeTrip({ id: 50, name: 'Jacht A', status: 'cancelled' })
+		);
 		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 		await renderPage();
 
@@ -283,7 +317,9 @@ describe('trip page load errors', () => {
 		await fireEvent.click(screen.getByRole('menuitem', { name: 'Odwołaj etap' }));
 
 		expect(await screen.findByText('Anulowany')).toBeInTheDocument();
-		await waitFor(() => expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument()
+		);
 		confirmSpy.mockRestore();
 	});
 
@@ -296,19 +332,25 @@ describe('trip page load errors', () => {
 	});
 });
 
-
 describe('trip page same-route navigation', () => {
 	beforeEach(() => {
 		mockAuth.isAdmin = true;
 		vi.mocked(getCruise).mockResolvedValue(makeCruise({ id: 1 }));
 		vi.mocked(getTrip).mockImplementation(async (id: number) =>
-			makeTrip({ id, name: id === 50 ? 'Jacht A' : 'Jacht B', status: 'planned', enroll_token: id === 50 ? 'tokA' : undefined })
+			makeTrip({
+				id,
+				name: id === 50 ? 'Jacht A' : 'Jacht B',
+				status: 'planned',
+				enroll_token: id === 50 ? 'tokA' : undefined
+			})
 		);
 	});
 
 	it('swaps to the second trip with its own crew and enroll link', async () => {
 		vi.mocked(listTripCrew).mockImplementation(async (id: number) =>
-			id === 50 ? [{ id: 1, crew_member_id: 3, full_name: 'Anna Nowak', role: 'Sternik' } as never] : []
+			id === 50
+				? [{ id: 1, crew_member_id: 3, full_name: 'Anna Nowak', role: 'Sternik' } as never]
+				: []
 		);
 		const view = await renderPage();
 		expect(await screen.findByText('Anna Nowak')).toBeInTheDocument();
@@ -339,7 +381,9 @@ describe('trip page same-route navigation', () => {
 		await Promise.resolve();
 
 		expect(screen.getByRole('heading', { name: 'Jacht B' })).toBeInTheDocument();
-		await waitFor(() => expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'Włącz zapisy' })).toBeInTheDocument()
+		);
 		expect(screen.queryByRole('button', { name: 'Wyłącz zapisy' })).not.toBeInTheDocument();
 	});
 
@@ -375,7 +419,11 @@ describe('trip page same-route navigation: sign-up control', () => {
 	});
 
 	it('drops a sign-up reply and its busy flag after a link moved to another trip', async () => {
-		vi.mocked(getTripSignUp).mockImplementation(async (id: number) => ({ trip_id: id, open: true, accepted_count: 0 }));
+		vi.mocked(getTripSignUp).mockImplementation(async (id: number) => ({
+			trip_id: id,
+			open: true,
+			accepted_count: 0
+		}));
 		let answer: (v: never) => void = () => {};
 		vi.mocked(signUpForTrip).mockReturnValue(new Promise((r) => (answer = r)));
 		const view = await renderPage();

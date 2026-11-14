@@ -57,7 +57,9 @@
 	const canManageCrew = $derived(auth.isAdmin);
 	// Failures of admin-only sections join the banner only for admins. The
 	// check is reactive: on a direct load the role arrives after the load.
-	const visibleLoadErrors = $derived(canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors);
+	const visibleLoadErrors = $derived(
+		canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors
+	);
 	// The captain, through the person linked to their account, logs the
 	// post-cruise data: hours, miles, ports, note.
 	const isVoyageCaptain = $derived(
@@ -153,7 +155,7 @@
 		const cruiseId = voyage.cruise_id;
 		await deleteVoyage(voyageId);
 		if (leftVoyage(voyageId)) return;
-		goto(`/cruises/${cruiseId}`);
+		void goto(`/cruises/${cruiseId}`);
 	}
 
 	async function generateOpinion() {
@@ -246,7 +248,11 @@
 		const [moved] = next.splice(from, 1);
 		next.splice(to, 0, moved);
 		// The endpoint returns the ports with their persisted positions.
-		const saved = (await reorderVoyagePorts(voyageId, next.map((p) => p.id))) ?? next;
+		const saved =
+			(await reorderVoyagePorts(
+				voyageId,
+				next.map((p) => p.id)
+			)) ?? next;
 		if (leftVoyage(voyageId)) return;
 		ports = saved;
 	}
@@ -266,14 +272,22 @@
 				{#if voyage.start_port && voyage.end_port}
 					{voyage.start_port} → {voyage.end_port}
 				{/if}
-				{#if voyage.countries} · {voyage.countries}{/if}
-				{#if voyage.year} · {voyage.year}{/if}
+				{#if voyage.countries}
+					· {voyage.countries}{/if}
+				{#if voyage.year}
+					· {voyage.year}{/if}
 			</p>
 		</div>
 		{#if canManageCrew}
 			<div class="flex gap-2 max-md:flex-wrap">
-				<a href="/voyages/{id}/edit" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a>
-				<button onclick={handleDelete} class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+				<a
+					href="/voyages/{id}/edit"
+					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
+				>
+				<button
+					onclick={handleDelete}
+					class="rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+				>
 					Usuń
 				</button>
 			</div>
@@ -321,7 +335,12 @@
 				{#if voyage.track_url}
 					<dt class="text-[var(--text-muted)]">Ślad rejsu</dt>
 					<dd>
-						<a href={voyage.track_url} target="_blank" rel="noopener noreferrer" class="break-all text-[var(--ocean)] hover:underline">
+						<a
+							href={voyage.track_url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="break-all text-[var(--ocean)] hover:underline"
+						>
 							{voyage.track_url}
 						</a>
 					</dd>
@@ -359,28 +378,77 @@
 				<form onsubmit={saveLog} class="space-y-4">
 					<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
 						<div>
-							<label for="log_hours_total" class="mb-1 block text-xs font-medium">Godziny łącznie</label>
-							<input id="log_hours_total" type="number" step="0.1" min="0" bind:value={logForm.hours_total} class="w-full rounded-lg border px-3 py-2" />
+							<label for="log_hours_total" class="mb-1 block text-xs font-medium"
+								>Godziny łącznie</label
+							>
+							<input
+								id="log_hours_total"
+								type="number"
+								step="0.1"
+								min="0"
+								bind:value={logForm.hours_total}
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<div>
-							<label for="log_hours_sail" class="mb-1 block text-xs font-medium">Godziny na żaglach</label>
-							<input id="log_hours_sail" type="number" step="0.1" min="0" bind:value={logForm.hours_sail} class="w-full rounded-lg border px-3 py-2" />
+							<label for="log_hours_sail" class="mb-1 block text-xs font-medium"
+								>Godziny na żaglach</label
+							>
+							<input
+								id="log_hours_sail"
+								type="number"
+								step="0.1"
+								min="0"
+								bind:value={logForm.hours_sail}
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<div>
-							<label for="log_hours_engine" class="mb-1 block text-xs font-medium">Godziny na silniku</label>
-							<input id="log_hours_engine" type="number" step="0.1" min="0" bind:value={logForm.hours_engine} class="w-full rounded-lg border px-3 py-2" />
+							<label for="log_hours_engine" class="mb-1 block text-xs font-medium"
+								>Godziny na silniku</label
+							>
+							<input
+								id="log_hours_engine"
+								type="number"
+								step="0.1"
+								min="0"
+								bind:value={logForm.hours_engine}
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<div>
-							<label for="log_hours_6bf" class="mb-1 block text-xs font-medium">Godziny &gt;6Bf</label>
-							<input id="log_hours_6bf" type="number" step="0.1" min="0" bind:value={logForm.hours_over_6bf} class="w-full rounded-lg border px-3 py-2" />
+							<label for="log_hours_6bf" class="mb-1 block text-xs font-medium"
+								>Godziny &gt;6Bf</label
+							>
+							<input
+								id="log_hours_6bf"
+								type="number"
+								step="0.1"
+								min="0"
+								bind:value={logForm.hours_over_6bf}
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<div>
 							<label for="log_miles" class="mb-1 block text-xs font-medium">Mile</label>
-							<input id="log_miles" type="number" step="0.1" min="0" bind:value={logForm.miles} class="w-full rounded-lg border px-3 py-2" />
+							<input
+								id="log_miles"
+								type="number"
+								step="0.1"
+								min="0"
+								bind:value={logForm.miles}
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<div>
 							<label for="log_days" class="mb-1 block text-xs font-medium">Dni</label>
-							<input id="log_days" type="number" min="0" bind:value={logForm.days} class="w-full rounded-lg border px-3 py-2" />
+							<input
+								id="log_days"
+								type="number"
+								min="0"
+								bind:value={logForm.days}
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<label class="col-span-2 flex items-center gap-2 text-sm">
 							<input type="checkbox" bind:checked={logForm.tidal_waters} />
@@ -390,27 +458,61 @@
 					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div class="sm:col-span-2">
 							<label for="log_yacht" class="mb-1 block text-xs font-medium">Jacht</label>
-							<YachtSelect id="log_yacht" bind:value={logForm.yacht_id} bind:yachts create={addYachtForVoyage} />
+							<YachtSelect
+								id="log_yacht"
+								bind:value={logForm.yacht_id}
+								bind:yachts
+								create={addYachtForVoyage}
+							/>
 						</div>
 						<div>
-							<label for="log_track_url" class="mb-1 block text-xs font-medium">Link do śladu rejsu</label>
-							<input id="log_track_url" type="url" bind:value={logForm.track_url} placeholder="https://..." class="w-full rounded-lg border px-3 py-2" />
+							<label for="log_track_url" class="mb-1 block text-xs font-medium"
+								>Link do śladu rejsu</label
+							>
+							<input
+								id="log_track_url"
+								type="url"
+								bind:value={logForm.track_url}
+								placeholder="https://..."
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 						<div>
-							<label for="log_voyage_card" class="mb-1 block text-xs font-medium">Karta rejsu</label>
-							<input id="log_voyage_card" type="text" bind:value={logForm.voyage_card} placeholder="np. u kapitana, w klubie" class="w-full rounded-lg border px-3 py-2" />
+							<label for="log_voyage_card" class="mb-1 block text-xs font-medium">Karta rejsu</label
+							>
+							<input
+								id="log_voyage_card"
+								type="text"
+								bind:value={logForm.voyage_card}
+								placeholder="np. u kapitana, w klubie"
+								class="w-full rounded-lg border px-3 py-2"
+							/>
 						</div>
 					</div>
 					<div>
 						<label for="log_notes" class="mb-1 block text-xs font-medium">Notatka z rejsu</label>
-						<textarea id="log_notes" rows="4" bind:value={logForm.captain_notes} class="w-full rounded-lg border px-3 py-2"></textarea>
+						<textarea
+							id="log_notes"
+							rows="4"
+							bind:value={logForm.captain_notes}
+							class="w-full rounded-lg border px-3 py-2"></textarea>
 					</div>
-					<p class="text-xs text-[var(--text-muted)]">Odwiedzone mariny dodasz w sekcji „Odwiedzone porty” poniżej.</p>
+					<p class="text-xs text-[var(--text-muted)]">
+						Odwiedzone mariny dodasz w sekcji „Odwiedzone porty” poniżej.
+					</p>
 					<div class="flex gap-2">
-						<button type="submit" disabled={logSaving} class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50">
+						<button
+							type="submit"
+							disabled={logSaving}
+							class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+						>
 							{logSaving ? 'Zapisywanie...' : 'Zapisz raport'}
 						</button>
-						<button type="button" onclick={() => (logOpen = false)} class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50">
+						<button
+							type="button"
+							onclick={() => (logOpen = false)}
+							class="rounded-lg border px-4 py-2 text-sm text-[var(--text-muted)] hover:bg-gray-50"
+						>
 							Anuluj
 						</button>
 					</div>
@@ -434,9 +536,15 @@
 		<h2 class="mb-3 font-semibold text-[var(--navy)]">Odwiedzone porty ({ports.length})</h2>
 		<!-- Keyed on the voyage so a link to another voyage starts the picker
 	afresh: no typed search, alert or busy flag from the previous voyage. -->
-	{#key id}
-		<PortPicker {ports} readonly={!canLog} onAdd={addPort} onRemove={removePort} onReorder={reorderPorts} />
-	{/key}
+		{#key id}
+			<PortPicker
+				{ports}
+				readonly={!canLog}
+				onAdd={addPort}
+				onRemove={removePort}
+				onReorder={reorderPorts}
+			/>
+		{/key}
 	</div>
 
 	{#if canManageCrew}
@@ -449,18 +557,32 @@
 				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
 					<div class="min-w-0 max-w-full">
 						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="assign-crew" bind:value={assignCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
+						<select
+							id="assign-crew"
+							bind:value={assignCrewId}
+							class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
+						>
 							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member}
+							{#each allCrewMembers as member (member.id)}
 								<option value={member.id}>{member.full_name}</option>
 							{/each}
 						</select>
 					</div>
 					<div>
 						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
-						<input id="assign-role" type="text" bind:value={assignRole} placeholder="np. Sternik" class="rounded-lg border px-3 py-1.5 text-sm" />
+						<input
+							id="assign-role"
+							type="text"
+							bind:value={assignRole}
+							placeholder="np. Sternik"
+							class="rounded-lg border px-3 py-1.5 text-sm"
+						/>
 					</div>
-					<button type="submit" disabled={!assignCrewId || !assignRole || assigning} class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50">
+					<button
+						type="submit"
+						disabled={!assignCrewId || !assignRole || assigning}
+						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
+					>
 						{assigning ? 'Dodawanie...' : 'Dodaj'}
 					</button>
 				</form>
@@ -470,15 +592,20 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak przypisanej załogi.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each crew as member}
+					{#each crew as member (member.id)}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{member.full_name}</span>
-								<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
+								<span
+									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+								>
 									{member.role}
 								</span>
 							</div>
-							<button onclick={() => removeCrew(member.id)} class="text-sm text-red-500 hover:underline">
+							<button
+								onclick={() => removeCrew(member.id)}
+								class="text-sm text-red-500 hover:underline"
+							>
 								Usuń
 							</button>
 						</div>
@@ -494,21 +621,33 @@
 				<div class="mb-4 flex flex-wrap items-end gap-2">
 					<div class="min-w-0 max-w-full">
 						<label for="gen-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select id="gen-crew" bind:value={genCrewId} class="max-w-full rounded-lg border px-3 py-1.5 text-sm">
+						<select
+							id="gen-crew"
+							bind:value={genCrewId}
+							class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
+						>
 							<option value="">Wybierz...</option>
-							{#each crew as member}
+							{#each crew as member (member.id)}
 								<option value={member.crew_member_id}>{member.full_name}</option>
 							{/each}
 						</select>
 					</div>
 					<div>
 						<label for="gen-format" class="block text-xs text-[var(--text-muted)]">Format</label>
-						<select id="gen-format" bind:value={genFormat} class="rounded-lg border px-3 py-1.5 text-sm">
+						<select
+							id="gen-format"
+							bind:value={genFormat}
+							class="rounded-lg border px-3 py-1.5 text-sm"
+						>
 							<option value="pdf">PDF</option>
 							<option value="docx">DOCX</option>
 						</select>
 					</div>
-					<button onclick={generateOpinion} disabled={!genCrewId || generating} class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50">
+					<button
+						onclick={generateOpinion}
+						disabled={!genCrewId || generating}
+						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
+					>
 						{generating ? 'Generowanie...' : 'Generuj'}
 					</button>
 				</div>
@@ -518,19 +657,27 @@
 				<p class="text-sm text-[var(--text-muted)]">Brak wygenerowanych opinii.</p>
 			{:else}
 				<div class="space-y-2">
-					{#each opinions as op}
+					{#each opinions as op (op.id)}
 						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
 							<div class="flex items-center gap-2">
 								<span class="font-medium">{op.full_name}</span>
-								<span class="rounded-full bg-[var(--ocean-tint)] px-2 py-0.5 text-xs uppercase text-[var(--ocean)]">
+								<span
+									class="rounded-full bg-[var(--ocean-tint)] px-2 py-0.5 text-xs uppercase text-[var(--ocean)]"
+								>
 									{op.file_format}
 								</span>
 							</div>
 							<div class="flex gap-2">
-								<button onclick={() => downloadOpinion(op.id)} class="text-sm text-[var(--ocean)] hover:underline">
+								<button
+									onclick={() => downloadOpinion(op.id)}
+									class="text-sm text-[var(--ocean)] hover:underline"
+								>
 									Pobierz
 								</button>
-								<button onclick={() => deleteOpinion(op.id)} class="text-sm text-red-500 hover:underline">
+								<button
+									onclick={() => deleteOpinion(op.id)}
+									class="text-sm text-red-500 hover:underline"
+								>
 									Usuń
 								</button>
 							</div>

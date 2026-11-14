@@ -24,14 +24,40 @@ export const load: PageLoad = async ({ params }) => {
 	// shows their failures only to an admin.
 	const adminLoadErrors: string[] = [];
 	const [crew, opinions, ports, allCrewMembers, yachts, cruise] = await Promise.all([
-		settle(listVoyageCrew(id).then((c) => c ?? []), [], noteFailure(adminLoadErrors, 'załoga')),
-		settle(listVoyageOpinions(id).then((o) => o ?? []), [], noteFailure(adminLoadErrors, 'opinie')),
-		settle(listVoyagePorts(id).then((p) => p ?? []), [], noteFailure(loadErrors, 'porty')),
+		settle(
+			listVoyageCrew(id).then((c) => c ?? []),
+			[],
+			noteFailure(adminLoadErrors, 'załoga')
+		),
+		settle(
+			listVoyageOpinions(id).then((o) => o ?? []),
+			[],
+			noteFailure(adminLoadErrors, 'opinie')
+		),
+		settle(
+			listVoyagePorts(id).then((p) => p ?? []),
+			[],
+			noteFailure(loadErrors, 'porty')
+		),
 		settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
-		settle(listYachts().then((y) => y ?? []), [], noteFailure(loadErrors, 'jachty')),
+		settle(
+			listYachts().then((y) => y ?? []),
+			[],
+			noteFailure(loadErrors, 'jachty')
+		),
 		voyage.cruise_id
 			? settle(getCruise(voyage.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'))
 			: Promise.resolve(null)
 	]);
-	return { voyage, cruise, crew, opinions, ports, allCrewMembers, yachts, loadErrors, adminLoadErrors };
+	return {
+		voyage,
+		cruise,
+		crew,
+		opinions,
+		ports,
+		allCrewMembers,
+		yachts,
+		loadErrors,
+		adminLoadErrors
+	};
 };

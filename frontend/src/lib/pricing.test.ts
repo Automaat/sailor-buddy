@@ -21,10 +21,13 @@ describe('yourPrice', () => {
 		expect(yourPrice(twoTier, membership)).toBe(want);
 	});
 
-	it.each(['czlonek', 'sympatyk', 'gosc'] as const)('gives %s the only price when one is set', (membership) => {
-		expect(yourPrice({ cost_per_person: 760 }, membership)).toBe(760);
-		expect(yourPrice({ cost_per_person_non_member: 250 }, membership)).toBe(250);
-	});
+	it.each(['czlonek', 'sympatyk', 'gosc'] as const)(
+		'gives %s the only price when one is set',
+		(membership) => {
+			expect(yourPrice({ cost_per_person: 760 }, membership)).toBe(760);
+			expect(yourPrice({ cost_per_person_non_member: 250 }, membership)).toBe(250);
+		}
+	);
 
 	it('treats a lone 0 as no price', () => {
 		expect(yourPrice({ cost_per_person: 0 }, 'gosc')).toBeNull();

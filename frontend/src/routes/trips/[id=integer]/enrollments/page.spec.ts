@@ -55,7 +55,9 @@ function row(id: number, name: string, overrides: Record<string, unknown> = {}) 
 }
 
 beforeEach(() => {
-	fn(getTrip).mockReset().mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 8 }));
+	fn(getTrip)
+		.mockReset()
+		.mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 8 }));
 	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 1 });
 	fn(listTripEnrollments)
 		.mockReset()
@@ -93,13 +95,17 @@ describe('trip enrollments page payment status', () => {
 	});
 
 	it('sets the payment status and updates the counts without touching acceptance', async () => {
-		fn(updateTripEnrollmentPaymentStatus).mockResolvedValue(row(4, 'Darek', { payment_status: 'deposit' }));
+		fn(updateTripEnrollmentPaymentStatus).mockResolvedValue(
+			row(4, 'Darek', { payment_status: 'deposit' })
+		);
 		await renderPage();
 		const darek = await screen.findByLabelText('Płatność: Darek');
 
 		await fireEvent.change(darek, { target: { value: 'deposit' } });
 
-		await waitFor(() => expect(updateTripEnrollmentPaymentStatus).toHaveBeenCalledWith(50, 4, 'deposit'));
+		await waitFor(() =>
+			expect(updateTripEnrollmentPaymentStatus).toHaveBeenCalledWith(50, 4, 'deposit')
+		);
 		await waitFor(() => expect(counts().deposit).toBe('Zaliczka wpłacona: 3'));
 		expect(counts().unpaid).toBe('Brak wpłaty: 0');
 		expect(updateTripEnrollmentStatus).not.toHaveBeenCalled();
@@ -136,7 +142,9 @@ describe('trip enrollments page payment status', () => {
 
 		await fireEvent.change(anna, { target: { value: 'unpaid' } });
 
-		expect(await screen.findByRole('alert')).toHaveTextContent('Nie udało się zapisać statusu płatności');
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się zapisać statusu płatności'
+		);
 		expect(anna).toHaveValue('paid');
 		expect(counts().paid).toBe('Opłacone: 1');
 	});
@@ -155,7 +163,9 @@ describe('trip enrollments page load errors', () => {
 		fn(getTripSignUp).mockRejectedValue(new Error('500'));
 		await renderPage();
 
-		expect(await screen.findByText(/Nie udało się wczytać: liczba zajętych miejsc\./)).toBeInTheDocument();
+		expect(
+			await screen.findByText(/Nie udało się wczytać: liczba zajętych miejsc\./)
+		).toBeInTheDocument();
 		expect(screen.getByLabelText('Płatność: Anna')).toBeInTheDocument();
 	});
 

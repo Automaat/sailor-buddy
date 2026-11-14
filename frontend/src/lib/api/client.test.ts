@@ -91,7 +91,10 @@ describe('api write verbs', () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/api/trips',
-			expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'Nowy', cruise_id: 1 }) })
+			expect.objectContaining({
+				method: 'POST',
+				body: JSON.stringify({ name: 'Nowy', cruise_id: 1 })
+			})
 		);
 	});
 
@@ -105,11 +108,17 @@ describe('api write verbs', () => {
 
 	it('serializes the body and uses PUT', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({}, { status: 204 }));
-		await api.put('/trips/{tripID}', { path: { tripID: 1 }, body: { name: 'Edytowany', cruise_id: 1 } });
+		await api.put('/trips/{tripID}', {
+			path: { tripID: 1 },
+			body: { name: 'Edytowany', cruise_id: 1 }
+		});
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			'/api/trips/1',
-			expect.objectContaining({ method: 'PUT', body: JSON.stringify({ name: 'Edytowany', cruise_id: 1 }) })
+			expect.objectContaining({
+				method: 'PUT',
+				body: JSON.stringify({ name: 'Edytowany', cruise_id: 1 })
+			})
 		);
 	});
 
