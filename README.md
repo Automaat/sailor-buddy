@@ -87,3 +87,11 @@ the site root with no `paths.base`, so `resolve()` would not change any URL.
 Normal sign-in creates a member account and never promotes it. Sign in once with the trusted account, copy its exact UID from the Firebase console, and run `bootstrap-admin` privately with `SAILOR_DATABASE_URL` and `SAILOR_BOOTSTRAP_FIREBASE_UID` set through your secret manager. The production image includes `/app/bootstrap-admin`; local development can use `cd backend && mise exec -- go run ./cmd/bootstrap-admin`.
 
 Run database migrations before bootstrap. The command requires an existing account with that exact UID, never links by email, and refuses to add another administrator if one exists. Repeating it for an already-admin account succeeds without changing accounts. Existing admins and normal role management are preserved. `-h` prints help without connecting. Never expose this command as an HTTP endpoint.
+
+## Account approval
+
+Registration creates a pending account. A user must verify their Firebase email and receive administrator approval before reading club data. The pending-access screen offers email verification and a refresh action; users can still edit their own profile and enroll through a shared link.
+
+Administrators manage approval and suspension in the members table. Club membership and captain-group status do not approve an account. An administrator must be demoted before their account can be restricted, and a suspended member cannot be promoted to admin. Suspension blocks the next authenticated request, including requests using an existing ID token. Firebase token revocation checks are tracked separately.
+
+The initial migration approves existing administrators only. Other accounts remain pending, as no real users existed at this policy decision. Emergency contacts and voyage opinions follow the access matrix in [the account access policy](docs/security-access.md).

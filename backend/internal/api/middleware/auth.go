@@ -91,10 +91,11 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 			}
 
 			name, _ := fbToken.Claims["name"].(string)
+			emailVerified, _ := fbToken.Claims["email_verified"].(bool)
 
 			fbUID := types.NullString{String: fbToken.UID, Valid: true}
 			if user, ok := knownUser(r.Context(), q, fbUID, email, name); ok {
-				next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role)))
+				next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role, emailVerified)))
 				return
 			}
 
@@ -141,7 +142,7 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role)))
+			next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role, emailVerified)))
 		})
 	}
 }
@@ -160,6 +161,9 @@ func knownUser(ctx context.Context, q sqlcdb.Querier, fbUID types.NullString, em
 		return sqlcdb.User{}, false
 	}
 	user := row.User
+	if user.Suspended {
+		return user, true
+	}
 	renamed := name != "" && !user.OnboardedAt.Valid && user.Name != name
 	if user.Email != email || renamed || !row.HasPerson {
 		return sqlcdb.User{}, false
@@ -208,13 +212,16 @@ func isUniqueViolation(err error) bool {
 	return pgErr.Code == "23505"
 }
 
-func withClaims(ctx context.Context, user sqlcdb.User, role string) context.Context {
+func withClaims(ctx context.Context, user sqlcdb.User, role string, verified bool) context.Context {
 	return context.WithValue(ctx, UserCtxKey, &auth.Claims{
-		UserID:    user.ID,
-		Email:     user.Email,
-		Name:      user.Name,
-		AvatarUrl: user.AvatarUrl.String,
-		Role:      role,
+		Approved:      user.AccessApproved || role == "admin",
+		Suspended:     user.Suspended,
+		EmailVerified: verified,
+		UserID:        user.ID,
+		Email:         user.Email,
+		Name:          user.Name,
+		AvatarUrl:     user.AvatarUrl.String,
+		Role:          role,
 	})
 }
 

@@ -99,8 +99,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   NOT NULL. The UI has one "Rejsy" list (`/cruises`) of events with
   Nadchodzące/Zrealizowane/Wszystkie tabs; trips and voyages are legs shown
   on the event page. There are no standalone trip/voyage list pages.
-- Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Reads open to any
-  member; mutations require admin (`requireAdmin`).
+- Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require verified Firebase email and `users.access_approved`;
+  `users.suspended` denies existing-token access. Emergency contacts are
+  restricted to admins and assigned captains; opinions to admins, subject,
+  and voyage captain. See `docs/security-access.md`. Mutations require admin
+  (`requireAdmin`).
 - Captains: `users.is_captain` (admin-curated captain group; requires
   `membership = czlonek` and a patent number). A leg's or voyage's captain is
   a person (`captain_person_id` → `crew_members`); any person may be chosen.

@@ -14,6 +14,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -87,7 +88,11 @@ func (h *VoyageOpinionHandler) list(ctx context.Context, in *voyageIDParam) (*op
 		slog.Error("list voyage opinions", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list opinions")
 	}
-	return &opinionListOutput{Body: dto.VoyageOpinionsFromDB(opinions)}, nil
+	visible, err := h.visibleOpinions(ctx, in.ID, opinions)
+	if err != nil {
+		return nil, err
+	}
+	return &opinionListOutput{Body: dto.VoyageOpinionsFromDB(visible)}, nil
 }
 
 func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinionInput) (*opinionOutput, error) {
@@ -143,6 +148,9 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 	}
 	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)
 	if err != nil {
+		return nil, err
+	}
+	if err := h.authorizeOpinion(ctx, opinion); err != nil {
 		return nil, err
 	}
 	fileBytes, err := h.readOpinionFile(opinion.FilePath)
@@ -320,4 +328,75 @@ func renderOpinionFile(ctx context.Context, format string, data docgen.OpinionDa
 	default:
 		return nil, fmt.Errorf("unsupported format %q", format)
 	}
+}
+
+func (h *VoyageOpinionHandler) canReadVoyageOpinions(ctx context.Context, voyageID int64) (bool, error) {
+	voyage, err := h.q.GetVoyage(ctx, voyageID)
+	if err != nil {
+		return false, huma.Error500InternalServerError("failed to check document access")
+	}
+	err = requireAdminOrCaptain(ctx, h.q, voyage.CaptainPersonID)
+	if err == nil {
+		return true, nil
+	}
+	if status, ok := errors.AsType[huma.StatusError](err); ok && status.GetStatus() == http.StatusForbidden {
+		return false, nil
+	}
+	return false, err
+}
+
+func (h *VoyageOpinionHandler) visibleOpinions(ctx context.Context, voyageID int64, opinions []sqlcdb.ListVoyageVoyageOpinionsRow) ([]sqlcdb.ListVoyageVoyageOpinionsRow, error) {
+	user := middleware.GetUser(ctx)
+	if user == nil {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role == "admin" {
+		return opinions, nil
+	}
+	all, err := h.canReadVoyageOpinions(ctx, voyageID)
+	if err != nil {
+		return nil, err
+	}
+	if all {
+		return opinions, nil
+	}
+	person, err := h.q.GetCrewMemberByUserID(ctx, types.NullInt64{Int64: user.UserID, Valid: true})
+	if errors.Is(err, sql.ErrNoRows) {
+		return []sqlcdb.ListVoyageVoyageOpinionsRow{}, nil
+	}
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to check document access")
+	}
+	visible := []sqlcdb.ListVoyageVoyageOpinionsRow{}
+	for _, opinion := range opinions {
+		if opinion.CrewMemberID == person.ID {
+			visible = append(visible, opinion)
+		}
+	}
+	return visible, nil
+}
+
+func (h *VoyageOpinionHandler) authorizeOpinion(ctx context.Context, opinion sqlcdb.VoyageOpinion) error {
+	user := middleware.GetUser(ctx)
+	if user == nil {
+		return huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role == "admin" {
+		return nil
+	}
+	person, err := h.q.GetCrewMember(ctx, opinion.CrewMemberID)
+	if err != nil {
+		return huma.Error500InternalServerError("failed to check document access")
+	}
+	if person.UserID.Valid && person.UserID.Int64 == user.UserID {
+		return nil
+	}
+	allowed, err := h.canReadVoyageOpinions(ctx, opinion.VoyageID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return huma.Error403Forbidden("document access denied")
+	}
+	return nil
 }

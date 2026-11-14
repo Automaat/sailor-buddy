@@ -79,6 +79,9 @@ const updateProfileMock = updateProfile as unknown as ReturnType<typeof vi.fn>;
 function seededUser(patentType: string | undefined, patentNumber: string | undefined) {
 	return {
 		id: 1,
+		approved: true,
+		email_verified: true,
+		suspended: false,
 		email: 'jan@example.com',
 		name: 'Jan Kowalski',
 		first_name: 'Jan',
@@ -217,4 +220,12 @@ describe('profile person claim', () => {
 		expect(await screen.findByText(/Konto połączone z osobą/)).toBeTruthy();
 		expect(screen.queryByRole('button', { name: /To ja/ })).toBeNull();
 	});
+});
+
+it('keeps pending profile editing available without directory suggestions', async () => {
+	h.store.user = { ...(h.store.user as object), approved: false, email_verified: false };
+	render(ProfilePage);
+	expect(await screen.findByLabelText('Imię *')).toBeVisible();
+	expect(candidatesMock).not.toHaveBeenCalled();
+	expect(myRequestMock).not.toHaveBeenCalled();
 });

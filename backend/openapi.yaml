@@ -1,5 +1,23 @@
 components:
   schemas:
+    AccessBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/AccessBody.json
+          format: uri
+          readOnly: true
+          type: string
+        approved:
+          type: boolean
+        suspended:
+          type: boolean
+      required:
+        - approved
+        - suspended
+      type: object
     AssignTripBody:
       additionalProperties: false
       properties:
@@ -1181,10 +1199,14 @@ components:
           format: uri
           readOnly: true
           type: string
+        approved:
+          type: boolean
         avatar_url:
           type: string
         email:
           type: string
+        email_verified:
+          type: boolean
         first_name:
           type: string
         id:
@@ -1217,7 +1239,12 @@ components:
           type: string
         role:
           type: string
+        suspended:
+          type: boolean
       required:
+        - approved
+        - suspended
+        - email_verified
         - id
         - email
         - name
@@ -1232,6 +1259,8 @@ components:
     Member:
       additionalProperties: false
       properties:
+        approved:
+          type: boolean
         avatar_url:
           type: string
         created_at:
@@ -1263,7 +1292,11 @@ components:
           type: string
         role:
           type: string
+        suspended:
+          type: boolean
       required:
+        - approved
+        - suspended
         - id
         - name
         - email
@@ -3935,6 +3968,34 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: List club members
+      tags:
+        - Members
+  /members/{userID}/access:
+    put:
+      operationId: update-member-access
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema:
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessBody"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Approve or suspend an account (admin)
       tags:
         - Members
   /members/{userID}/captain:

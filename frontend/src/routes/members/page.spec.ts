@@ -7,7 +7,8 @@ vi.mock('#lib/api/routes.js', () => ({
 	listMembers: vi.fn(),
 	updateMemberRole: vi.fn(),
 	updateMemberCaptain: vi.fn(),
-	updateMemberMembership: vi.fn()
+	updateMemberMembership: vi.fn(),
+	updateMemberAccess: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
@@ -17,7 +18,8 @@ import {
 	listMembers,
 	updateMemberRole,
 	updateMemberCaptain,
-	updateMemberMembership
+	updateMemberMembership,
+	updateMemberAccess
 } from '#lib/api/routes.js';
 import MembersPage from './+page.svelte';
 
@@ -82,6 +84,7 @@ beforeEach(() => {
 	roleMock.mockReset().mockResolvedValue(undefined);
 	captainMock.mockReset().mockResolvedValue(undefined);
 	membershipMock.mockReset().mockResolvedValue(undefined);
+	vi.mocked(updateMemberAccess).mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -326,5 +329,30 @@ describe('members page: save feedback', () => {
 		await fireEvent.change(select, { target: { value: 'admin' } });
 		expect(await screen.findByRole('alert')).toHaveTextContent('Brak uprawnień');
 		expect(select.value).toBe('member');
+	});
+});
+
+describe('account approval controls', () => {
+	it('saves approval independently of membership', async () => {
+		await renderPage();
+		await fireEvent.change(screen.getByLabelText('Dostęp: Gość Nowy'), {
+			target: { value: 'pending' }
+		});
+		await waitFor(() =>
+			expect(updateMemberAccess).toHaveBeenCalledWith(6, { approved: false, suspended: false })
+		);
+		expect(membershipMock).not.toHaveBeenCalled();
+	});
+	it('restores the saved access after a rejected suspension', async () => {
+		vi.mocked(updateMemberAccess).mockRejectedValueOnce(new Error('Access denied'));
+		await renderPage();
+		const select = screen.getByLabelText('Dostęp: Gość Nowy');
+		await fireEvent.change(select, { target: { value: 'suspended' } });
+		await screen.findByText('Access denied');
+		expect(select).toHaveValue('approved');
+	});
+	it('prevents restricting an admin before demotion', async () => {
+		await renderPage();
+		expect(screen.getByLabelText('Dostęp: Kasia Admin')).toBeDisabled();
 	});
 });

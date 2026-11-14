@@ -10,11 +10,14 @@ import (
 )
 
 type Claims struct {
-	UserID    int64  `json:"user_id"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	AvatarUrl string `json:"avatar_url"`
-	Role      string `json:"role"`
+	Approved      bool   `json:"approved"`
+	Suspended     bool   `json:"suspended"`
+	EmailVerified bool   `json:"email_verified"`
+	UserID        int64  `json:"user_id"`
+	Email         string `json:"email"`
+	Name          string `json:"name"`
+	AvatarUrl     string `json:"avatar_url"`
+	Role          string `json:"role"`
 }
 
 func NewFirebaseAuth(ctx context.Context, projectID string) (*fbauth.Client, error) {
