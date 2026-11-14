@@ -8,12 +8,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 )
 
-// stubConnector hands out connections whose Ping returns pingErr.
-type stubConnector struct{ pingErr error }
+// stubConnector hands out connections whose Ping returns pingErr, or blocks
+// until its context ends when hang is set.
+type stubConnector struct {
+	pingErr error
+	hang    bool
+}
 
 func (c stubConnector) Connect(context.Context) (driver.Conn, error) {
 	return stubConn(c), nil
@@ -21,9 +26,18 @@ func (c stubConnector) Connect(context.Context) (driver.Conn, error) {
 
 func (stubConnector) Driver() driver.Driver { return nil }
 
-type stubConn struct{ pingErr error }
+type stubConn struct {
+	pingErr error
+	hang    bool
+}
 
-func (c stubConn) Ping(context.Context) error { return c.pingErr }
+func (c stubConn) Ping(ctx context.Context) error {
+	if c.hang {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return c.pingErr
+}
 
 func (stubConn) Prepare(string) (driver.Stmt, error) {
 	return nil, errors.New("not implemented")
@@ -50,6 +64,7 @@ func TestReadyz(t *testing.T) {
 		{"ping fails", sql.OpenDB(stubConnector{pingErr: errors.New("connection refused")}), http.StatusServiceUnavailable},
 		{"database closed", closed, http.StatusServiceUnavailable},
 		{"no database", nil, http.StatusServiceUnavailable},
+		{"ping hangs", sql.OpenDB(stubConnector{hang: true}), http.StatusServiceUnavailable},
 	}
 
 	for _, tc := range tests {
@@ -58,9 +73,13 @@ func TestReadyz(t *testing.T) {
 			r := NewRouter(tc.db, &config.Config{}, nil)
 
 			w := httptest.NewRecorder()
+			start := time.Now()
 			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody))
 			if w.Code != tc.want {
 				t.Errorf("GET /readyz = %d, want %d", w.Code, tc.want)
+			}
+			if elapsed := time.Since(start); elapsed > readyTimeout+time.Second {
+				t.Errorf("GET /readyz took %v, want at most %v", elapsed, readyTimeout+time.Second)
 			}
 
 			w = httptest.NewRecorder()

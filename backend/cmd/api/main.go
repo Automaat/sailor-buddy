@@ -22,24 +22,29 @@ import (
 // signal before the server closes their connections.
 const shutdownTimeout = 30 * time.Second
 
+// errStopped marks a startup step cut short by a stop signal: a requested
+// exit, not a failure.
+var errStopped = errors.New("stop signal received")
+
 func main() {
-	if err := run(); err != nil {
+	err := run()
+	switch {
+	case errors.Is(err, errStopped):
+		log.Print(err)
+	case err != nil:
 		log.Fatal(err)
 	}
 }
 
 func run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalContext()
 	defer stop()
-	// After the first signal, restore default handling so a second one kills
-	// the process instead of waiting for the drain.
-	context.AfterFunc(ctx, stop)
 
 	cfg := config.Load()
 
-	database, err := db.Open(cfg.DatabaseURL)
+	database, err := db.OpenContext(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return fmt.Errorf("open database: %w", err)
+		return startupError(ctx, "open database", err)
 	}
 	defer func() {
 		if err := database.Close(); err != nil {
@@ -47,8 +52,8 @@ func run() error {
 		}
 	}()
 
-	if err := db.Migrate(database); err != nil {
-		return fmt.Errorf("run migrations: %w", err)
+	if err := db.MigrateContext(ctx, database); err != nil {
+		return startupError(ctx, "run migrations", err)
 	}
 
 	fbClient, err := auth.NewFirebaseAuth(ctx, cfg.FirebaseProjectID)
@@ -63,6 +68,24 @@ func run() error {
 	srv := newServer(cfg.ListenAddr, api.NewRouter(database, cfg, fbClient))
 	log.Printf("listening on %s", ln.Addr())
 	return serve(ctx, srv, ln, shutdownTimeout)
+}
+
+// signalContext returns a context cancelled by SIGINT or SIGTERM. After the
+// first signal it restores default handling, so a second signal kills the
+// process instead of waiting for the drain.
+func signalContext() (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	context.AfterFunc(ctx, stop)
+	return ctx, stop
+}
+
+// startupError wraps a failed startup step, marking it errStopped when a stop
+// signal caused the failure.
+func startupError(ctx context.Context, step string, err error) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("%w during %s: %w", errStopped, step, err)
+	}
+	return fmt.Errorf("%s: %w", step, err)
 }
 
 // newServer builds the HTTP server with bounded timeouts. WriteTimeout covers
