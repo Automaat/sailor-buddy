@@ -240,7 +240,7 @@ func TestOpinionFormat(t *testing.T) {
 
 func TestRenderOpinionFile(t *testing.T) {
 	t.Run("docx renders bytes", func(t *testing.T) {
-		out, err := renderOpinionFile("docx", docgen.OpinionData{CrewMemberName: "Jan"})
+		out, err := renderOpinionFile(t.Context(), "docx", docgen.OpinionData{CrewMemberName: "Jan"})
 		if err != nil {
 			t.Fatalf("render docx: %v", err)
 		}
@@ -250,8 +250,16 @@ func TestRenderOpinionFile(t *testing.T) {
 	})
 
 	t.Run("unsupported format errors", func(t *testing.T) {
-		if _, err := renderOpinionFile("rtf", docgen.OpinionData{}); err == nil {
+		if _, err := renderOpinionFile(t.Context(), "rtf", docgen.OpinionData{}); err == nil {
 			t.Fatal("expected error for unsupported format")
+		}
+	})
+
+	t.Run("pdf stops on cancelled request", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := renderOpinionFile(ctx, "pdf", docgen.OpinionData{CrewMemberName: "Jan"}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("want context.Canceled, got %v", err)
 		}
 	})
 }
