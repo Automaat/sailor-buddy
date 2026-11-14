@@ -21,7 +21,7 @@ func TestMigrate_VoyageRouteKeepsExistingPorts(t *testing.T) {
 		VALUES ($1, 'Port A', 54.5, 18.5, 0)`, voyageID); err != nil {
 		t.Fatalf("insert port: %v", err)
 	}
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestMigrate_VoyageRouteKeepsExistingPorts(t *testing.T) {
 func TestVoyageRoute_NameOnlyPortsAndRecordFields(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ctx := context.Background()

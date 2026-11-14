@@ -52,7 +52,7 @@ func run() error {
 		}
 	}()
 
-	if err := db.MigrateContext(ctx, database); err != nil {
+	if err := db.Migrate(ctx, database); err != nil {
 		return startupError(ctx, "run migrations", err)
 	}
 

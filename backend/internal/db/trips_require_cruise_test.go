@@ -26,7 +26,7 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 	mustScan(t, conn.QueryRow(`INSERT INTO voyages (name, year, miles)
 		VALUES ('Rejs 2019', 2019, 120) RETURNING id`), &standaloneVoyage)
 
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 

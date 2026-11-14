@@ -18,7 +18,7 @@ func TestMigrate_SplitsUserNames(t *testing.T) {
 			t.Fatalf("insert %q: %v", name, err)
 		}
 	}
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -42,7 +42,7 @@ func TestMigrate_SplitsUserNames(t *testing.T) {
 func TestUserProfile_OnboardingKeepsName(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ctx := context.Background()
