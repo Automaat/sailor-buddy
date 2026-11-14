@@ -10,15 +10,18 @@ SELECT * FROM crew_members WHERE id = $1;
 
 -- name: ListCrewMembers :many
 -- A NULL search lists everyone; otherwise it matches a case-insensitive
--- substring of the name, any other name, or the e-mail.
+-- substring of the name, any other name, or the e-mail. A set after_id
+-- starts the page after the cursor's (full_name, id) sort key.
 SELECT * FROM crew_members
-WHERE sqlc.narg(search)::TEXT IS NULL
+WHERE (sqlc.narg(search)::TEXT IS NULL
    OR strpos(lower(full_name), lower(sqlc.narg(search)::TEXT)) > 0
    OR strpos(lower(COALESCE(email, '')), lower(sqlc.narg(search)::TEXT)) > 0
    OR EXISTS (
        SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
        WHERE strpos(lower(other.name), lower(sqlc.narg(search)::TEXT)) > 0
-   )
+   ))
+  AND (sqlc.narg(after_id)::BIGINT IS NULL
+   OR (full_name, id) > (sqlc.narg(after_name)::TEXT, sqlc.narg(after_id)::BIGINT))
 ORDER BY full_name, id
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 

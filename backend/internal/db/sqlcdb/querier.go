@@ -587,18 +587,21 @@ type Querier interface {
 	//  RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
 	// A NULL search lists everyone; otherwise it matches a case-insensitive
-	// substring of the name, any other name, or the e-mail.
+	// substring of the name, any other name, or the e-mail. A set after_id
+	// starts the page after the cursor's (full_name, id) sort key.
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
-	//  WHERE $1::TEXT IS NULL
+	//  WHERE ($1::TEXT IS NULL
 	//     OR strpos(lower(full_name), lower($1::TEXT)) > 0
 	//     OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
 	//     OR EXISTS (
 	//         SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
 	//         WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
-	//     )
+	//     ))
+	//    AND ($2::BIGINT IS NULL
+	//     OR (full_name, id) > ($3::TEXT, $2::BIGINT))
 	//  ORDER BY full_name, id
-	//  LIMIT $3 OFFSET $2
+	//  LIMIT $5 OFFSET $4
 	ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error)
 	//ListCruiseEnrollments
 	//
@@ -613,9 +616,13 @@ type Querier interface {
 	//  WHERE ce.cruise_id = $1
 	//  ORDER BY ce.created_at
 	ListCruiseEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseEnrollmentsRow, error)
-	//ListCruiseSeries
+	// A set after_id starts the page after the cursor's (name, id) sort key.
 	//
-	//  SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series ORDER BY name, id LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series
+	//  WHERE $1::BIGINT IS NULL
+	//     OR (name, id) > ($2::TEXT, $1::BIGINT)
+	//  ORDER BY name, id
+	//  LIMIT $4 OFFSET $3
 	ListCruiseSeries(ctx context.Context, arg ListCruiseSeriesParams) ([]CruiseSeries, error)
 	// Editions of a series newest first, each with the miles and hours summed
 	// over its voyages. An edition without an embark date (NULL, or the empty
@@ -658,9 +665,16 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
 	ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error)
-	//ListCruises
+	// A set after_id starts the page after the cursor's sort key. The keyset
+	// tuple sorts descending like the ORDER BY: a NULL embark_date last.
 	//
-	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises
+	//  WHERE $1::BIGINT IS NULL
+	//     OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
+	//      < ($2::TEXT IS NOT NULL,
+	//         COALESCE($2::TEXT, ''), $1::BIGINT)
+	//  ORDER BY embark_date DESC NULLS LAST, id DESC
+	//  LIMIT $4 OFFSET $3
 	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
 	//ListPendingPersonLinkRequests
 	//
@@ -694,9 +708,17 @@ type Querier interface {
 	//  ORDER BY email_match DESC, cm.full_name, cm.id
 	//  LIMIT 20
 	ListPersonClaimCandidates(ctx context.Context, arg ListPersonClaimCandidatesParams) ([]ListPersonClaimCandidatesRow, error)
-	//ListTrainings
+	// A set after_id starts the page after the cursor's sort key. The keyset
+	// tuple sorts descending like the ORDER BY: a NULL date first.
 	//
-	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT $2 OFFSET $3
+	//  SELECT id, user_id, date, name, organizer, cost, url, created_at, updated_at FROM trainings
+	//  WHERE user_id = $1
+	//    AND ($2::BIGINT IS NULL
+	//     OR (date IS NULL, COALESCE(date, ''), id)
+	//      < ($3::TEXT IS NULL,
+	//         COALESCE($3::TEXT, ''), $2::BIGINT))
+	//  ORDER BY date DESC, id DESC
+	//  LIMIT $5 OFFSET $4
 	ListTrainings(ctx context.Context, arg ListTrainingsParams) ([]Training, error)
 	//ListTripCrewAssignments
 	//
@@ -717,9 +739,16 @@ type Querier interface {
 	//  WHERE te.trip_id = $1
 	//  ORDER BY te.created_at
 	ListTripEnrollments(ctx context.Context, tripID int64) ([]ListTripEnrollmentsRow, error)
-	//ListTrips
+	// A set after_id starts the page after the cursor's sort key. The keyset
+	// tuple sorts like the ORDER BY: a NULL embark_date last, then by id.
 	//
-	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips
+	//  WHERE $1::BIGINT IS NULL
+	//     OR (embark_date IS NULL, COALESCE(embark_date, ''), id)
+	//      > ($2::TEXT IS NULL,
+	//         COALESCE($2::TEXT, ''), $1::BIGINT)
+	//  ORDER BY embark_date ASC, id ASC
+	//  LIMIT $4 OFFSET $3
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
 	// Cruises the user took part in: an accepted cruise or trip enrollment, a
 	// leg captained by the account's person, or a crew-list entry linked to the
@@ -811,13 +840,25 @@ type Querier interface {
 	//  WHERE vo.voyage_id = $1
 	//  ORDER BY cm.full_name
 	ListVoyageVoyageOpinions(ctx context.Context, voyageID int64) ([]ListVoyageVoyageOpinionsRow, error)
-	//ListVoyages
+	// A set after_id starts the page after the cursor's sort key. The keyset
+	// tuple sorts descending like the ORDER BY: a NULL year or embark_date first.
 	//
-	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages
+	//  WHERE $1::BIGINT IS NULL
+	//     OR (year IS NULL, COALESCE(year, 0), embark_date IS NULL, COALESCE(embark_date, ''), id)
+	//      < ($2::BIGINT IS NULL, COALESCE($2::BIGINT, 0),
+	//         $3::TEXT IS NULL,
+	//         COALESCE($3::TEXT, ''), $1::BIGINT)
+	//  ORDER BY year DESC, embark_date DESC, id DESC
+	//  LIMIT $5 OFFSET $4
 	ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error)
-	//ListYachts
+	// A set after_id starts the page after the cursor's (name, id) sort key.
 	//
-	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
+	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts
+	//  WHERE $1::BIGINT IS NULL
+	//     OR (name, id) > ($2::TEXT, $1::BIGINT)
+	//  ORDER BY name, id
+	//  LIMIT $4 OFFSET $3
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
 	// LockAdminRoles serializes role changes for the rest of the transaction.
 	// Run it as its own statement, before LockAdmins, so the admin set is read

@@ -85,10 +85,17 @@ func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, trainingIDParam
 			return memberScope(ctx)
 		},
 		list: func(ctx context.Context, scope crudScope, in *pageParams) ([]sqlcdb.Training, error) {
+			var key dateKey
+			ok, err := decodeCursor(in.After, &key)
+			if err != nil {
+				return nil, err
+			}
 			return q.ListTrainings(ctx, sqlcdb.ListTrainingsParams{
-				UserID: scope.userID,
-				Limit:  in.Limit,
-				Offset: in.Offset,
+				UserID:    scope.userID,
+				AfterID:   afterID(ok, key.ID),
+				AfterDate: afterNullText(key.Date),
+				RowLimit:  fetchLimit(in.Limit),
+				RowOffset: in.Offset,
 			})
 		},
 		count: func(ctx context.Context, scope crudScope, _ *pageParams) (int64, error) {
@@ -122,7 +129,8 @@ func trainingCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, trainingIDParam
 			return q.DeleteTraining(ctx, sqlcdb.DeleteTrainingParams{ID: in.ID, UserID: scope.userID})
 		},
 		listOutput: func(in *pageParams, rows []sqlcdb.Training, total int64) *trainingListOutput {
-			return &trainingListOutput{Body: dto.NewPage(dto.TrainingsFromDB(rows), total, in.Limit, in.Offset)}
+			return &trainingListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.TrainingsFromDB,
+				func(r sqlcdb.Training) any { return dateKey{Date: nullTextKey(r.Date), ID: r.ID} })}
 		},
 		itemOutput: func(row sqlcdb.Training) *trainingOutput {
 			return &trainingOutput{Body: dto.TrainingFromDB(row)}

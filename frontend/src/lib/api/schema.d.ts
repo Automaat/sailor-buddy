@@ -2041,6 +2041,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -2067,6 +2069,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -2093,6 +2097,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -2119,6 +2125,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -2145,6 +2153,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -2171,6 +2181,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -2197,6 +2209,8 @@ export interface components {
              * @description Maximum items returned in this window
              */
             limit: number;
+            /** @description Pass as after to fetch the next window; set when has_more is true */
+            next_cursor?: string;
             /**
              * Format: int64
              * @description Number of items skipped before this window
@@ -3183,6 +3197,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
                 /** @description Case-insensitive part of a name, other name or e-mail; blank lists everyone */
                 q?: string;
             };
@@ -3487,6 +3503,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
             };
             header?: never;
             path?: never;
@@ -4394,6 +4412,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
             };
             header?: never;
             path?: never;
@@ -4589,6 +4609,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
             };
             header?: never;
             path?: never;
@@ -4752,6 +4774,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
             };
             header?: never;
             path?: never;
@@ -5452,6 +5476,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
             };
             header?: never;
             path?: never;
@@ -6057,6 +6083,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of items to skip */
                 offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
             };
             header?: never;
             path?: never;

@@ -116,19 +116,34 @@ func (q *Queries) GetYacht(ctx context.Context, id int64) (Yacht, error) {
 }
 
 const listYachts = `-- name: ListYachts :many
-SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
+SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts
+WHERE $1::BIGINT IS NULL
+   OR (name, id) > ($2::TEXT, $1::BIGINT)
+ORDER BY name, id
+LIMIT $4 OFFSET $3
 `
 
 type ListYachtsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	AfterID   types.NullInt64  `json:"after_id"`
+	AfterName types.NullString `json:"after_name"`
+	RowOffset int32            `json:"row_offset"`
+	RowLimit  int32            `json:"row_limit"`
 }
 
-// ListYachts
+// A set after_id starts the page after the cursor's (name, id) sort key.
 //
-//	SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
+//	SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts
+//	WHERE $1::BIGINT IS NULL
+//	   OR (name, id) > ($2::TEXT, $1::BIGINT)
+//	ORDER BY name, id
+//	LIMIT $4 OFFSET $3
 func (q *Queries) ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error) {
-	rows, err := q.db.QueryContext(ctx, listYachts, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listYachts,
+		arg.AfterID,
+		arg.AfterName,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

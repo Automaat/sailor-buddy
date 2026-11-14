@@ -115,7 +115,15 @@ func seriesCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, seriesIDParam, cr
 			return adminScope(ctx)
 		},
 		list: func(ctx context.Context, _ crudScope, in *pageParams) ([]sqlcdb.CruiseSeries, error) {
-			return q.ListCruiseSeries(ctx, sqlcdb.ListCruiseSeriesParams{Limit: in.Limit, Offset: in.Offset})
+			var key nameKey
+			ok, err := decodeCursor(in.After, &key)
+			if err != nil {
+				return nil, err
+			}
+			return q.ListCruiseSeries(ctx, sqlcdb.ListCruiseSeriesParams{
+				AfterID: afterID(ok, key.ID), AfterName: afterText(ok, key.Name),
+				RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
+			})
 		},
 		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
 			return q.CountCruiseSeries(ctx)
@@ -141,7 +149,8 @@ func seriesCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, seriesIDParam, cr
 			return q.DeleteCruiseSeries(ctx, in.ID)
 		},
 		listOutput: func(in *pageParams, rows []sqlcdb.CruiseSeries, total int64) *seriesListOutput {
-			return &seriesListOutput{Body: dto.NewPage(dto.CruiseSeriesListFromDB(rows), total, in.Limit, in.Offset)}
+			return &seriesListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.CruiseSeriesListFromDB,
+				func(r sqlcdb.CruiseSeries) any { return nameKey{Name: r.Name, ID: r.ID} })}
 		},
 		itemOutput: func(row sqlcdb.CruiseSeries) *seriesOutput {
 			return &seriesOutput{Body: dto.CruiseSeriesFromDB(row)}

@@ -176,6 +176,33 @@ func voyageWriteErr(err error) error {
 	return err
 }
 
+// listVoyagePage lists one window of voyages, after the in.After cursor
+// when one is given.
+func listVoyagePage(ctx context.Context, q sqlcdb.Querier, in *pageParams) ([]sqlcdb.Voyage, error) {
+	var key voyageKey
+	ok, err := decodeCursor(in.After, &key)
+	if err != nil {
+		return nil, err
+	}
+	year := types.NullInt64{}
+	if key.Year != nil {
+		year = types.NullInt64{Int64: *key.Year, Valid: true}
+	}
+	return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{
+		AfterID: afterID(ok, key.ID), AfterYear: year, AfterEmbarkDate: afterNullText(key.Date),
+		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
+	})
+}
+
+// voyageCursor is a voyage's keyset sort key: (year, embark_date, id).
+func voyageCursor(r sqlcdb.Voyage) any {
+	k := voyageKey{Date: nullTextKey(r.EmbarkDate), ID: r.ID}
+	if r.Year.Valid {
+		k.Year = &r.Year.Int64
+	}
+	return k
+}
+
 func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
 	return crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
 		listScope: func(ctx context.Context, _ *pageParams) (crudScope, error) {
@@ -194,7 +221,7 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			return adminScope(ctx)
 		},
 		list: func(ctx context.Context, _ crudScope, in *pageParams) ([]sqlcdb.Voyage, error) {
-			return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{Limit: in.Limit, Offset: in.Offset})
+			return listVoyagePage(ctx, q, in)
 		},
 		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
 			return q.CountVoyages(ctx)
@@ -238,7 +265,7 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			return q.DeleteVoyage(ctx, in.ID)
 		},
 		listOutput: func(in *pageParams, rows []sqlcdb.Voyage, total int64) *voyageListOutput {
-			return &voyageListOutput{Body: dto.NewPage(dto.VoyagesFromDB(rows), total, in.Limit, in.Offset)}
+			return &voyageListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.VoyagesFromDB, voyageCursor)}
 		},
 		itemOutput: func(row sqlcdb.Voyage) *voyageOutput {
 			return &voyageOutput{Body: dto.VoyageFromDB(row)}

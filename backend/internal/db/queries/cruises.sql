@@ -14,7 +14,15 @@ INSERT INTO cruises (
 SELECT * FROM cruises WHERE id = $1;
 
 -- name: ListCruises :many
-SELECT * FROM cruises ORDER BY embark_date DESC NULLS LAST, id DESC LIMIT $1 OFFSET $2;
+-- A set after_id starts the page after the cursor's sort key. The keyset
+-- tuple sorts descending like the ORDER BY: a NULL embark_date last.
+SELECT * FROM cruises
+WHERE sqlc.narg(after_id)::BIGINT IS NULL
+   OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
+    < (sqlc.narg(after_embark_date)::TEXT IS NOT NULL,
+       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT)
+ORDER BY embark_date DESC NULLS LAST, id DESC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountCruises :one
 SELECT COUNT(*)::BIGINT FROM cruises;

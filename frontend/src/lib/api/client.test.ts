@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { jsonResponse } from '#lib/test-utils.js';
+import { jsonResponse, pagedListServer } from '#lib/test-utils.js';
 import type { Page } from './types';
 
 vi.mock('#lib/stores/auth.svelte.js', () => ({
@@ -163,6 +163,38 @@ describe('api.list pagination', () => {
 		expect(all.map((p) => p.id)).toEqual(Array.from({ length: 155 }, (_, i) => i));
 		expect(all.find((p) => p.id === 97)).toEqual({ id: 97, v: 'first' });
 		expect(fetchMock.mock.calls[1][0]).toBe('/api/crew?limit=100&offset=100');
+	});
+
+	it('resumes from next_cursor, so a delete before the boundary skips no row', async () => {
+		const server = pagedListServer(Array.from({ length: 160 }, (_, i) => ({ id: i + 1 })));
+		fetchMock.mockImplementation((url: string) => {
+			const res = server.respond(url);
+			// Another user deletes a row of the first page before the next request.
+			if (fetchMock.mock.calls.length === 1) server.remove(5);
+			return Promise.resolve(res);
+		});
+
+		const ids = (await api.list('/crew')).map((p) => p.id);
+
+		for (const id of server.ids()) expect(ids.filter((x) => x === id)).toHaveLength(1);
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+			'/api/crew?limit=100&offset=0',
+			'/api/crew?limit=100&after=100'
+		]);
+	});
+
+	it.each([
+		[100, 1],
+		[160, 2],
+		[200, 2],
+		[201, 3]
+	])('walks an unchanged list of %i rows in %i requests', async (rows, requests) => {
+		const server = pagedListServer(Array.from({ length: rows }, (_, i) => ({ id: i + 1 })));
+		fetchMock.mockImplementation((url: string) => Promise.resolve(server.respond(url)));
+
+		await expect(api.list('/yachts')).resolves.toHaveLength(rows);
+		expect(fetchMock).toHaveBeenCalledTimes(requests);
 	});
 
 	it('stops when a page returns no items even if has_more is true', async () => {

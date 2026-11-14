@@ -289,38 +289,51 @@ func (q *Queries) GetCrewMemberByUserID(ctx context.Context, userID types.NullIn
 
 const listCrewMembers = `-- name: ListCrewMembers :many
 SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
-WHERE $1::TEXT IS NULL
+WHERE ($1::TEXT IS NULL
    OR strpos(lower(full_name), lower($1::TEXT)) > 0
    OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
    OR EXISTS (
        SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
        WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
-   )
+   ))
+  AND ($2::BIGINT IS NULL
+   OR (full_name, id) > ($3::TEXT, $2::BIGINT))
 ORDER BY full_name, id
-LIMIT $3 OFFSET $2
+LIMIT $5 OFFSET $4
 `
 
 type ListCrewMembersParams struct {
 	Search    types.NullString `json:"search"`
+	AfterID   types.NullInt64  `json:"after_id"`
+	AfterName types.NullString `json:"after_name"`
 	RowOffset int32            `json:"row_offset"`
 	RowLimit  int32            `json:"row_limit"`
 }
 
 // A NULL search lists everyone; otherwise it matches a case-insensitive
-// substring of the name, any other name, or the e-mail.
+// substring of the name, any other name, or the e-mail. A set after_id
+// starts the page after the cursor's (full_name, id) sort key.
 //
 //	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
-//	WHERE $1::TEXT IS NULL
+//	WHERE ($1::TEXT IS NULL
 //	   OR strpos(lower(full_name), lower($1::TEXT)) > 0
 //	   OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
 //	   OR EXISTS (
 //	       SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
 //	       WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
-//	   )
+//	   ))
+//	  AND ($2::BIGINT IS NULL
+//	   OR (full_name, id) > ($3::TEXT, $2::BIGINT))
 //	ORDER BY full_name, id
-//	LIMIT $3 OFFSET $2
+//	LIMIT $5 OFFSET $4
 func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error) {
-	rows, err := q.db.QueryContext(ctx, listCrewMembers, arg.Search, arg.RowOffset, arg.RowLimit)
+	rows, err := q.db.QueryContext(ctx, listCrewMembers,
+		arg.Search,
+		arg.AfterID,
+		arg.AfterName,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -101,7 +101,15 @@ func RegisterTripRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 }
 
 func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput, error) {
-	trips, err := h.q.ListTrips(ctx, sqlcdb.ListTripsParams{Limit: in.Limit, Offset: in.Offset})
+	var key dateKey
+	ok, err := decodeCursor(in.After, &key)
+	if err != nil {
+		return nil, err
+	}
+	trips, err := h.q.ListTrips(ctx, sqlcdb.ListTripsParams{
+		AfterID: afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
+		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
+	})
 	if err != nil {
 		slog.Error("list trips", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
@@ -111,7 +119,8 @@ func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput
 		slog.Error("count trips", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
 	}
-	return &tripListOutput{Body: dto.NewPage(dto.TripsFromDB(trips), total, in.Limit, in.Offset)}, nil
+	return &tripListOutput{Body: buildPage(trips, total, in.Limit, in.Offset, dto.TripsFromDB,
+		func(r sqlcdb.Trip) any { return dateKey{Date: nullTextKey(r.EmbarkDate), ID: r.ID} })}, nil
 }
 
 func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripOutput, error) {

@@ -46,7 +46,15 @@ WHERE y.id = (SELECT t.yacht_id FROM trips t WHERE t.id = $1)
 FOR KEY SHARE OF y;
 
 -- name: ListTrips :many
-SELECT * FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2;
+-- A set after_id starts the page after the cursor's sort key. The keyset
+-- tuple sorts like the ORDER BY: a NULL embark_date last, then by id.
+SELECT * FROM trips
+WHERE sqlc.narg(after_id)::BIGINT IS NULL
+   OR (embark_date IS NULL, COALESCE(embark_date, ''), id)
+    > (sqlc.narg(after_embark_date)::TEXT IS NULL,
+       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT)
+ORDER BY embark_date ASC, id ASC
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountTrips :one
 SELECT COUNT(*)::BIGINT FROM trips;
