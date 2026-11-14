@@ -44,6 +44,9 @@
 		paid: 'bg-green-100 text-green-800'
 	};
 
+	// Each action reports the sign-up it started from, not the live prop: the
+	// reply may come after the parent has moved on to another leg, and the
+	// parent drops a reply for a leg it no longer shows.
 	async function run(action: () => Promise<void>, failure: string) {
 		busy = true;
 		error = '';
@@ -57,17 +60,19 @@
 	}
 
 	function signUpNow() {
+		const current = signUp;
 		return run(async () => {
-			const res = await signUpForTrip(signUp.trip_id);
-			onchange({ ...signUp, enrollment: res.enrollment, waitlist_position: res.waitlist_position });
+			const res = await signUpForTrip(current.trip_id);
+			onchange({ ...current, enrollment: res.enrollment, waitlist_position: res.waitlist_position });
 		}, 'Nie udało się zapisać');
 	}
 
 	function withdraw() {
+		const current = signUp;
 		return run(async () => {
-			await withdrawTripSignUp(signUp.trip_id);
+			await withdrawTripSignUp(current.trip_id);
 			editingNote = false;
-			onchange({ ...signUp, enrollment: undefined, waitlist_position: undefined });
+			onchange({ ...current, enrollment: undefined, waitlist_position: undefined });
 		}, 'Nie udało się wycofać zapisu');
 	}
 
@@ -78,10 +83,11 @@
 
 	function saveNote(e: Event) {
 		e.preventDefault();
+		const current = signUp;
 		return run(async () => {
-			const updated = await updateTripSignUpNote(signUp.trip_id, noteDraft);
+			const updated = await updateTripSignUpNote(current.trip_id, noteDraft);
 			editingNote = false;
-			onchange({ ...signUp, enrollment: updated });
+			onchange({ ...current, enrollment: updated });
 		}, 'Nie udało się zapisać notatki');
 	}
 </script>
