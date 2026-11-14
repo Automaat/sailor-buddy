@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
@@ -368,6 +369,7 @@ func (h *CrewHandler) previewMerge(ctx context.Context, in *previewCrewMergeInpu
 }
 
 func (h *CrewHandler) merge(ctx context.Context, in *mergeCrewInput) (*personMergeOutput, error) {
+	middleware.AuditTarget(ctx, "duplicate_id", in.Body.DuplicateID)
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}

@@ -172,6 +172,7 @@ func (h *PersonLinkHandler) mine(ctx context.Context, _ *struct{}) (*myLinkReque
 }
 
 func (h *PersonLinkHandler) create(ctx context.Context, in *createLinkRequestInput) (*linkRequestOutput, error) {
+	middleware.AuditTarget(ctx, "person_id", in.Body.PersonID)
 	u := middleware.GetUser(ctx)
 	if u == nil {
 		return nil, huma.Error401Unauthorized("not authenticated")
@@ -263,6 +264,8 @@ func (h *PersonLinkHandler) approve(ctx context.Context, in *linkRequestIDParam)
 		if err != nil {
 			return err
 		}
+		middleware.AuditTarget(ctx, "user_id", req.UserID)
+		middleware.AuditTarget(ctx, "person_id", req.PersonID)
 		result, err = linkAccount(ctx, q, req.UserID, req.PersonID)
 		if err != nil {
 			return err
@@ -289,6 +292,8 @@ func (h *PersonLinkHandler) reject(ctx context.Context, in *linkRequestIDParam) 
 		if err != nil {
 			return err
 		}
+		middleware.AuditTarget(ctx, "user_id", req.UserID)
+		middleware.AuditTarget(ctx, "person_id", req.PersonID)
 		return decideRequest(ctx, q, req.ID, linkRejected, adminID)
 	})
 	if err != nil {
@@ -299,6 +304,8 @@ func (h *PersonLinkHandler) reject(ctx context.Context, in *linkRequestIDParam) 
 }
 
 func (h *PersonLinkHandler) link(ctx context.Context, in *linkPersonInput) (*crewOutput, error) {
+	middleware.AuditTarget(ctx, "user_id", in.Body.UserID)
+	middleware.AuditTarget(ctx, "person_id", in.ID)
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
@@ -353,6 +360,8 @@ func (h *PersonLinkHandler) unlink(ctx context.Context, in *crewIDParam) (*crewO
 		if err != nil {
 			return &QueryError{Op: "GetUserByID", Err: err}
 		}
+		middleware.AuditTarget(ctx, "user_id", user.ID)
+		middleware.AuditTarget(ctx, "person_id", p.ID)
 		n, err := q.UnlinkCrewMember(ctx, sqlcdb.UnlinkCrewMemberParams{
 			AccountEmail: user.Email, ID: p.ID, UserID: p.UserID,
 		})
