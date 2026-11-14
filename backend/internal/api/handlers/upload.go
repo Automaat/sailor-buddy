@@ -78,10 +78,12 @@ func checkUploadsWritable(uploads *os.Root) error {
 //   - Symlinks, FIFOs and other entries are skipped, so the check never
 //     follows a link or blocks on a pipe.
 //   - An entry another process deletes or replaces during the walk counts as
-//     a pass. Its failure is ignored when the entry is gone or is no longer
-//     the same file afterwards, because the error then depends on the
-//     platform: Linux reports ENOENT for a file created in a removed
-//     directory, macOS reports EINVAL.
+//     a pass. ENOENT always means a path component was removed, never a
+//     permission failure. Any other failure is ignored when the entry is gone
+//     or is no longer the same file afterwards, because macOS reports EINVAL
+//     for a file created in a directory being removed. ext4 reuses inode
+//     numbers at once, so a recreated directory can look unchanged; Linux
+//     reports ENOENT there, which the first rule covers.
 func checkUploadEntry(uploads *os.Root, probeName, name string, d fs.DirEntry, err error) error {
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -105,7 +107,7 @@ func checkUploadEntry(uploads *os.Root, probeName, name string, d fs.DirEntry, e
 	} else {
 		err = openUploadForWrite(uploads, name)
 	}
-	if err == nil {
+	if err == nil || errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	after, statErr := uploads.Lstat(name)
