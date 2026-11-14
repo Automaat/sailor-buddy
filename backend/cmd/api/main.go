@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -90,14 +93,59 @@ func run() error {
 }
 
 // checkPDFRenderer renders one page at startup, so a container whose
-// seccomp profile blocks the Chromium sandbox shows up in the log at boot
-// rather than on the first PDF opinion.
+// seccomp or AppArmor settings block the Chromium sandbox shows up in the
+// log at boot rather than on the first PDF opinion.
 func checkPDFRenderer(ctx context.Context) {
 	_, err := docgen.GeneratePDF(ctx, []byte("<p>startup check</p>"))
 	if err != nil && ctx.Err() == nil {
-		log.Printf("PDF renderer unavailable, PDF opinions will fail "+
-			"(Docker needs --security-opt seccomp=backend/seccomp-chromium.json; see README): %v", err)
+		sandboxOff, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX"))
+		log.Printf("PDF renderer unavailable, PDF opinions will fail (%s): %v",
+			pdfRendererHint("/proc", sandboxOff), err)
 	}
+}
+
+// pdfRendererHint names the container settings most likely to block the
+// Chromium sandbox. procDir is the procfs mount, a parameter for tests.
+// sandboxOff reports SAILOR_CHROME_NO_SANDBOX; with the sandbox off neither
+// seccomp nor AppArmor can be the cause.
+//
+// Hosts with kernel.apparmor_restrict_unprivileged_userns=1 (Ubuntu 24.04+)
+// move an AppArmor-unconfined process into the unprivileged_userns profile
+// when Chromium creates its sandbox namespace, and the sandbox cannot start.
+// Docker's default AppArmor profile is not affected, so the fix is to drop
+// apparmor=unconfined. Docker's default seccomp profile blocks the namespace
+// before AppArmor sees it, so that hint also names the seccomp profile.
+func pdfRendererHint(procDir string, sandboxOff bool) string {
+	const seccompHint = "run with --security-opt seccomp=backend/seccomp-chromium.json"
+	switch {
+	case sandboxOff:
+		return "Chromium sandbox is off (SAILOR_CHROME_NO_SANDBOX); check CHROME_PATH"
+	case apparmorUnconfined(procDir) && userNSRestricted(procDir):
+		return "AppArmor restricts user namespaces on this host and the container " +
+			"runs unconfined: drop --security-opt apparmor=unconfined to keep " +
+			"Docker's default profile, and " + seccompHint + "; see README"
+	default:
+		return "Docker needs to " + seccompHint + "; see README"
+	}
+}
+
+// apparmorUnconfined reports whether this process runs without an AppArmor
+// profile. Newer kernels expose the label under attr/apparmor/.
+func apparmorUnconfined(procDir string) bool {
+	for _, name := range []string{"self/attr/apparmor/current", "self/attr/current"} {
+		b, err := os.ReadFile(filepath.Join(procDir, name))
+		if err == nil {
+			return strings.TrimRight(string(b), "\x00\n ") == "unconfined"
+		}
+	}
+	return false
+}
+
+// userNSRestricted reports whether AppArmor restricts unprivileged user
+// namespaces on this host.
+func userNSRestricted(procDir string) bool {
+	b, err := os.ReadFile(filepath.Join(procDir, "sys/kernel/apparmor_restrict_unprivileged_userns"))
+	return err == nil && strings.TrimSpace(string(b)) == "1"
 }
 
 // signalContext returns a context cancelled by SIGINT or SIGTERM. After the
