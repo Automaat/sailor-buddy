@@ -131,4 +131,4 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   compile, and an unstubbed call panics. Add a mock method and `fooFn`
   field only when a test needs to stub that query.
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
-- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only as a subdomain wildcard such as `https://*.example.com`, otherwise the API refuses to start)
+- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only in the first host label under a registrable domain, such as `https://*.example.com` or `https://app-*.example.com`, or as the port of a named host, such as `http://localhost:*`; otherwise the API refuses to start)
