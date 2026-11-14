@@ -21,6 +21,7 @@
 	import PortPicker from '#lib/components/PortPicker.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import { goto } from '$app/navigation';
+	import { errorMessage } from '#lib/api/errors.js';
 
 	// data comes from +page.ts, which reruns when the URL's voyage changes, so
 	// navigating between two voyages swaps every value derived from it.
@@ -70,6 +71,7 @@
 
 	let logOpen = $state(false);
 	let logError = $state('');
+	let deleteError = $state('');
 	let logForm = $state({
 		hours_total: 0,
 		hours_sail: 0,
@@ -92,6 +94,7 @@
 		assignRole = '';
 		logOpen = false;
 		logError = '';
+		deleteError = '';
 	});
 
 	// A request started on one voyage may answer after a link has moved the
@@ -153,7 +156,14 @@
 		if (!confirm('Usunąć ten rejs?')) return;
 		const voyageId = id;
 		const cruiseId = voyage.cruise_id;
-		await deleteVoyage(voyageId);
+		deleteError = '';
+		try {
+			await deleteVoyage(voyageId);
+		} catch (err) {
+			console.error('Failed to delete voyage:', err);
+			if (!leftVoyage(voyageId)) deleteError = `Nie udało się usunąć rejsu: ${errorMessage(err)}`;
+			return;
+		}
 		if (leftVoyage(voyageId)) return;
 		void goto(`/cruises/${cruiseId}`);
 	}
@@ -293,6 +303,10 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if deleteError}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
+	{/if}
 
 	<div class="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
 		<div class="rounded-xl bg-white p-4 shadow-sm">

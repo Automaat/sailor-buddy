@@ -22,6 +22,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 import {
 	getCrew,
 	updateCrew,
+	deleteCrew,
 	listCrew,
 	previewCrewMerge,
 	mergeCrew,
@@ -40,6 +41,7 @@ const updateMock = vi.mocked(updateCrew);
 const listMock = vi.mocked(listCrew);
 const previewMock = vi.mocked(previewCrewMerge);
 const mergeMock = vi.mocked(mergeCrew);
+const deleteMock = vi.mocked(deleteCrew);
 
 beforeEach(() => {
 	getMock.mockReset();
@@ -47,6 +49,7 @@ beforeEach(() => {
 	listMock.mockReset();
 	previewMock.mockReset();
 	mergeMock.mockReset();
+	deleteMock.mockReset().mockResolvedValue(undefined);
 	vi.mocked(goto).mockReset();
 });
 
@@ -304,5 +307,34 @@ describe('person page account link', () => {
 		expect(await screen.findByText('Odłączono konto.')).toBeTruthy();
 		expect(screen.getByText('bez konta')).toBeTruthy();
 		confirmSpy.mockRestore();
+	});
+
+	it('deletes a person without an account after confirmation', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/crew'));
+		expect(deleteMock).toHaveBeenCalledWith(4);
+		confirmSpy.mockRestore();
+	});
+
+	it('shows the error and keeps the person when deletion fails', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Ewa Maj' }));
+		deleteMock.mockRejectedValue(new ApiError(409, 'person has crew assignments'));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		render(PersonPage);
+		await fireEvent.click(await screen.findByRole('button', { name: 'Usuń' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się usunąć osoby: person has crew assignments'
+		);
+		expect(screen.getByRole('heading', { name: 'Ewa Maj' })).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'Usuń' })).toBeTruthy();
+		expect(goto).not.toHaveBeenCalled();
+		confirmSpy.mockRestore();
+		errorSpy.mockRestore();
 	});
 });
