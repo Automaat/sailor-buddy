@@ -4,9 +4,12 @@ Sailing cruise tracker and crew document generator.
 
 ## Stack
 
-- **Backend**: Go 1.25 + chi router + PostgreSQL 18 (pgx/v5) + sqlc
-- **Frontend**: SvelteKit 5 (Svelte 5 runes) + Tailwind CSS
+- **Backend**: Go + chi router + PostgreSQL 18 (pgx/v5) + sqlc
+- **Frontend**: SvelteKit + Svelte 5 (runes) + Tailwind CSS
 - **Auth**: Firebase ID tokens
+
+Tool versions (Go, Node, linters, codegen) are pinned in
+[`mise.toml`](mise.toml); run `mise install` to get them.
 
 ## Quick start
 
