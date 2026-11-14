@@ -72,9 +72,20 @@ async function signInAdmin(page: Page): Promise<void> {
 test.describe.serial('Single-club persona matrix', () => {
 	let memberToken = '';
 
+	test.afterEach(async ({ page }, testInfo) => {
+		if (testInfo.status !== testInfo.expectedStatus) {
+			console.info('Persona failure:', {
+				test: testInfo.title,
+				url: page.url(),
+				headings: await page.getByRole('heading').allTextContents(),
+				navigation: await page.locator('nav a').allTextContents()
+			});
+		}
+	});
+
 	test('setup: private bootstrap grants admin; signup stays member', async ({ page }) => {
 		await signInAdmin(page);
-		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
+		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute(
 			'href',
 			'/crew'
@@ -105,7 +116,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		memberToken = (await signInTestUser(memberEmail, PASSWORD)).idToken;
 	});
 
-	test('member: no members nav, cruises read-only, mutations 403', async ({ page }) => {
+	test('member: no people nav, cruises read-only, mutations 403', async ({ page }) => {
 		await loginViaUI(page, memberEmail, PASSWORD);
 
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
@@ -118,8 +129,10 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.goto('/cruises');
 		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(0);
 
-		// the members page redirects a non-admin away
+		// Legacy bookmarks retain the admin-only directory gate.
 		await page.goto('/members');
+		await page.waitForURL('/', { timeout: 10_000 });
+		await page.goto('/crew');
 		await page.waitForURL('/', { timeout: 10_000 });
 
 		expect(await mutationStatus(memberToken, 'POST', '/cruises', { name: 'X' })).toBe(403);
@@ -130,11 +143,24 @@ test.describe.serial('Single-club persona matrix', () => {
 		expect(await mutationStatus(memberToken, 'POST', '/crew', { full_name: 'X' })).toBe(403);
 	});
 
-	test('admin: sees the members roster', async ({ page }) => {
+	test('admin: old members URL opens people with account controls', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 		await page.goto('/members');
-		await expect(page.getByRole('heading', { name: 'Członkowie' })).toBeVisible();
-		await expect(page.getByText(memberEmail)).toBeVisible();
+		await page.waitForURL('/crew');
+		await expect(page.getByRole('heading', { name: 'Osoby' })).toBeVisible();
+		const memberRow = page.getByRole('row').filter({ hasText: memberEmail });
+		await expect(memberRow.getByRole('link', { name: 'Persona Member' })).toBeVisible();
+		await expect(memberRow.getByRole('combobox', { name: 'Dostęp: Persona Member' })).toHaveValue(
+			'approved'
+		);
+		await memberRow
+			.getByRole('combobox', { name: 'Członkostwo: Persona Member' })
+			.selectOption('sympatyk');
+		await expect(page.getByRole('status')).toContainText('Zapisano członkostwo: Persona Member');
+		await page.reload();
+		await expect(
+			memberRow.getByRole('combobox', { name: 'Członkostwo: Persona Member' })
+		).toHaveValue('sympatyk');
 	});
 
 	test('admin: creates a cruise', async ({ page }) => {

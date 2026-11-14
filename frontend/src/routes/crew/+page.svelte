@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
+	import { goto } from '$app/navigation';
 	import {
 		listMembers,
 		updateMemberRole,
@@ -75,6 +76,10 @@
 	$effect(() => {
 		if (auth.isAdmin) void loadMembers();
 		else members = [];
+	});
+
+	$effect(() => {
+		if (auth.user && !auth.isAdmin) void goto('/');
 	});
 
 	async function refreshPeople() {

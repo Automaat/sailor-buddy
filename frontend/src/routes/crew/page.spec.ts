@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { makePerson, makeMember } from '#lib/test-utils.js';
 
+vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('#lib/api/routes.js', () => ({
 	listCrew: vi.fn(),
 	listMembers: vi.fn(),
@@ -28,6 +29,8 @@ import {
 	rejectPersonLinkRequest
 } from '#lib/api/routes.js';
 import { ApiError } from '#lib/api/client.js';
+import { goto } from '$app/navigation';
+import { auth } from '#lib/stores/auth.svelte.js';
 import { linkRequests } from '#lib/stores/linkRequests.svelte.js';
 import PeoplePage from './+page.svelte';
 import { load } from './+page.js';
@@ -79,6 +82,8 @@ async function renderPage() {
 }
 
 beforeEach(() => {
+	Object.assign(auth, { isAdmin: true });
+	vi.mocked(goto).mockClear();
 	listMock.mockReset().mockResolvedValue(people());
 	vi.mocked(listMembers)
 		.mockReset()
@@ -208,6 +213,17 @@ describe('people page "To ja" requests', () => {
 });
 
 describe('combined people and accounts', () => {
+	it('redirects non-admins without loading account details or exposing controls', async () => {
+		Object.assign(auth, { isAdmin: false });
+
+		await renderPage();
+
+		expect(goto).toHaveBeenCalledWith('/');
+		expect(listMembers).not.toHaveBeenCalled();
+		expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: '+ Dodaj osobę' })).not.toBeInTheDocument();
+	});
+
 	it('joins accounts by user id and keeps the person link', async () => {
 		await renderPage();
 		const row = screen.getAllByTestId('person')[0];
