@@ -44,7 +44,7 @@ func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput)
 		ID:           voyage.ID,
 	}); err != nil {
 		if isForeignKeyViolation(err, "voyages_yacht_id_fkey") {
-			return nil, huma.Error422UnprocessableEntity("yacht not found")
+			return nil, yachtNotFound()
 		}
 		slog.Error("update voyage log", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update voyage log")
@@ -164,6 +164,18 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	}, h.delete)
 }
 
+// voyageWriteErr maps a voyage insert or update that references a captain
+// person or yacht deleted underneath it to a client error.
+func voyageWriteErr(err error) error {
+	switch {
+	case isForeignKeyViolation(err, "voyages_captain_person_id_fkey"):
+		return captainPersonNotFound()
+	case isForeignKeyViolation(err, "voyages_yacht_id_fkey"):
+		return yachtNotFound()
+	}
+	return err
+}
+
 func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
 	return crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
 		listScope: func(ctx context.Context, _ *pageParams) (crudScope, error) {
@@ -201,10 +213,7 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 				return sqlcdb.Voyage{}, err
 			}
 			voyage, err := q.CreateVoyage(ctx, params)
-			if isForeignKeyViolation(err, "voyages_captain_person_id_fkey") {
-				return sqlcdb.Voyage{}, captainPersonNotFound()
-			}
-			return voyage, err
+			return voyage, voyageWriteErr(err)
 		},
 		update: func(ctx context.Context, _ crudScope, in *updateVoyageInput) error {
 			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
@@ -223,11 +232,7 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			if err != nil {
 				return err
 			}
-			err = q.UpdateVoyage(ctx, params)
-			if isForeignKeyViolation(err, "voyages_captain_person_id_fkey") {
-				return captainPersonNotFound()
-			}
-			return err
+			return voyageWriteErr(q.UpdateVoyage(ctx, params))
 		},
 		delete: func(ctx context.Context, _ crudScope, in *voyageIDParam) error {
 			return q.DeleteVoyage(ctx, in.ID)
