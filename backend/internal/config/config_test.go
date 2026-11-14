@@ -17,7 +17,7 @@ func TestLoad_Defaults(t *testing.T) {
 		got  string
 		want string
 	}{
-		"DatabaseURL":       {cfg.DatabaseURL, "postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable"},
+		"DatabaseURL":       {cfg.DatabaseURL, ""},
 		"ListenAddr":        {cfg.ListenAddr, ":8080"},
 		"UploadDir":         {cfg.UploadDir, "uploads"},
 		"FirebaseProjectID": {cfg.FirebaseProjectID, "sailor-buddy-dev"},
@@ -134,6 +134,7 @@ func TestValidate_CORSOrigins(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SAILOR_DATABASE_URL", "postgres://custom:5432/db")
 			t.Setenv("CORS_ALLOWED_ORIGINS", tc.env)
 			err := Load().Validate()
 			if tc.wantErr != errors.Is(err, ErrWildcardCORSOrigin) {
@@ -141,6 +142,53 @@ func TestValidate_CORSOrigins(t *testing.T) {
 			}
 			if !tc.wantErr && err != nil {
 				t.Fatalf("Validate() = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestRequireDatabaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     string
+		want    string
+		wantErr error
+	}{
+		{"unset", "", "", ErrDatabaseURLUnset},
+		{"blank", "   ", "", ErrDatabaseURLUnset},
+		{"set", "postgres://custom:5432/db", "postgres://custom:5432/db", nil},
+		{"trims whitespace", " postgres://custom:5432/db ", "postgres://custom:5432/db", nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SAILOR_DATABASE_URL", tc.env)
+			got, err := RequireDatabaseURL()
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("RequireDatabaseURL() error = %v, want %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Errorf("RequireDatabaseURL() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidate_DatabaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     string
+		wantErr error
+	}{
+		{"unset", "", ErrDatabaseURLUnset},
+		{"blank", "  ", ErrDatabaseURLUnset},
+		{"set", "postgres://custom:5432/db", nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SAILOR_DATABASE_URL", tc.env)
+			t.Setenv("CORS_ALLOWED_ORIGINS", "")
+			if err := Load().Validate(); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Validate() = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}
