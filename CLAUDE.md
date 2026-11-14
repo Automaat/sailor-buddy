@@ -144,4 +144,6 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - `SAILOR_DATABASE_URL` has no default: `cmd/api`, `cmd/migrate` and
   `cmd/seed-dev` all migrate on start, so each exits before connecting when it
   is unset. `migrate` and `seed-dev` take only `-h`; any other argument exits 2.
+- `SAILOR_CHROME_NO_SANDBOX`: `true` turns off the Chromium sandbox for PDF
+  renders. Only the root dev container sets it; see README "Production image".
 - `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only in the first host label under a registrable domain, such as `https://*.example.com` or `https://app-*.example.com`, or as the port of a named host, such as `http://localhost:*`; otherwise the API refuses to start)

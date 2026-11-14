@@ -5,10 +5,15 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/chromedp/chromedp"
 )
 
 func stubRenderPDF(t *testing.T, fn func(context.Context, []byte) ([]byte, error)) {
@@ -168,6 +173,55 @@ func TestGeneratePDF_Chrome(t *testing.T) {
 	}
 	if p := peak.Load(); p > maxConcurrentPDFRenders {
 		t.Fatalf("peak concurrent Chromium renders = %d, want at most %d", p, maxConcurrentPDFRenders)
+	}
+}
+
+// TestChromeOptions_Sandboxed checks that renders keep the Chromium sandbox
+// on: chrome://sandbox reports every Linux sandbox layer in use.
+func TestChromeOptions_Sandboxed(t *testing.T) {
+	requireChrome(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("chrome://sandbox reports the Linux sandbox")
+	}
+	if off, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX")); off {
+		t.Skip("SAILOR_CHROME_NO_SANDBOX disables the sandbox")
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), pdfRenderTimeout)
+	defer cancel()
+	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, chromeOptions()...)
+	defer allocCancel()
+	ctx, cancel = chromedp.NewContext(allocCtx)
+	defer cancel()
+
+	if err := chromedp.Do(ctx, chromedp.Navigate("chrome://sandbox")); err != nil {
+		t.Fatalf("open chrome://sandbox: %v", err)
+	}
+	status, err := chromedp.Run(ctx, chromedp.Text("body"))
+	if err != nil {
+		t.Fatalf("read chrome://sandbox: %v", err)
+	}
+	if !strings.Contains(status, "You are adequately sandboxed.") {
+		t.Fatalf("Chromium is not sandboxed:\n%s", status)
+	}
+}
+
+// TestGeneratePDF_ChromeLongDocument renders a long page with a script, which
+// takes long enough for Chromium to start its GPU work. On Alpine arm64 a
+// sandboxed GPU process crashed here and aborted the browser.
+func TestGeneratePDF_ChromeLongDocument(t *testing.T) {
+	requireChrome(t)
+
+	html := "<script>document.title = 'Opinia'</script><h1>Opinia</h1>" +
+		strings.Repeat("<p>Rejs po Bałtyku: Polska, Dania, Szwecja, Niemcy.</p>", 1000)
+	for range 3 {
+		pdf, err := GeneratePDF(t.Context(), []byte(html))
+		if err != nil {
+			t.Fatalf("render failed: %v", err)
+		}
+		if !bytes.HasPrefix(pdf, []byte("%PDF")) {
+			t.Fatalf("output is not a PDF: %q", pdf[:min(len(pdf), 16)])
+		}
 	}
 }
 

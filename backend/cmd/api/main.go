@@ -17,6 +17,7 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
 )
 
 // shutdownTimeout bounds how long in-flight requests may run after a stop
@@ -75,6 +76,10 @@ func run() error {
 		}
 	}()
 
+	if os.Getenv("CHROME_PATH") != "" {
+		go checkPDFRenderer(ctx)
+	}
+
 	ln, err := net.Listen("tcp", cfg.ListenAddr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -82,6 +87,17 @@ func run() error {
 	srv := newServer(cfg.ListenAddr, api.NewRouter(database, cfg, fbClient, uploads))
 	log.Printf("listening on %s", ln.Addr())
 	return serve(ctx, srv, ln, shutdownTimeout)
+}
+
+// checkPDFRenderer renders one page at startup, so a container whose
+// seccomp profile blocks the Chromium sandbox shows up in the log at boot
+// rather than on the first PDF opinion.
+func checkPDFRenderer(ctx context.Context) {
+	_, err := docgen.GeneratePDF(ctx, []byte("<p>startup check</p>"))
+	if err != nil && ctx.Err() == nil {
+		log.Printf("PDF renderer unavailable, PDF opinions will fail "+
+			"(Docker needs --security-opt seccomp=backend/seccomp-chromium.json; see README): %v", err)
+	}
 }
 
 // signalContext returns a context cancelled by SIGINT or SIGTERM. After the

@@ -19,6 +19,29 @@ mise run dev-backend         # backend on :8080 (hot reload)
 mise run dev-frontend        # frontend on :5173
 ```
 
+## Production image
+
+`backend/Dockerfile` builds the API image. It runs as the unprivileged user
+`sailor` (UID and GID 10001) so Chromium renders PDF opinions with its
+sandbox on.
+
+- **Seccomp**: Docker's default seccomp profile blocks the namespaces the
+  Chromium sandbox needs, and PDF renders then fail with `chrome failed to
+  start`. The API logs `PDF renderer unavailable` at startup when that
+  happens. Run the container with
+  [`backend/seccomp-chromium.json`](backend/seccomp-chromium.json):
+  `--security-opt seccomp=backend/seccomp-chromium.json`, or
+  `security_opt: ["seccomp=backend/seccomp-chromium.json"]` in Compose. It is
+  Docker's default profile ([moby/profiles](https://github.com/moby/profiles)
+  `seccomp/v0.3.0`) plus one rule that allows `clone` and `unshare`.
+- **Uploads**: `SAILOR_UPLOAD_DIR` (default `/app/uploads`) must be
+  writable by UID 10001. A new named volume at `/app/uploads` gets that owner
+  from the image. A bind mount, or a volume written by an older root image,
+  needs `chown -R 10001:10001` on its files first. The API refuses to start
+  while any directory or file there is not writable.
+- `SAILOR_CHROME_NO_SANDBOX=true` turns the sandbox off. Only the dev image
+  in `docker-compose.yml` sets it, because it runs as root.
+
 ## Documentation
 
 - [`backend/API.md`](backend/API.md) — HTTP API reference: error envelope,
