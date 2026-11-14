@@ -26,6 +26,7 @@ Public endpoints (no token):
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /healthz` | Liveness probe, returns `200` with empty body |
+| `GET /readyz` | Readiness probe: pings Postgres (2 s timeout), returns `200`, or `503` when the database is unreachable |
 | `GET /api/enroll/{token}` | Enrollment preview — resolves a share token without auth |
 
 There is no `/auth/register` endpoint — account provisioning happens
