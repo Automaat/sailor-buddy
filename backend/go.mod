@@ -2,6 +2,8 @@ module github.com/marcinskalski/sailor-buddy/backend
 
 go 1.27
 
+toolchain go1.27.4
+
 require (
 	firebase.google.com/go/v4 v4.23.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
