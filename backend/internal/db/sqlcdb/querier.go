@@ -389,6 +389,16 @@ type Querier interface {
 	//    AND NOT EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = u.id)
 	//  ON CONFLICT (user_id) DO NOTHING
 	EnsureUserPerson(ctx context.Context, id int64) error
+	// GetAuthUserByFirebaseUID is the auth middleware's read-only lookup. One
+	// snapshot also reports whether the account has its person and whether any
+	// admin exists, so a known, unchanged account needs no write.
+	//
+	//  SELECT users.id, users.email, users.name, users.password_hash, users.avatar_url, users.firebase_uid, users.role, users.patent_type, users.patent_number, users.created_at, users.updated_at, users.is_captain, users.membership, users.first_name, users.last_name, users.phone, users.onboarded_at,
+	//    EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
+	//    EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
+	//  FROM users
+	//  WHERE users.firebase_uid = $1
+	GetAuthUserByFirebaseUID(ctx context.Context, firebaseUid types.NullString) (GetAuthUserByFirebaseUIDRow, error)
 	//GetCrewMember
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE id = $1

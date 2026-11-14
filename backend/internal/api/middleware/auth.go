@@ -85,6 +85,11 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 			name, _ := fbToken.Claims["name"].(string)
 
 			fbUID := types.NullString{String: fbToken.UID, Valid: true}
+			if user, ok := knownUser(r.Context(), q, fbUID, email, name); ok {
+				next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role)))
+				return
+			}
+
 			user, err := q.UpsertUserByFirebaseUID(r.Context(), sqlcdb.UpsertUserByFirebaseUIDParams{
 				Email:       email,
 				Name:        name,
@@ -124,17 +129,41 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 				return
 			}
 
-			claims := &auth.Claims{
-				UserID:    user.ID,
-				Email:     user.Email,
-				Name:      user.Name,
-				AvatarUrl: user.AvatarUrl.String,
-				Role:      firstAdminRole(r.Context(), q, db, user),
-			}
-			ctx := context.WithValue(r.Context(), UserCtxKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			role := firstAdminRole(r.Context(), q, db, user)
+			next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, role)))
 		})
 	}
+}
+
+// knownUser returns the stored account of fbUID when the request needs no
+// write: the upsert would keep the same email and name (a token name only
+// replaces a non-empty, not yet onboarded one), the account has its person,
+// and an admin exists, so first-user-admin has nothing to do. Any other
+// case, including a failed lookup, falls through to provisioning.
+func knownUser(ctx context.Context, q sqlcdb.Querier, fbUID types.NullString, email, name string) (sqlcdb.User, bool) {
+	row, err := q.GetAuthUserByFirebaseUID(ctx, fbUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Warn("look up user", "uid", fbUID.String, "err", err)
+		}
+		return sqlcdb.User{}, false
+	}
+	user := row.User
+	renamed := name != "" && !user.OnboardedAt.Valid && user.Name != name
+	if user.Email != email || renamed || !row.HasPerson || !row.AdminExists {
+		return sqlcdb.User{}, false
+	}
+	return user, true
+}
+
+func withClaims(ctx context.Context, user sqlcdb.User, role string) context.Context {
+	return context.WithValue(ctx, UserCtxKey, &auth.Claims{
+		UserID:    user.ID,
+		Email:     user.Email,
+		Name:      user.Name,
+		AvatarUrl: user.AvatarUrl.String,
+		Role:      role,
+	})
 }
 
 // firstAdminRole returns the user's role after first-user-admin: the first
