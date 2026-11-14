@@ -86,3 +86,38 @@ export function jsonResponse(body: unknown, init: { status?: number } = {}): Res
 		headers: new Headers()
 	} as Response;
 }
+
+// pagedListServer fakes a keyset-paged list endpoint over rows kept in id
+// order: `after` resumes after that id, else `offset` skips rows. remove()
+// deletes a row between two page requests, as another user's delete would.
+export function pagedListServer<T extends { id: number }>(rows: T[]) {
+	let live = [...rows];
+	return {
+		respond(url: string): Response {
+			const params = new URL(url, 'http://test').searchParams;
+			const limit = Number(params.get('limit') ?? 50);
+			const after = params.get('after');
+			let start = Number(params.get('offset') ?? 0);
+			if (after !== null) {
+				const i = live.findIndex((r) => r.id > Number(after));
+				start = i === -1 ? live.length : i;
+			}
+			const items = live.slice(start, start + limit);
+			const hasMore = start + limit < live.length;
+			return jsonResponse({
+				items,
+				total: live.length,
+				limit,
+				offset: start,
+				has_more: hasMore,
+				...(hasMore ? { next_cursor: String(items[items.length - 1].id) } : {})
+			});
+		},
+		remove(id: number) {
+			live = live.filter((r) => r.id !== id);
+		},
+		ids(): number[] {
+			return live.map((r) => r.id);
+		}
+	};
+}

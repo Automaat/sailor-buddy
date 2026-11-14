@@ -6,7 +6,12 @@ VALUES ($1, $2, $3) RETURNING *;
 SELECT * FROM cruise_series WHERE id = $1;
 
 -- name: ListCruiseSeries :many
-SELECT * FROM cruise_series ORDER BY name, id LIMIT $1 OFFSET $2;
+-- A set after_id starts the page after the cursor's (name, id) sort key.
+SELECT * FROM cruise_series
+WHERE sqlc.narg(after_id)::BIGINT IS NULL
+   OR (name, id) > (sqlc.narg(after_name)::TEXT, sqlc.narg(after_id)::BIGINT)
+ORDER BY name, id
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountCruiseSeries :one
 SELECT COUNT(*)::BIGINT FROM cruise_series;

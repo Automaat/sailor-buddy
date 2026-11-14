@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
-import { jsonResponse, makePerson } from '#lib/test-utils.js';
+import { jsonResponse, makePerson, pagedListServer } from '#lib/test-utils.js';
 
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { getIdToken: vi.fn(() => Promise.resolve('test-token')), logout: vi.fn() }
@@ -49,5 +49,25 @@ describe('CaptainSelect with a paged crew list', () => {
 		expect(screen.queryByRole('alert')).toBeNull();
 		expect(errors).not.toHaveBeenCalled();
 		errors.mockRestore();
+	});
+
+	it('lists every existing person when one is deleted between page requests', async () => {
+		const server = pagedListServer(Array.from({ length: 160 }, (_, i) => person(i + 1)));
+		let crewRequests = 0;
+		fetchMock.mockImplementation((url: string) => {
+			if (url.startsWith('/api/members')) return Promise.resolve(jsonResponse([]));
+			const res = server.respond(url);
+			if (++crewRequests === 1) server.remove(50);
+			return Promise.resolve(res);
+		});
+
+		render(CaptainSelect, { value: 0 });
+
+		await screen.findByRole('option', { name: 'Osoba 160' });
+		const values = within(screen.getByRole('combobox'))
+			.getAllByRole('option')
+			.map((o) => o.getAttribute('value'));
+		for (const id of server.ids()) expect(values).toContain(String(id));
+		expect(new Set(values).size).toBe(values.length);
 	});
 });

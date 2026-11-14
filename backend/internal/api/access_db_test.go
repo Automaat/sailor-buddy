@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	fbauth "firebase.google.com/go/v4/auth"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/handlers"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
@@ -177,6 +179,37 @@ func TestSensitiveDataAccess(t *testing.T) {
 			want := token == "captain" || token == "admin"
 			if rr.Code != 200 || contains != want {
 				t.Fatalf("directory status=%d exposed=%v want=%v", rr.Code, contains, want)
+			}
+
+			cursor := ""
+			seen := false
+			for range 20 {
+				rr = securityRequest(h, token, "GET", "/api/crew?limit=1&after="+url.QueryEscape(cursor), "")
+				var page dto.Page[dto.CrewMember]
+				if rr.Code != 200 {
+					t.Fatalf("page status=%d %s", rr.Code, rr.Body)
+				}
+				if err := json.Unmarshal(rr.Body.Bytes(), &page); err != nil {
+					t.Fatal(err)
+				}
+				for _, person := range page.Items {
+					if person.ID == subject {
+						seen = true
+						if (person.EmergencyContactPhone != nil) != want {
+							t.Fatalf("paginated contact exposed=%v want=%v", person.EmergencyContactPhone != nil, want)
+						}
+					}
+				}
+				if !page.HasMore {
+					break
+				}
+				if page.NextCursor == "" {
+					t.Fatal("missing next cursor")
+				}
+				cursor = page.NextCursor
+			}
+			if !seen {
+				t.Fatal("subject missing from paginated directory")
 			}
 			path := fmt.Sprintf("/api/crew/%d", subject)
 			rr = securityRequest(h, token, "GET", path, "")

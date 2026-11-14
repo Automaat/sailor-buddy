@@ -88,6 +88,10 @@ func (h *crudHandlers[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut,
 		return nil, err
 	}
 	rows, err := h.cfg.list(ctx, scope, in)
+	// A huma error, such as a malformed after cursor, is the client's fault.
+	if se := huma.StatusError(nil); errors.As(err, &se) {
+		return nil, err
+	}
 	if err != nil {
 		logCRUD(h.cfg.listLogMsg, h.cfg.listLogAttrs(scope, in), err)
 		return nil, huma.Error500InternalServerError(h.cfg.listClientMsg)

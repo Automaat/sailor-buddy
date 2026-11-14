@@ -155,7 +155,15 @@ func registerCruiseRoutes(api huma.API, h *CruiseHandler) {
 }
 
 func (h *CruiseHandler) list(ctx context.Context, in *pageParams) (*cruiseListOutput, error) {
-	cruises, err := h.q.ListCruises(ctx, sqlcdb.ListCruisesParams{Limit: in.Limit, Offset: in.Offset})
+	var key dateKey
+	ok, err := decodeCursor(in.After, &key)
+	if err != nil {
+		return nil, err
+	}
+	cruises, err := h.q.ListCruises(ctx, sqlcdb.ListCruisesParams{
+		AfterID: afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
+		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
+	})
 	if err != nil {
 		slog.Error("list cruises", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list cruises")
@@ -165,7 +173,8 @@ func (h *CruiseHandler) list(ctx context.Context, in *pageParams) (*cruiseListOu
 		slog.Error("count cruises", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list cruises")
 	}
-	return &cruiseListOutput{Body: dto.NewPage(dto.CruisesFromDB(cruises), total, in.Limit, in.Offset)}, nil
+	return &cruiseListOutput{Body: buildPage(cruises, total, in.Limit, in.Offset, dto.CruisesFromDB,
+		func(r sqlcdb.Cruise) any { return dateKey{Date: nullTextKey(r.EmbarkDate), ID: r.ID} })}, nil
 }
 
 func (h *CruiseHandler) get(ctx context.Context, in *cruiseIDParam) (*cruiseOutput, error) {

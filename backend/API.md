@@ -101,16 +101,17 @@ Notes:
 ## Pagination
 
 Top-level collection list endpoints (`GET /api/trips`, `/voyages`, `/yachts`,
-`/crew`, `/trainings`, `/cruises`, `/series`) are offset-paginated. They accept two
+`/crew`, `/trainings`, `/cruises`, `/series`) are paginated. They accept these
 query parameters:
 
 | Param | Default | Bounds | Meaning |
 |-------|---------|--------|---------|
 | `limit` | `50` | `1`–`100` | Maximum items in the response window |
-| `offset` | `0` | `>= 0` | Items skipped before the window |
+| `offset` | `0` | `>= 0` | Items skipped before the window (after the cursor, when `after` is set) |
+| `after` | — | — | A previous page's `next_cursor`: the window starts after that page's last item |
 
-Out-of-range values return `422`. The response is a page envelope, not a
-bare array:
+Out-of-range values and a malformed `after` cursor return `422`. The response
+is a page envelope, not a bare array:
 
 ```json
 {
@@ -118,12 +119,19 @@ bare array:
   "total": 327,
   "limit": 50,
   "offset": 100,
-  "has_more": true
+  "has_more": true,
+  "next_cursor": "eyJuIjoiQWxmYSIsImkiOjgxfQ"
 }
 ```
 
 `total` is the full match count; `has_more` is `true` when more rows exist
-beyond the window. `items` always serialises as `[]`, never `null`.
+beyond the window, and `next_cursor` is then set (it is omitted on the last
+page). `items` always serialises as `[]`, never `null`.
+
+To read a whole list, pass each page's `next_cursor` as `after`. The cursor
+carries the last item's sort key, so a row deleted before it shifts nothing;
+with `offset` a delete moves the next row into the previous window and it is
+never fetched. The cursor is opaque; do not build or parse it.
 
 Nested sub-resource lists (a trip's crew, a cruise's child trips/voyages,
 a series' editions, the members roster) are not paginated — they stay bare JSON arrays.

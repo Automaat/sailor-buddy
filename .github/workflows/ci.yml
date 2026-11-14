@@ -192,6 +192,8 @@ jobs:
             ~/.cache/go-build
           key: go-${{ runner.os }}-security-${{ hashFiles('mise.toml', 'backend/go.sum') }}
           restore-keys: go-${{ runner.os }}-security-
+      - name: Release version input regression tests
+        run: python3 .github/scripts/test_release_version.py
       - name: govulncheck
         working-directory: backend
         run: govulncheck ./...

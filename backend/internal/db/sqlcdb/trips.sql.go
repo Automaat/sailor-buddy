@@ -354,19 +354,39 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) 
 }
 
 const listTrips = `-- name: ListTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips
+WHERE $1::BIGINT IS NULL
+   OR (embark_date IS NULL, COALESCE(embark_date, ''), id)
+    > ($2::TEXT IS NULL,
+       COALESCE($2::TEXT, ''), $1::BIGINT)
+ORDER BY embark_date ASC, id ASC
+LIMIT $4 OFFSET $3
 `
 
 type ListTripsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	AfterID         types.NullInt64  `json:"after_id"`
+	AfterEmbarkDate types.NullString `json:"after_embark_date"`
+	RowOffset       int32            `json:"row_offset"`
+	RowLimit        int32            `json:"row_limit"`
 }
 
-// ListTrips
+// A set after_id starts the page after the cursor's sort key. The keyset
+// tuple sorts like the ORDER BY: a NULL embark_date last, then by id.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips ORDER BY embark_date ASC, id ASC LIMIT $1 OFFSET $2
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips
+//	WHERE $1::BIGINT IS NULL
+//	   OR (embark_date IS NULL, COALESCE(embark_date, ''), id)
+//	    > ($2::TEXT IS NULL,
+//	       COALESCE($2::TEXT, ''), $1::BIGINT)
+//	ORDER BY embark_date ASC, id ASC
+//	LIMIT $4 OFFSET $3
 func (q *Queries) ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error) {
-	rows, err := q.db.QueryContext(ctx, listTrips, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listTrips,
+		arg.AfterID,
+		arg.AfterEmbarkDate,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

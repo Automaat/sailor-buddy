@@ -390,19 +390,43 @@ func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]L
 }
 
 const listVoyages = `-- name: ListVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages
+WHERE $1::BIGINT IS NULL
+   OR (year IS NULL, COALESCE(year, 0), embark_date IS NULL, COALESCE(embark_date, ''), id)
+    < ($2::BIGINT IS NULL, COALESCE($2::BIGINT, 0),
+       $3::TEXT IS NULL,
+       COALESCE($3::TEXT, ''), $1::BIGINT)
+ORDER BY year DESC, embark_date DESC, id DESC
+LIMIT $5 OFFSET $4
 `
 
 type ListVoyagesParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	AfterID         types.NullInt64  `json:"after_id"`
+	AfterYear       types.NullInt64  `json:"after_year"`
+	AfterEmbarkDate types.NullString `json:"after_embark_date"`
+	RowOffset       int32            `json:"row_offset"`
+	RowLimit        int32            `json:"row_limit"`
 }
 
-// ListVoyages
+// A set after_id starts the page after the cursor's sort key. The keyset
+// tuple sorts descending like the ORDER BY: a NULL year or embark_date first.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages ORDER BY year DESC, embark_date DESC, id DESC LIMIT $1 OFFSET $2
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages
+//	WHERE $1::BIGINT IS NULL
+//	   OR (year IS NULL, COALESCE(year, 0), embark_date IS NULL, COALESCE(embark_date, ''), id)
+//	    < ($2::BIGINT IS NULL, COALESCE($2::BIGINT, 0),
+//	       $3::TEXT IS NULL,
+//	       COALESCE($3::TEXT, ''), $1::BIGINT)
+//	ORDER BY year DESC, embark_date DESC, id DESC
+//	LIMIT $5 OFFSET $4
 func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error) {
-	rows, err := q.db.QueryContext(ctx, listVoyages, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listVoyages,
+		arg.AfterID,
+		arg.AfterYear,
+		arg.AfterEmbarkDate,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
