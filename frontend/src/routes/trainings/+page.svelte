@@ -2,6 +2,7 @@
 	import { formatDate } from '#lib/dates.js';
 	import { createTraining, deleteTraining } from '#lib/api/routes.js';
 	import type { Training } from '#lib/api/types.js';
+	import { errorMessage } from '#lib/api/errors.js';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 
 	let { data } = $props();
@@ -12,6 +13,7 @@
 	let showForm = $state(false);
 	let form = $state({ name: '', date: '', organizer: '', cost: 0, url: '' });
 	let saving = $state(false);
+	let deleteError = $state('');
 
 	async function handleAdd(e: Event) {
 		e.preventDefault();
@@ -30,7 +32,14 @@
 
 	async function handleDelete(id: number) {
 		if (!confirm('Usunąć to szkolenie?')) return;
-		await deleteTraining(id);
+		deleteError = '';
+		try {
+			await deleteTraining(id);
+		} catch (err) {
+			console.error('Failed to delete training:', err);
+			deleteError = `Nie udało się usunąć szkolenia: ${errorMessage(err)}`;
+			return;
+		}
 		trainings = trainings.filter((t) => t.id !== id);
 	}
 </script>
@@ -105,6 +114,10 @@
 				{saving ? 'Dodawanie...' : 'Dodaj'}
 			</button>
 		</form>
+	{/if}
+
+	{#if deleteError}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
 	{/if}
 
 	{#if trainings.length === 0}
