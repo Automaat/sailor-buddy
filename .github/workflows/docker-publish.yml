@@ -30,27 +30,20 @@ jobs:
       - name: Resolve version
         id: version
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
-            LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
-          else
-            LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
-            if [ -z "$LATEST" ]; then
-              VERSION="v0.1.0"
-            else
-              MAJOR=$(echo "$LATEST" | cut -d. -f1)
-              MINOR=$(echo "$LATEST" | cut -d. -f2)
-              VERSION="${MAJOR}.$((MINOR + 1)).0"
-            fi
-          fi
+          LATEST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
+          VERSION=$(bash .github/scripts/release-version.sh "$INPUT_VERSION" "$LATEST")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prev_version=$LATEST" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git tag "${{ steps.version.outputs.version }}"
-          git push origin "${{ steps.version.outputs.version }}"
+          git tag -- "$RELEASE_VERSION"
+          git push origin "refs/tags/$RELEASE_VERSION"
 
   build-and-push:
     name: ${{ matrix.image }}
@@ -113,8 +106,9 @@ jobs:
 
       - name: Generate release notes
         shell: bash
+        env:
+          PREV: ${{ needs.prepare.outputs.prev_version }}
         run: |
-          PREV="${{ needs.prepare.outputs.prev_version }}"
           if [ -z "$PREV" ]; then
             RANGE="HEAD"
           else
@@ -129,7 +123,8 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          gh release create "${{ needs.prepare.outputs.version }}" \
-            --title "${{ needs.prepare.outputs.version }}" \
+          gh release create "$RELEASE_VERSION" \
+            --title "$RELEASE_VERSION" \
             --notes-file /tmp/release-notes.md
