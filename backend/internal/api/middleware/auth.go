@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -37,7 +38,10 @@ type TokenVerifier interface {
 	VerifyIDToken(ctx context.Context, idToken string) (*fbauth.Token, error)
 }
 
-func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Handler {
+// Auth verifies the Firebase ID token, provisions the account on first
+// sign-in and puts its claims on the request context. db runs the
+// first-admin promotion in a transaction of its own.
+func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			optional := optionalAuthPath(r)
@@ -120,28 +124,62 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Hand
 				return
 			}
 
-			// First-user-admin: the first account ever provisioned becomes the
-			// club admin. Self-healing — only fires while no admin exists.
-			role := user.Role
-			if role != "admin" {
-				if n, cerr := q.CountAdmins(r.Context()); cerr == nil && n == 0 {
-					if uerr := q.UpdateUserRole(r.Context(), sqlcdb.UpdateUserRoleParams{Role: "admin", ID: user.ID}); uerr == nil {
-						role = "admin"
-					}
-				}
-			}
-
 			claims := &auth.Claims{
 				UserID:    user.ID,
 				Email:     user.Email,
 				Name:      user.Name,
 				AvatarUrl: user.AvatarUrl.String,
-				Role:      role,
+				Role:      firstAdminRole(r.Context(), q, db, user),
 			}
 			ctx := context.WithValue(r.Context(), UserCtxKey, claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// firstAdminRole returns the user's role after first-user-admin: the first
+// account ever provisioned becomes the club admin. Self-healing — it only
+// promotes while no admin exists. A failed promotion keeps the stored role.
+func firstAdminRole(ctx context.Context, q sqlcdb.Querier, db *sql.DB, user sqlcdb.User) string {
+	if user.Role == "admin" {
+		return user.Role
+	}
+	if n, err := q.CountAdmins(ctx); err != nil || n != 0 {
+		return user.Role
+	}
+	promoted, err := promoteFirstAdmin(ctx, db, user.ID)
+	if err != nil {
+		slog.Error("promote first admin", "user_id", user.ID, "err", err)
+		return user.Role
+	}
+	if promoted {
+		return "admin"
+	}
+	return user.Role
+}
+
+// promoteFirstAdmin makes userID the club admin when no admin exists and
+// reports whether it did. The unlocked admin count in firstAdminRole is a
+// fast path only: two first sign-ins can both see zero, so this re-checks
+// under a transaction-scoped advisory lock and only one of them wins.
+func promoteFirstAdmin(ctx context.Context, db *sql.DB, userID int64) (bool, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	q := sqlcdb.New(tx)
+	if err := q.LockFirstAdmin(ctx); err != nil {
+		return false, err
+	}
+	n, err := q.PromoteIfNoAdmin(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return n == 1, nil
 }
 
 func GetUser(ctx context.Context) *auth.Claims {

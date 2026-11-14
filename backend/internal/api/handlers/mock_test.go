@@ -175,7 +175,7 @@ type mockQuerier struct {
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
 	listUsersFn            func(ctx context.Context) ([]sqlcdb.User, error)
 	countUsersFn           func(ctx context.Context) (int64, error)
-	countAdminsFn          func(ctx context.Context) (int64, error)
+	lockAdminsFn           func(ctx context.Context) ([]int64, error)
 }
 
 // --- trips ---
@@ -869,14 +869,26 @@ func (m *mockQuerier) CountUsers(ctx context.Context) (int64, error) {
 	return m.countUsersFn(ctx)
 }
 
-func (m *mockQuerier) CountAdmins(ctx context.Context) (int64, error) {
-	if m.countAdminsFn == nil {
-		panic("unexpected call to CountAdmins")
+func (m *mockQuerier) LockAdmins(ctx context.Context) ([]int64, error) {
+	if m.lockAdminsFn == nil {
+		panic("unexpected call to LockAdmins")
 	}
-	return m.countAdminsFn(ctx)
+	return m.lockAdminsFn(ctx)
 }
 
 // --- panics for things never set up in tests ---
+
+func (m *mockQuerier) CountAdmins(context.Context) (int64, error) {
+	panic("unexpected call to CountAdmins")
+}
+
+func (m *mockQuerier) LockFirstAdmin(context.Context) error {
+	panic("unexpected call to LockFirstAdmin")
+}
+
+func (m *mockQuerier) PromoteIfNoAdmin(context.Context, int64) (int64, error) {
+	panic("unexpected call to PromoteIfNoAdmin")
+}
 
 func (m *mockQuerier) CreateUser(context.Context, sqlcdb.CreateUserParams) (sqlcdb.User, error) {
 	panic("unexpected call to CreateUser")

@@ -804,6 +804,12 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name FROM yachts ORDER BY name, id LIMIT $1 OFFSET $2
 	ListYachts(ctx context.Context, arg ListYachtsParams) ([]Yacht, error)
+	// LockAdmins row-locks every admin, in id order so concurrent callers queue
+	// instead of deadlocking. A role change that runs it first in its
+	// transaction sees the admin set the previous change left behind.
+	//
+	//  SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE
+	LockAdmins(ctx context.Context) ([]int64, error)
 	// Holds the requested person while a request is created, so a concurrent
 	// link or merge either finishes first and is seen, or waits for the request.
 	//
@@ -872,6 +878,12 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR NO KEY UPDATE
 	LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([]LockCruiseTripStatusesRow, error)
+	// LockFirstAdmin serializes first-admin promotion for the rest of the
+	// transaction. Run it as its own statement, before PromoteIfNoAdmin, so
+	// the promotion reads a snapshot taken after the lock is held.
+	//
+	//  SELECT pg_advisory_xact_lock(hashtext('first-admin'))
+	LockFirstAdmin(ctx context.Context) error
 	// Locks the request, so a cancel or a second decision waits for this one
 	// and then finds it no longer pending.
 	//
@@ -978,6 +990,13 @@ type Querier interface {
 	//  UPDATE voyage_opinions SET crew_member_id = $1::BIGINT
 	//  WHERE crew_member_id = $2::BIGINT
 	MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinionsParams) (int64, error)
+	// PromoteIfNoAdmin makes the user admin only while the club has none; it
+	// reports 0 rows when an admin already exists.
+	//
+	//  UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+	//  WHERE users.id = $1
+	//    AND NOT EXISTS (SELECT 1 FROM users AS admins WHERE admins.role = 'admin')
+	PromoteIfNoAdmin(ctx context.Context, id int64) (int64, error)
 	// Takes a user's person off a trip's crew when the entry came from an
 	// accepted sign-up and the user no longer has any accepted sign-up for the
 	// trip, direct or through a cruise enrollment assigned to it.

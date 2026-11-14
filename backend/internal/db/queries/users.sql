@@ -61,6 +61,25 @@ SELECT COUNT(*)::BIGINT FROM users;
 -- name: CountAdmins :one
 SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin';
 
+-- LockAdmins row-locks every admin, in id order so concurrent callers queue
+-- instead of deadlocking. A role change that runs it first in its
+-- transaction sees the admin set the previous change left behind.
+-- name: LockAdmins :many
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE;
+
+-- LockFirstAdmin serializes first-admin promotion for the rest of the
+-- transaction. Run it as its own statement, before PromoteIfNoAdmin, so
+-- the promotion reads a snapshot taken after the lock is held.
+-- name: LockFirstAdmin :exec
+SELECT pg_advisory_xact_lock(hashtext('first-admin'));
+
+-- PromoteIfNoAdmin makes the user admin only while the club has none; it
+-- reports 0 rows when an admin already exists.
+-- name: PromoteIfNoAdmin :execrows
+UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+WHERE users.id = $1
+  AND NOT EXISTS (SELECT 1 FROM users AS admins WHERE admins.role = 'admin');
+
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY role, name, id;
 

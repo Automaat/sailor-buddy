@@ -15,7 +15,7 @@ import (
 func membersTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterMembersRoutes(api, m)
+	registerMembersRoutes(api, &MembersHandler{q: m, runTx: directTxRunner(m)})
 	return api
 }
 
@@ -49,6 +49,7 @@ func TestMembersHandler_UpdateRole(t *testing.T) {
 			getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 				return sqlcdb.User{ID: id, Role: "member"}, nil
 			},
+			lockAdminsFn:     func(context.Context) ([]int64, error) { return []int64{1}, nil },
 			updateUserRoleFn: func(context.Context, sqlcdb.UpdateUserRoleParams) error { return nil },
 		}
 		resp := membersTestAPI(t, m).PutCtx(userCtx(context.Background()),
@@ -89,7 +90,7 @@ func TestMembersHandler_UpdateRole(t *testing.T) {
 			getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 				return sqlcdb.User{ID: id, Role: "admin"}, nil
 			},
-			countAdminsFn: func(context.Context) (int64, error) { return 1, nil },
+			lockAdminsFn: func(context.Context) ([]int64, error) { return []int64{2}, nil },
 		}
 		resp := membersTestAPI(t, m).PutCtx(userCtx(context.Background()),
 			"/members/2/role", map[string]any{"role": "member"})
@@ -103,7 +104,7 @@ func TestMembersHandler_UpdateRole(t *testing.T) {
 			getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 				return sqlcdb.User{ID: id, Role: "admin"}, nil
 			},
-			countAdminsFn:    func(context.Context) (int64, error) { return 2, nil },
+			lockAdminsFn:     func(context.Context) ([]int64, error) { return []int64{1, 2}, nil },
 			updateUserRoleFn: func(context.Context, sqlcdb.UpdateUserRoleParams) error { return nil },
 		}
 		resp := membersTestAPI(t, m).PutCtx(userCtx(context.Background()),
@@ -113,12 +114,12 @@ func TestMembersHandler_UpdateRole(t *testing.T) {
 		}
 	})
 
-	t.Run("count admins error", func(t *testing.T) {
+	t.Run("lock admins error", func(t *testing.T) {
 		m := &mockQuerier{
 			getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 				return sqlcdb.User{ID: id, Role: "admin"}, nil
 			},
-			countAdminsFn: func(context.Context) (int64, error) { return 0, errors.New("fail") },
+			lockAdminsFn: func(context.Context) ([]int64, error) { return nil, errors.New("fail") },
 		}
 		resp := membersTestAPI(t, m).PutCtx(userCtx(context.Background()),
 			"/members/2/role", map[string]any{"role": "member"})
@@ -132,12 +133,28 @@ func TestMembersHandler_UpdateRole(t *testing.T) {
 			getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
 				return sqlcdb.User{ID: id, Role: "member"}, nil
 			},
+			lockAdminsFn:     func(context.Context) ([]int64, error) { return []int64{1}, nil },
 			updateUserRoleFn: func(context.Context, sqlcdb.UpdateUserRoleParams) error { return errors.New("fail") },
 		}
 		resp := membersTestAPI(t, m).PutCtx(userCtx(context.Background()),
 			"/members/2/role", map[string]any{"role": "admin"})
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
+		}
+	})
+
+	t.Run("demotes a non-admin while one admin remains", func(t *testing.T) {
+		m := &mockQuerier{
+			getUserByIDFn: func(_ context.Context, id int64) (sqlcdb.User, error) {
+				return sqlcdb.User{ID: id, Role: "member"}, nil
+			},
+			lockAdminsFn:     func(context.Context) ([]int64, error) { return []int64{1}, nil },
+			updateUserRoleFn: func(context.Context, sqlcdb.UpdateUserRoleParams) error { return nil },
+		}
+		resp := membersTestAPI(t, m).PutCtx(userCtx(context.Background()),
+			"/members/2/role", map[string]any{"role": "member"})
+		if resp.Code != http.StatusNoContent {
+			t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
 		}
 	})
 
@@ -151,7 +168,7 @@ func TestMembersHandler_UpdateRole(t *testing.T) {
 }
 
 func TestNewMembersHandler(t *testing.T) {
-	if NewMembersHandler(&mockQuerier{}) == nil {
+	if NewMembersHandler(&mockQuerier{}, nil) == nil {
 		t.Fatal("want non-nil handler")
 	}
 }

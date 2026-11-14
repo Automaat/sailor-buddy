@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -14,12 +15,17 @@ import (
 )
 
 type MembersHandler struct {
-	q sqlcdb.Querier
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewMembersHandler(q sqlcdb.Querier) *MembersHandler {
-	return &MembersHandler{q: q}
+func NewMembersHandler(q sqlcdb.Querier, db *sql.DB) *MembersHandler {
+	return &MembersHandler{q: q, runTx: retryDeadlock(sqlTxRunner(db))}
 }
+
+// errLastAdmin aborts a role change that would leave the club without an
+// admin.
+var errLastAdmin = errors.New("cannot demote the last admin")
 
 type membersListOutput struct {
 	Body []dto.Member
@@ -43,8 +49,11 @@ type updateMemberRoleInput struct {
 // RegisterMembersRoutes wires the club member roster onto the API. The roster
 // is visible to any member; role, captain-group and membership changes require
 // an admin.
-func RegisterMembersRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewMembersHandler(q)
+func RegisterMembersRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	registerMembersRoutes(api, NewMembersHandler(q, db))
+}
+
+func registerMembersRoutes(api huma.API, h *MembersHandler) {
 	tag := []string{"Members"}
 
 	huma.Register(api, huma.Operation{
@@ -122,22 +131,29 @@ func (h *MembersHandler) list(ctx context.Context, _ *struct{}) (*membersListOut
 }
 
 func (h *MembersHandler) updateRole(ctx context.Context, in *updateMemberRoleInput) (*noContentOutput, error) {
-	target, err := h.getTarget(ctx, in.UserID)
-	if err != nil {
+	if _, err := h.getTarget(ctx, in.UserID); err != nil {
 		return nil, err
 	}
-	// Refuse to demote the last admin — the club must always have one.
-	if target.Role == "admin" && in.Body.Role != "admin" {
-		count, err := h.q.CountAdmins(ctx)
+	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		// Lock the admin set before checking it, so concurrent demotions
+		// serialize and the later one counts the admins the earlier left.
+		admins, err := q.LockAdmins(ctx)
 		if err != nil {
-			slog.Error("count admins", "err", err)
-			return nil, huma.Error500InternalServerError("failed to check admins")
+			return &QueryError{Op: "LockAdmins", Err: err}
 		}
-		if count <= 1 {
-			return nil, huma.Error400BadRequest("cannot demote the last admin")
+		// Refuse to demote the last admin — the club must always have one.
+		if in.Body.Role != "admin" && len(admins) <= 1 && slices.Contains(admins, in.UserID) {
+			return errLastAdmin
 		}
+		if err := q.UpdateUserRole(ctx, sqlcdb.UpdateUserRoleParams{Role: in.Body.Role, ID: in.UserID}); err != nil {
+			return &QueryError{Op: "UpdateUserRole", Err: err}
+		}
+		return nil
+	})
+	if errors.Is(err, errLastAdmin) {
+		return nil, huma.Error400BadRequest(errLastAdmin.Error())
 	}
-	if err := h.q.UpdateUserRole(ctx, sqlcdb.UpdateUserRoleParams{Role: in.Body.Role, ID: in.UserID}); err != nil {
+	if err != nil {
 		slog.Error("update member role", "user_id", in.UserID, "role", in.Body.Role, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update role")
 	}

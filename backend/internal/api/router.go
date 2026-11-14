@@ -45,7 +45,7 @@ func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client) *chi.Mux
 
 	r.Route("/api", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.Auth(fbClient, q))
+			r.Use(middleware.Auth(fbClient, q, db))
 			registerHumaRoutes(humachi.New(r, humaConfig()), q, db, cfg.UploadDir)
 			mountStaticRoutes(r, cfg)
 		})
