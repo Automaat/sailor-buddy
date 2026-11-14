@@ -296,8 +296,9 @@ unknown yacht). An explicit `max_crew` is kept.
 
 `complete` returns `404` `trip not found or not in planned state` when the trip
 is missing or already completed/cancelled, and `409`
-`trip moved to another cruise; retry` or `trip captain changed; retry` when
-the trip keeps changing cruise or captain while it completes. `cancel`
+`trip moved to another cruise; retry`, `trip captain changed; retry` or
+`trip yacht changed; retry` when the trip keeps changing cruise, captain or
+yacht while it completes. `cancel`
 returns `404`
 `trip not found or invalid transition` likewise.
 
@@ -654,7 +655,7 @@ An edition without voyages reports zeros. Unknown series → 404.
 | POST | `/api/yachts` | **admin** | Create yacht | 201 |
 | GET | `/api/yachts/{id}` | member | Get yacht | 200 |
 | PUT | `/api/yachts/{id}` | **admin** | Update yacht | 204 |
-| DELETE | `/api/yachts/{id}` | **admin** | Delete yacht | 204 |
+| DELETE | `/api/yachts/{id}` | **admin** | Delete yacht; `409` while a trip or voyage uses it | 204 |
 
 Body — `name` required; the specs are optional:
 

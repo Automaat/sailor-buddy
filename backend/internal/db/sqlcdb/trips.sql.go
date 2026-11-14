@@ -459,6 +459,27 @@ func (q *Queries) LockTripCruise(ctx context.Context, id int64) (int64, error) {
 	return id_2, err
 }
 
+const lockTripYacht = `-- name: LockTripYacht :one
+SELECT y.id FROM yachts y
+WHERE y.id = (SELECT t.yacht_id FROM trips t WHERE t.id = $1)
+FOR KEY SHARE OF y
+`
+
+// Key-share-locks the trip's yacht. Trip completion takes it before the trip
+// lock, in the same order as deleting the yacht (the yacht, then the trips
+// foreign-key check), so the two cannot deadlock.
+// No row when the trip has no yacht or either is gone.
+//
+//	SELECT y.id FROM yachts y
+//	WHERE y.id = (SELECT t.yacht_id FROM trips t WHERE t.id = $1)
+//	FOR KEY SHARE OF y
+func (q *Queries) LockTripYacht(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockTripYacht, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const setTripEnrollToken = `-- name: SetTripEnrollToken :exec
 UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 `
