@@ -19,9 +19,27 @@ type Config struct {
 	CORSAllowedOrigins []string
 }
 
+// databaseURLEnv names the variable that selects the database. It has no
+// default: a fallback URL once let a stray `go run ./cmd/migrate -h` migrate
+// whatever Postgres listened on localhost:5432.
+const databaseURLEnv = "SAILOR_DATABASE_URL"
+
+// ErrDatabaseURLUnset reports that SAILOR_DATABASE_URL is empty, so a command
+// that would connect to the database must stop before opening a connection.
+var ErrDatabaseURLUnset = errors.New(databaseURLEnv + " is not set; set it to the Postgres URL of the database to use")
+
+// RequireDatabaseURL returns SAILOR_DATABASE_URL, or ErrDatabaseURLUnset when
+// it is empty or blank.
+func RequireDatabaseURL() (string, error) {
+	if v := strings.TrimSpace(os.Getenv(databaseURLEnv)); v != "" {
+		return v, nil
+	}
+	return "", ErrDatabaseURLUnset
+}
+
 func Load() *Config {
 	return &Config{
-		DatabaseURL:        getenv("SAILOR_DATABASE_URL", "postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable"),
+		DatabaseURL:        strings.TrimSpace(os.Getenv(databaseURLEnv)),
 		ListenAddr:         getenv("SAILOR_LISTEN_ADDR", ":8080"),
 		UploadDir:          getenv("SAILOR_UPLOAD_DIR", "uploads"),
 		FirebaseProjectID:  getenv("SAILOR_FIREBASE_PROJECT_ID", "sailor-buddy-dev"),
@@ -42,6 +60,9 @@ var ErrNullCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: "null" is not an allow
 
 // Validate reports settings the API server must not start with.
 func (c *Config) Validate() error {
+	if c.DatabaseURL == "" {
+		return ErrDatabaseURLUnset
+	}
 	for _, o := range c.CORSAllowedOrigins {
 		if strings.EqualFold(strings.TrimSpace(o), "null") {
 			return fmt.Errorf("%w: %q", ErrNullCORSOrigin, o)
