@@ -372,3 +372,78 @@ func TestYachtHandler_Specs(t *testing.T) {
 		}
 	})
 }
+
+func TestLegWriteWithUnknownYacht(t *testing.T) {
+	fkErr := func(constraint string) error {
+		return &pgconn.PgError{Code: "23503", ConstraintName: constraint}
+	}
+	body := map[string]any{"cruise_id": 1, "name": "Navigare", "yacht_id": 999}
+	withCrew := map[string]any{"cruise_id": 1, "name": "Navigare", "yacht_id": 999, "max_crew": 8}
+	tests := []struct {
+		name string
+		m    *mockQuerier
+		send func(*mockQuerier) int
+	}{
+		{
+			name: "trip create with crew limit",
+			m: &mockQuerier{createTripFn: func(context.Context, sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
+				return sqlcdb.Trip{}, fkErr("trips_yacht_id_fkey")
+			}},
+			send: func(m *mockQuerier) int {
+				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", withCrew).Code
+			},
+		},
+		{
+			name: "trip create with yacht deleted after lookup",
+			m: &mockQuerier{
+				getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) { return sqlcdb.Yacht{ID: id}, nil },
+				createTripFn: func(context.Context, sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
+					return sqlcdb.Trip{}, fkErr("trips_yacht_id_fkey")
+				},
+			},
+			send: func(m *mockQuerier) int {
+				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", body).Code
+			},
+		},
+		{
+			name: "trip update",
+			m: &mockQuerier{
+				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id, CruiseID: 1}, nil },
+				updateTripFn: func(context.Context, sqlcdb.UpdateTripParams) error {
+					return fkErr("trips_yacht_id_fkey")
+				},
+			},
+			send: func(m *mockQuerier) int {
+				return tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3", body).Code
+			},
+		},
+		{
+			name: "voyage create",
+			m: &mockQuerier{createVoyageFn: func(context.Context, sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
+				return sqlcdb.Voyage{}, fkErr("voyages_yacht_id_fkey")
+			}},
+			send: func(m *mockQuerier) int {
+				return voyageTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/voyages", body).Code
+			},
+		},
+		{
+			name: "voyage update",
+			m: &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				updateVoyageFn: func(context.Context, sqlcdb.UpdateVoyageParams) error {
+					return fkErr("voyages_yacht_id_fkey")
+				},
+			},
+			send: func(m *mockQuerier) int {
+				return voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/3", body).Code
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.send(tt.m); got != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422", got)
+			}
+		})
+	}
+}

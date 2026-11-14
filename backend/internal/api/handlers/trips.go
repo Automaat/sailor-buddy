@@ -175,6 +175,9 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
 			return nil, captainPersonNotFound()
 		}
+		if isForeignKeyViolation(err, "trips_yacht_id_fkey") {
+			return nil, yachtNotFound()
+		}
 		slog.Error("create trip", "name", in.Body.Name, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
@@ -210,7 +213,7 @@ func defaultMaxCrew(ctx context.Context, q sqlcdb.Querier, yachtID, maxCrew *int
 	yacht, err := q.GetYacht(ctx, *yachtID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return types.NullInt64{}, huma.Error422UnprocessableEntity("yacht not found")
+			return types.NullInt64{}, yachtNotFound()
 		}
 		slog.Error("get yacht for trip crew limit", "yacht_id", *yachtID, "err", err)
 		return types.NullInt64{}, huma.Error500InternalServerError("failed to create trip")
@@ -277,6 +280,9 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	}); err != nil {
 		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
 			return nil, captainPersonNotFound()
+		}
+		if isForeignKeyViolation(err, "trips_yacht_id_fkey") {
+			return nil, yachtNotFound()
 		}
 		slog.Error("update trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update trip")
