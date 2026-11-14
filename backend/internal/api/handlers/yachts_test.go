@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -382,15 +384,15 @@ func TestLegWriteWithUnknownYacht(t *testing.T) {
 	tests := []struct {
 		name string
 		m    *mockQuerier
-		send func(*mockQuerier) int
+		send func(*mockQuerier) *httptest.ResponseRecorder
 	}{
 		{
 			name: "trip create with crew limit",
 			m: &mockQuerier{createTripFn: func(context.Context, sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
 				return sqlcdb.Trip{}, fkErr("trips_yacht_id_fkey")
 			}},
-			send: func(m *mockQuerier) int {
-				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", withCrew).Code
+			send: func(m *mockQuerier) *httptest.ResponseRecorder {
+				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", withCrew)
 			},
 		},
 		{
@@ -401,8 +403,8 @@ func TestLegWriteWithUnknownYacht(t *testing.T) {
 					return sqlcdb.Trip{}, fkErr("trips_yacht_id_fkey")
 				},
 			},
-			send: func(m *mockQuerier) int {
-				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", body).Code
+			send: func(m *mockQuerier) *httptest.ResponseRecorder {
+				return tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", body)
 			},
 		},
 		{
@@ -413,8 +415,8 @@ func TestLegWriteWithUnknownYacht(t *testing.T) {
 					return fkErr("trips_yacht_id_fkey")
 				},
 			},
-			send: func(m *mockQuerier) int {
-				return tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3", body).Code
+			send: func(m *mockQuerier) *httptest.ResponseRecorder {
+				return tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3", body)
 			},
 		},
 		{
@@ -422,8 +424,8 @@ func TestLegWriteWithUnknownYacht(t *testing.T) {
 			m: &mockQuerier{createVoyageFn: func(context.Context, sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
 				return sqlcdb.Voyage{}, fkErr("voyages_yacht_id_fkey")
 			}},
-			send: func(m *mockQuerier) int {
-				return voyageTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/voyages", body).Code
+			send: func(m *mockQuerier) *httptest.ResponseRecorder {
+				return voyageTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/voyages", body)
 			},
 		},
 		{
@@ -434,15 +436,16 @@ func TestLegWriteWithUnknownYacht(t *testing.T) {
 					return fkErr("voyages_yacht_id_fkey")
 				},
 			},
-			send: func(m *mockQuerier) int {
-				return voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/3", body).Code
+			send: func(m *mockQuerier) *httptest.ResponseRecorder {
+				return voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/3", body)
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.send(tt.m); got != http.StatusUnprocessableEntity {
-				t.Fatalf("status = %d, want 422", got)
+			resp := tt.send(tt.m)
+			if resp.Code != http.StatusUnprocessableEntity || !strings.Contains(resp.Body.String(), "yacht not found") {
+				t.Fatalf("got %d %s, want 422 yacht not found", resp.Code, resp.Body)
 			}
 		})
 	}

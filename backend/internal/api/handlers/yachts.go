@@ -40,14 +40,14 @@ type yachtListOutput struct {
 	Body dto.Page[dto.Yacht]
 }
 
-// RegisterYachtRoutes wires the club yacht operations onto the API. Reads are
-// open to any member; mutations require an admin.
 // yachtNotFound rejects a trip or voyage write whose yacht does not exist,
 // including one deleted while the write ran.
 func yachtNotFound() error {
 	return huma.Error422UnprocessableEntity("yacht not found")
 }
 
+// RegisterYachtRoutes wires the club yacht operations onto the API. Reads are
+// open to any member; mutations require an admin.
 func RegisterYachtRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewYachtHandler(q)
 	tag := []string{"Yachts"}
