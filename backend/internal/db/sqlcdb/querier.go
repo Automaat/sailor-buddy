@@ -393,7 +393,7 @@ type Querier interface {
 	// snapshot also reports whether the account has its person and whether any
 	// admin exists, so a known, unchanged account needs no write.
 	//
-	//  SELECT users.id, users.email, users.name, users.password_hash, users.avatar_url, users.firebase_uid, users.role, users.patent_type, users.patent_number, users.created_at, users.updated_at, users.is_captain, users.membership, users.first_name, users.last_name, users.phone, users.onboarded_at,
+	//  SELECT users.id, users.email, users.name, users.avatar_url, users.firebase_uid, users.role, users.patent_type, users.patent_number, users.created_at, users.updated_at, users.is_captain, users.membership, users.first_name, users.last_name, users.phone, users.onboarded_at,
 	//    EXISTS (SELECT 1 FROM crew_members cm WHERE cm.user_id = users.id)::BOOLEAN AS has_person,
 	//    EXISTS (SELECT 1 FROM users admins WHERE admins.role = 'admin')::BOOLEAN AS admin_exists
 	//  FROM users
