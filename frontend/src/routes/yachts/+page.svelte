@@ -49,7 +49,7 @@
 				engine: form.engine || undefined,
 				owner_name: form.owner_name || undefined
 			});
-			yachts = [...yachts, yacht];
+			if (!yachts.some((y) => y.id === yacht.id)) yachts = [...yachts, yacht];
 			form = emptyForm();
 			showForm = false;
 		} catch (err) {
