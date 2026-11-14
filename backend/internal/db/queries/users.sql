@@ -61,6 +61,34 @@ SELECT COUNT(*)::BIGINT FROM users;
 -- name: CountAdmins :one
 SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin';
 
+-- LockAdminRoles serializes role changes for the rest of the transaction.
+-- Run it as its own statement, before LockAdmins, so the admin set is read
+-- from a snapshot taken after the previous role change committed.
+-- name: LockAdminRoles :exec
+SELECT pg_advisory_xact_lock(hashtext('admin-roles'));
+
+-- LockAdmins row-locks every admin, in id order. NO KEY UPDATE still
+-- blocks other role writes but not foreign-key checks on admin rows (e.g.
+-- decided_by), which would otherwise deadlock with a concurrent link.
+-- name: LockAdmins :many
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE;
+
+-- LockFirstAdmin serializes first-admin promotion for the rest of the
+-- transaction. Run it as its own statement, before PromoteIfNoAdmin, so
+-- the promotion reads a snapshot taken after the lock is held.
+-- name: LockFirstAdmin :exec
+SELECT pg_advisory_xact_lock(hashtext('first-admin'));
+
+-- PromoteIfNoAdmin makes the user admin only while no other user is; it
+-- reports 0 rows when another admin exists. Ignoring the user itself lets
+-- a second concurrent first request of the promoted account report admin.
+-- name: PromoteIfNoAdmin :execrows
+UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+WHERE users.id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+  );
+
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY role, name, id;
 

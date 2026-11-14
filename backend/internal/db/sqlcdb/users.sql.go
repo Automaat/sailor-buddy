@@ -273,6 +273,91 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const lockAdminRoles = `-- name: LockAdminRoles :exec
+SELECT pg_advisory_xact_lock(hashtext('admin-roles'))
+`
+
+// LockAdminRoles serializes role changes for the rest of the transaction.
+// Run it as its own statement, before LockAdmins, so the admin set is read
+// from a snapshot taken after the previous role change committed.
+//
+//	SELECT pg_advisory_xact_lock(hashtext('admin-roles'))
+func (q *Queries) LockAdminRoles(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, lockAdminRoles)
+	return err
+}
+
+const lockAdmins = `-- name: LockAdmins :many
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE
+`
+
+// LockAdmins row-locks every admin, in id order. NO KEY UPDATE still
+// blocks other role writes but not foreign-key checks on admin rows (e.g.
+// decided_by), which would otherwise deadlock with a concurrent link.
+//
+//	SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR NO KEY UPDATE
+func (q *Queries) LockAdmins(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, lockAdmins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockFirstAdmin = `-- name: LockFirstAdmin :exec
+SELECT pg_advisory_xact_lock(hashtext('first-admin'))
+`
+
+// LockFirstAdmin serializes first-admin promotion for the rest of the
+// transaction. Run it as its own statement, before PromoteIfNoAdmin, so
+// the promotion reads a snapshot taken after the lock is held.
+//
+//	SELECT pg_advisory_xact_lock(hashtext('first-admin'))
+func (q *Queries) LockFirstAdmin(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, lockFirstAdmin)
+	return err
+}
+
+const promoteIfNoAdmin = `-- name: PromoteIfNoAdmin :execrows
+UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+WHERE users.id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+  )
+`
+
+// PromoteIfNoAdmin makes the user admin only while no other user is; it
+// reports 0 rows when another admin exists. Ignoring the user itself lets
+// a second concurrent first request of the promoted account report admin.
+//
+//	UPDATE users SET role = 'admin', updated_at = CURRENT_TIMESTAMP
+//	WHERE users.id = $1
+//	  AND NOT EXISTS (
+//	    SELECT 1 FROM users AS admins WHERE admins.role = 'admin' AND admins.id <> $1
+//	  )
+func (q *Queries) PromoteIfNoAdmin(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, promoteIfNoAdmin, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateUser = `-- name: UpdateUser :exec
 UPDATE users SET name = $1, email = $2, avatar_url = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4
 `
