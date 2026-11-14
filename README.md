@@ -76,3 +76,9 @@ cd frontend && npm run format   # prettier --write
 
 ESLint keeps `svelte/no-navigation-without-resolve` off: the app is served at
 the site root with no `paths.base`, so `resolve()` would not change any URL.
+
+## Initial administrator
+
+Normal sign-in creates a member account and never promotes it. Sign in once with the trusted account, copy its exact UID from the Firebase console, and run `bootstrap-admin` privately with `SAILOR_DATABASE_URL` and `SAILOR_BOOTSTRAP_FIREBASE_UID` set through your secret manager. The production image includes `/app/bootstrap-admin`; local development can use `cd backend && mise exec -- go run ./cmd/bootstrap-admin`.
+
+Run database migrations before bootstrap. The command requires an existing account with that exact UID, never links by email, and refuses to add another administrator if one exists. Repeating it for an already-admin account succeeds without changing accounts. Existing admins and normal role management are preserved. `-h` prints help without connecting. Never expose this command as an HTTP endpoint.

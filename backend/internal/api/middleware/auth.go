@@ -39,9 +39,8 @@ type TokenVerifier interface {
 }
 
 // Auth verifies the Firebase ID token, provisions the account on first
-// sign-in and puts its claims on the request context. db runs the
-// first-admin promotion in a transaction of its own.
-func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handler) http.Handler {
+// sign-in and puts its stored role on the request context.
+func Auth(fbClient TokenVerifier, q sqlcdb.Querier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			optional := optionalAuthPath(r)
@@ -133,8 +132,7 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 				return
 			}
 
-			role := firstAdminRole(r.Context(), q, db, user)
-			next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, role)))
+			next.ServeHTTP(w, r.WithContext(withClaims(r.Context(), user, user.Role)))
 		})
 	}
 }
@@ -142,8 +140,8 @@ func Auth(fbClient TokenVerifier, q sqlcdb.Querier, db *sql.DB) func(http.Handle
 // knownUser returns the stored account of fbUID when the request needs no
 // write: the upsert would keep the same email and name (a token name only
 // replaces a non-empty, not yet onboarded one), the account has its person,
-// and an admin exists, so first-user-admin has nothing to do. Any other
-// case, including a failed lookup, falls through to provisioning.
+// and no profile change is needed. Any other case, including a failed
+// lookup, falls through to provisioning.
 func knownUser(ctx context.Context, q sqlcdb.Querier, fbUID types.NullString, email, name string) (sqlcdb.User, bool) {
 	row, err := q.GetAuthUserByFirebaseUID(ctx, fbUID)
 	if err != nil {
@@ -154,7 +152,7 @@ func knownUser(ctx context.Context, q sqlcdb.Querier, fbUID types.NullString, em
 	}
 	user := row.User
 	renamed := name != "" && !user.OnboardedAt.Valid && user.Name != name
-	if user.Email != email || renamed || !row.HasPerson || !row.AdminExists {
+	if user.Email != email || renamed || !row.HasPerson {
 		return sqlcdb.User{}, false
 	}
 	return user, true
@@ -209,56 +207,6 @@ func withClaims(ctx context.Context, user sqlcdb.User, role string) context.Cont
 		AvatarUrl: user.AvatarUrl.String,
 		Role:      role,
 	})
-}
-
-// firstAdminRole returns the user's role after first-user-admin: the first
-// account ever provisioned becomes the club admin. Self-healing — it only
-// promotes while no admin exists. A failed promotion keeps the stored role.
-//
-// user.Role may be stale: a concurrent first request of the same account
-// can promote it after user was read. The fast path therefore ignores the
-// user, so that case still reaches PromoteIfNoAdmin, which ignores it too
-// and reports the promotion.
-func firstAdminRole(ctx context.Context, q sqlcdb.Querier, db *sql.DB, user sqlcdb.User) string {
-	if user.Role == "admin" {
-		return user.Role
-	}
-	if n, err := q.CountOtherAdmins(ctx, user.ID); err != nil || n != 0 {
-		return user.Role
-	}
-	promoted, err := promoteFirstAdmin(ctx, db, user.ID)
-	if err != nil {
-		slog.Error("promote first admin", "user_id", user.ID, "err", err)
-		return user.Role
-	}
-	if promoted {
-		return "admin"
-	}
-	return user.Role
-}
-
-// promoteFirstAdmin makes userID the club admin when no admin exists and
-// reports whether it did. The unlocked admin count in firstAdminRole is a
-// fast path only: two first sign-ins can both see zero, so this re-checks
-// under a transaction-scoped advisory lock and only one of them wins.
-func promoteFirstAdmin(ctx context.Context, db *sql.DB, userID int64) (bool, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = tx.Rollback() }()
-	q := sqlcdb.New(tx)
-	if err := q.LockFirstAdmin(ctx); err != nil {
-		return false, err
-	}
-	n, err := q.PromoteIfNoAdmin(ctx, userID)
-	if err != nil {
-		return false, err
-	}
-	if err := tx.Commit(); err != nil {
-		return false, err
-	}
-	return n == 1, nil
 }
 
 func GetUser(ctx context.Context) *auth.Claims {

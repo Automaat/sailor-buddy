@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
 	createTestUser,
+	bootstrapTestAdmin,
 	registerViaUI,
 	loginViaUI,
 	submitLoginForm,
@@ -12,13 +13,8 @@ import {
 	TEST_PASSWORD
 } from './helpers';
 
-// Single-club role model. The first account ever provisioned auto-becomes the
-// club admin; every account after is a regular member. This is the source of
-// truth for the role feature — it covers the persona matrix (admin vs member)
-// and the admin's cruise/trip/voyage lifecycle in one serial run so the
-// "first user" admin assumption stays deterministic.
-//
-// Runs against a freshly migrated database (no seed) — see .github/workflows/e2e.yml.
+// Runs against a freshly migrated local database without seed data.
+// Suite admin registration stays in the UI; privilege is granted privately.
 
 const RUN_ID = Date.now().toString(36);
 const PASSWORD = TEST_PASSWORD;
@@ -49,21 +45,16 @@ async function mutationStatus(
 	return res.status;
 }
 
-/**
- * Registers the suite admin through the UI so it is the first account the
- * backend provisions, which auto-promotes it to admin. A retry of this serial
- * group signs in to the account the failed attempt created instead: the
- * backend cannot link a re-registered email, and e2e/global-setup.ts clears
- * the emulator only once per run. If that attempt did not finish onboarding,
- * the retry fills the onboarding form in the UI again, so a broken form fails
- * every attempt.
- */
 async function signInAdmin(page: Page): Promise<void> {
 	const existing = await signInTestUser(adminEmail, PASSWORD).catch(() => null);
 	if (!existing) {
 		await registerViaUI(page, adminName, adminEmail, PASSWORD);
+		const account = await signInTestUser(adminEmail, PASSWORD);
+		bootstrapTestAdmin(account.localId);
+		await page.reload();
 		return;
 	}
+	bootstrapTestAdmin(existing.localId);
 	const me = (await apiRequest(existing.idToken, 'GET', '/auth/me')) as { onboarded: boolean };
 	if (me.onboarded) {
 		await loginViaUI(page, adminEmail, PASSWORD);
@@ -76,7 +67,7 @@ async function signInAdmin(page: Page): Promise<void> {
 test.describe.serial('Single-club persona matrix', () => {
 	let memberToken = '';
 
-	test('setup: first user becomes admin, second becomes member', async ({ page }) => {
+	test('setup: private bootstrap grants admin; signup stays member', async ({ page }) => {
 		await signInAdmin(page);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(1);
 		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute(

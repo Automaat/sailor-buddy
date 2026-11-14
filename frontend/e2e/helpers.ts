@@ -1,4 +1,6 @@
 import { type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const FIREBASE_EMULATOR = process.env.FIREBASE_AUTH_EMULATOR_URL || 'http://localhost:9099';
 const FIREBASE_PROJECT = process.env.FIREBASE_PROJECT_ID || 'sailor-buddy-dev';
@@ -130,13 +132,24 @@ export function uniqueEmail(prefix = 'e2e'): string {
 	return `${prefix}-${Date.now()}-${++userCounter}@test.local`;
 }
 
-// The club admin of this suite run. The backend makes the first account it
-// provisions the admin, so persona-access.spec.ts registers this account
-// first and later specs sign in as it. playwright.config.ts fixes the run ID
-// for every worker.
+// The suite provisions its admin through the private CLI after UI registration.
+// Every worker shares the run ID supplied by playwright.config.ts.
 const SUITE_ID = process.env.E2E_SUITE_ID || Date.now().toString(36);
 export const TEST_PASSWORD = 'TestPass123!';
+
 export const SUITE_ADMIN = {
 	email: `pa-admin-${SUITE_ID}@test.local`,
 	name: 'Persona Admin'
 };
+
+export function bootstrapTestAdmin(uid: string): void {
+	const dsn = process.env.SAILOR_DATABASE_URL;
+	if (!dsn || !['localhost', '127.0.0.1', '[::1]'].includes(new URL(dsn).hostname)) {
+		throw new Error('E2E admin bootstrap requires SAILOR_DATABASE_URL on a local test database');
+	}
+	execFileSync('go', ['run', './cmd/bootstrap-admin'], {
+		cwd: fileURLToPath(new URL('../../backend/', import.meta.url)),
+		env: { ...process.env, SAILOR_BOOTSTRAP_FIREBASE_UID: uid },
+		stdio: 'pipe'
+	});
+}
