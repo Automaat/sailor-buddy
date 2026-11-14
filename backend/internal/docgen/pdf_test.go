@@ -5,10 +5,15 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/chromedp/chromedp"
 )
 
 func stubRenderPDF(t *testing.T, fn func(context.Context, []byte) ([]byte, error)) {
@@ -168,6 +173,36 @@ func TestGeneratePDF_Chrome(t *testing.T) {
 	}
 	if p := peak.Load(); p > maxConcurrentPDFRenders {
 		t.Fatalf("peak concurrent Chromium renders = %d, want at most %d", p, maxConcurrentPDFRenders)
+	}
+}
+
+// TestChromeOptions_Sandboxed checks that renders keep the Chromium sandbox
+// on: chrome://sandbox reports every Linux sandbox layer in use.
+func TestChromeOptions_Sandboxed(t *testing.T) {
+	requireChrome(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("chrome://sandbox reports the Linux sandbox")
+	}
+	if off, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX")); off {
+		t.Skip("SAILOR_CHROME_NO_SANDBOX disables the sandbox")
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), pdfRenderTimeout)
+	defer cancel()
+	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, chromeOptions()...)
+	defer allocCancel()
+	ctx, cancel = chromedp.NewContext(allocCtx)
+	defer cancel()
+
+	if err := chromedp.Do(ctx, chromedp.Navigate("chrome://sandbox")); err != nil {
+		t.Fatalf("open chrome://sandbox: %v", err)
+	}
+	status, err := chromedp.Run(ctx, chromedp.Text("body"))
+	if err != nil {
+		t.Fatalf("read chrome://sandbox: %v", err)
+	}
+	if !strings.Contains(status, "You are adequately sandboxed.") {
+		t.Fatalf("Chromium is not sandboxed:\n%s", status)
 	}
 }
 

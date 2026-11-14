@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -51,18 +52,27 @@ func GeneratePDF(ctx context.Context, htmlBytes []byte) ([]byte, error) {
 	return renderPDF(ctx, htmlBytes)
 }
 
-// renderPDFWithChrome starts a Chromium tied to ctx, so cancelling ctx kills
-// the browser process.
-func renderPDFWithChrome(ctx context.Context, htmlBytes []byte) ([]byte, error) {
+// chromeOptions returns the Chromium flags for a render. The Chromium sandbox
+// stays on unless SAILOR_CHROME_NO_SANDBOX is true. Chromium cannot sandbox
+// itself as root, so only a container running as root (the dev image) sets
+// it; an unset or invalid value keeps the sandbox on.
+func chromeOptions() []chromedp.ExecAllocatorOption {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-gpu", true),
 	)
+	if noSandbox, _ := strconv.ParseBool(os.Getenv("SAILOR_CHROME_NO_SANDBOX")); noSandbox {
+		opts = append(opts, chromedp.NoSandbox)
+	}
 	if p := os.Getenv("CHROME_PATH"); p != "" {
 		opts = append(opts, chromedp.ExecPath(p))
 	}
+	return opts
+}
 
-	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
+// renderPDFWithChrome starts a Chromium tied to ctx, so cancelling ctx kills
+// the browser process.
+func renderPDFWithChrome(ctx context.Context, htmlBytes []byte) ([]byte, error) {
+	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, chromeOptions()...)
 	defer allocCancel()
 
 	ctx, cancel := chromedp.NewContext(allocCtx)
