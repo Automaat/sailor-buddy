@@ -18,7 +18,7 @@ import (
 func TestCruisePricing_RoundTrip(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
-	if err := Migrate(conn); err != nil {
+	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	ctx := context.Background()

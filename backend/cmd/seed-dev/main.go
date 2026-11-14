@@ -56,7 +56,7 @@ func run() error {
 		}
 	}()
 
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(ctx, database); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 

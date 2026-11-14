@@ -51,7 +51,7 @@ func freshDB(t *testing.T) *sql.DB {
 		t.Fatalf("open test db: %v", err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	if err := db.Migrate(conn); err != nil {
+	if err := db.Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return conn

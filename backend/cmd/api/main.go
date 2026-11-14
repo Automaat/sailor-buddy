@@ -20,6 +20,7 @@ func main() {
 }
 
 func run() error {
+	ctx := context.Background()
 	cfg := config.Load()
 
 	database, err := db.Open(cfg.DatabaseURL)
@@ -32,11 +33,10 @@ func run() error {
 		}
 	}()
 
-	if err := db.Migrate(database); err != nil {
+	if err := db.Migrate(ctx, database); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 
-	ctx := context.Background()
 	fbClient, err := auth.NewFirebaseAuth(ctx, cfg.FirebaseProjectID)
 	if err != nil {
 		return fmt.Errorf("init firebase auth: %w", err)
