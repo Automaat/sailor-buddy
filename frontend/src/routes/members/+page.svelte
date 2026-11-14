@@ -5,7 +5,8 @@
 		listMembers,
 		updateMemberRole,
 		updateMemberCaptain,
-		updateMemberMembership
+		updateMemberMembership,
+		updateMemberAccess
 	} from '#lib/api/routes.js';
 	import type { Member } from '#lib/api/types.js';
 	import { filterCounts, filterMembers, memberFilters, type MemberFilter } from '#lib/members.js';
@@ -162,14 +163,32 @@
 		);
 		if (ok) patch(member.id, { membership });
 	}
+	async function setAccess(member: Member, value: string, el: HTMLSelectElement) {
+		const change = { approved: value === 'approved', suspended: value === 'suspended' };
+		const ok = await save(
+			member,
+			() => updateMemberAccess(member.id, change),
+			`Zapisano dostęp: ${member.name}`,
+			'Nie udało się zmienić dostępu',
+			() => {
+				el.value = stored(member).suspended
+					? 'suspended'
+					: stored(member).approved
+						? 'approved'
+						: 'pending';
+			}
+		);
+		if (ok) patch(member.id, change);
+	}
 </script>
 
 <div>
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold text-[var(--navy)]">Członkowie</h1>
 		<p class="mt-1 text-sm text-[var(--text-muted)]">
-			Każdy zalogowany użytkownik dołącza automatycznie. Administratorzy (zarząd i opiekun)
-			zarządzają danymi klubu, a kapitanowie z kadry uzupełniają raporty po swoich rejsach.
+			Dostęp do danych klubu wymaga potwierdzenia adresu e-mail i zatwierdzenia konta.
+			Administratorzy (zarząd i opiekun) zarządzają danymi klubu, a kapitanowie z kadry uzupełniają
+			raporty po swoich rejsach.
 		</p>
 	</div>
 
@@ -247,6 +266,7 @@
 						<tr class="border-b text-left text-[var(--text-muted)]">
 							<th class="p-4">Imię i nazwisko</th>
 							<th class="p-4">E-mail</th>
+							<th class="p-4">Dostęp do konta</th>
 							<th class="p-4">Rola</th>
 							<th class="p-4">Członkostwo</th>
 							<th class="p-4">Kadra kapitańska</th>
@@ -269,6 +289,22 @@
 									{/if}
 								</td>
 								<td class="p-4 text-[var(--text-muted)]">{member.email}</td>
+								<td class="p-4"
+									><select
+										aria-label="Dostęp: {member.name}"
+										disabled={busy || member.role === 'admin'}
+										value={member.suspended
+											? 'suspended'
+											: member.approved
+												? 'approved'
+												: 'pending'}
+										onchange={(e) => setAccess(member, e.currentTarget.value, e.currentTarget)}
+										class="rounded-lg border px-2 py-1 text-xs"
+										><option value="pending">Oczekuje</option><option value="approved"
+											>Zatwierdzone</option
+										><option value="suspended">Zawieszone</option></select
+									></td
+								>
 								<td class="p-4">
 									<select
 										aria-label="Rola: {member.name}"

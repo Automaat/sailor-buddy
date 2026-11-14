@@ -136,3 +136,16 @@ func TestAuth_KnownAccountUsesLookupOnly(t *testing.T) {
 		t.Errorf("claims = %+v, want %+v", *got, want)
 	}
 }
+
+func TestSuspendedAccountIsNotProvisioned(t *testing.T) {
+	q := lookupOnlyQuerier{row: sqlcdb.GetAuthUserByFirebaseUIDRow{User: sqlcdb.User{ID: 7, Email: "old@example.dev", Name: "Old", Suspended: true}}}
+	verifier := fakeVerifier{"token": {UID: "uid", Claims: map[string]any{"email": "changed@example.dev", "name": "Changed"}}}
+	h := Auth(verifier, q)(Admission(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("suspended caller reached handler") })))
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", http.NoBody)
+	req.Header.Set("Authorization", "Bearer token")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body)
+	}
+}

@@ -64,7 +64,7 @@
 				</button>
 			</form>
 			<div class="mt-6">
-				<PersonClaim />
+				{#if auth.user?.approved && auth.user?.email_verified}<PersonClaim />{/if}
 			</div>
 		{/if}
 	</div>

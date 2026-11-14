@@ -27,6 +27,8 @@ func NewMembersHandler(q sqlcdb.Querier, db *sql.DB) *MembersHandler {
 // admin.
 var errLastAdmin = errors.New("cannot demote the last admin")
 
+var errSuspendedAdmin = errors.New("restore account access before granting the admin role")
+
 type membersListOutput struct {
 	Body []dto.Member
 }
@@ -46,6 +48,11 @@ type updateMemberRoleInput struct {
 	Body   dto.RoleBody
 }
 
+type updateMemberAccessInput struct {
+	UserID int64 `path:"userID"`
+	Body   dto.AccessBody
+}
+
 // RegisterMembersRoutes wires the club member roster onto the API. The roster
 // is visible to any member; role, captain-group and membership changes require
 // an admin.
@@ -55,6 +62,8 @@ func RegisterMembersRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 
 func registerMembersRoutes(api huma.API, h *MembersHandler) {
 	tag := []string{"Members"}
+
+	huma.Register(api, huma.Operation{OperationID: "update-member-access", Method: http.MethodPut, Path: "/members/{userID}/access", Summary: "Approve or suspend an account (admin)", Tags: tag, DefaultStatus: http.StatusNoContent}, h.updateAccess)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-members", Method: http.MethodGet, Path: "/members",
@@ -140,6 +149,14 @@ func (h *MembersHandler) updateRole(ctx context.Context, in *updateMemberRoleInp
 		if err := q.LockAdminRoles(ctx); err != nil {
 			return &QueryError{Op: "LockAdminRoles", Err: err}
 		}
+
+		target, err := q.GetUserByID(ctx, in.UserID)
+		if err != nil {
+			return &QueryError{Op: "GetUserByID", Err: err}
+		}
+		if in.Body.Role == "admin" && target.Suspended {
+			return errSuspendedAdmin
+		}
 		admins, err := q.LockAdmins(ctx)
 		if err != nil {
 			return &QueryError{Op: "LockAdmins", Err: err}
@@ -153,12 +170,48 @@ func (h *MembersHandler) updateRole(ctx context.Context, in *updateMemberRoleInp
 		}
 		return nil
 	})
+	if errors.Is(err, errSuspendedAdmin) {
+		return nil, huma.Error409Conflict(errSuspendedAdmin.Error())
+	}
 	if errors.Is(err, errLastAdmin) {
 		return nil, huma.Error400BadRequest(errLastAdmin.Error())
 	}
 	if err != nil {
 		slog.Error("update member role", "user_id", in.UserID, "role", in.Body.Role, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update role")
+	}
+	return &noContentOutput{}, nil
+}
+
+func (h *MembersHandler) updateAccess(ctx context.Context, in *updateMemberAccessInput) (*noContentOutput, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if err := q.LockAdminRoles(ctx); err != nil {
+			return err
+		}
+		if _, err := q.LockUserForUpdate(ctx, in.UserID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return huma.Error404NotFound("member not found")
+			}
+			return err
+		}
+		target, err := q.GetUserByID(ctx, in.UserID)
+		if err != nil {
+			return err
+		}
+		if target.Role == "admin" && (!in.Body.Approved || in.Body.Suspended) {
+			return huma.Error409Conflict("remove the admin role before restricting this account")
+		}
+		return q.UpdateUserAccess(ctx, sqlcdb.UpdateUserAccessParams{ID: in.UserID, AccessApproved: in.Body.Approved, Suspended: in.Body.Suspended})
+	})
+	if err != nil {
+		if status, ok := errors.AsType[huma.StatusError](err); ok {
+			return nil, status
+		}
+		slog.Error("update account access", "user_id", in.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update account access")
 	}
 	return &noContentOutput{}, nil
 }

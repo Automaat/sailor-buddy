@@ -47,6 +47,7 @@
 	// Phone navigation drawer (below md). It closes on every navigation so a
 	// tapped link lands on the page, not behind the open menu.
 	let menuOpen = $state(false);
+	let profileError = $state('');
 
 	$effect(() => {
 		void page.url.pathname;
@@ -63,6 +64,7 @@
 	}
 
 	async function handleLogout() {
+		profileError = '';
 		await auth.logout();
 		void goto('/login');
 	}
@@ -95,6 +97,17 @@
 	});
 
 	$effect(() => {
+		if (!auth.user || !auth.user.onboarded) return;
+		if (
+			(!auth.user.approved || !auth.user.email_verified) &&
+			!isPublicRoute(page.url.pathname) &&
+			!['/pending', '/profile', ONBOARDING_PATH].includes(page.url.pathname)
+		) {
+			void goto('/pending', { replaceState: true });
+		}
+	});
+
+	$effect(() => {
 		if (auth.isAuthenticated && !auth.user) {
 			const currentUid = auth.firebaseUser?.uid;
 			let cancelled = false;
@@ -107,7 +120,7 @@
 						auth.user = u;
 					}
 				} catch (err) {
-					console.error('Failed to fetch authenticated user via /auth/me', err);
+					profileError = err instanceof Error ? err.message : 'Nie udało się wczytać konta';
 				}
 			})();
 
@@ -120,11 +133,16 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if auth.loading}
+{#if profileError && auth.isAuthenticated}
+	<div class="mx-auto max-w-lg p-8">
+		<p role="alert">{profileError}</p>
+		<button onclick={handleLogout} class="mt-4 rounded-lg border p-2">Wyloguj się</button>
+	</div>
+{:else if auth.loading}
 	<div class="flex min-h-screen items-center justify-center bg-[var(--navy)]">
 		<ClubLogo inverted class="h-14 w-auto" />
 	</div>
-{:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname) || page.url.pathname === ONBOARDING_PATH}
+{:else if page.url.pathname.startsWith('/login') || isEnrollRoute(page.url.pathname) || page.url.pathname === ONBOARDING_PATH || page.url.pathname === '/pending'}
 	{@render children()}
 {:else}
 	{#snippet navLinks(itemClass: string)}

@@ -201,22 +201,24 @@ type TripEnrollment struct {
 }
 
 type User struct {
-	ID           int64            `json:"id"`
-	Email        string           `json:"email"`
-	Name         string           `json:"name"`
-	AvatarUrl    types.NullString `json:"avatar_url"`
-	FirebaseUid  types.NullString `json:"firebase_uid"`
-	Role         string           `json:"role"`
-	PatentType   types.NullString `json:"patent_type"`
-	PatentNumber types.NullString `json:"patent_number"`
-	CreatedAt    types.NullTime   `json:"created_at"`
-	UpdatedAt    types.NullTime   `json:"updated_at"`
-	IsCaptain    bool             `json:"is_captain"`
-	Membership   string           `json:"membership"`
-	FirstName    string           `json:"first_name"`
-	LastName     string           `json:"last_name"`
-	Phone        types.NullString `json:"phone"`
-	OnboardedAt  types.NullTime   `json:"onboarded_at"`
+	ID             int64            `json:"id"`
+	Email          string           `json:"email"`
+	Name           string           `json:"name"`
+	AvatarUrl      types.NullString `json:"avatar_url"`
+	FirebaseUid    types.NullString `json:"firebase_uid"`
+	Role           string           `json:"role"`
+	PatentType     types.NullString `json:"patent_type"`
+	PatentNumber   types.NullString `json:"patent_number"`
+	CreatedAt      types.NullTime   `json:"created_at"`
+	UpdatedAt      types.NullTime   `json:"updated_at"`
+	IsCaptain      bool             `json:"is_captain"`
+	Membership     string           `json:"membership"`
+	FirstName      string           `json:"first_name"`
+	LastName       string           `json:"last_name"`
+	Phone          types.NullString `json:"phone"`
+	OnboardedAt    types.NullTime   `json:"onboarded_at"`
+	AccessApproved bool             `json:"access_approved"`
+	Suspended      bool             `json:"suspended"`
 }
 
 type Voyage struct {

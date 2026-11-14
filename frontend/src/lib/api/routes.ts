@@ -485,3 +485,7 @@ export function enrollLegs(token: string, tripIDs: number[], note: string | unde
 export function uploadImage(formData: FormData) {
 	return api.upload('/upload/image', formData);
 }
+
+export function updateMemberAccess(userID: number, access: Schemas['AccessBody']) {
+	return api.put('/members/{userID}/access', { path: { userID }, body: access });
+}

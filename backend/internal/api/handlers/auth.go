@@ -90,6 +90,9 @@ func (h *AuthHandler) me(ctx context.Context, _ *struct{}) (*meOutput, error) {
 // can tell which legs and voyages the user captains.
 func (h *AuthHandler) meWithPerson(ctx context.Context, user sqlcdb.User) (*meOutput, error) {
 	me := dto.MeFromUser(user)
+	if caller := middleware.GetUser(ctx); caller != nil {
+		me.EmailVerified = caller.EmailVerified
+	}
 	person, err := h.q.GetCrewMemberByUserID(ctx, types.NullInt64{Int64: user.ID, Valid: true})
 	switch {
 	case err == nil:

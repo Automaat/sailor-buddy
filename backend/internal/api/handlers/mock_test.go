@@ -808,7 +808,7 @@ func userCtx(ctx context.Context) context.Context {
 // userCtxRole injects an authenticated caller with the given role.
 func userCtxRole(ctx context.Context, role string) context.Context {
 	return context.WithValue(ctx, middleware.UserCtxKey, &auth.Claims{
-		UserID: 1, Email: "test@example.com", Name: "Test User", Role: role,
+		Approved: true, EmailVerified: true, UserID: 1, Email: "test@example.com", Name: "Test User", Role: role,
 	})
 }
 

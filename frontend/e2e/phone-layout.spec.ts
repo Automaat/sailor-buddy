@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
 	apiRequest,
+	bootstrapTestAdmin,
+	verifyTestUser,
 	completeOnboarding,
 	createTestUser,
 	loginViaUI,
@@ -26,17 +28,15 @@ type Ids = {
 let ids: Ids;
 
 async function adminToken(): Promise<string> {
-	const signedIn = await signInTestUser(SUITE_ADMIN.email, TEST_PASSWORD).catch(() => null);
-	if (signedIn) return signedIn.idToken;
-	// Only the first account the backend provisions becomes admin, so a run of
-	// this spec alone works on a fresh database and fails loudly otherwise.
-	const created = await createTestUser(SUITE_ADMIN.email, TEST_PASSWORD, SUITE_ADMIN.name);
-	const me = (await apiRequest(created.idToken, 'GET', '/auth/me')) as { role: string };
-	if (me.role !== 'admin') {
-		throw new Error('phone-layout needs the suite admin: run it with persona-access.spec.ts');
-	}
-	await completeOnboarding(created.idToken, 'Persona', 'Admin');
-	return created.idToken;
+	const account =
+		(await signInTestUser(SUITE_ADMIN.email, TEST_PASSWORD).catch(() => null)) ??
+		(await createTestUser(SUITE_ADMIN.email, TEST_PASSWORD, SUITE_ADMIN.name));
+	await apiRequest(account.idToken, 'GET', '/auth/me');
+	bootstrapTestAdmin(account.localId);
+	await verifyTestUser(account.localId);
+	const verified = await signInTestUser(SUITE_ADMIN.email, TEST_PASSWORD);
+	await completeOnboarding(verified.idToken, 'Persona', 'Admin');
+	return verified.idToken;
 }
 
 async function post<T>(token: string, path: string, body?: unknown): Promise<T> {
@@ -133,7 +133,7 @@ test.describe.serial('Phone layout', () => {
 
 		const member = await createTestUser(uniqueEmail('phone-member'), TEST_PASSWORD, 'Członek');
 		await completeOnboarding(member.idToken, 'Członek', 'Mobilny');
-		await post(member.idToken, `/trips/${trip.id}/sign-up`);
+		await post(member.idToken, `/enroll/${enrollToken}`, {});
 
 		ids = {
 			cruise: cruise.id,

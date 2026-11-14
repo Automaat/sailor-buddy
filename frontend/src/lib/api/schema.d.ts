@@ -499,6 +499,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/members/{userID}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Approve or suspend an account (admin) */
+        put: operations["update-member-access"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/members/{userID}/captain": {
         parameters: {
             query?: never;
@@ -1229,6 +1246,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccessBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/AccessBody.json
+             */
+            readonly $schema?: string;
+            approved: boolean;
+            suspended: boolean;
+        };
         AssignTripBody: {
             /**
              * Format: uri
@@ -1953,8 +1980,10 @@ export interface components {
              * @example /api/Me.json
              */
             readonly $schema?: string;
+            approved: boolean;
             avatar_url: string;
             email: string;
+            email_verified: boolean;
             first_name: string;
             /** Format: int64 */
             id: number;
@@ -1974,8 +2003,10 @@ export interface components {
             person_id?: number;
             phone?: string;
             role: string;
+            suspended: boolean;
         };
         Member: {
+            approved: boolean;
             avatar_url?: string;
             /** Format: date-time */
             created_at: string;
@@ -1992,6 +2023,7 @@ export interface components {
             patent_type?: string;
             phone?: string;
             role: string;
+            suspended: boolean;
         };
         MembershipBody: {
             /**
@@ -4169,6 +4201,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Member"][] | null;
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-member-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

@@ -819,3 +819,11 @@ Body — `name` required: `{ "name": "ISSA Skipper", "date": "2026-03-01", "orga
 | GET | `/api/uploads/*` | Serve a previously uploaded file | 200 (file) |
 
 `400` on missing `file` field, oversized file, or unsupported type.
+
+## Account admission
+
+Club routes require a verified Firebase email and explicit account approval. Suspended accounts receive 403 on authenticated requests. Pending and unverified users retain GET/PUT `/api/auth/me` and the existing token preview/enrollment routes. Group-chat links are omitted from their token previews. Admission errors include `code` and `detail`: `email_unverified`, `approval_pending`, or `account_suspended`.
+
+`GET /api/auth/me` includes `approved`, `suspended`, and the current token's `email_verified`. Member list entries include approval and suspension status. Admins set account access with `PUT /api/members/{userID}/access` and JSON `{ "approved": true, "suspended": false }`; successful updates return 204. Restricting an admin account returns 409 until it is demoted. Promoting a suspended account also returns 409.
+
+Crew list/detail responses omit emergency contacts unless the caller is an admin or captains a leg/voyage containing that person. Opinion lists are filtered to the caller's documents unless they are an admin or the voyage captain; unauthorized opinion downloads return 403. Normal shared club records remain available to approved users with verified email. See `docs/security-access.md` for the full matrix.

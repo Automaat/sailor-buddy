@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN access_approved BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN suspended BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE users SET access_approved = TRUE WHERE role = 'admin';

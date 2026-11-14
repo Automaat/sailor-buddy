@@ -10,25 +10,30 @@ import (
 
 // Me is the authenticated user's profile.
 type Me struct {
-	ID           int64   `json:"id"`
-	Email        string  `json:"email"`
-	Name         string  `json:"name"`
-	FirstName    string  `json:"first_name"`
-	LastName     string  `json:"last_name"`
-	Phone        *string `json:"phone,omitempty"`
-	Onboarded    bool    `json:"onboarded" doc:"Whether the user completed the onboarding form"`
-	AvatarURL    string  `json:"avatar_url"`
-	Role         string  `json:"role"`
-	IsCaptain    bool    `json:"is_captain"`
-	Membership   string  `json:"membership" enum:"czlonek,sympatyk,gosc"`
-	PatentType   *string `json:"patent_type,omitempty"`
-	PatentNumber *string `json:"patent_number,omitempty"`
-	PersonID     *int64  `json:"person_id,omitempty" doc:"The account's person (crew record); a leg or voyage it captains gives the account captain rights"`
+	Approved      bool    `json:"approved"`
+	Suspended     bool    `json:"suspended"`
+	EmailVerified bool    `json:"email_verified"`
+	ID            int64   `json:"id"`
+	Email         string  `json:"email"`
+	Name          string  `json:"name"`
+	FirstName     string  `json:"first_name"`
+	LastName      string  `json:"last_name"`
+	Phone         *string `json:"phone,omitempty"`
+	Onboarded     bool    `json:"onboarded" doc:"Whether the user completed the onboarding form"`
+	AvatarURL     string  `json:"avatar_url"`
+	Role          string  `json:"role"`
+	IsCaptain     bool    `json:"is_captain"`
+	Membership    string  `json:"membership" enum:"czlonek,sympatyk,gosc"`
+	PatentType    *string `json:"patent_type,omitempty"`
+	PatentNumber  *string `json:"patent_number,omitempty"`
+	PersonID      *int64  `json:"person_id,omitempty" doc:"The account's person (crew record); a leg or voyage it captains gives the account captain rights"`
 }
 
 // MeFromUser maps a stored user row onto the profile DTO.
 func MeFromUser(u sqlcdb.User) Me {
 	return Me{
+		Approved:     u.AccessApproved || u.Role == "admin",
+		Suspended:    u.Suspended,
 		ID:           u.ID,
 		Email:        u.Email,
 		Name:         u.Name,
