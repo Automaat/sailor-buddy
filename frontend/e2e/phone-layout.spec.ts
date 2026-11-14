@@ -203,7 +203,7 @@ test.describe.serial('Phone layout', () => {
 
 		const menuButton = page.getByRole('button', { name: 'Otwórz menu' });
 		await expect(menuButton).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Rejsy' })).toBeHidden();
+		await expect(page.getByRole('link', { name: 'Rejsy', exact: true })).toBeHidden();
 
 		await menuButton.click();
 		const menu = page.locator('#mobile-menu');
@@ -255,7 +255,7 @@ test.describe.serial('Phone layout', () => {
 	test('desktop keeps the sidebar', async ({ page }) => {
 		await page.setViewportSize(DESKTOP);
 		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
-		await expect(page.getByRole('link', { name: 'Rejsy' })).toBeVisible();
+		await expect(page.getByRole('link', { name: 'Rejsy', exact: true })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Otwórz menu' })).toBeHidden();
 	});
 });

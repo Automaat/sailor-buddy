@@ -17,7 +17,7 @@ func TestCORSPreflight(t *testing.T) {
 	cfg := &config.Config{
 		CORSAllowedOrigins: []string{"https://allowed.example.com", "http://localhost:5173"},
 	}
-	r := NewRouter(nil, cfg, nil)
+	r := NewRouter(nil, cfg, nil, nil)
 
 	tests := []struct {
 		origin  string
