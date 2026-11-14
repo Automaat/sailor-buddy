@@ -175,3 +175,25 @@ jobs:
           restore-keys: npm-${{ runner.os }}-
       - run: npm ci
       - run: npm run test:coverage
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: go node go:golang.org/x/vuln/cmd/govulncheck
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-security-${{ hashFiles('mise.toml', 'backend/go.sum') }}
+          restore-keys: go-${{ runner.os }}-security-
+      - name: govulncheck
+        working-directory: backend
+        run: govulncheck ./...
+      - name: npm audit
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
