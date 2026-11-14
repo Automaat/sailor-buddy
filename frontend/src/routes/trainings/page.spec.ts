@@ -84,4 +84,20 @@ describe('trainings page', () => {
 		await vi.waitFor(() => expect(screen.queryByText('Sternik motorowodny')).not.toBeInTheDocument());
 		expect(mockDelete).toHaveBeenCalledWith(1);
 	});
+
+	it('replaces a locally changed list with the reloaded log', async () => {
+		mockCreate.mockResolvedValue(training({ id: 2, name: 'Jachtowy sternik morski' }));
+		const view = await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: '+ Dodaj szkolenie' }));
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'Jachtowy sternik morski' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
+		expect(await screen.findByText('Jachtowy sternik morski')).toBeInTheDocument();
+
+		mockList.mockResolvedValue([training({ id: 3, name: 'Radiooperator SRC' })]);
+		await view.rerender({ data: await runLoad() });
+
+		expect(screen.getByText('Radiooperator SRC')).toBeInTheDocument();
+		expect(screen.queryByText('Jachtowy sternik morski')).not.toBeInTheDocument();
+		expect(screen.queryByText('Sternik motorowodny')).not.toBeInTheDocument();
+	});
 });

@@ -116,6 +116,17 @@ describe('series detail page', () => {
 		});
 	});
 
+	it('throws the series 404 when the editions 404 arrives first', async () => {
+		mockGet.mockImplementation(
+			() => new Promise((_, reject) => setTimeout(() => reject(new ApiError(404, 'series not found')), 10))
+		);
+		mockEditions.mockRejectedValue(new ApiError(404, 'series not found'));
+		await expect(runLoad()).rejects.toMatchObject({
+			status: 404,
+			body: { message: 'Ta seria nie istnieje lub nie masz do niej dostępu.', title: 'Nie znaleziono serii' }
+		});
+	});
+
 	it('passes other failures on to +error.svelte', async () => {
 		const boom = new Error('network');
 		mockGet.mockRejectedValue(boom);
@@ -216,10 +227,25 @@ describe('series page same-route navigation', () => {
 
 		await view.rerender({ data: await runLoad('5') });
 		finish();
-		await vi.waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(4, expect.anything()));
-		await Promise.resolve();
+		expect(mockUpdate).toHaveBeenCalledWith(4, expect.anything());
+		await new Promise((r) => setTimeout(r, 0));
 
 		expect(screen.getByRole('heading', { name: 'Baltic Cup' })).toBeInTheDocument();
 		expect(screen.queryByText('Renamed')).not.toBeInTheDocument();
+	});
+
+	it('clears the busy flag of a save left pending on the previous series', async () => {
+		loadBoth();
+		mockAuth.isAdmin = true;
+		mockUpdate.mockImplementation(() => new Promise<void>(() => {}));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
+		expect(screen.getByRole('button', { name: 'Zapisywanie...' })).toBeDisabled();
+
+		await view.rerender({ data: await runLoad('5') });
+		await fireEvent.click(screen.getByRole('button', { name: 'Edytuj' }));
+
+		expect(screen.getByRole('button', { name: 'Zapisz zmiany' })).toBeEnabled();
 	});
 });
