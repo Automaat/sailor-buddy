@@ -107,8 +107,8 @@
 			enrollToken = cruise?.enroll_token ?? null;
 			const seriesID = cruise?.series_id;
 			const [t, v, su, s] = await Promise.all([
-				settle(listCruiseTrips(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'etapy')),
-				settle(listCruiseVoyages(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'rejsy')),
+				settle(listCruiseTrips(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'planowane etapy')),
+				settle(listCruiseVoyages(id).then((r) => r ?? []), [], noteFailure(loadErrors, 'zrealizowane etapy')),
 				settle(
 					listCruiseLegSignUps(id).then((r) => r ?? []),
 					[],

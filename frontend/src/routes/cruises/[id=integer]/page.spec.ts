@@ -329,7 +329,7 @@ describe('cruise page load errors', () => {
 		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120.4, days: 7 }]);
 		render(CruiseDetailPage);
 
-		expect(await screen.findByText(/Nie udało się wczytać: etapy\./)).toBeInTheDocument();
+		expect(await screen.findByText(/Nie udało się wczytać: planowane etapy\./)).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
 	});

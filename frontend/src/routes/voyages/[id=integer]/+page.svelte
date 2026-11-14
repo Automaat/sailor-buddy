@@ -136,14 +136,22 @@
 		return addVoyageYacht(id, body);
 	}
 
+	// Crew and opinions render only for admins; a member neither needs them
+	// nor should see their failures named in the banner.
+	function adminOnly<T>(load: () => Promise<T[]>): Promise<T[]> {
+		return canManageCrew ? load() : Promise.resolve([]);
+	}
+
 	onMount(async () => {
 		try {
 			voyage = await getVoyage(id);
 			[crew, opinions, ports, allCrewMembers, yachts] = await Promise.all([
-				settle(listVoyageCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga')),
-				settle(listVoyageOpinions(id).then((o) => o ?? []), [], noteFailure(loadErrors, 'opinie')),
+				adminOnly(() => settle(listVoyageCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga'))),
+				adminOnly(() =>
+					settle(listVoyageOpinions(id).then((o) => o ?? []), [], noteFailure(loadErrors, 'opinie'))
+				),
 				settle(listVoyagePorts(id).then((p) => p ?? []), [], noteFailure(loadErrors, 'porty')),
-				settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób')),
+				adminOnly(() => settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób'))),
 				settle(listYachts().then((y) => y ?? []), [], noteFailure(loadErrors, 'jachty'))
 			]);
 			if (voyage?.cruise_id) {

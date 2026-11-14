@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { makeCruise, makeTrip } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -230,6 +230,38 @@ describe('trip page load errors', () => {
 
 		expect(await screen.findByText(/Nie udało się wczytać: wydarzenie\./)).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
+	});
+
+	it('skips the admin-only crew lists for a member, so their failures cannot reach the banner', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(listTripCrew).mockClear();
+		vi.mocked(listAssignableCrew).mockClear();
+		render(TripDetailPage);
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		expect(listTripCrew).not.toHaveBeenCalled();
+		expect(listAssignableCrew).not.toHaveBeenCalled();
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+
+	it('drops the sign-up failure once the refresh after cancelling succeeds', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', status: 'planned' }));
+		vi.mocked(getTripSignUp)
+			.mockRejectedValueOnce(new Error('500'))
+			.mockResolvedValueOnce({ trip_id: 50, open: false, accepted_count: 0 });
+		vi.mocked(cancelTrip).mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', status: 'cancelled' }));
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		render(TripDetailPage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: zapis na etap\./)).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Więcej akcji' }));
+		await fireEvent.click(screen.getByRole('menuitem', { name: 'Odwołaj etap' }));
+
+		expect(await screen.findByText('Anulowany')).toBeInTheDocument();
+		await waitFor(() => expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument());
+		confirmSpy.mockRestore();
 	});
 
 	it('shows no load banner when every section loads', async () => {

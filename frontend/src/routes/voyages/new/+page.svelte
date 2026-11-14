@@ -50,7 +50,10 @@
 	});
 
 	onMount(async () => {
-		const [y, c] = await Promise.all([listYachts(), settle(listCruises(), [], noteFailure(loadErrors, 'lista wydarzeń'))]);
+		const [y, c] = await Promise.all([
+			settle(listYachts(), [], noteFailure(loadErrors, 'jachty')),
+			settle(listCruises(), [], noteFailure(loadErrors, 'lista wydarzeń'))
+		]);
 		yachts = y;
 		cruises = c ?? [];
 		const fromQuery = Number(page.url.searchParams.get('cruise_id') ?? 0);

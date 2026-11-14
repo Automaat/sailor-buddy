@@ -11,6 +11,7 @@
 	import { ApiError } from '#lib/api/client.js';
 	import { noteFailure, settle } from '#lib/api/errors.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import NotFound from '#lib/components/NotFound.svelte';
 	import type { TripEnrollment, Trip } from '#lib/api/types.js';
 	import {
 		freePlacesLabel,
@@ -33,6 +34,7 @@
 	let loading = $state(true);
 	let error = $state('');
 	let loadErrors = $state<string[]>([]);
+	let loadFailed = $state(false);
 	// Accepted crew the list below does not show: cruise enrollments assigned
 	// to this leg. They take places too, so free places add them back.
 	let otherAccepted = $state(0);
@@ -65,6 +67,7 @@
 			otherAccepted = s ? Math.max(0, s.accepted_count - countAccepted(enrollments)) : 0;
 		} catch (err) {
 			console.error('Failed to load enrollments:', err);
+			loadFailed = true;
 		} finally {
 			loading = false;
 		}
@@ -133,6 +136,13 @@
 
 {#if loading}
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
+{:else if loadFailed}
+	<NotFound
+		title="Nie udało się wczytać zapisów"
+		message="Coś poszło nie tak. Spróbuj ponownie za chwilę."
+		backHref="/trips/{id}"
+		backLabel="Wróć do rejsu"
+	/>
 {:else}
 	<div class="mx-auto max-w-4xl">
 		<LoadErrorBanner errors={loadErrors} />

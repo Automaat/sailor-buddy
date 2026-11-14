@@ -37,7 +37,9 @@ import {
 	addVoyageYacht,
 	createYacht,
 	getVoyage,
+	listAssignableCrew,
 	listVoyageCrew,
+	listVoyageOpinions,
 	listVoyagePorts,
 	listYachts,
 	updateVoyageLog
@@ -205,6 +207,7 @@ describe('voyage page record', () => {
 describe('voyage page load errors', () => {
 	it('names a failed crew list instead of showing no crew, and renders the ports', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
+		mockAuth.isAdmin = true;
 		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5 }));
 		vi.mocked(listVoyageCrew).mockRejectedValueOnce(new Error('500'));
 		vi.mocked(listVoyagePorts).mockResolvedValue([
@@ -214,6 +217,17 @@ describe('voyage page load errors', () => {
 
 		expect(await screen.findByText(/Nie udało się wczytać: załoga\./)).toBeInTheDocument();
 		expect(screen.getByText('Odwiedzone porty (1)')).toBeInTheDocument();
+	});
+
+	it('skips the admin-only crew and opinion lists for a member, so their failures cannot reach the banner', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5 }));
+		render(VoyagePage);
+
+		await screen.findByText('Odwiedzone porty (0)');
+		expect(listVoyageCrew).not.toHaveBeenCalled();
+		expect(listVoyageOpinions).not.toHaveBeenCalled();
+		expect(listAssignableCrew).not.toHaveBeenCalled();
+		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
 	});
 
 	it('shows no load banner when every section loads', async () => {

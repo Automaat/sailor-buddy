@@ -32,3 +32,10 @@ export function noteFailure(errors: string[], label: string): () => void {
 		if (!errors.includes(label)) errors.push(label);
 	};
 }
+
+// clearFailure removes label from errors once a later request for that
+// section succeeds, so the banner stops naming data the page now shows.
+export function clearFailure(errors: string[], label: string): void {
+	const i = errors.indexOf(label);
+	if (i !== -1) errors.splice(i, 1);
+}

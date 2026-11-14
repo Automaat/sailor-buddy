@@ -127,4 +127,13 @@ describe('new voyage page load errors', () => {
 		expect(await screen.findByText(/Nie udało się wczytać: lista wydarzeń\./)).toBeInTheDocument();
 		expect(screen.getByLabelText('Nazwa rejsu *')).toBeInTheDocument();
 	});
+
+	it('names the failed yacht list and still offers the cruises', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listYachts).mockRejectedValue(new Error('down'));
+		render(NewVoyagePage);
+
+		expect(await screen.findByText(/Nie udało się wczytać: jachty\./)).toBeInTheDocument();
+		expect(screen.getByRole('option', { name: 'NNE 2025' })).toBeInTheDocument();
+	});
 });

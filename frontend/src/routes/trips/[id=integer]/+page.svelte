@@ -24,7 +24,7 @@
 		LegSignUp
 	} from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
-	import { noteFailure, settle } from '#lib/api/errors.js';
+	import { clearFailure, noteFailure, settle } from '#lib/api/errors.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -62,13 +62,19 @@
 	// Trips are club-managed: only admins create, edit and crew them.
 	const canManageCrew = $derived(auth.isAdmin);
 
+	// The crew card renders only for admins; a member neither needs the lists
+	// nor should see their failures named in the banner.
+	function adminOnly<T>(load: () => Promise<T[]>): Promise<T[]> {
+		return canManageCrew ? load() : Promise.resolve([]);
+	}
+
 	onMount(async () => {
 		try {
 			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers, signUp] = await Promise.all([
-				settle(listTripCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga')),
-				settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób')),
+				adminOnly(() => settle(listTripCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga'))),
+				adminOnly(() => settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób'))),
 				settle(getTripSignUp(id), null, noteFailure(loadErrors, 'zapis na etap'))
 			]);
 			if (trip?.cruise_id) {
@@ -153,7 +159,14 @@
 		try {
 			trip = await cancelTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
-			signUp = await settle(getTripSignUp(id), signUp, noteFailure(loadErrors, 'zapis na etap'));
+			signUp = await settle(
+				getTripSignUp(id).then((s) => {
+					clearFailure(loadErrors, 'zapis na etap');
+					return s;
+				}),
+				signUp,
+				noteFailure(loadErrors, 'zapis na etap')
+			);
 		} catch (err) {
 			console.error('Failed to cancel trip:', err);
 		} finally {

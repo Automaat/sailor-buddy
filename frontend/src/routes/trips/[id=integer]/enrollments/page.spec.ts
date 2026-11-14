@@ -147,6 +147,15 @@ describe('trip enrollments page load errors', () => {
 		expect(screen.getByLabelText('Płatność: Anna')).toBeInTheDocument();
 	});
 
+	it('shows an error instead of an empty list when the sign-ups fail to load', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listTripEnrollments).mockRejectedValue(new Error('500'));
+		render(EnrollmentsPage);
+
+		expect(await screen.findByText('Nie udało się wczytać zapisów')).toBeInTheDocument();
+		expect(screen.queryByText('Brak zapisów.')).not.toBeInTheDocument();
+	});
+
 	it('shows no load banner when every section loads', async () => {
 		render(EnrollmentsPage);
 
