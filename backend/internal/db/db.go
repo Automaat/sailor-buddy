@@ -17,14 +17,22 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// Open connects to Postgres and verifies the connection.
 func Open(dsn string) (*sql.DB, error) {
+	return OpenContext(context.Background(), dsn)
+}
+
+// OpenContext is Open with a context that bounds the initial ping, so a
+// shutdown signal stops a hanging connect.
+func OpenContext(ctx context.Context, dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("ping db: %w", err)
 	}
 
