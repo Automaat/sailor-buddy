@@ -245,8 +245,7 @@ describe('trip edit page same-route navigation', () => {
 
 		expect(screen.getByRole('button', { name: 'Zapisz zmiany' })).toBeEnabled();
 		answer();
-		await Promise.resolve();
-		await Promise.resolve();
+		await new Promise((r) => setTimeout(r, 0));
 		expect(goto).not.toHaveBeenCalled();
 	});
 
@@ -258,8 +257,7 @@ describe('trip edit page same-route navigation', () => {
 
 		await view.rerender({ data: await runLoad('6') });
 		fail(new Error('cruise not found'));
-		await Promise.resolve();
-		await Promise.resolve();
+		await new Promise((r) => setTimeout(r, 0));
 
 		expect(screen.queryByText('cruise not found')).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Zapisz zmiany' })).toBeEnabled();
