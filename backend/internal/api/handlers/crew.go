@@ -183,7 +183,11 @@ func (h *CrewHandler) list(ctx context.Context, in *listCrewInput) (*crewListOut
 		slog.Error("count crew members", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
 	}
-	return &crewListOutput{Body: dto.NewPage(dto.CrewMembersFromDB(members), total, in.Limit, in.Offset)}, nil
+	people := dto.CrewMembersFromDB(members)
+	if err := h.redactEmergency(ctx, people); err != nil {
+		return nil, err
+	}
+	return &crewListOutput{Body: dto.NewPage(people, total, in.Limit, in.Offset)}, nil
 }
 
 func (h *CrewHandler) get(ctx context.Context, in *crewIDParam) (*crewOutput, error) {
@@ -195,7 +199,11 @@ func (h *CrewHandler) get(ctx context.Context, in *crewIDParam) (*crewOutput, er
 		slog.Error("get crew member", "crew_member_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to get crew member")
 	}
-	return &crewOutput{Body: dto.CrewMemberFromDB(member)}, nil
+	people := []dto.CrewMember{dto.CrewMemberFromDB(member)}
+	if err := h.redactEmergency(ctx, people); err != nil {
+		return nil, err
+	}
+	return &crewOutput{Body: people[0]}, nil
 }
 
 func (h *CrewHandler) create(ctx context.Context, in *createCrewInput) (*crewOutput, error) {
@@ -449,4 +457,30 @@ func (h *CrewHandler) removeVoyageCrew(ctx context.Context, in *removeVoyageCrew
 		return nil, huma.Error500InternalServerError("failed to remove crew assignment")
 	}
 	return &noContentOutput{}, nil
+}
+
+func (h *CrewHandler) redactEmergency(ctx context.Context, people []dto.CrewMember) error {
+	user := middleware.GetUser(ctx)
+	if user == nil {
+		return huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role == "admin" || len(people) == 0 {
+		return nil
+	}
+	ids, err := h.q.ListCaptainCrewPersonIDs(ctx, types.NullInt64{Int64: user.UserID, Valid: true})
+	if err != nil {
+		slog.Error("load captain crew access", "user_id", user.UserID, "err", err)
+		return huma.Error500InternalServerError("failed to check emergency contact access")
+	}
+	allowed := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		allowed[id] = true
+	}
+	for i := range people {
+		if !allowed[people[i].ID] {
+			people[i].EmergencyContactName = nil
+			people[i].EmergencyContactPhone = nil
+		}
+	}
+	return nil
 }

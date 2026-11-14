@@ -113,7 +113,9 @@ export async function completeOnboardingViaUI(
 	await page.getByLabel('Patent żeglarski').selectOption('zeglarz_jachtowy');
 	await page.getByLabel('Numer patentu').fill('ZJ-E2E');
 	await page.getByRole('button', { name: 'Zapisz i przejdź dalej' }).click();
-	await page.waitForURL('/', { timeout: 10_000 });
+	await page.waitForURL((url) => url.pathname === '/' || url.pathname === '/pending', {
+		timeout: 10_000
+	});
 }
 
 // completeOnboarding saves the profile through the API so API-created users
@@ -152,4 +154,16 @@ export function bootstrapTestAdmin(uid: string): void {
 		env: { ...process.env, SAILOR_BOOTSTRAP_FIREBASE_UID: uid },
 		stdio: 'pipe'
 	});
+}
+
+export async function verifyTestUser(uid: string): Promise<void> {
+	const response = await fetch(
+		`${FIREBASE_EMULATOR}/identitytoolkit.googleapis.com/v1/accounts:update?key=fake-api-key`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+			body: JSON.stringify({ localId: uid, emailVerified: true })
+		}
+	);
+	if (!response.ok) throw new Error(`Cannot verify fixture: ${await response.text()}`);
 }

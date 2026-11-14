@@ -148,3 +148,11 @@ WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT;
 -- name: MoveVoyageCaptain :execrows
 UPDATE voyages SET captain_person_id = sqlc.arg(kept_id)::BIGINT, updated_at = CURRENT_TIMESTAMP
 WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT;
+
+-- name: ListCaptainCrewPersonIDs :many
+SELECT DISTINCT ca.crew_member_id
+FROM crew_assignments ca
+LEFT JOIN trips t ON t.id = ca.trip_id
+LEFT JOIN voyages v ON v.id = ca.voyage_id
+JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+WHERE captain.user_id = $1;

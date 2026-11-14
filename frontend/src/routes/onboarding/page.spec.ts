@@ -64,6 +64,9 @@ beforeEach(() => {
 	cancelRequestMock.mockReset().mockResolvedValue(undefined);
 	h.store.user = {
 		id: 1,
+		approved: true,
+		email_verified: true,
+		suspended: false,
 		name: 'Jan Maria Kowalski',
 		first_name: '',
 		last_name: '',
@@ -157,4 +160,12 @@ describe('onboarding person claim', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz i przejdź dalej' }));
 		await waitFor(() => expect((h.store.user as { onboarded: boolean }).onboarded).toBe(true));
 	});
+});
+
+it('keeps pending profile editing available without directory suggestions', async () => {
+	h.store.user = { ...(h.store.user as object), approved: false, email_verified: false };
+	render(OnboardingPage);
+	expect(await screen.findByLabelText('Imię *')).toBeVisible();
+	expect(candidatesMock).not.toHaveBeenCalled();
+	expect(myRequestMock).not.toHaveBeenCalled();
 });

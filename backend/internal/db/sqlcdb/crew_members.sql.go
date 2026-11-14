@@ -287,6 +287,46 @@ func (q *Queries) GetCrewMemberByUserID(ctx context.Context, userID types.NullIn
 	return i, err
 }
 
+const listCaptainCrewPersonIDs = `-- name: ListCaptainCrewPersonIDs :many
+SELECT DISTINCT ca.crew_member_id
+FROM crew_assignments ca
+LEFT JOIN trips t ON t.id = ca.trip_id
+LEFT JOIN voyages v ON v.id = ca.voyage_id
+JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+WHERE captain.user_id = $1
+`
+
+// ListCaptainCrewPersonIDs
+//
+//	SELECT DISTINCT ca.crew_member_id
+//	FROM crew_assignments ca
+//	LEFT JOIN trips t ON t.id = ca.trip_id
+//	LEFT JOIN voyages v ON v.id = ca.voyage_id
+//	JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+//	WHERE captain.user_id = $1
+func (q *Queries) ListCaptainCrewPersonIDs(ctx context.Context, userID types.NullInt64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listCaptainCrewPersonIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var crew_member_id int64
+		if err := rows.Scan(&crew_member_id); err != nil {
+			return nil, err
+		}
+		items = append(items, crew_member_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCrewMembers = `-- name: ListCrewMembers :many
 SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
 WHERE $1::TEXT IS NULL
