@@ -52,6 +52,7 @@
 	let loading = $state(true);
 	let notFound = $state(false);
 	let loadErrors = $state<string[]>([]);
+	let adminLoadErrors = $state<string[]>([]);
 
 	let genCrewId = $state('');
 	let genFormat = $state<'pdf' | 'docx'>('pdf');
@@ -64,6 +65,9 @@
 	const id = $derived(Number(page.params.id));
 	// Voyages are club-managed: only admins manage crew & opinions.
 	const canManageCrew = $derived(auth.isAdmin);
+	// Failures of admin-only sections join the banner only for admins. The
+	// check is reactive: on a direct load the role arrives after onMount.
+	const visibleLoadErrors = $derived(canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors);
 	// The captain, through the person linked to their account, logs the
 	// post-cruise data: hours, miles, ports, note.
 	const isVoyageCaptain = $derived(
@@ -136,22 +140,14 @@
 		return addVoyageYacht(id, body);
 	}
 
-	// Crew and opinions render only for admins; a member neither needs them
-	// nor should see their failures named in the banner.
-	function adminOnly<T>(load: () => Promise<T[]>): Promise<T[]> {
-		return canManageCrew ? load() : Promise.resolve([]);
-	}
-
 	onMount(async () => {
 		try {
 			voyage = await getVoyage(id);
 			[crew, opinions, ports, allCrewMembers, yachts] = await Promise.all([
-				adminOnly(() => settle(listVoyageCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga'))),
-				adminOnly(() =>
-					settle(listVoyageOpinions(id).then((o) => o ?? []), [], noteFailure(loadErrors, 'opinie'))
-				),
+				settle(listVoyageCrew(id).then((c) => c ?? []), [], noteFailure(adminLoadErrors, 'załoga')),
+				settle(listVoyageOpinions(id).then((o) => o ?? []), [], noteFailure(adminLoadErrors, 'opinie')),
 				settle(listVoyagePorts(id).then((p) => p ?? []), [], noteFailure(loadErrors, 'porty')),
-				adminOnly(() => settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób'))),
+				settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
 				settle(listYachts().then((y) => y ?? []), [], noteFailure(loadErrors, 'jachty'))
 			]);
 			if (voyage?.cruise_id) {
@@ -257,7 +253,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if voyage}
 	<div class="mx-auto max-w-4xl">
-		<LoadErrorBanner errors={loadErrors} />
+		<LoadErrorBanner errors={visibleLoadErrors} />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				{#if cruise}

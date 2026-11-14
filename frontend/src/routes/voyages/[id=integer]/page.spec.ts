@@ -219,14 +219,16 @@ describe('voyage page load errors', () => {
 		expect(screen.getByText('Odwiedzone porty (1)')).toBeInTheDocument();
 	});
 
-	it('skips the admin-only crew and opinion lists for a member, so their failures cannot reach the banner', async () => {
+	it('names no admin-only section for a member', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5 }));
+		vi.mocked(listVoyageCrew).mockRejectedValueOnce(new Error('500'));
+		vi.mocked(listVoyageOpinions).mockRejectedValueOnce(new Error('500'));
+		vi.mocked(listAssignableCrew).mockRejectedValueOnce(new Error('500'));
 		render(VoyagePage);
 
 		await screen.findByText('Odwiedzone porty (0)');
-		expect(listVoyageCrew).not.toHaveBeenCalled();
-		expect(listVoyageOpinions).not.toHaveBeenCalled();
-		expect(listAssignableCrew).not.toHaveBeenCalled();
+		expect(listVoyageCrew).toHaveBeenCalledWith(5);
 		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
 	});
 

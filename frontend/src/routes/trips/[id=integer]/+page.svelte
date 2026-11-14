@@ -45,6 +45,7 @@
 	let loading = $state(true);
 	let notFound = $state(false);
 	let loadErrors = $state<string[]>([]);
+	let adminLoadErrors = $state<string[]>([]);
 
 	let assignCrewId = $state('');
 	let assignRole = $state('');
@@ -61,20 +62,17 @@
 	const id = $derived(Number(page.params.id));
 	// Trips are club-managed: only admins create, edit and crew them.
 	const canManageCrew = $derived(auth.isAdmin);
-
-	// The crew card renders only for admins; a member neither needs the lists
-	// nor should see their failures named in the banner.
-	function adminOnly<T>(load: () => Promise<T[]>): Promise<T[]> {
-		return canManageCrew ? load() : Promise.resolve([]);
-	}
+	// Failures of admin-only sections join the banner only for admins. The
+	// check is reactive: on a direct load the role arrives after onMount.
+	const visibleLoadErrors = $derived(canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors);
 
 	onMount(async () => {
 		try {
 			trip = await getTrip(id);
 			enrollToken = trip?.enroll_token ?? null;
 			[crew, allCrewMembers, signUp] = await Promise.all([
-				adminOnly(() => settle(listTripCrew(id).then((c) => c ?? []), [], noteFailure(loadErrors, 'załoga'))),
-				adminOnly(() => settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób'))),
+				settle(listTripCrew(id).then((c) => c ?? []), [], noteFailure(adminLoadErrors, 'załoga')),
+				settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
 				settle(getTripSignUp(id), null, noteFailure(loadErrors, 'zapis na etap'))
 			]);
 			if (trip?.cruise_id) {
@@ -188,7 +186,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if trip}
 	<div class="mx-auto max-w-4xl">
-		<LoadErrorBanner errors={loadErrors} />
+		<LoadErrorBanner errors={visibleLoadErrors} />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				{#if cruise}

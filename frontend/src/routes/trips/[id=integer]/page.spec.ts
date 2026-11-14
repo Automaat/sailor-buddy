@@ -232,16 +232,25 @@ describe('trip page load errors', () => {
 		expect(screen.getByRole('heading', { name: 'Jacht A' })).toBeInTheDocument();
 	});
 
-	it('skips the admin-only crew lists for a member, so their failures cannot reach the banner', async () => {
+	it('names no admin-only section for a member', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		serve(makeTrip({ id: 50, name: 'Jacht A' }));
-		vi.mocked(listTripCrew).mockClear();
-		vi.mocked(listAssignableCrew).mockClear();
+		vi.mocked(listTripCrew).mockRejectedValueOnce(new Error('500'));
+		vi.mocked(listAssignableCrew).mockRejectedValueOnce(new Error('500'));
 		render(TripDetailPage);
 
 		await screen.findByRole('heading', { name: 'Jacht A' });
-		expect(listTripCrew).not.toHaveBeenCalled();
-		expect(listAssignableCrew).not.toHaveBeenCalled();
+		await waitFor(() => expect(listAssignableCrew).toHaveBeenCalled());
 		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+
+	it('still loads the crew for an admin whose role is known only after mount', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(listTripCrew).mockClear();
+		render(TripDetailPage);
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		expect(listTripCrew).toHaveBeenCalledWith(50);
 	});
 
 	it('drops the sign-up failure once the refresh after cancelling succeeds', async () => {
