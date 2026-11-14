@@ -807,7 +807,7 @@ Body — `name` required: `{ "name": "ISSA Skipper", "date": "2026-03-01", "orga
 
 | Method | Path | Description | Success |
 |--------|------|-------------|---------|
-| POST | `/api/upload/image` | Multipart image upload (≤5 MB; jpeg/png/webp) → `{url}` | 200 |
+| POST | `/api/upload/image` | Exactly one `file` part (≤5 MiB; jpeg/png/webp), no other fields; total body ≤5 MiB + 64 KiB framing. Oversized bodies return 413; extra parts return 422. → `{url}` | 200 |
 | GET | `/api/uploads/*` | Serve a previously uploaded file | 200 (file) |
 
 `400` on missing `file` field, oversized file, or unsupported type.

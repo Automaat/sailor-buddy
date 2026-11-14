@@ -170,10 +170,26 @@ var allowedMIME = map[string]string{
 	"image/webp": ".webp",
 }
 
+const maxImageBytes = 5 << 20
+
+// Multipart framing and headers have a separate, bounded allowance.
+const maxUploadBodyBytes = maxImageBytes + 64<<10
+
 type uploadImageInput struct {
 	RawBody huma.MultipartFormFiles[struct {
 		File huma.FormFile `form:"file" required:"true" doc:"Image file (jpeg, png or webp; max 5 MB)"`
 	}]
+}
+
+func (in *uploadImageInput) Resolve(ctx huma.Context) []error {
+	form, err := ctx.GetMultipartForm()
+	if err == nil && len(form.File) == 1 && len(form.File["file"]) == 1 && len(form.Value) == 0 {
+		return nil
+	}
+	if data := in.RawBody.Data(); data != nil && data.File.IsSet {
+		_ = data.File.Close()
+	}
+	return []error{&huma.ErrorDetail{Location: "body", Message: "expected exactly one file part named file"}}
 }
 
 type uploadURLOutput struct {
@@ -203,6 +219,7 @@ func RegisterUploadRoutes(api huma.API, uploads *os.Root) {
 	huma.Register(api, huma.Operation{
 		OperationID: "upload-image", Method: http.MethodPost, Path: "/upload/image",
 		Summary: "Upload an image", Tags: []string{"Uploads"},
+		MaxBodyBytes: maxUploadBodyBytes,
 	}, h.uploadImage)
 }
 
@@ -213,7 +230,7 @@ func (h *UploadHandler) uploadImage(ctx context.Context, in *uploadImageInput) (
 		return nil, huma.Error400BadRequest("missing file field")
 	}
 	defer func() { _ = file.Close() }()
-	if file.Size > 5<<20 {
+	if file.Size > maxImageBytes {
 		return nil, huma.Error400BadRequest("file too large (max 5MB)")
 	}
 
@@ -239,11 +256,21 @@ func (h *UploadHandler) uploadImage(ctx context.Context, in *uploadImageInput) (
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to save file")
 	}
-	defer func() { _ = dst.Close() }()
+	saved := false
+	defer func() {
+		_ = dst.Close()
+		if !saved {
+			_ = h.uploads.Remove(filepath.Join(userDir, filename))
+		}
+	}()
 	if _, err := io.Copy(dst, file); err != nil {
 		return nil, huma.Error500InternalServerError("failed to write file")
 	}
 
+	if err := dst.Close(); err != nil {
+		return nil, huma.Error500InternalServerError("failed to save file")
+	}
+	saved = true
 	out := &uploadURLOutput{}
 	out.Body.URL = fmt.Sprintf("/api/uploads/%d/images/%s", user.UserID, filename)
 	return out, nil
