@@ -113,6 +113,16 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   Wrap it in `settle(p, fallback, noteFailure(loadErrors, '<label>'))`
   (`src/lib/api/errors.ts`) and render `LoadErrorBanner`, so an empty list
   from a failed request is not shown as real data.
+- Page data loads in `+page.ts` (`export const load: PageLoad`), not in
+  `onMount`: SvelteKit reuses the component between two URLs of one route,
+  so `onMount` would keep the previous record. The component reads
+  `let { data } = $props()`. Load the page's record with
+  `found(p, { message, title, backHref, backLabel })` (`src/lib/api/load.ts`),
+  which throws `error(404)` for the root `+error.svelte` to render — no
+  per-page `notFound` flags. Sections the user can edit in place use a
+  writable `$derived(data.x)`. Admin-only lists stay in an `$effect` keyed on
+  the record id, since `auth.isAdmin` is false until `/auth/me` answers.
+  Migration of the remaining `onMount` pages is tracked in #600.
 - Go code must pass `gofumpt` formatting
 - Handler tests use `mockQuerier` (`internal/api/handlers/mock_test.go`),
   which embeds a nil `sqlcdb.Querier`: a new query needs no mock change to
