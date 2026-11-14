@@ -20,5 +20,6 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json .
+USER node
 EXPOSE 3000
 CMD ["node", "build"]
