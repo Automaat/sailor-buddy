@@ -23,6 +23,7 @@ backend/
     api/handlers/authz.go    # requireAdmin role gate
     api/middleware/auth.go   # Firebase auth middleware + first-user-admin
     auth/firebase.go         # Firebase client + Claims
+    cli/cli.go               # -h / argument parsing for migrate and seed-dev
     config/config.go         # env-based config
     db/db.go                # PostgreSQL connection + migration runner
     db/migrations/           # SQL migrations, numbered NNN_name.sql, applied in order
@@ -41,7 +42,7 @@ frontend/
 cd backend && go build ./...          # build
 cd backend && go test ./...           # test
 cd backend && mise exec -- air        # dev server with hot reload
-cd backend && go run cmd/api/main.go  # run directly
+cd backend && SAILOR_DATABASE_URL=... go run ./cmd/api  # run directly
 
 # Frontend
 cd frontend && npm run dev            # dev server on :5173
@@ -49,6 +50,10 @@ cd frontend && npm run build          # production build
 cd frontend && npx svelte-check       # type check
 cd frontend && npm run lint           # prettier --check + eslint
 cd frontend && npm run format         # prettier --write
+
+# Migrations (api and seed-dev also migrate on start)
+mise run migrate                      # local dev DB on localhost:5432
+cd backend && SAILOR_DATABASE_URL=... go run ./cmd/migrate
 
 # sqlc (after editing queries/*.sql)
 cd backend && mise exec -- sqlc generate
@@ -138,4 +143,7 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   compile, and an unstubbed call panics. Add a mock method and `fooFn`
   field only when a test needs to stub that query.
 - Env vars: SAILOR_DATABASE_URL, SAILOR_LISTEN_ADDR, SAILOR_UPLOAD_DIR, SAILOR_FIREBASE_PROJECT_ID
+- `SAILOR_DATABASE_URL` has no default: `cmd/api`, `cmd/migrate` and
+  `cmd/seed-dev` all migrate on start, so each exits before connecting when it
+  is unset. `migrate` and `seed-dev` take only `-h`; any other argument exits 2.
 - `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only in the first host label under a registrable domain, such as `https://*.example.com` or `https://app-*.example.com`, or as the port of a named host, such as `http://localhost:*`; otherwise the API refuses to start)

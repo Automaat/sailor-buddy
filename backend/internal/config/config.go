@@ -19,9 +19,27 @@ type Config struct {
 	CORSAllowedOrigins []string
 }
 
+// databaseURLEnv names the variable that selects the database. It has no
+// default: a fallback URL once let a stray `go run ./cmd/migrate -h` migrate
+// whatever Postgres listened on localhost:5432.
+const databaseURLEnv = "SAILOR_DATABASE_URL"
+
+// ErrDatabaseURLUnset reports that SAILOR_DATABASE_URL is empty, so a command
+// that would connect to the database must stop before opening a connection.
+var ErrDatabaseURLUnset = errors.New(databaseURLEnv + " is not set; set it to the Postgres URL of the database to use")
+
+// RequireDatabaseURL returns SAILOR_DATABASE_URL, or ErrDatabaseURLUnset when
+// it is empty or blank.
+func RequireDatabaseURL() (string, error) {
+	if v := strings.TrimSpace(os.Getenv(databaseURLEnv)); v != "" {
+		return v, nil
+	}
+	return "", ErrDatabaseURLUnset
+}
+
 func Load() *Config {
 	return &Config{
-		DatabaseURL:        getenv("SAILOR_DATABASE_URL", "postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable"),
+		DatabaseURL:        strings.TrimSpace(os.Getenv(databaseURLEnv)),
 		ListenAddr:         getenv("SAILOR_LISTEN_ADDR", ":8080"),
 		UploadDir:          getenv("SAILOR_UPLOAD_DIR", "uploads"),
 		FirebaseProjectID:  getenv("SAILOR_FIREBASE_PROJECT_ID", "sailor-buddy-dev"),
@@ -35,9 +53,20 @@ func Load() *Config {
 // "https://*.github.io" all allow origins anyone can serve.
 var ErrWildcardCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: a wildcard is allowed only in the first label of a host under a registrable domain (https://*.example.com, https://app-*.example.com) or as the port of a named host (http://localhost:*)`)
 
+// ErrNullCORSOrigin rejects a CORS_ALLOWED_ORIGINS entry of "null". Browsers
+// send "Origin: null" from sandboxed iframes, data: URLs and file: pages, so
+// any site can claim it.
+var ErrNullCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: "null" is not an allowed origin; any site can send it from a sandboxed iframe or a data: URL`)
+
 // Validate reports settings the API server must not start with.
 func (c *Config) Validate() error {
+	if c.DatabaseURL == "" {
+		return ErrDatabaseURLUnset
+	}
 	for _, o := range c.CORSAllowedOrigins {
+		if strings.EqualFold(strings.TrimSpace(o), "null") {
+			return fmt.Errorf("%w: %q", ErrNullCORSOrigin, o)
+		}
 		if strings.Contains(o, "*") && !isSafeWildcard(strings.ToLower(o)) {
 			return fmt.Errorf("%w: %q", ErrWildcardCORSOrigin, o)
 		}

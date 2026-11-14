@@ -25,8 +25,8 @@ description = "Start Firebase emulator in Docker"
 run = "docker compose up --build firebase-emulator"
 
 [tasks.migrate]
-description = "Run database migrations"
-run = "cd backend && go run cmd/migrate/main.go"
+description = "Run database migrations on the local dev database (override with SAILOR_DATABASE_URL)"
+run = "cd backend && SAILOR_DATABASE_URL=${SAILOR_DATABASE_URL:-postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable} go run ./cmd/migrate"
 
 [tasks.sqlc]
 description = "Generate sqlc code"
