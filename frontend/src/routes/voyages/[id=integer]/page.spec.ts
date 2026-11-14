@@ -158,6 +158,36 @@ describe('voyage page record', () => {
 		expect(vi.mocked(updateVoyageLog).mock.calls[0][1]).toMatchObject({ yacht_id: 12 });
 	});
 
+	it('lists a yacht whose create ended after the log closed and reuses it', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
+		let resolveYacht!: (y: Yacht) => void;
+		vi.mocked(addVoyageYacht).mockReturnValue(new Promise((r) => (resolveYacht = r)));
+		render(VoyagePage);
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Uzupełnij po rejsie' }));
+		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Typ jachtu'), { target: { value: 'Hanse 415' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+		const [, closeLog] = screen.getAllByRole('button', { name: 'Anuluj' });
+		await fireEvent.click(closeLog);
+		expect(screen.queryByLabelText('Jacht')).not.toBeInTheDocument();
+		resolveYacht(yacht({ id: 12, name: 'Selma', yacht_type: 'Hanse 415' }));
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Uzupełnij po rejsie' }));
+		expect(await screen.findByRole('option', { name: 'Selma (Hanse 415)' })).toBeInTheDocument();
+		expect(screen.getByLabelText('Jacht')).toHaveValue('0');
+
+		await fireEvent.click(screen.getByRole('button', { name: '+ Nowy jacht spoza listy' }));
+		await fireEvent.input(screen.getByLabelText('Typ jachtu'), { target: { value: 'Hanse 415' } });
+		await fireEvent.input(screen.getByLabelText('Nazwa jachtu *'), { target: { value: 'Selma' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj jacht' }));
+
+		expect(screen.getByLabelText('Jacht')).toHaveValue('12');
+		expect(screen.getAllByRole('option', { name: 'Selma (Hanse 415)' })).toHaveLength(1);
+		expect(addVoyageYacht).toHaveBeenCalledTimes(1);
+	});
+
 	it.each([
 		['another person captains', 9],
 		['the captain person id only matches the account id', 7]

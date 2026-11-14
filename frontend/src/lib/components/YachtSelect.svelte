@@ -26,10 +26,11 @@
 	// The parent form's submit, held back while a create is pending so the form
 	// is not saved with the previous yacht; replayed once the new yacht is set.
 	let heldSubmit: { submitter: HTMLElement | null } | null = null;
-	let destroyed = false;
+	// Set when the user picks from the list while a create is pending; their
+	// pick then wins over the new yacht, even if it equals the earlier value.
+	let pickedWhileSaving = false;
 
 	onDestroy(() => {
-		destroyed = true;
 		attempt++;
 		heldSubmit = null;
 	});
@@ -67,6 +68,13 @@
 		form.requestSubmit(submitter);
 	}
 
+	function sameYacht(y: Yacht, name: string, type: string) {
+		return (
+			y.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase() &&
+			(y.yacht_type ?? '').trim().toLocaleLowerCase() === type.toLocaleLowerCase()
+		);
+	}
+
 	async function save() {
 		if (saving) return;
 		const name = draft.name.trim();
@@ -74,19 +82,27 @@
 			error = 'Podaj nazwę jachtu';
 			return;
 		}
+		const type = draft.yacht_type.trim();
+		const existing = yachts.find((y) => sameYacht(y, name, type));
+		if (existing) {
+			value = existing.id;
+			error = '';
+			adding = false;
+			return;
+		}
 		const current = ++attempt;
+		pickedWhileSaving = false;
 		saving = true;
 		error = '';
 		try {
 			const yacht = await create({
 				name,
-				yacht_type: draft.yacht_type.trim() || undefined,
+				yacht_type: type || undefined,
 				registration_no: draft.registration_no.trim() || undefined
 			});
-			if (destroyed) return;
 			if (!yachts.some((y) => y.id === yacht.id)) yachts = [...yachts, yacht];
 			if (current !== attempt) return;
-			value = yacht.id;
+			if (!pickedWhileSaving) value = yacht.id;
 			adding = false;
 			saving = false;
 			replayHeldSubmit();
@@ -109,7 +125,7 @@
 
 <svelte:window onsubmitcapture={holdParentSubmitWhileSaving} />
 
-<select {id} bind:this={select} bind:value class="w-full rounded-lg border px-3 py-2">
+<select {id} bind:this={select} bind:value onchange={() => (pickedWhileSaving = saving)} class="w-full rounded-lg border px-3 py-2">
 	<option value={0}>-- Wybierz --</option>
 	{#each yachts as yacht (yacht.id)}
 		<option value={yacht.id}>{yachtLabel(yacht)}</option>
