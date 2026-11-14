@@ -74,6 +74,35 @@ func assertTableExists(t *testing.T, conn *sql.DB, name string) {
 	}
 }
 
+func assertTableAbsent(t *testing.T, conn *sql.DB, name string) {
+	t.Helper()
+	var exists bool
+	if err := conn.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables
+		 WHERE table_schema = 'public' AND table_name = $1)`, name,
+	).Scan(&exists); err != nil {
+		t.Fatalf("check table %s: %v", name, err)
+	}
+	if exists {
+		t.Errorf("expected table %q to be dropped", name)
+	}
+}
+
+func assertColumnAbsent(t *testing.T, conn *sql.DB, table, column string) {
+	t.Helper()
+	var exists bool
+	if err := conn.QueryRow(
+		`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+		 WHERE table_schema = 'public' AND table_name = $1
+		   AND column_name = $2)`, table, column,
+	).Scan(&exists); err != nil {
+		t.Fatalf("check column %s.%s: %v", table, column, err)
+	}
+	if exists {
+		t.Errorf("expected column %s.%s to be dropped", table, column)
+	}
+}
+
 func assertIndexExists(t *testing.T, conn *sql.DB, name string) {
 	t.Helper()
 	var exists bool
@@ -134,7 +163,7 @@ func TestMigrate_FreshSchema(t *testing.T) {
 	}
 
 	for _, table := range []string{
-		"users", "refresh_tokens", "yachts", "crew_members", "trainings",
+		"users", "yachts", "crew_members", "trainings",
 		"trips", "voyages", "cruises", "crew_assignments",
 		"trip_enrollments", "cruise_enrollments", "voyage_opinions",
 		"voyage_ports", "cruise_series",
@@ -154,6 +183,9 @@ func TestMigrate_FreshSchema(t *testing.T) {
 	}
 
 	assertConstraintExists(t, conn, "crew_assignments_one_parent")
+
+	assertTableAbsent(t, conn, "refresh_tokens")
+	assertColumnAbsent(t, conn, "users", "password_hash")
 }
 
 // TestMigrate_Idempotent verifies a second Migrate call against an
