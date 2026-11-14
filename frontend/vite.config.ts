@@ -6,7 +6,25 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), 'VITE_');
 	return {
-		plugins: [sveltekit({ adapter: adapter() }), tailwindcss()],
+		plugins: [
+			sveltekit({
+				adapter: adapter(),
+				csp: {
+					mode: 'hash',
+					directives: {
+						'script-src': ['self', 'https://apis.google.com'],
+						'style-src': ['self', 'unsafe-inline', 'https://fonts.googleapis.com'],
+						'font-src': ['self', 'https://fonts.gstatic.com'],
+						'img-src': ['self', 'https:', 'data:', 'blob:'],
+						'object-src': ['none'],
+						'base-uri': ['self'],
+						'frame-ancestors': ['none'],
+						'form-action': ['self']
+					}
+				}
+			}),
+			tailwindcss()
+		],
 		// Under vitest, resolve Svelte's client build so components mount in jsdom.
 		resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
 		server: {

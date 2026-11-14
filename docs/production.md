@@ -115,3 +115,37 @@ Local tests verify signed JWTs through the production SDK with local TLS RPC
 responses for valid, disabled, revoked, and unavailable states. Emulator tests
 are separate: the emulator accepts unsigned tokens and must never be enabled
 in production ([Firebase emulator guidance](https://firebase.google.com/docs/emulator-suite/connect_auth)).
+
+## Browser headers and caching
+
+The frontend sends an enforced CSP. SvelteKit hashes its generated startup
+scripts; script sources are the app and `https://apis.google.com` for Firebase's
+Google popup integration. Inline scripts require a matching hash; `eval` is blocked. The policy
+allows Firebase account/token APIs, the configured API origin, and the exact
+configured Firebase auth domain for its iframe. Development adds only its
+selected emulator origin and Vite socket.
+
+Styles allow inline attributes for Svelte and Leaflet, plus Google Fonts;
+fonts load from `fonts.gstatic.com`. Images allow HTTPS URLs for existing
+profile photos and OpenStreetMap tiles, plus local, data, and blob images.
+Objects are disabled, forms and base URLs stay on the app origin, and
+`frame-ancestors 'none'` plus `X-Frame-Options: DENY` prevent embedding the app.
+
+Frontend dynamic responses and every `/api` response use
+`Cache-Control: private, no-store`, including enrollment previews, auth errors,
+uploads, opinion downloads, and invalid file-range responses. The Node adapter
+retains immutable caching for fingerprinted public JS/CSS assets. Frontend
+documents and API responses set `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: no-referrer`; enrollment URLs are not sent as referrers to
+external image/font services or links.
+
+CI runs the browser suite against the built Node frontend, with an isolated
+test emulator in explicit development mode. It checks real login/navigation,
+rejected inline scripts and framing, OpenStreetMap image requests without an
+enrollment referrer, private API caching, and immutable asset caching.
+Use `cd frontend && npm run build` followed by `node build` with runtime
+settings to reproduce. The chosen production host must preserve these headers.
+HTTPS, HSTS, and the actual Firebase Google OAuth domain flow remain deployment
+checks in #690; they have not been verified on a public host. See
+[SvelteKit CSP](https://svelte.dev/docs/kit/@sveltejs-kit-vite#csp) and
+[Firebase Google sign-in](https://firebase.google.com/docs/auth/web/google-signin).

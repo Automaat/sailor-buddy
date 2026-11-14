@@ -72,6 +72,12 @@ cd backend && go test ./...                       # backend
 cd frontend && npm test && npx playwright test    # frontend unit + e2e
 ```
 
+The browser suite needs a running API, an isolated Firebase Auth emulator,
+and the built Node frontend (`npm run build`, then `node build`). It checks
+the enforced CSP and immutable asset caching. Use the runtime test settings
+in [the E2E workflow](.github/workflows/e2e.yml); a Vite dev server does not
+exercise the production security policy.
+
 ## Lint and format
 
 ```bash

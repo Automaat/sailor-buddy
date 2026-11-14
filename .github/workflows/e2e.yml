@@ -88,13 +88,20 @@ jobs:
             sleep 1
           done
 
-      - name: Start frontend dev server
+      - name: Build frontend with enforced CSP
         working-directory: frontend
-        run: npm run dev &
+        run: npm run build
+
+      - name: Start production frontend with test emulator
+        working-directory: frontend
+        run: node build &
         env:
-          VITE_BACKEND_URL: http://localhost:8080
-          VITE_FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
-          VITE_FIREBASE_PROJECT_ID: sailor-buddy-dev
+          PORT: '5173'
+          ORIGIN: http://localhost:5173
+          SAILOR_ENV: development
+          PUBLIC_API_URL: http://localhost:8080/api
+          PUBLIC_FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
+          PUBLIC_FIREBASE_PROJECT_ID: sailor-buddy-dev
 
       - name: Wait for frontend
         run: |
@@ -110,7 +117,7 @@ jobs:
         env:
           FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
           FIREBASE_PROJECT_ID: sailor-buddy-dev
-          API_BASE_URL: http://localhost:5173/api
+          API_BASE_URL: http://localhost:8080/api
           SAILOR_DATABASE_URL: postgres://sailor:sailor@localhost:5432/sailor?sslmode=disable
 
       - name: Upload test artifacts
