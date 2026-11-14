@@ -4104,9 +4104,9 @@ export interface operations {
     };
     geocode: {
         parameters: {
-            query?: {
+            query: {
                 /** @description Town or place name to search for */
-                q?: string;
+                q: string;
             };
             header?: never;
             path?: never;

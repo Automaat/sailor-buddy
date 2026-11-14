@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 type Config struct {
@@ -44,10 +47,11 @@ func Load() *Config {
 	}
 }
 
-// ErrWildcardCORSOrigin rejects a CORS_ALLOWED_ORIGINS entry that matches
-// origins the API does not name. go-chi/cors reads any "*" as a wildcard, so
-// "*", "https://*" and "http*" all allow arbitrary origins.
-var ErrWildcardCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: a wildcard is allowed only as a subdomain of a named domain, e.g. https://*.example.com`)
+// ErrWildcardCORSOrigin rejects a CORS_ALLOWED_ORIGINS entry whose wildcard
+// can match origins the club does not control. go-chi/cors lowercases each
+// entry and reads its first "*" as any text, so "*", "https://*" and
+// "https://*.github.io" all allow origins anyone can serve.
+var ErrWildcardCORSOrigin = errors.New(`CORS_ALLOWED_ORIGINS: a wildcard is allowed only in the first label of a host under a registrable domain (https://*.example.com, https://app-*.example.com) or as the port of a named host (http://localhost:*)`)
 
 // Validate reports settings the API server must not start with.
 func (c *Config) Validate() error {
@@ -55,34 +59,61 @@ func (c *Config) Validate() error {
 		return ErrDatabaseURLUnset
 	}
 	for _, o := range c.CORSAllowedOrigins {
-		if !strings.Contains(o, "*") {
-			continue
-		}
-		if !isSubdomainWildcard(o) {
+		if strings.Contains(o, "*") && !isSafeWildcard(strings.ToLower(o)) {
 			return fmt.Errorf("%w: %q", ErrWildcardCORSOrigin, o)
 		}
 	}
 	return nil
 }
 
-// isSubdomainWildcard reports whether o has the form scheme://*.domain, where
-// domain holds no other wildcard, path or port-only part and has at least two
-// labels, so "https://*.com" is refused.
-func isSubdomainWildcard(o string) bool {
-	scheme, domain, ok := strings.Cut(o, "://*.")
-	if !ok || (scheme != "http" && scheme != "https") {
+// isSafeWildcard reports whether the lowercase origin o, an http(s) origin
+// with exactly one "*", matches only origins of one owner. It accepts two
+// forms:
+//   - scheme://host:* matches any port of a named host;
+//   - scheme://a*b.domain[:port] holds the "*" in the first host label, and
+//     domain must be a registrable domain, not a public suffix, so
+//     "https://*.co.uk" and "https://*.github.io" are refused.
+func isSafeWildcard(o string) bool {
+	scheme, hostport, ok := strings.Cut(o, "://")
+	if !ok || (scheme != "http" && scheme != "https") ||
+		strings.Count(hostport, "*") != 1 || strings.ContainsAny(hostport, `/\?#@`) {
 		return false
 	}
-	host, _, _ := strings.Cut(domain, ":")
-	if strings.ContainsAny(domain, "*/") || !strings.Contains(host, ".") {
-		return false
+	if host, ok := strings.CutSuffix(hostport, ":*"); ok {
+		return isNamedHost(host)
 	}
-	for label := range strings.SplitSeq(host, ".") {
-		if label == "" {
+	host, port, hasPort := strings.Cut(hostport, ":")
+	if hasPort {
+		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
 			return false
 		}
 	}
-	return true
+	first, domain, ok := strings.Cut(host, ".")
+	if !ok || !strings.Contains(first, "*") {
+		return false
+	}
+	return isRegistrableDomain(domain)
+}
+
+// isNamedHost reports whether host is a host name, an IPv4 address or a
+// bracketed IPv6 address, holding no wildcard.
+func isNamedHost(host string) bool {
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return len(host) > 2 && !strings.Contains(host, "*")
+	}
+	return host != "" && !strings.ContainsAny(host, ":*")
+}
+
+// isRegistrableDomain reports whether domain has a public suffix and at
+// least one label of its own, and does not end in a numeric label, so an
+// IP address tail such as "0.0.1" is refused.
+func isRegistrableDomain(domain string) bool {
+	if _, err := publicsuffix.EffectiveTLDPlusOne(domain); err != nil {
+		return false
+	}
+	tld := domain[strings.LastIndexByte(domain, '.')+1:]
+	_, err := strconv.Atoi(tld)
+	return err != nil
 }
 
 func loadCORSOrigins() []string {

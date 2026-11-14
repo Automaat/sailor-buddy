@@ -184,6 +184,35 @@ test.describe.serial('Single-club persona matrix', () => {
 		await expect(page.getByRole('heading', { name: tripName })).toBeVisible();
 	});
 
+	test("admin: a link from one trip's edit page to another shows the second", async ({ page }) => {
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		// A separate cruise keeps cruiseName fully sailed for the completed-tab step, and neither name may contain cruiseName or tripName because Playwright matches substrings. EXC:FILE011:documents-a-non-obvious-invariant
+		const otherCruise = (await apiRequest(idToken, 'POST', '/cruises', { name: `Third ${RUN_ID}` })) as {
+			id: number;
+		};
+		const otherName = `Leg ${RUN_ID}`;
+		const other = (await apiRequest(idToken, 'POST', '/trips', {
+			cruise_id: otherCruise.id,
+			name: otherName
+		})) as { id: number };
+		await loginViaUI(page, adminEmail, PASSWORD);
+
+		await page.goto(`/trips/${tripId}/edit`);
+		await expect(page.getByLabel('Nazwa rejsu *')).toHaveValue(tripName);
+		await page.evaluate((href) => {
+			const a = document.createElement('a');
+			a.href = href;
+			a.textContent = 'next trip';
+			document.querySelector('main')?.prepend(a);
+		}, `/trips/${other.id}/edit`);
+		await page.getByRole('link', { name: 'next trip' }).click();
+
+		await page.waitForURL(`/trips/${other.id}/edit`);
+		await expect(page.getByLabel('Nazwa rejsu *')).toHaveValue(otherName);
+		await expect(page.getByLabel('Wydarzenie klubu *')).toHaveValue(String(otherCruise.id));
+		await expect(page.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', `/trips/${other.id}`);
+	});
+
 	test('admin: completes the trip into a voyage', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 

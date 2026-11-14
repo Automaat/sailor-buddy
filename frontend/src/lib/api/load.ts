@@ -28,3 +28,12 @@ export async function found<T>(p: Promise<T | null | undefined>, copy: NotFoundC
 function notFound({ message, ...rest }: NotFoundCopy): never {
 	error(404, message, rest);
 }
+
+/**
+ * cruiseIdParam is the event a "new leg" link preselects with ?cruise_id=,
+ * or 0 when the parameter is missing or not a positive integer.
+ */
+export function cruiseIdParam(url: URL): number {
+	const n = Number(url.searchParams.get('cruise_id') ?? 0);
+	return Number.isInteger(n) && n > 0 ? n : 0;
+}

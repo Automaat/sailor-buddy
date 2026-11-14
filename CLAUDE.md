@@ -129,6 +129,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   per-page `notFound` flags. Sections the user can edit in place use a
   writable `$derived(data.x)`. Admin-only lists stay in an `$effect` keyed on
   the record id, since `auth.isAdmin` is false until `/auth/me` answers.
+  Forms filled from load data use `let form = $derived(perLoad(data, …))`
+  (`src/lib/state.svelte.ts`): the form, its error and busy flag start over
+  on the next record, and a save acts on its reply only while its held state
+  is still the current one. Wrap a form with a `YachtSelect` in
+  `{#key data}` so a yacht still being added is dropped with the record.
   Migration of the remaining `onMount` pages is tracked in #600.
 - Go code must pass `gofumpt` formatting
 - Handler tests use `mockQuerier` (`internal/api/handlers/mock_test.go`),
@@ -139,4 +144,4 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - `SAILOR_DATABASE_URL` has no default: `cmd/api`, `cmd/migrate` and
   `cmd/seed-dev` all migrate on start, so each exits before connecting when it
   is unset. `migrate` and `seed-dev` take only `-h`; any other argument exits 2.
-- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only as a subdomain wildcard such as `https://*.example.com`, otherwise the API refuses to start)
+- `CORS_ALLOWED_ORIGINS`: comma-separated list of allowed CORS origins (required for production; default: `http://localhost:5173`; a `*` is allowed only in the first host label under a registrable domain, such as `https://*.example.com` or `https://app-*.example.com`, or as the port of a named host, such as `http://localhost:*`; otherwise the API refuses to start)
