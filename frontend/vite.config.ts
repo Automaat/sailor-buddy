@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
 					},
 					// Admin role and membership changes. Branches sit just under
 					// 80%, so their floor is 75%.
-					'src/routes/members/+page.svelte': {
+					'src/routes/crew/+page.svelte': {
 						statements: 80,
 						branches: 75,
 						functions: 80,
