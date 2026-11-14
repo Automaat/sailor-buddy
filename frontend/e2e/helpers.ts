@@ -70,11 +70,15 @@ export async function apiRequest(
 	return res.json();
 }
 
-export async function loginViaUI(page: Page, email: string, password: string): Promise<void> {
+export async function submitLoginForm(page: Page, email: string, password: string): Promise<void> {
 	await page.goto('/login');
 	await page.getByLabel('Email').fill(email);
 	await page.getByLabel('Hasło').fill(password);
 	await page.getByRole('button', { name: 'Zaloguj' }).click();
+}
+
+export async function loginViaUI(page: Page, email: string, password: string): Promise<void> {
+	await submitLoginForm(page, email, password);
 	await page.waitForURL('/', { timeout: 10_000 });
 }
 

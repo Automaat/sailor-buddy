@@ -3,6 +3,8 @@ import {
 	createTestUser,
 	registerViaUI,
 	loginViaUI,
+	submitLoginForm,
+	completeOnboardingViaUI,
 	signInTestUser,
 	apiRequest,
 	completeOnboarding,
@@ -52,7 +54,9 @@ async function mutationStatus(
  * backend provisions, which auto-promotes it to admin. A retry of this serial
  * group signs in to the account the failed attempt created instead: the
  * backend cannot link a re-registered email, and e2e/global-setup.ts clears
- * the emulator only once per run.
+ * the emulator only once per run. If that attempt did not finish onboarding,
+ * the retry fills the onboarding form in the UI again, so a broken form fails
+ * every attempt.
  */
 async function signInAdmin(page: Page): Promise<void> {
 	const existing = await signInTestUser(adminEmail, PASSWORD).catch(() => null);
@@ -60,8 +64,13 @@ async function signInAdmin(page: Page): Promise<void> {
 		await registerViaUI(page, adminName, adminEmail, PASSWORD);
 		return;
 	}
-	await completeOnboarding(existing.idToken, 'Persona', 'Admin');
-	await loginViaUI(page, adminEmail, PASSWORD);
+	const me = (await apiRequest(existing.idToken, 'GET', '/auth/me')) as { onboarded: boolean };
+	if (me.onboarded) {
+		await loginViaUI(page, adminEmail, PASSWORD);
+		return;
+	}
+	await submitLoginForm(page, adminEmail, PASSWORD);
+	await completeOnboardingViaUI(page, 'Persona', 'Admin');
 }
 
 test.describe.serial('Single-club persona matrix', () => {
