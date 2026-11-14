@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$app/state', () => ({ page: { params: { id: '50' } } }));
 vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	getTripSignUp: vi.fn(),
@@ -23,7 +22,20 @@ import {
 	updateTripEnrollmentPaymentStatus
 } from '#lib/api/routes.js';
 import { makeTrip } from '#lib/test-utils.js';
+import { ApiError } from '#lib/api/client.js';
 import EnrollmentsPage from './+page.svelte';
+import { load } from './+page.js';
+import type { PageData } from './$types';
+
+function runLoad(id = '50') {
+	return load({ params: { id } } as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
+}
+
+// renderPage runs the route's load function and renders the page with its
+// data, the way SvelteKit does on navigation.
+async function renderPage() {
+	return render(EnrollmentsPage, { props: { data: await runLoad() } });
+}
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 
@@ -68,7 +80,7 @@ function counts() {
 
 describe('trip enrollments page payment status', () => {
 	it('shows each sign-up payment status and the counts per status', async () => {
-		render(EnrollmentsPage);
+		await renderPage();
 		const anna = await screen.findByLabelText('Płatność: Anna');
 		expect(anna).toHaveValue('paid');
 		expect(screen.getByLabelText('Płatność: Bartek')).toHaveValue('deposit');
@@ -82,7 +94,7 @@ describe('trip enrollments page payment status', () => {
 
 	it('sets the payment status and updates the counts without touching acceptance', async () => {
 		fn(updateTripEnrollmentPaymentStatus).mockResolvedValue(row(4, 'Darek', { payment_status: 'deposit' }));
-		render(EnrollmentsPage);
+		await renderPage();
 		const darek = await screen.findByLabelText('Płatność: Darek');
 
 		await fireEvent.change(darek, { target: { value: 'deposit' } });
@@ -97,7 +109,7 @@ describe('trip enrollments page payment status', () => {
 	it('disables the control while its change is saving', async () => {
 		let resolve: (v: unknown) => void = () => {};
 		fn(updateTripEnrollmentPaymentStatus).mockReturnValue(new Promise((r) => (resolve = r)));
-		render(EnrollmentsPage);
+		await renderPage();
 		const darek = await screen.findByLabelText('Płatność: Darek');
 
 		await fireEvent.change(darek, { target: { value: 'paid' } });
@@ -111,7 +123,7 @@ describe('trip enrollments page payment status', () => {
 
 	it('shows the saved payment status after a reload', async () => {
 		fn(listTripEnrollments).mockResolvedValue([row(4, 'Darek', { payment_status: 'paid' })]);
-		render(EnrollmentsPage);
+		await renderPage();
 		expect(await screen.findByLabelText('Płatność: Darek')).toHaveValue('paid');
 		expect(counts().paid).toBe('Opłacone: 1');
 	});
@@ -119,7 +131,7 @@ describe('trip enrollments page payment status', () => {
 	it('reverts the control and shows an error when saving fails', async () => {
 		fn(updateTripEnrollmentPaymentStatus).mockRejectedValue(new Error('403'));
 		vi.spyOn(console, 'error').mockImplementation(() => {});
-		render(EnrollmentsPage);
+		await renderPage();
 		const anna = await screen.findByLabelText('Płatność: Anna');
 
 		await fireEvent.change(anna, { target: { value: 'unpaid' } });
@@ -131,7 +143,7 @@ describe('trip enrollments page payment status', () => {
 
 	it('hides the counts when there are no sign-ups', async () => {
 		fn(listTripEnrollments).mockResolvedValue([]);
-		render(EnrollmentsPage);
+		await renderPage();
 		expect(await screen.findByText('Brak zapisów.')).toBeInTheDocument();
 		expect(screen.queryByTestId('payment-counts')).not.toBeInTheDocument();
 	});
@@ -141,25 +153,116 @@ describe('trip enrollments page load errors', () => {
 	it('flags the accepted count when the leg sign-up state fails, and still lists sign-ups', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		fn(getTripSignUp).mockRejectedValue(new Error('500'));
-		render(EnrollmentsPage);
+		await renderPage();
 
 		expect(await screen.findByText(/Nie udało się wczytać: liczba zajętych miejsc\./)).toBeInTheDocument();
 		expect(screen.getByLabelText('Płatność: Anna')).toBeInTheDocument();
 	});
 
-	it('shows an error instead of an empty list when the sign-ups fail to load', async () => {
-		vi.spyOn(console, 'error').mockImplementation(() => {});
-		fn(listTripEnrollments).mockRejectedValue(new Error('500'));
-		render(EnrollmentsPage);
+	it('fails the load instead of showing an empty list when the sign-ups fail', async () => {
+		const boom = new Error('500');
+		fn(listTripEnrollments).mockRejectedValue(boom);
 
-		expect(await screen.findByText('Nie udało się wczytać zapisów')).toBeInTheDocument();
-		expect(screen.queryByText('Brak zapisów.')).not.toBeInTheDocument();
+		await expect(runLoad()).rejects.toBe(boom);
 	});
 
 	it('shows no load banner when every section loads', async () => {
-		render(EnrollmentsPage);
+		await renderPage();
 
 		await screen.findByLabelText('Płatność: Anna');
 		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
+	});
+});
+
+describe('trip enrollments page load', () => {
+	it('throws a 404 with the trip copy for +error.svelte', async () => {
+		fn(getTrip).mockRejectedValue(new ApiError(404, 'not found'));
+
+		await expect(runLoad()).rejects.toMatchObject({
+			status: 404,
+			body: { title: 'Nie znaleziono rejsu', backHref: '/cruises' }
+		});
+	});
+
+	it('sends a member the API refuses back to the trip', async () => {
+		fn(listTripEnrollments).mockRejectedValue(new ApiError(403, 'forbidden'));
+
+		await expect(runLoad()).rejects.toMatchObject({ status: 307, location: '/trips/50' });
+	});
+
+	it('loads the trip named by the URL', async () => {
+		await runLoad('9');
+
+		expect(getTrip).toHaveBeenCalledWith(9);
+		expect(listTripEnrollments).toHaveBeenCalledWith(9);
+		expect(getTripSignUp).toHaveBeenCalledWith(9);
+	});
+});
+
+describe('trip enrollments page same-route navigation', () => {
+	beforeEach(() => {
+		fn(getTrip).mockImplementation(async (id: number) =>
+			makeTrip({ id, name: id === 50 ? 'Jacht A' : 'Jacht B', max_crew: 8 })
+		);
+		fn(listTripEnrollments).mockImplementation(async (id: number) =>
+			id === 50 ? [row(1, 'Anna')] : [row(7, 'Zenon', { trip_id: 51 })]
+		);
+	});
+
+	it('swaps to the second trip and clears the first trip alerts', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(updateTripEnrollmentPaymentStatus).mockRejectedValue(new Error('500'));
+		const view = await renderPage();
+		const select = await screen.findByLabelText('Płatność: Anna');
+		await fireEvent.change(select, { target: { value: 'paid' } });
+		expect(await screen.findByText('Nie udało się zapisać statusu płatności')).toBeInTheDocument();
+
+		await view.rerender({ data: await runLoad('51') });
+
+		expect(screen.getByText(/Jacht B/)).toBeInTheDocument();
+		expect(screen.getByLabelText('Płatność: Zenon')).toBeInTheDocument();
+		expect(screen.queryByLabelText('Płatność: Anna')).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(screen.queryByText('Nie udało się zapisać statusu płatności')).not.toBeInTheDocument()
+		);
+	});
+
+	it('shows the second trip payment status when a link moves away mid-save', async () => {
+		let answer: (v: unknown) => void = () => {};
+		fn(updateTripEnrollmentPaymentStatus).mockReturnValue(new Promise((r) => (answer = r)));
+		const view = await renderPage();
+		const anna = await screen.findByLabelText('Płatność: Anna');
+		await fireEvent.change(anna, { target: { value: 'paid' } });
+		await waitFor(() => expect(anna).toBeDisabled());
+
+		await view.rerender({ data: await runLoad('51') });
+
+		const zenon = screen.getByLabelText('Płatność: Zenon');
+		expect(zenon).toHaveValue('unpaid');
+		expect(zenon).toBeEnabled();
+		answer(row(1, 'Anna', { payment_status: 'paid' }));
+		await waitFor(() => expect(updateTripEnrollmentPaymentStatus).toHaveBeenCalledTimes(1));
+		await Promise.resolve();
+		expect(screen.getByLabelText('Płatność: Zenon')).toHaveValue('unpaid');
+		expect(counts().unpaid).toBe('Brak wpłaty: 1');
+	});
+
+	it('drops a status change that answers after a link moved to another trip', async () => {
+		let answer: () => void = () => {};
+		fn(updateTripEnrollmentStatus).mockReturnValue(new Promise<void>((r) => (answer = r)));
+		fn(listTripEnrollments).mockImplementation(async (id: number) =>
+			id === 50 ? [row(1, 'Anna')] : [row(1, 'Anna', { trip_id: 51 })]
+		);
+		const view = await renderPage();
+		await screen.findByLabelText('Płatność: Anna');
+		await fireEvent.click(screen.getByRole('button', { name: 'Akceptuj' }));
+
+		await view.rerender({ data: await runLoad('51') });
+		answer();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(screen.getByText(/Jacht B/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Akceptuj' })).toBeInTheDocument();
 	});
 });

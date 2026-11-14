@@ -6,7 +6,6 @@ const h = vi.hoisted(() => ({
 	membership: 'czlonek' as 'czlonek' | 'sympatyk' | 'gosc' | undefined
 }));
 
-vi.mock('$app/state', () => ({ page: { params: { token: 'tok' } } }));
 vi.mock('#lib/api/routes.js', () => ({
 	resolveEnroll: vi.fn(),
 	enroll: vi.fn(),
@@ -32,7 +31,20 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
+import { ApiError } from '#lib/api/client.js';
 import EnrollPage from './+page.svelte';
+import { load } from './+page.js';
+import type { PageData } from './$types';
+
+function runLoad(token = 'tok') {
+	return load({ params: { token } } as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
+}
+
+// renderPage runs the route's load function and renders the page with its
+// data, the way SvelteKit does on navigation.
+async function renderPage() {
+	return render(EnrollPage, { props: { data: await runLoad() } });
+}
 
 const resolveMock = resolveEnroll as unknown as ReturnType<typeof vi.fn>;
 const enrollMock = enroll as unknown as ReturnType<typeof vi.fn>;
@@ -77,7 +89,7 @@ beforeEach(() => {
 
 describe('enroll page — profile summary', () => {
 	it('shows who is enrolling with a link to edit the profile', async () => {
-		render(EnrollPage);
+		await renderPage();
 		const summary = await screen.findByTestId('enroll-as');
 		expect(summary).toHaveTextContent('Jan Kowalski');
 		expect(summary).toHaveTextContent('+48 600 100 200 · Żeglarz Jachtowy · ZJ-1');
@@ -87,7 +99,7 @@ describe('enroll page — profile summary', () => {
 
 describe('enroll page — cruise legs', () => {
 	it('numbers legs by embark date and marks cancelled legs unavailable', async () => {
-		render(EnrollPage);
+		await renderPage();
 		const a = await screen.findByText('Etap 1: Bodø – Tromsø');
 		const b = screen.getByText('Etap 2: Tromsø – Longyearbyen');
 		const c = screen.getByText('Etap 3: Longyearbyen – Tromsø');
@@ -101,7 +113,7 @@ describe('enroll page — cruise legs', () => {
 	});
 
 	it('submits the picked legs in one request', async () => {
-		render(EnrollPage);
+		await renderPage();
 		await fireEvent.click(await screen.findByRole('checkbox', { name: /Etap 1/ }));
 		await fireEvent.click(screen.getByRole('checkbox', { name: /Etap 2/ }));
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się na wybrane etapy (2)' }));
@@ -112,7 +124,7 @@ describe('enroll page — cruise legs', () => {
 	});
 
 	it('offers no whole-cruise sign-up: a leg must be picked', async () => {
-		render(EnrollPage);
+		await renderPage();
 		const submit = await screen.findByRole('button', { name: 'Zapisz się' });
 		expect(submit).toBeDisabled();
 		await fireEvent.click(submit);
@@ -128,7 +140,7 @@ describe('enroll page — cruise legs', () => {
 				leg_enrollments: [{ id: 5, trip_id: 11, user_id: 1, status: 'accepted' }]
 			})
 		);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText('zapisany: zaakceptowany')).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox', { name: /Etap 1/ })).not.toBeInTheDocument();
 		expect(screen.getByRole('checkbox', { name: /Etap 2/ })).toBeInTheDocument();
@@ -145,14 +157,14 @@ describe('enroll page — cruise legs', () => {
 				]
 			})
 		);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText(/Jesteś już zapisany/)).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 	});
 
 	it('hides leg checkboxes from signed-out visitors', async () => {
 		h.authenticated = false;
-		render(EnrollPage);
+		await renderPage();
 		await screen.findByText('Etap 1: Bodø – Tromsø');
 		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Zapisz się' })).toHaveAttribute(
@@ -165,7 +177,7 @@ describe('enroll page — cruise legs', () => {
 		resolveMock.mockResolvedValue(
 			cruiseData({ enrolled: true, enrollment: { id: 9, cruise_id: 7, user_id: 1, status: 'pending' } })
 		);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText(/Jesteś zapisany na wydarzenie/)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeDisabled();
 		await fireEvent.click(screen.getByRole('checkbox', { name: /Etap 2/ }));
@@ -178,18 +190,36 @@ describe('enroll page — cruise legs', () => {
 
 	it('shows the server error when leg enrollment fails', async () => {
 		enrollLegsMock.mockRejectedValue(new Error('trip 12 is not open for enrollment'));
-		render(EnrollPage);
+		await renderPage();
 		await fireEvent.click(await screen.findByRole('checkbox', { name: /Etap 2/ }));
 		await fireEvent.click(screen.getByRole('button', { name: /Zapisz się na wybrane etapy/ }));
 		expect(await screen.findByText('trip 12 is not open for enrollment')).toBeInTheDocument();
 		expect(screen.queryByText(/Zostałeś zapisany!/)).not.toBeInTheDocument();
 	});
 
-	it('shows an invalid-link message when the token does not resolve', async () => {
-		resolveMock.mockRejectedValue(new Error('invalid enrollment link'));
-		render(EnrollPage);
-		expect(await screen.findByText('Nieprawidłowy link')).toBeInTheDocument();
-		expect(screen.getByText('invalid enrollment link')).toBeInTheDocument();
+	it('throws a 404 with the invalid-link copy when the token does not resolve', async () => {
+		resolveMock.mockRejectedValue(new ApiError(404, 'invalid enrollment link'));
+
+		await expect(runLoad()).rejects.toMatchObject({
+			status: 404,
+			body: {
+				title: 'Nieprawidłowy link',
+				message: 'Ten link zapisu jest nieprawidłowy lub został wyłączony.'
+			}
+		});
+	});
+
+	it('passes other failures on to +error.svelte', async () => {
+		const boom = new Error('boom');
+		resolveMock.mockRejectedValue(boom);
+
+		await expect(runLoad()).rejects.toBe(boom);
+	});
+
+	it('resolves the token named by the URL', async () => {
+		await runLoad('xyz');
+
+		expect(resolveMock).toHaveBeenCalledWith('xyz');
 	});
 });
 
@@ -204,7 +234,7 @@ describe('enroll page — single trip', () => {
 
 	it('enrolls in the trip without leg checkboxes', async () => {
 		resolveMock.mockResolvedValue(tripData);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText('Adriatyk')).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się' }));
@@ -217,7 +247,7 @@ describe('enroll page — single trip', () => {
 			enrolled: true,
 			enrollment: { id: 3, trip_id: 5, user_id: 1, status: 'waitlisted' }
 		});
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText(/Jesteś już zapisany/)).toBeInTheDocument();
 		expect(screen.getByText('lista rezerwowa')).toBeInTheDocument();
 	});
@@ -237,13 +267,13 @@ function tripData(maxCrew: number | undefined, accepted: number) {
 describe('enroll page — free places', () => {
 	it('shows the crew limit minus accepted enrollments for a trip', async () => {
 		resolveMock.mockResolvedValue(tripData(10, 3));
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 7');
 	});
 
 	it('shows zero and keeps enrollment open when the trip is full', async () => {
 		resolveMock.mockResolvedValue(tripData(4, 6));
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 0');
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
 	});
@@ -253,7 +283,7 @@ describe('enroll page — free places', () => {
 		['zero, the forms value for no limit', 0]
 	])('shows nothing for a trip whose crew limit is %s', async (_label, maxCrew) => {
 		resolveMock.mockResolvedValue(tripData(maxCrew, 3));
-		render(EnrollPage);
+		await renderPage();
 		await screen.findByText('Rejs Bałtyk');
 		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
 	});
@@ -263,13 +293,13 @@ describe('enroll page — free places', () => {
 			...tripData(10, 2),
 			trip_accepted: [{ trip_id: 1, accepted_count: 5 }]
 		});
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('free-places')).toHaveTextContent('Wolne miejsca: 5');
 	});
 
 	it('shows nothing for a trip when the accepted count is missing', async () => {
 		resolveMock.mockResolvedValue({ ...tripData(10, 2), trip_accepted: undefined });
-		render(EnrollPage);
+		await renderPage();
 		await screen.findByText('Rejs Bałtyk');
 		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
 	});
@@ -278,7 +308,7 @@ describe('enroll page — free places', () => {
 		resolveMock.mockResolvedValue(
 			cruiseData({ trips: [{ ...trip(1, 'Ilmatar', '2025-07-01'), max_crew: 10 }] })
 		);
-		render(EnrollPage);
+		await renderPage();
 		await screen.findByText('Etap 1: Ilmatar');
 		expect(screen.queryByTestId('free-places')).not.toBeInTheDocument();
 	});
@@ -300,7 +330,7 @@ describe('enroll page — free places', () => {
 				]
 			})
 		);
-		render(EnrollPage);
+		await renderPage();
 		const leg = async (text: string) => (await screen.findByText(text)).closest('label');
 		expect(await leg('Etap 1: Ilmatar')).toHaveTextContent('wolne miejsca: 6');
 		expect(await leg('Etap 2: Kliper')).toHaveTextContent('wolne miejsca: 8');
@@ -331,7 +361,7 @@ describe('enroll page — prices', () => {
 	] as const)('shows %s their cruise price and what it covers', async (membership, want) => {
 		h.membership = membership;
 		resolveMock.mockResolvedValue(nne);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
 		expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent('400 PLN');
 		expect(screen.getByTestId('price-included')).toHaveTextContent('skipper');
@@ -342,7 +372,7 @@ describe('enroll page — prices', () => {
 		h.authenticated = false;
 		h.membership = undefined;
 		resolveMock.mockResolvedValue(nne);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText('Goście')).toBeInTheDocument();
 		expect(screen.queryByTestId('your-price')).not.toBeInTheDocument();
 	});
@@ -356,13 +386,13 @@ describe('enroll page — prices', () => {
 			accepted_count: 0,
 			total_count: 0
 		});
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('your-price')).toHaveTextContent('Twoja cena: 760 EUR');
 		expect(screen.getByText('Kaucja (zwrotna)').nextElementSibling).toHaveTextContent('200 EUR');
 	});
 
 	it('shows no price section for an unpriced cruise', async () => {
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByText('NNE 2025')).toBeInTheDocument();
 		expect(screen.queryByLabelText('Cena')).not.toBeInTheDocument();
 	});
@@ -381,7 +411,7 @@ describe('enroll page — cruise logistics', () => {
 				}
 			})
 		);
-		render(EnrollPage);
+		await renderPage();
 
 		expect(await screen.findByText('Tanie loty do Katanii')).toBeInTheDocument();
 		expect(screen.getByText('18+')).toBeInTheDocument();
@@ -389,7 +419,7 @@ describe('enroll page — cruise logistics', () => {
 	});
 
 	it('shows no logistics when none are set', async () => {
-		render(EnrollPage);
+		await renderPage();
 
 		await screen.findByText('Etap 1: Bodø – Tromsø');
 		expect(screen.queryByTestId('cruise-logistics')).not.toBeInTheDocument();
@@ -400,7 +430,7 @@ describe('enroll page — cruise logistics', () => {
 		resolveMock.mockResolvedValue(
 			cruiseData({ cruise: { id: 7, name: 'NNE 2025', group_chat_url: 'javascript:alert(1)' } })
 		);
-		render(EnrollPage);
+		await renderPage();
 
 		await screen.findByText('Etap 1: Bodø – Tromsø');
 		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
@@ -428,7 +458,7 @@ describe('enroll page — sign-up deadline', () => {
 
 	it('shows the deadline and keeps the form open on the deadline day in Warsaw', async () => {
 		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('sign-up-deadline')).toHaveTextContent('Zapisy do 10 maj 2026');
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
 	});
@@ -436,7 +466,7 @@ describe('enroll page — sign-up deadline', () => {
 	it('shows Zapisy zamknięte instead of the form after the deadline', async () => {
 		vi.setSystemTime(new Date('2026-05-10T22:30:00Z'));
 		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('sign-up-closed')).toHaveTextContent('Zapisy zamknięte');
 		expect(screen.queryByRole('button', { name: /Zapisz się/ })).not.toBeInTheDocument();
 		expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
@@ -447,14 +477,14 @@ describe('enroll page — sign-up deadline', () => {
 		h.authenticated = false;
 		h.membership = undefined;
 		resolveMock.mockResolvedValue(deadlineTrip('2026-05-10'));
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByTestId('sign-up-closed')).toBeInTheDocument();
 		expect(screen.queryByRole('link', { name: 'Zapisz się' })).not.toBeInTheDocument();
 	});
 
 	it('shows no deadline for a trip without one', async () => {
 		resolveMock.mockResolvedValue(deadlineTrip(undefined));
-		render(EnrollPage);
+		await renderPage();
 		await screen.findByText('Adriatyk');
 		expect(screen.queryByTestId('sign-up-deadline')).not.toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Zapisz się' })).toBeEnabled();
@@ -469,11 +499,37 @@ describe('enroll page — sign-up deadline', () => {
 				]
 			})
 		);
-		render(EnrollPage);
+		await renderPage();
 		expect(await screen.findByRole('checkbox', { name: 'Etap 2: Tromsø – Longyearbyen' })).toBeInTheDocument();
 		expect(screen.queryByRole('checkbox', { name: 'Etap 1: Bodø – Tromsø' })).not.toBeInTheDocument();
 		expect(screen.getByText('Zapisy zamknięte')).toBeInTheDocument();
 		const deadlines = screen.getAllByTestId('sign-up-deadline').map((e) => e.textContent?.trim());
 		expect(deadlines).toEqual(['Zapisy do 9 maj 2026', 'Zapisy do 10 maj 2026']);
+	});
+});
+
+describe('enroll page same-route navigation', () => {
+	it('shows the second link and drops the first link form state and reply', async () => {
+		resolveMock.mockImplementation(async (token: string) =>
+			token === 'tok'
+				? cruiseData()
+				: cruiseData({ cruise: { id: 8, name: 'Bałtyk 2025' }, trips: [trip(21, 'Gdynia – Hel', '2025-08-01')] })
+		);
+		let answer: () => void = () => {};
+		enrollLegsMock.mockReturnValue(new Promise<void>((r) => (answer = r)));
+		const view = await renderPage();
+		await fireEvent.click(await screen.findByLabelText(/Bodø – Tromsø/));
+		await fireEvent.click(screen.getByRole('button', { name: /Zapisz się na wybrane etapy/ }));
+
+		await view.rerender({ data: await runLoad('tok2') });
+		answer();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(screen.getByRole('heading', { name: 'Bałtyk 2025' })).toBeInTheDocument();
+		expect(screen.queryByText(/Zostałeś zapisany!/)).not.toBeInTheDocument();
+		expect(screen.getByLabelText(/Gdynia – Hel/)).not.toBeChecked();
+		expect(resolveMock).not.toHaveBeenCalledWith('tok', expect.anything());
+		expect(resolveMock).toHaveBeenCalledTimes(2);
 	});
 });

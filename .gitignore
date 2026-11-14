@@ -42,3 +42,12 @@ ui-debug.log
 # Playwright
 frontend/test-results/
 frontend/playwright-report/
+
+# Member personal data (club spreadsheets and filled-in opinions);
+# keep it off the repo root
+/0_Szablon 2/
+/Wielkie podsumowanie żeglarskie.xlsx
+/*.xlsx
+/*.numbers
+/*.pages
+/*.pdf

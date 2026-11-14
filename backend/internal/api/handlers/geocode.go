@@ -130,18 +130,21 @@ type geocodeOutput struct {
 }
 
 // nominatimResult is the subset of a Nominatim jsonv2 record we consume.
+// jsonv2 names the feature class "category"; only the older json format
+// calls it "class".
 type nominatimResult struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
 	Lat         string `json:"lat"`
 	Lon         string `json:"lon"`
-	Class       string `json:"class"`
+	Category    string `json:"category"`
 }
 
-// placeClasses is the set of Nominatim feature classes a sailing destination
-// can plausibly belong to: populated places and the administrative areas that
-// share their name. Streets, buildings and POIs are dropped as noise.
-var placeClasses = map[string]bool{"place": true, "boundary": true, "natural": true}
+// placeCategories is the set of Nominatim feature categories a sailing
+// destination can plausibly belong to: populated places and the
+// administrative areas that share their name. Streets, buildings and POIs are
+// dropped as noise.
+var placeCategories = map[string]bool{"place": true, "boundary": true, "natural": true}
 
 // RegisterGeocodeRoutes wires the geocoding proxy onto the API.
 func RegisterGeocodeRoutes(api huma.API) {
@@ -197,7 +200,7 @@ func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.Geocode
 	q := url.Values{}
 	q.Set("q", strings.TrimSpace(query))
 	q.Set("format", "jsonv2")
-	// Over-fetch: class filtering and coordinate dedup below trim the list,
+	// Over-fetch: category filtering and coordinate dedup below trim the list,
 	// so a higher limit keeps ~5 usable matches.
 	q.Set("limit", "10")
 	q.Set("addressdetails", "0")
@@ -236,7 +239,7 @@ func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.Geocode
 	for _, r := range raw {
 		// Drop streets, buildings and POIs — only towns and the admin areas
 		// that share their name make sense as a sailing destination.
-		if !placeClasses[r.Class] {
+		if !placeCategories[r.Category] {
 			continue
 		}
 		lat, latErr := strconv.ParseFloat(r.Lat, 64)

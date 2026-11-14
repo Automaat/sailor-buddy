@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"slices"
 	"testing"
 	"time"
@@ -43,10 +45,11 @@ func TestPersonLinks_MembersForbidden(t *testing.T) {
 
 // linkFixture seeds accounts and people on a real database.
 type linkFixture struct {
-	t    *testing.T
-	conn *sql.DB
-	q    sqlcdb.Querier
-	api  humatest.TestAPI
+	t       *testing.T
+	conn    *sql.DB
+	q       sqlcdb.Querier
+	api     humatest.TestAPI
+	uploads *os.Root
 }
 
 func newLinkFixture(t *testing.T) *linkFixture {
@@ -54,8 +57,9 @@ func newLinkFixture(t *testing.T) *linkFixture {
 	conn := lockTestDB(t)
 	q := sqlcdb.New(conn)
 	_, api := humatest.New(t)
-	registerPersonLinkRoutes(api, &PersonLinkHandler{q: q, runTx: sqlTxRunner(conn)})
-	return &linkFixture{t: t, conn: conn, q: q, api: api}
+	uploads := testUploadRoot(t, t.TempDir())
+	registerPersonLinkRoutes(api, &PersonLinkHandler{q: q, runTx: sqlTxRunner(conn), uploads: uploads})
+	return &linkFixture{t: t, conn: conn, q: q, api: api, uploads: uploads}
 }
 
 func (f *linkFixture) scalar(query string, args ...any) int64 {
@@ -363,6 +367,65 @@ func TestPersonLinks_AdminLinkAndUnlink(t *testing.T) {
 	}
 }
 
+// TestPersonLinks_LinkRemovesMergedOpinionFile links an account to a person
+// who has an opinion for a voyage the account's own person also reviewed.
+// The merge keeps the person's opinion, so the account person's opinion file
+// for that voyage must leave the upload root once the link commits, while
+// the file of the opinion that moves over stays.
+func TestPersonLinks_LinkRemovesMergedOpinionFile(t *testing.T) {
+	cases := map[string]func(t *testing.T, f mergeFixture, api humatest.TestAPI, admin context.Context){
+		"approve request": func(t *testing.T, f mergeFixture, api humatest.TestAPI, admin context.Context) {
+			t.Helper()
+			resp := api.PostCtx(callerCtx(f.userID, "member"), "/auth/me/person-link-request",
+				map[string]any{"person_id": f.keptID})
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("request: got %d; body=%s", resp.Code, resp.Body)
+			}
+			var req dto.PersonLinkRequest
+			decodeBody(t, resp.Body.Bytes(), &req)
+			resp = api.PostCtx(admin, fmt.Sprintf("/person-link-requests/%d/approve", req.ID))
+			if resp.Code != http.StatusOK {
+				t.Fatalf("approve: got %d; body=%s", resp.Code, resp.Body)
+			}
+		},
+		"admin link": func(t *testing.T, f mergeFixture, api humatest.TestAPI, admin context.Context) {
+			t.Helper()
+			resp := api.PostCtx(admin, fmt.Sprintf("/crew/%d/link", f.keptID), map[string]any{"user_id": f.userID})
+			if resp.Code != http.StatusOK {
+				t.Fatalf("link: got %d; body=%s", resp.Code, resp.Body)
+			}
+		},
+	}
+	for name, link := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := seedMerge(t)
+			q := sqlcdb.New(f.conn)
+			admin, err := q.CreateUser(context.Background(), sqlcdb.CreateUserParams{Email: "admin@example.dev", Name: "Admin"})
+			if err != nil {
+				t.Fatalf("create admin: %v", err)
+			}
+			_, api := humatest.New(t)
+			registerPersonLinkRoutes(api, &PersonLinkHandler{q: q, runTx: sqlTxRunner(f.conn), uploads: f.uploads})
+
+			link(t, f, api, callerCtx(admin.ID, "admin"))
+
+			kept, err := q.GetCrewMember(context.Background(), f.keptID)
+			if err != nil {
+				t.Fatalf("get linked person: %v", err)
+			}
+			if !kept.UserID.Valid || kept.UserID.Int64 != f.userID {
+				t.Fatalf("linked person account = %+v, want %d", kept.UserID, f.userID)
+			}
+			if _, err := os.Stat(f.sharedOpinionFile); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("merged-away opinion file: stat err = %v, want not exist", err)
+			}
+			if _, err := os.Stat(f.duplicateOnlyOpinionFile); err != nil {
+				t.Errorf("moved opinion file: %v", err)
+			}
+		})
+	}
+}
+
 func TestPersonLinks_UnlinkAfterApprovalLetsTheUserAskAgain(t *testing.T) {
 	f := newLinkFixture(t)
 	admin, _ := f.account("admin@example.dev", "Admin")
@@ -447,7 +510,7 @@ func (f *linkFixture) pausedAPI(at string) (api humatest.TestAPI, reached <-chan
 		})
 	}
 	_, api = humatest.New(f.t)
-	registerPersonLinkRoutes(api, &PersonLinkHandler{q: f.q, runTx: runTx})
+	registerPersonLinkRoutes(api, &PersonLinkHandler{q: f.q, runTx: runTx, uploads: f.uploads})
 	return api, r, rel
 }
 
