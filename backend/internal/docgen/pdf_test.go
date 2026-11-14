@@ -128,6 +128,19 @@ func requireChrome(t *testing.T) {
 func TestGeneratePDF_Chrome(t *testing.T) {
 	requireChrome(t)
 
+	var inFlight, peak atomic.Int32
+	stubRenderPDF(t, func(ctx context.Context, html []byte) ([]byte, error) {
+		n := inFlight.Add(1)
+		defer inFlight.Add(-1)
+		for {
+			p := peak.Load()
+			if n <= p || peak.CompareAndSwap(p, n) {
+				break
+			}
+		}
+		return renderPDFWithChrome(ctx, html)
+	})
+
 	const callers = 5
 	var wg sync.WaitGroup
 	out := make(chan []byte, callers)
@@ -153,23 +166,30 @@ func TestGeneratePDF_Chrome(t *testing.T) {
 			t.Fatalf("output is not a PDF: %q", pdf[:min(len(pdf), 16)])
 		}
 	}
+	if p := peak.Load(); p > maxConcurrentPDFRenders {
+		t.Fatalf("peak concurrent Chromium renders = %d, want at most %d", p, maxConcurrentPDFRenders)
+	}
 }
+
+// slowLoadHTML blocks the page's load event for 5 s, so a render is still
+// navigating when a shorter deadline expires.
+const slowLoadHTML = `<script>const end = Date.now() + 5000; while (Date.now() < end) {}</script><h1>Opinia</h1>`
 
 func TestGeneratePDF_ChromeCancelMidRender(t *testing.T) {
 	requireChrome(t)
 
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 1500*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()
-	_, err := GeneratePDF(ctx, []byte("<h1>Opinia</h1>"))
+	_, err := GeneratePDF(ctx, []byte(slowLoadHTML))
 	if err == nil {
-		t.Skip("render finished before the deadline")
+		t.Fatal("render outlived its context deadline")
 	}
 	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		t.Fatalf("want a context error, got %v", err)
 	}
-	if d := time.Since(start); d > 5*time.Second {
-		t.Fatalf("cancelled render took %s", d)
+	if d := time.Since(start); d > 4*time.Second {
+		t.Fatalf("cancelled render took %s; the browser was not stopped", d)
 	}
 }
