@@ -22,7 +22,8 @@ ENV SAILOR_ENV=production
 # Runs as an unprivileged user so Chromium keeps its sandbox on for PDF
 # renders. The fixed numeric UID lets operators chown mounted upload volumes
 # and lets Kubernetes runAsNonRoot verify the user.
-RUN apk add --no-cache ca-certificates chromium \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache ca-certificates chromium \
     && addgroup -S -g 10001 sailor \
     && adduser -S -D -u 10001 -G sailor -h /home/sailor sailor
 ENV CHROME_PATH=/usr/bin/chromium-browser

@@ -194,9 +194,21 @@ jobs:
           restore-keys: go-${{ runner.os }}-security-
       - name: Release version input regression tests
         run: python3 .github/scripts/test_release_version.py
+      - name: Security scan policy regression tests
+        run: python3 .github/scripts/test_security_scan.py
       - name: govulncheck
+        shell: bash
         working-directory: backend
-        run: govulncheck ./...
-      - name: npm audit
-        working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          mkdir -p ../security-reports/go
+          govulncheck -show verbose ./... | tee ../security-reports/go/govulncheck.txt
+      - name: Complete npm audit and reviewed dispositions
+        if: ${{ !cancelled() }}
+        run: python3 .github/scripts/security_scan.py npm --output security-reports/npm
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: dependency-security
+          path: security-reports
+          if-no-files-found: error
+          retention-days: 90
