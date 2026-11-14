@@ -172,7 +172,9 @@
 		</div>
 	{:else}
 		<div class="space-y-3">
-			{#each enrollments as enrollment}
+			<!-- Keyed so a link to another trip builds fresh rows: an unkeyed
+			     select would keep a choice still saving on the previous trip. -->
+			{#each enrollments as enrollment (enrollment.id)}
 				<div class="rounded-xl bg-white p-4 shadow-sm">
 					<div class="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
 						<div class="min-w-0 break-words">

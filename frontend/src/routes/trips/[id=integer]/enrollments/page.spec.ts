@@ -227,6 +227,26 @@ describe('trip enrollments page same-route navigation', () => {
 		);
 	});
 
+	it('shows the second trip payment status when a link moves away mid-save', async () => {
+		let answer: (v: unknown) => void = () => {};
+		fn(updateTripEnrollmentPaymentStatus).mockReturnValue(new Promise((r) => (answer = r)));
+		const view = await renderPage();
+		const anna = await screen.findByLabelText('Płatność: Anna');
+		await fireEvent.change(anna, { target: { value: 'paid' } });
+		await waitFor(() => expect(anna).toBeDisabled());
+
+		await view.rerender({ data: await runLoad('51') });
+
+		const zenon = screen.getByLabelText('Płatność: Zenon');
+		expect(zenon).toHaveValue('unpaid');
+		expect(zenon).toBeEnabled();
+		answer(row(1, 'Anna', { payment_status: 'paid' }));
+		await waitFor(() => expect(updateTripEnrollmentPaymentStatus).toHaveBeenCalledTimes(1));
+		await Promise.resolve();
+		expect(screen.getByLabelText('Płatność: Zenon')).toHaveValue('unpaid');
+		expect(counts().unpaid).toBe('Brak wpłaty: 1');
+	});
+
 	it('drops a status change that answers after a link moved to another trip', async () => {
 		let answer: () => void = () => {};
 		fn(updateTripEnrollmentStatus).mockReturnValue(new Promise<void>((r) => (answer = r)));
