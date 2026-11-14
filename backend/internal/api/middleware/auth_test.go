@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 func TestOptionalAuthPath(t *testing.T) {
@@ -87,5 +89,50 @@ func TestGetUser_WrongKey(t *testing.T) {
 	got := GetUser(ctx)
 	if got != nil {
 		t.Errorf("expected nil for wrong key, got %+v", got)
+	}
+}
+
+// lookupOnlyQuerier serves only the read-only auth lookup. Its embedded
+// Querier is nil, so any other call, such as a provisioning write, panics.
+type lookupOnlyQuerier struct {
+	sqlcdb.Querier
+	row sqlcdb.GetAuthUserByFirebaseUIDRow
+}
+
+func (l lookupOnlyQuerier) GetAuthUserByFirebaseUID(context.Context, types.NullString) (sqlcdb.GetAuthUserByFirebaseUIDRow, error) {
+	return l.row, nil
+}
+
+func TestAuth_KnownAccountUsesLookupOnly(t *testing.T) {
+	q := lookupOnlyQuerier{row: sqlcdb.GetAuthUserByFirebaseUIDRow{
+		User: sqlcdb.User{
+			ID:        7,
+			Email:     "ola@example.dev",
+			Name:      "Ola Nowak",
+			AvatarUrl: types.NullString{String: "https://example.dev/ola.png", Valid: true},
+			Role:      "member",
+		},
+		HasPerson:   true,
+		AdminExists: true,
+	}}
+	verifier := fakeVerifier{
+		"tok-ola": {UID: "fb-ola", Claims: map[string]any{"email": "ola@example.dev", "name": "Ola Nowak"}},
+	}
+	var got *auth.Claims
+	handler := Auth(verifier, q, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = GetUser(r.Context())
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", http.NoBody)
+	req.Header.Set("Authorization", "Bearer tok-ola")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent || got == nil {
+		t.Fatalf("got %d; body=%s", rec.Code, rec.Body)
+	}
+	want := auth.Claims{UserID: 7, Email: "ola@example.dev", Name: "Ola Nowak", AvatarUrl: "https://example.dev/ola.png", Role: "member"}
+	if *got != want {
+		t.Errorf("claims = %+v, want %+v", *got, want)
 	}
 }
