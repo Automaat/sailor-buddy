@@ -421,7 +421,7 @@ func TestFirstAdminRole_StaleRole(t *testing.T) {
 		{name: "account promoted by a sibling request", setup: `UPDATE users SET role = 'admin' WHERE firebase_uid = 'fb-new'`, want: "admin"},
 		{
 			name:  "another account is admin",
-			setup: `INSERT INTO users (email, name, password_hash, role) VALUES ('boss@example.dev', 'Boss', '', 'admin')`,
+			setup: `INSERT INTO users (email, name, role) VALUES ('boss@example.dev', 'Boss', 'admin')`,
 			want:  "member",
 		},
 	}
@@ -567,7 +567,7 @@ func TestAuth_FirstRequestRacingSameAccountInsert(t *testing.T) {
 		t.Fatalf("begin sibling: %v", err)
 	}
 	defer func() { _ = sibling.Rollback() }()
-	if _, err := sibling.Exec(`INSERT INTO users (email, name, password_hash) VALUES ('a@example.dev', 'A', '')`); err != nil {
+	if _, err := sibling.Exec(`INSERT INTO users (email, name) VALUES ('a@example.dev', 'A')`); err != nil {
 		t.Fatalf("sibling insert: %v", err)
 	}
 
@@ -609,8 +609,8 @@ func TestAuth_EmailOfExistingAccount(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			conn := freshDB(t)
 			var id int64
-			if err := conn.QueryRow(`INSERT INTO users (email, name, password_hash, role)
-				VALUES ('ola@example.dev', 'Ola', '', 'admin') RETURNING id`).Scan(&id); err != nil {
+			if err := conn.QueryRow(`INSERT INTO users (email, name, role)
+				VALUES ('ola@example.dev', 'Ola', 'admin') RETURNING id`).Scan(&id); err != nil {
 				t.Fatalf("insert account: %v", err)
 			}
 			var seen int64
