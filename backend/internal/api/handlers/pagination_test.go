@@ -59,6 +59,7 @@ func TestListPaging_InvalidCursorIs422(t *testing.T) {
 		"zero id":       b64(`{"n":"Alfa","i":0}`),
 		"unknown field": b64(`{"n":"Alfa","i":1,"x":2}`),
 		"trailing data": b64(`{"n":"Alfa","i":1}{"i":2}`),
+		"NUL in name":   b64(`{"n":"Al\u0000fa","i":1}`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			m := &mockQuerier{}
@@ -67,5 +68,13 @@ func TestListPaging_InvalidCursorIs422(t *testing.T) {
 				t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
 			}
 		})
+	}
+}
+
+func TestListPaging_InvalidDateCursorIs422(t *testing.T) {
+	after := base64.RawURLEncoding.EncodeToString([]byte(`{"d":"2026\u0000","i":1}`))
+	resp := tripTestAPI(t, &mockQuerier{}).GetCtx(userCtx(context.Background()), "/trips?after="+after)
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
 	}
 }

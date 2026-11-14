@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -18,7 +19,7 @@ import (
 type pageParams struct {
 	Limit  int32  `query:"limit" minimum:"1" maximum:"100" default:"50" doc:"Maximum number of items to return"`
 	Offset int32  `query:"offset" minimum:"0" default:"0" doc:"Number of items to skip"`
-	After  string `query:"after" maxLength:"512" doc:"A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"`
+	After  string `query:"after" doc:"A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"`
 }
 
 // nameKey is the keyset cursor of a list sorted by (name, id).
@@ -53,16 +54,19 @@ func encodeCursor(key any) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// cursorKey is a decoded keyset cursor; validID rejects one without a
-// positive row id.
-type cursorKey interface{ validID() bool }
+// cursorKey is a decoded keyset cursor. valid rejects one without a
+// positive row id, or with a NUL in a text key, which Postgres refuses.
+type cursorKey interface{ valid() bool }
 
-func (k *nameKey) validID() bool   { return k.ID > 0 }
-func (k *dateKey) validID() bool   { return k.ID > 0 }
-func (k *voyageKey) validID() bool { return k.ID > 0 }
+func (k *nameKey) valid() bool   { return k.ID > 0 && !strings.ContainsRune(k.Name, 0) }
+func (k *dateKey) valid() bool   { return k.ID > 0 && noNUL(k.Date) }
+func (k *voyageKey) valid() bool { return k.ID > 0 && noNUL(k.Date) }
+
+func noNUL(s *string) bool { return s == nil || !strings.ContainsRune(*s, 0) }
 
 // decodeCursor parses an after cursor into key and reports whether one was
-// given. A malformed cursor, or one without a positive id, is a 422.
+// given. A malformed or invalid cursor is a 422. The cursor has no length
+// cap: it carries a whole name, and names have none.
 func decodeCursor(after string, key cursorKey) (bool, error) {
 	if after == "" {
 		return false, nil
@@ -73,7 +77,7 @@ func decodeCursor(after string, key cursorKey) (bool, error) {
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(key); err != nil || dec.More() || !key.validID() {
+	if err := dec.Decode(key); err != nil || dec.More() || !key.valid() {
 		return false, errInvalidCursor()
 	}
 	return true, nil

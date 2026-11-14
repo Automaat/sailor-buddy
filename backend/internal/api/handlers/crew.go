@@ -37,7 +37,7 @@ func NewCrewHandler(q sqlcdb.Querier, db *sql.DB, uploads *os.Root) *CrewHandler
 type listCrewInput struct {
 	Limit  int32  `query:"limit" minimum:"1" maximum:"100" default:"50" doc:"Maximum number of items to return"`
 	Offset int32  `query:"offset" minimum:"0" default:"0" doc:"Number of items to skip"`
-	After  string `query:"after" maxLength:"512" doc:"A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"`
+	After  string `query:"after" doc:"A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"`
 	Query  string `query:"q" maxLength:"200" doc:"Case-insensitive part of a name, other name or e-mail; blank lists everyone"`
 }
 

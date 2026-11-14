@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -245,5 +246,29 @@ func TestListPaging_CursorMatchesOffsetOrder(t *testing.T) {
 				t.Fatalf("requests: cursor %d, offset %d; want 4 each for 7 rows", cursorRequests, offsetRequests)
 			}
 		})
+	}
+}
+
+// TestListPaging_LongNameCursor follows a cursor past a person whose name is
+// as long as onboarding allows (two 100-letter Polish names), which makes
+// next_cursor far longer than a short name would.
+func TestListPaging_LongNameCursor(t *testing.T) {
+	conn := lockTestDB(t)
+	q := sqlcdb.New(conn)
+	long := "A" + strings.Repeat("ż", 99) + " " + strings.Repeat("ż", 100)
+	for _, n := range []string{long, "B"} {
+		execSeed(t, conn, "INSERT INTO crew_members (full_name) VALUES ($1)", n)
+	}
+	_, api := humatest.New(t)
+	RegisterCrewRoutes(api, q, conn, nil)
+	ctx := userCtx(context.Background())
+
+	first := getIDPage(t, api, ctx, "/crew?limit=1")
+	if len(first.NextCursor) <= 512 {
+		t.Fatalf("cursor length %d, want a long one past 512", len(first.NextCursor))
+	}
+	second := getIDPage(t, api, ctx, "/crew?limit=1&after="+url.QueryEscape(first.NextCursor))
+	if len(second.Items) != 1 || second.HasMore {
+		t.Fatalf("second page = %+v, want the one remaining person", second)
 	}
 }

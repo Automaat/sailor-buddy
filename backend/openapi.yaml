@@ -3025,7 +3025,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
         - description: Case-insensitive part of a name, other name or e-mail; blank lists everyone
           explode: false
@@ -3324,7 +3323,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
       responses:
         "200":
@@ -4160,7 +4158,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
       responses:
         "200":
@@ -4345,7 +4342,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
       responses:
         "200":
@@ -4498,7 +4494,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
       responses:
         "200":
@@ -5159,7 +5154,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
       responses:
         "200":
@@ -5749,7 +5743,6 @@ paths:
           name: after
           schema:
             description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
-            maxLength: 512
             type: string
       responses:
         "200":

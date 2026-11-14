@@ -102,11 +102,11 @@ Top-level collection list endpoints (`GET /api/trips`, `/voyages`, `/yachts`,
 `/crew`, `/trainings`, `/cruises`, `/series`) are paginated. They accept these
 query parameters:
 
-| Param    | Default | Bounds      | Meaning                                                                        |
-| -------- | ------- | ----------- | ------------------------------------------------------------------------------ |
-| `limit`  | `50`    | `1`–`100`   | Maximum items in the response window                                           |
-| `offset` | `0`     | `>= 0`      | Items skipped before the window (after the cursor, when `after` is set)        |
-| `after`  | —       | ≤ 512 chars | A previous page's `next_cursor`: the window starts after that page's last item |
+| Param    | Default | Bounds    | Meaning                                                                        |
+| -------- | ------- | --------- | ------------------------------------------------------------------------------ |
+| `limit`  | `50`    | `1`–`100` | Maximum items in the response window                                           |
+| `offset` | `0`     | `>= 0`    | Items skipped before the window (after the cursor, when `after` is set)        |
+| `after`  | —       | —         | A previous page's `next_cursor`: the window starts after that page's last item |
 
 Out-of-range values and a malformed `after` cursor return `422`. The response
 is a page envelope, not a bare array:
