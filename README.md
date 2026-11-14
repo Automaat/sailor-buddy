@@ -27,7 +27,8 @@ sandbox on.
 
 - **Seccomp**: Docker's default seccomp profile blocks the namespaces the
   Chromium sandbox needs, and PDF renders then fail with `chrome failed to
-  start`. Run the container with
+  start`. The API logs `PDF renderer unavailable` at startup when that
+  happens. Run the container with
   [`backend/seccomp-chromium.json`](backend/seccomp-chromium.json):
   `--security-opt seccomp=backend/seccomp-chromium.json`, or
   `security_opt: ["seccomp=backend/seccomp-chromium.json"]` in Compose. It is
@@ -36,7 +37,8 @@ sandbox on.
 - **Uploads**: `SAILOR_UPLOAD_DIR` (default `/app/uploads`) must be
   writable by UID 10001. A new named volume at `/app/uploads` gets that owner
   from the image. A bind mount, or a volume written by an older root image,
-  needs `chown -R 10001:10001` on its files first.
+  needs `chown -R 10001:10001` on its files first. The API refuses to start
+  while any directory or file there is not writable.
 - `SAILOR_CHROME_NO_SANDBOX=true` turns the sandbox off. Only the dev image
   in `docker-compose.yml` sets it, because it runs as root.
 

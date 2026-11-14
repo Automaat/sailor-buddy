@@ -32,7 +32,10 @@ func NewUploadHandler(uploads *os.Root) *UploadHandler {
 }
 
 // OpenUploadRoot creates the upload directory if needed and opens it as the
-// root that confines all upload file access. The caller closes it.
+// root that confines all upload file access. It fails when the process
+// cannot write every directory and file in it, so an upload volume left
+// root-owned by an older image stops startup instead of failing each upload.
+// The caller closes it.
 func OpenUploadRoot(dir string) (*os.Root, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create upload directory: %w", err)
@@ -41,7 +44,46 @@ func OpenUploadRoot(dir string) (*os.Root, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open upload directory: %w", err)
 	}
+	if err := checkUploadsWritable(root); err != nil {
+		_ = root.Close()
+		return nil, fmt.Errorf("upload directory %s is not writable by uid %d (chown it to this user): %w",
+			dir, os.Getuid(), err)
+	}
 	return root, nil
+}
+
+// uploadWriteProbe is created and removed in every upload directory to prove
+// the process can add files there.
+const uploadWriteProbe = ".write-probe"
+
+// checkUploadsWritable walks uploads and fails on the first directory the
+// process cannot create files in or file it cannot open for writing.
+func checkUploadsWritable(uploads *os.Root) error {
+	return fs.WalkDir(uploads.FS(), ".", func(name string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		switch {
+		case d.IsDir():
+			probe := filepath.Join(name, uploadWriteProbe)
+			f, err := uploads.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+			if err != nil {
+				return err
+			}
+			if err := f.Close(); err != nil {
+				return err
+			}
+			return uploads.Remove(probe)
+		case d.Type().IsRegular() && d.Name() != uploadWriteProbe:
+			// Opening without O_TRUNC leaves the file unchanged.
+			f, err := uploads.OpenFile(name, os.O_WRONLY, 0)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}
+		return nil
+	})
 }
 
 // uploadRelPath maps a stored file path, as built by joining the upload

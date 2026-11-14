@@ -208,6 +208,66 @@ func TestOpenUploadRoot_CreatesDir(t *testing.T) {
 	}
 }
 
+func TestOpenUploadRoot_ChecksWritable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions")
+	}
+	tests := []struct {
+		name     string
+		readOnly string // path under the upload dir made read-only
+		wantErr  bool
+	}{
+		{name: "writable tree"},
+		{name: "read-only top dir", readOnly: ".", wantErr: true},
+		{name: "read-only subdir", readOnly: "opinions", wantErr: true},
+		{name: "read-only file", readOnly: "opinions/1_2.pdf", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeUpload(t, dir, "opinions/1_2.pdf", "pdf")
+			writeUpload(t, dir, "7/images/a.png", "png")
+			if tt.readOnly != "" {
+				target := filepath.Join(dir, tt.readOnly)
+				info, err := os.Stat(target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				mode := os.FileMode(0o444)
+				if info.IsDir() {
+					mode = 0o555
+				}
+				if err := os.Chmod(target, mode); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(target, info.Mode().Perm()) })
+			}
+
+			root, err := OpenUploadRoot(dir)
+			if root != nil {
+				_ = root.Close()
+			}
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "not writable") {
+					t.Fatalf("want not-writable error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("open writable upload root: %v", err)
+			}
+			if got, err := os.ReadFile(filepath.Join(dir, "opinions", "1_2.pdf")); err != nil || string(got) != "pdf" {
+				t.Fatalf("existing upload changed: %q, %v", got, err)
+			}
+			for _, d := range []string{".", "opinions", "7", "7/images"} {
+				if _, err := os.Stat(filepath.Join(dir, d, uploadWriteProbe)); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("write probe left in %s: %v", d, err)
+				}
+			}
+		})
+	}
+}
+
 func TestRemoveUploadedFiles(t *testing.T) {
 	outside := t.TempDir()
 	writeUpload(t, outside, "keep.pdf", "keep")
