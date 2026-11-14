@@ -140,6 +140,11 @@ type Querier interface {
 	//      WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
 	//  ) accepted_users
 	CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherAcceptedForTripParams) (int64, error)
+	// CountOtherAdmins counts admins other than the given user, so a request
+	// holding a stale role still learns when its own account was promoted.
+	//
+	//  SELECT COUNT(*)::BIGINT FROM users WHERE role = 'admin' AND id <> $1
+	CountOtherAdmins(ctx context.Context, id int64) (int64, error)
 	//CountPendingPersonLinkRequests
 	//
 	//  SELECT COUNT(*)::BIGINT FROM person_link_requests WHERE status = 'pending'
