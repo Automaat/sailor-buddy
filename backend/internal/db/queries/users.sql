@@ -1,5 +1,5 @@
 -- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, firebase_uid) VALUES ($1, $2, '', $3) RETURNING *;
+INSERT INTO users (email, name, firebase_uid) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = $1;
@@ -21,8 +21,8 @@ FROM users
 WHERE users.firebase_uid = $1;
 
 -- name: UpsertUserByFirebaseUID :one
-INSERT INTO users (email, name, password_hash, firebase_uid)
-VALUES ($1, $2, '', $3)
+INSERT INTO users (email, name, firebase_uid)
+VALUES ($1, $2, $3)
 ON CONFLICT(firebase_uid) DO UPDATE SET
   email = EXCLUDED.email,
   name = CASE WHEN EXCLUDED.name = '' OR users.onboarded_at IS NOT NULL
