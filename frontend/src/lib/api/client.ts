@@ -78,9 +78,13 @@ type RequestOpts<O> = (PathParams<O> extends undefined
 type OptsArg<O> =
 	Record<string, never> extends RequestOpts<O> ? [opts?: RequestOpts<O>] : [opts: RequestOpts<O>];
 
-// Page-shaped GET responses, the only ones `list` accepts.
+// Page-shaped GET responses, the only ones `list` accepts. Items must carry
+// an id: `listAll` drops repeats by it.
 type ListPath = {
-	[P in GetPath]: OpResponse<Op<P, 'get'>> extends { items: unknown; has_more: boolean }
+	[P in GetPath]: OpResponse<Op<P, 'get'>> extends {
+		items: readonly { id: unknown }[] | null;
+		has_more: boolean;
+	}
 		? P
 		: never;
 }[GetPath];
@@ -159,8 +163,13 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
 // listAll walks every page of a paginated endpoint and returns the flattened
 // items, so callers without pagination UI keep getting a full array.
-async function listAll<T>(template: string, opts?: CallOpts): Promise<T[]> {
+async function listAll<T extends { id: unknown }>(template: string, opts?: CallOpts): Promise<T[]> {
+	// Offset paging is no snapshot: a row added or removed between two pages
+	// shifts the window, so a later page can repeat an earlier item. Callers
+	// key {#each} on id and Svelte throws on duplicate keys, so keep the first.
+	// EXC:FILE011:documents-a-non-obvious-invariant
 	const out: T[] = [];
+	const seen = new Set<unknown>();
 	const limit = 100;
 	let offset = 0;
 	for (;;) {
@@ -170,7 +179,11 @@ async function listAll<T>(template: string, opts?: CallOpts): Promise<T[]> {
 		});
 		const page = await request<{ items: T[] | null; has_more: boolean }>('GET', url);
 		const items = page.items ?? [];
-		out.push(...items);
+		for (const item of items) {
+			if (seen.has(item.id)) continue;
+			seen.add(item.id);
+			out.push(item);
+		}
 		if (!page.has_more || items.length === 0) break;
 		offset += items.length;
 	}
