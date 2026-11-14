@@ -43,6 +43,7 @@
 		"leaflet": "^1.9.4"
 	},
 	"overrides": {
+		"@grpc/grpc-js": "^1.14.7",
 		"vite": "^8.0.12"
 	},
 	"imports": {
