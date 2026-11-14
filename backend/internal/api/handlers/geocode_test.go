@@ -156,10 +156,11 @@ func TestGeocode_NoResults(t *testing.T) {
 }
 
 // TestGeocode_CachesNormalizedQuery checks that repeat lookups differing only
-// in case and surrounding whitespace reach the upstream once.
+// in case and surrounding whitespace or invisible characters reach the
+// upstream once.
 func TestGeocode_CachesNormalizedQuery(t *testing.T) {
 	h, hits := countingNominatim(t, http.StatusOK, splitBody, rate.NewLimiter(rate.Inf, 1))
-	for _, q := range []string{"Split", "  split ", "SPLIT"} {
+	for _, q := range []string{"Split", "  split ", "SPLIT", "\u200bsplit\ufeff"} {
 		out, err := h.search(context.Background(), &geocodeInput{Query: q})
 		if err != nil {
 			t.Fatalf("search %q: %v", q, err)
@@ -390,29 +391,59 @@ func TestNewGeocodeHandler_PolicyLimits(t *testing.T) {
 }
 
 // TestGeocode_QueryValidation drives the operation through huma: a missing,
-// empty or too-short query is rejected with 422 before it reaches the cache,
-// the rate limiter or the upstream service.
+// bare, empty or too-short query, counting only visible characters, is
+// rejected with 422 before it reaches the cache, the rate limiter or the
+// upstream service. An accepted query reaches the upstream trimmed.
 func TestGeocode_QueryValidation(t *testing.T) {
 	tests := []struct {
-		name       string
-		path       string
-		wantStatus int
-		wantHits   int64
+		name        string
+		path        string
+		wantStatus  int
+		wantUpQuery string // the q the upstream receives; "" means no call
 	}{
-		{"missing", "/geocode", http.StatusUnprocessableEntity, 0},
-		{"empty", "/geocode?q=", http.StatusUnprocessableEntity, 0},
-		{"one character", "/geocode?q=a", http.StatusUnprocessableEntity, 0},
-		{"whitespace only", "/geocode?q=%20%20%20", http.StatusUnprocessableEntity, 0},
-		{"one character padded", "/geocode?q=%20a%20", http.StatusUnprocessableEntity, 0},
-		{"two characters", "/geocode?q=ab", http.StatusOK, 1},
-		{"two characters padded", "/geocode?q=%20ab%20", http.StatusOK, 1},
-		{"two multibyte characters", "/geocode?q=%C5%81%C3%B3", http.StatusOK, 1},
+		{"missing", "/geocode", http.StatusUnprocessableEntity, ""},
+		{"bare", "/geocode?q", http.StatusUnprocessableEntity, ""},
+		{"bare before value", "/geocode?q&q=ab", http.StatusUnprocessableEntity, ""},
+		{"bare escaped name", "/geocode?%71", http.StatusUnprocessableEntity, ""},
+		{"empty", "/geocode?q=", http.StatusUnprocessableEntity, ""},
+		{"one character", "/geocode?q=a", http.StatusUnprocessableEntity, ""},
+		{"whitespace only", "/geocode?q=%20%20%20", http.StatusUnprocessableEntity, ""},
+		{"one character padded", "/geocode?q=%20a%20", http.StatusUnprocessableEntity, ""},
+		{"zero-width spaces", "/geocode?q=%E2%80%8B%E2%80%8B", http.StatusUnprocessableEntity, ""},
+		{"byte order marks", "/geocode?q=%EF%BB%BF%EF%BB%BF", http.StatusUnprocessableEntity, ""},
+		{"NUL bytes", "/geocode?q=%00%00", http.StatusUnprocessableEntity, ""},
+		{"invalid UTF-8", "/geocode?q=%FF%FF", http.StatusUnprocessableEntity, ""},
+		{"one character among invisibles", "/geocode?q=%E2%80%8Ba%00%EF%BB%BF", http.StatusUnprocessableEntity, ""},
+		{"two characters", "/geocode?q=ab", http.StatusOK, "ab"},
+		{"two characters padded", "/geocode?q=%20ab%20", http.StatusOK, "ab"},
+		{"two multibyte characters", "/geocode?q=%C5%81%C3%B3", http.StatusOK, "Łó"},
+		{"two characters among invisibles", "/geocode?q=%E2%80%8Bab%00%EF%BB%BF", http.StatusOK, "ab"},
+		{"inner invisible kept", "/geocode?q=a%E2%80%8Bb", http.StatusOK, "a\u200bb"},
+		{"literal true", "/geocode?q=true", http.StatusOK, "true"},
+		{"value before bare", "/geocode?q=ab&q", http.StatusOK, "ab"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// One token and no refill: a rejected query must leave it unspent.
 			limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
-			h, hits := countingNominatim(t, http.StatusOK, splitBody, limiter)
+			var (
+				mu        sync.Mutex
+				upQueries []string
+			)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				upQueries = append(upQueries, r.URL.Query().Get("q"))
+				mu.Unlock()
+				_, _ = w.Write([]byte(splitBody))
+			}))
+			t.Cleanup(srv.Close)
+			h := &GeocodeHandler{
+				baseURL:    srv.URL,
+				httpClient: srv.Client(),
+				limiter:    limiter,
+				maxWait:    time.Minute,
+				cache:      newGeocodeCache(time.Hour, 10, time.Now),
+			}
 			_, api := humatest.New(t)
 			registerGeocode(api, h)
 
@@ -420,11 +451,17 @@ func TestGeocode_QueryValidation(t *testing.T) {
 			if resp.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d: %s", resp.Code, tt.wantStatus, resp.Body.String())
 			}
-			if got := hits.Load(); got != tt.wantHits {
-				t.Fatalf("upstream hits = %d, want %d", got, tt.wantHits)
-			}
-			if tt.wantHits > 0 {
+			mu.Lock()
+			got := upQueries
+			mu.Unlock()
+			if tt.wantUpQuery != "" {
+				if len(got) != 1 || got[0] != tt.wantUpQuery {
+					t.Fatalf("upstream queries = %q, want [%q]", got, tt.wantUpQuery)
+				}
 				return
+			}
+			if len(got) != 0 {
+				t.Fatalf("upstream queries = %q, want none", got)
 			}
 			if n := len(h.cache.entries); n != 0 {
 				t.Fatalf("cache entries = %d, want 0", n)

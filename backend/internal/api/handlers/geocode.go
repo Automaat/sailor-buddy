@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -117,34 +118,67 @@ func (c *geocodeCache) evictLocked(now time.Time) {
 	}
 }
 
-// geocodeKey normalizes a query so case and surrounding whitespace do not
-// defeat the cache; Nominatim matching ignores both.
+// geocodeKey normalizes a query so case and surrounding invisible characters
+// do not defeat the cache; Nominatim matching ignores both.
 func geocodeKey(q string) string {
-	return strings.ToLower(strings.TrimSpace(q))
+	return strings.ToLower(trimGeocodeQuery(q))
 }
 
-// geocodeMinQueryLen is the shortest query, in characters after trimming
-// surrounding whitespace, worth sending upstream.
+// trimGeocodeQuery strips the leading and trailing characters that carry no
+// searchable text: whitespace, Unicode format characters (Cf, such as
+// zero-width spaces and the byte order mark), control characters (Cc, such as
+// NUL) and bytes that are not valid UTF-8. strings.TrimSpace keeps all but the
+// first group. Once trimmed, the first and last characters are visible, so a
+// result of two or more characters holds at least two visible ones.
+func trimGeocodeQuery(q string) string {
+	return strings.TrimFunc(q, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Cc, r) || r == utf8.RuneError
+	})
+}
+
+// geocodeMinQueryLen is the shortest query, in characters after
+// trimGeocodeQuery, worth sending upstream.
 const geocodeMinQueryLen = 2
 
 type geocodeInput struct {
 	Query string `query:"q" required:"true" minLength:"2" doc:"Town or place name to search for"`
 }
 
-// Resolve rejects a query that is too short once surrounding whitespace is
-// trimmed: the upstream call sends the trimmed text, so "  " or " a" would
-// spend a request of the Nominatim rate budget on an empty or one-letter
-// search. huma runs it before the handler, so a rejected query touches
-// neither the cache nor the limiter.
-func (i *geocodeInput) Resolve(_ huma.Context) []error {
-	if utf8.RuneCountInString(strings.TrimSpace(i.Query)) < geocodeMinQueryLen {
+// Resolve rejects a query that holds fewer than two visible characters once
+// trimGeocodeQuery has run: the upstream call sends the trimmed text, so
+// "  ", " a" or two zero-width spaces would spend a request of the Nominatim
+// rate budget on an empty or one-letter search. It also rejects a bare "q"
+// with no "=", which huma reads as the value "true". huma runs Resolve before
+// the handler, so a rejected query touches neither the cache nor the limiter.
+func (i *geocodeInput) Resolve(ctx huma.Context) []error {
+	u := ctx.URL()
+	if isBareQueryParam(u.RawQuery, "q") {
 		return []error{&huma.ErrorDetail{
-			Message:  fmt.Sprintf("expected at least %d non-whitespace characters", geocodeMinQueryLen),
+			Message:  "expected a value for q",
+			Location: "query.q",
+		}}
+	}
+	if utf8.RuneCountInString(trimGeocodeQuery(i.Query)) < geocodeMinQueryLen {
+		return []error{&huma.ErrorDetail{
+			Message:  fmt.Sprintf("expected at least %d visible characters", geocodeMinQueryLen),
 			Location: "query.q",
 			Value:    i.Query,
 		}}
 	}
 	return nil
+}
+
+// isBareQueryParam reports whether the first occurrence of name in rawQuery
+// has no "=". It walks the query the way huma's queryparam.Get does, which
+// returns "true" for such a flag-style parameter.
+func isBareQueryParam(rawQuery, name string) bool {
+	for part := range strings.SplitSeq(rawQuery, "&") {
+		key, _, hasValue := strings.Cut(part, "=")
+		if k, err := url.QueryUnescape(key); err == nil && k == name {
+			return !hasValue
+		}
+	}
+	return false
 }
 
 type geocodeOutput struct {
@@ -225,7 +259,7 @@ func (h *GeocodeHandler) lookup(ctx context.Context, key, query string) ([]dto.G
 
 func (h *GeocodeHandler) fetch(ctx context.Context, query string) ([]dto.GeocodeResult, error) {
 	q := url.Values{}
-	q.Set("q", strings.TrimSpace(query))
+	q.Set("q", trimGeocodeQuery(query))
 	q.Set("format", "jsonv2")
 	// Over-fetch: category filtering and coordinate dedup below trim the list,
 	// so a higher limit keeps ~5 usable matches.
