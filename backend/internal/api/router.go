@@ -24,6 +24,7 @@ import (
 // (see handlers.OpenUploadRoot) that confines every upload file access.
 func NewRouter(db *sql.DB, cfg *config.Config, fbClient *fbauth.Client, uploads *os.Root) *chi.Mux {
 	r := chi.NewRouter()
+	r.Use(middleware.SecurityHeaders)
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 

@@ -3,11 +3,31 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 )
+
+func TestSecurityHeadersBeforeAuthentication(t *testing.T) {
+	r := NewRouter(nil, &config.Config{}, nil, nil)
+	for _, path := range []string{"/api/auth/me", "/api/uploads/1/images/file.png", "/api/voyages/1/opinions/1/download", "/api/does-not-exist"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, http.NoBody))
+			if w.Code < 400 {
+				t.Fatalf("status=%d; expected unauthenticated/error response", w.Code)
+			}
+			if w.Header().Get("Cache-Control") != "private, no-store" || w.Header().Get("Referrer-Policy") != "no-referrer" || w.Header().Get("X-Content-Type-Options") != "nosniff" || w.Header().Get("X-Frame-Options") != "DENY" {
+				t.Fatalf("headers=%v", w.Header())
+			}
+			if !strings.Contains(w.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+				t.Fatal("missing API framing restriction")
+			}
+		})
+	}
+}
 
 // TestCORSPreflight verifies that NewRouter wires CORS from cfg.CORSAllowedOrigins:
 // listed origins get Access-Control-Allow-Origin, unlisted ones do not.
