@@ -275,7 +275,9 @@
 									<span class="text-xs font-medium text-[var(--ocean)]">Zrealizuj →</span>
 								{/if}
 							</div>
-							<div class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-[var(--text-muted)]">
+							<div
+								class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-[var(--text-muted)] [overflow-wrap:anywhere] [&>*]:min-w-0"
+							>
 								{#if trip.captain_name}<span>kpt. {trip.captain_name}</span>{/if}
 								{#if trip.embark_date}
 									<span>{formatDateRangeWithDays(trip.embark_date, trip.disembark_date)}</span>

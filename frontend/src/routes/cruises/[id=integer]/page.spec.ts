@@ -138,6 +138,16 @@ describe('cruise page logistics', () => {
 		expect(heading.parentElement?.parentElement).toHaveClass('min-w-0');
 	});
 
+	it('lets a long unbroken captain name wrap in its leg tile', async () => {
+		const long = 'W'.repeat(190);
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A', { captain_name: long })]);
+		mockGet.mockResolvedValue(cruise());
+		await renderPage();
+
+		const meta = (await screen.findByText(`kpt. ${long}`)).parentElement!;
+		expect(meta).toHaveClass('[overflow-wrap:anywhere]', '[&>*]:min-w-0');
+	});
+
 	it('lets long unbroken description, notes and price items wrap', async () => {
 		const long = 'W'.repeat(180);
 		mockGet.mockResolvedValue(
@@ -930,6 +940,20 @@ describe('cruise page admin sign-ups by leg', () => {
 			enrollmentRow,
 			{ ...enrollmentRow, id: 33, user_name: 'Ewa Stara', trip_id: undefined, trip_name: undefined }
 		]);
+	});
+
+	it('keeps the review link visible beside a long leg name', async () => {
+		await renderPage();
+		const a = await screen.findByRole('region', { name: 'Zapisy: Jacht A' });
+
+		expect(within(a).getByRole('heading', { name: 'Jacht A' })).toHaveClass(
+			'min-w-0',
+			'[overflow-wrap:anywhere]'
+		);
+		expect(within(a).getByRole('link', { name: 'Zarządzaj zapisami' })).toHaveClass(
+			'shrink-0',
+			'whitespace-nowrap'
+		);
 	});
 
 	it('groups sign-ups by leg with a link to each review page', async () => {

@@ -284,11 +284,11 @@
 		<div class="space-y-4">
 			{#each legGroups as group (group.trip.id)}
 				<section aria-label={`Zapisy: ${group.trip.name}`}>
-					<div class="mb-1 flex items-center justify-between">
-						<h3 class="text-sm font-medium">{group.trip.name}</h3>
+					<div class="mb-1 flex items-center justify-between gap-2">
+						<h3 class="min-w-0 text-sm font-medium [overflow-wrap:anywhere]">{group.trip.name}</h3>
 						<a
 							href="/trips/{group.trip.id}/enrollments"
-							class="tap-target text-xs text-[var(--ocean)] hover:underline"
+							class="tap-target shrink-0 whitespace-nowrap text-xs text-[var(--ocean)] hover:underline"
 						>
 							Zarządzaj zapisami
 						</a>
@@ -299,7 +299,7 @@
 					<div class="space-y-1">
 						{#each group.signUps as e (e.id)}
 							<div
-								class="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
+								class="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm [overflow-wrap:anywhere] [&>*]:min-w-0"
 							>
 								<span class="font-medium">{e.person_name || e.email}</span>
 								{#if e.user_id == null}
