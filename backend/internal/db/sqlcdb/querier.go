@@ -19,6 +19,30 @@ type Querier interface {
 	//  VALUES ($1::BIGINT, $2::BIGINT, TRUE)
 	//  ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING
 	AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcceptedTripCrewAssignmentParams) error
+	// Adds a port for an admin or the account linked to the voyage's captain
+	// person, else inserts no row. The check runs in the statement, so a
+	// captain change committed before it refuses the write.
+	//
+	//  INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+	//  SELECT $1::BIGINT, $2::TEXT, $3::DOUBLE PRECISION,
+	//      $4::DOUBLE PRECISION, $5::BIGINT, $6::BOOLEAN
+	//  WHERE $7::BOOLEAN OR EXISTS (
+	//      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+	//      WHERE v.id = $1::BIGINT AND cm.user_id = $8::BIGINT)
+	//  RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
+	AddVoyagePort(ctx context.Context, arg AddVoyagePortParams) (VoyagePort, error)
+	// Adds a club yacht from a voyage form for an admin or the account linked
+	// to the voyage's captain person, else inserts no row.
+	//
+	//  INSERT INTO yachts (created_by, name, registration_no, yacht_type, berths, length_m, build_year, engine, owner_name)
+	//  SELECT $1::BIGINT, $2::TEXT, $3::TEXT,
+	//      $4::TEXT, $5::BIGINT, $6::DOUBLE PRECISION,
+	//      $7::BIGINT, $8::TEXT, $9::TEXT
+	//  WHERE $10::BOOLEAN OR EXISTS (
+	//      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+	//      WHERE v.id = $11::BIGINT AND cm.user_id = $1::BIGINT)
+	//  RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name
+	AddVoyageYacht(ctx context.Context, arg AddVoyageYachtParams) (Yacht, error)
 	//AssignCruiseEnrollmentToTrip
 	//
 	//  UPDATE cruise_enrollments ce SET
@@ -421,14 +445,37 @@ type Querier interface {
 	//
 	//  DELETE FROM crew_assignments WHERE id = $1 AND voyage_id = $2
 	DeleteVoyageCrewAssignment(ctx context.Context, arg DeleteVoyageCrewAssignmentParams) error
-	//DeleteVoyageOpinion
+	// Deletes the voyage's opinion for an admin or the account linked to the
+	// voyage's captain person. It answers whether the caller passed that check
+	// and the deleted opinion's file, empty when no opinion matched.
 	//
-	//  DELETE FROM voyage_opinions WHERE id = $1
-	DeleteVoyageOpinion(ctx context.Context, id int64) error
-	//DeleteVoyagePort
+	//  WITH allowed AS (
+	//      SELECT ($1::BOOLEAN OR EXISTS (
+	//          SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+	//          WHERE v.id = $2::BIGINT AND cm.user_id = $3::BIGINT)) AS ok
+	//  ), deleted AS (
+	//      DELETE FROM voyage_opinions o
+	//      WHERE o.id = $4::BIGINT AND o.voyage_id = $2::BIGINT
+	//        AND (SELECT ok FROM allowed)
+	//      RETURNING o.file_path
+	//  )
+	//  SELECT allowed.ok::BOOLEAN AS ok, COALESCE((SELECT file_path FROM deleted), '')::TEXT AS file_path FROM allowed
+	DeleteVoyageOpinion(ctx context.Context, arg DeleteVoyageOpinionParams) (DeleteVoyageOpinionRow, error)
+	// Deletes the port for an admin or the account linked to the voyage's
+	// captain person and answers whether the caller passed that check, since a
+	// port already gone is no error.
 	//
-	//  DELETE FROM voyage_ports WHERE id = $1 AND voyage_id = $2
-	DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortParams) error
+	//  WITH allowed AS (
+	//      SELECT ($1::BOOLEAN OR EXISTS (
+	//          SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+	//          WHERE v.id = $2::BIGINT AND cm.user_id = $3::BIGINT)) AS ok
+	//  ), deleted AS (
+	//      DELETE FROM voyage_ports p
+	//      WHERE p.id = $4::BIGINT AND p.voyage_id = $2::BIGINT
+	//        AND (SELECT ok FROM allowed)
+	//  )
+	//  SELECT ok::BOOLEAN AS ok FROM allowed
+	DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortParams) (bool, error)
 	//DeleteYacht
 	//
 	//  DELETE FROM yachts WHERE id = $1
@@ -1409,10 +1456,15 @@ type Querier interface {
 	//
 	//  UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 	SetTripEnrollToken(ctx context.Context, arg SetTripEnrollTokenParams) error
-	//SetVoyagePortPosition
+	// Moves the port for an admin or the account linked to the voyage's captain
+	// person, else updates no row.
 	//
-	//  UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2
-	SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) error
+	//  UPDATE voyage_ports SET position = $1::BIGINT
+	//  WHERE id = $2::BIGINT AND voyage_id = $3::BIGINT
+	//    AND ($4::BOOLEAN OR EXISTS (
+	//        SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+	//        WHERE v.id = $3::BIGINT AND cm.user_id = $5::BIGINT))
+	SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) (int64, error)
 	// Port names the club already entered that match a typed query, ignoring
 	// case and accents: names starting with the query first, then by trigram
 	// similarity (typos), then by use count. Spellings of one name collapse
@@ -1640,15 +1692,22 @@ type Querier interface {
 	//      updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $25
 	UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) error
-	//UpdateVoyageLog
+	// Writes for an admin or the account linked to the voyage's captain person,
+	// else updates no row. The check reads the row it updates: a captain change
+	// committed before the statement refuses it, and one still open makes it
+	// wait for that change and recheck the new captain.
 	//
-	//  UPDATE voyages SET
-	//      hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
-	//      miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
-	//      yacht_id = $10, track_url = $11, voyage_card = $12,
+	//  UPDATE voyages lv SET
+	//      hours_total = $1, hours_sail = $2,
+	//      hours_engine = $3, hours_over_6bf = $4,
+	//      miles = $5, days = $6, tidal_waters = $7,
+	//      captain_notes = $8, yacht_id = $9,
+	//      track_url = $10, voyage_card = $11,
 	//      updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $9
-	UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) error
+	//  WHERE lv.id = $12
+	//    AND ($13::BOOLEAN OR lv.captain_person_id IN (
+	//        SELECT cm.id FROM crew_members cm WHERE cm.user_id = $14::BIGINT))
+	UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) (int64, error)
 	//UpdateYacht
 	//
 	//  UPDATE yachts SET name = $1, registration_no = $2, yacht_type = $3, berths = $4,
@@ -1666,14 +1725,21 @@ type Querier interface {
 	//    updated_at = CURRENT_TIMESTAMP
 	//  RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at, suspended
 	UpsertUserByFirebaseUID(ctx context.Context, arg UpsertUserByFirebaseUIDParams) (User, error)
-	//UpsertVoyageOpinion
+	// Stores the opinion for an admin or the account linked to the voyage's
+	// captain person, else writes no row. replaced_path is the file of the
+	// opinion it replaced, empty for a new one.
 	//
 	//  INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format)
-	//  VALUES ($1, $2, $3, $4)
+	//  SELECT $1::BIGINT, $2::BIGINT, $3::TEXT,
+	//      $4::TEXT
+	//  WHERE $5::BOOLEAN OR EXISTS (
+	//      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+	//      WHERE v.id = $1::BIGINT AND cm.user_id = $6::BIGINT)
 	//  ON CONFLICT (voyage_id, crew_member_id) DO UPDATE
 	//  SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
-	//  RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at
-	UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (VoyageOpinion, error)
+	//  RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at,
+	//      COALESCE(old.file_path, '')::TEXT AS replaced_path
+	UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (UpsertVoyageOpinionRow, error)
 	// Withdraws the caller's own sign-up for a trip while it is pending or on
 	// the waiting list and no payment is recorded on it. No row when the user
 	// has no such sign-up for it.

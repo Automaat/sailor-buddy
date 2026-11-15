@@ -90,16 +90,57 @@ func (q *Queries) DeleteSharedVoyageOpinions(ctx context.Context, arg DeleteShar
 	return items, nil
 }
 
-const deleteVoyageOpinion = `-- name: DeleteVoyageOpinion :exec
-DELETE FROM voyage_opinions WHERE id = $1
+const deleteVoyageOpinion = `-- name: DeleteVoyageOpinion :one
+WITH allowed AS (
+    SELECT ($1::BOOLEAN OR EXISTS (
+        SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+        WHERE v.id = $2::BIGINT AND cm.user_id = $3::BIGINT)) AS ok
+), deleted AS (
+    DELETE FROM voyage_opinions o
+    WHERE o.id = $4::BIGINT AND o.voyage_id = $2::BIGINT
+      AND (SELECT ok FROM allowed)
+    RETURNING o.file_path
+)
+SELECT allowed.ok::BOOLEAN AS ok, COALESCE((SELECT file_path FROM deleted), '')::TEXT AS file_path FROM allowed
 `
 
-// DeleteVoyageOpinion
+type DeleteVoyageOpinionParams struct {
+	CallerIsAdmin bool  `json:"caller_is_admin"`
+	VoyageID      int64 `json:"voyage_id"`
+	CallerID      int64 `json:"caller_id"`
+	ID            int64 `json:"id"`
+}
+
+type DeleteVoyageOpinionRow struct {
+	Ok       bool   `json:"ok"`
+	FilePath string `json:"file_path"`
+}
+
+// Deletes the voyage's opinion for an admin or the account linked to the
+// voyage's captain person. It answers whether the caller passed that check
+// and the deleted opinion's file, empty when no opinion matched.
 //
-//	DELETE FROM voyage_opinions WHERE id = $1
-func (q *Queries) DeleteVoyageOpinion(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteVoyageOpinion, id)
-	return err
+//	WITH allowed AS (
+//	    SELECT ($1::BOOLEAN OR EXISTS (
+//	        SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+//	        WHERE v.id = $2::BIGINT AND cm.user_id = $3::BIGINT)) AS ok
+//	), deleted AS (
+//	    DELETE FROM voyage_opinions o
+//	    WHERE o.id = $4::BIGINT AND o.voyage_id = $2::BIGINT
+//	      AND (SELECT ok FROM allowed)
+//	    RETURNING o.file_path
+//	)
+//	SELECT allowed.ok::BOOLEAN AS ok, COALESCE((SELECT file_path FROM deleted), '')::TEXT AS file_path FROM allowed
+func (q *Queries) DeleteVoyageOpinion(ctx context.Context, arg DeleteVoyageOpinionParams) (DeleteVoyageOpinionRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteVoyageOpinion,
+		arg.CallerIsAdmin,
+		arg.VoyageID,
+		arg.CallerID,
+		arg.ID,
+	)
+	var i DeleteVoyageOpinionRow
+	err := row.Scan(&i.Ok, &i.FilePath)
+	return i, err
 }
 
 const getVoyageOpinion = `-- name: GetVoyageOpinion :one
@@ -203,34 +244,60 @@ func (q *Queries) MoveVoyageOpinions(ctx context.Context, arg MoveVoyageOpinions
 
 const upsertVoyageOpinion = `-- name: UpsertVoyageOpinion :one
 INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format)
-VALUES ($1, $2, $3, $4)
+SELECT $1::BIGINT, $2::BIGINT, $3::TEXT,
+    $4::TEXT
+WHERE $5::BOOLEAN OR EXISTS (
+    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+    WHERE v.id = $1::BIGINT AND cm.user_id = $6::BIGINT)
 ON CONFLICT (voyage_id, crew_member_id) DO UPDATE
 SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
-RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at
+RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at,
+    COALESCE(old.file_path, '')::TEXT AS replaced_path
 `
 
 type UpsertVoyageOpinionParams struct {
-	VoyageID     int64  `json:"voyage_id"`
-	CrewMemberID int64  `json:"crew_member_id"`
-	FilePath     string `json:"file_path"`
-	FileFormat   string `json:"file_format"`
+	VoyageID      int64  `json:"voyage_id"`
+	CrewMemberID  int64  `json:"crew_member_id"`
+	FilePath      string `json:"file_path"`
+	FileFormat    string `json:"file_format"`
+	CallerIsAdmin bool   `json:"caller_is_admin"`
+	CallerID      int64  `json:"caller_id"`
 }
 
-// UpsertVoyageOpinion
+type UpsertVoyageOpinionRow struct {
+	ID           int64          `json:"id"`
+	VoyageID     int64          `json:"voyage_id"`
+	CrewMemberID int64          `json:"crew_member_id"`
+	FilePath     string         `json:"file_path"`
+	FileFormat   string         `json:"file_format"`
+	CreatedAt    types.NullTime `json:"created_at"`
+	ReplacedPath string         `json:"replaced_path"`
+}
+
+// Stores the opinion for an admin or the account linked to the voyage's
+// captain person, else writes no row. replaced_path is the file of the
+// opinion it replaced, empty for a new one.
 //
 //	INSERT INTO voyage_opinions (voyage_id, crew_member_id, file_path, file_format)
-//	VALUES ($1, $2, $3, $4)
+//	SELECT $1::BIGINT, $2::BIGINT, $3::TEXT,
+//	    $4::TEXT
+//	WHERE $5::BOOLEAN OR EXISTS (
+//	    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+//	    WHERE v.id = $1::BIGINT AND cm.user_id = $6::BIGINT)
 //	ON CONFLICT (voyage_id, crew_member_id) DO UPDATE
 //	SET file_path = EXCLUDED.file_path, file_format = EXCLUDED.file_format, created_at = CURRENT_TIMESTAMP
-//	RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at
-func (q *Queries) UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (VoyageOpinion, error) {
+//	RETURNING id, voyage_id, crew_member_id, file_path, file_format, created_at,
+//	    COALESCE(old.file_path, '')::TEXT AS replaced_path
+func (q *Queries) UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpinionParams) (UpsertVoyageOpinionRow, error) {
 	row := q.db.QueryRowContext(ctx, upsertVoyageOpinion,
 		arg.VoyageID,
 		arg.CrewMemberID,
 		arg.FilePath,
 		arg.FileFormat,
+		arg.CallerIsAdmin,
+		arg.CallerID,
 	)
-	var i VoyageOpinion
+	var i UpsertVoyageOpinionRow
 	err := row.Scan(
 		&i.ID,
 		&i.VoyageID,
@@ -238,6 +305,7 @@ func (q *Queries) UpsertVoyageOpinion(ctx context.Context, arg UpsertVoyageOpini
 		&i.FilePath,
 		&i.FileFormat,
 		&i.CreatedAt,
+		&i.ReplacedPath,
 	)
 	return i, err
 }

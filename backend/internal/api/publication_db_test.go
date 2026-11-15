@@ -757,6 +757,53 @@ func TestPublishLegMovedAfterCruiseLock(t *testing.T) {
 	}
 }
 
+// TestPublishCruiseRetriesDeadlock holds a hidden voyage, lets a cruise
+// publish with include_legs lock the cruise's hidden leg and wait for that
+// voyage, then makes the holder wait for the leg. The publish waits first and
+// the holder's deadlock_timeout is far longer, so the publish is the victim:
+// it must run again after the holder commits instead of answering 500.
+func TestPublishCruiseRetriesDeadlock(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	cruise := insertID(t, conn, `INSERT INTO cruises(name) VALUES('Hidden') RETURNING id`)
+	trip := insertID(t, conn, `INSERT INTO trips(name,cruise_id,currency) VALUES('Leg',$1,'PLN') RETURNING id`, cruise)
+	voyage := insertID(t, conn, `INSERT INTO voyages(name,cruise_id) VALUES('Voyage',$1) RETURNING id`, cruise)
+
+	holder, holderPID := beginWithPID(t, conn)
+	for _, step := range []string{
+		"SET LOCAL deadlock_timeout = '60s'",
+		fmt.Sprintf("SELECT id FROM voyages WHERE id = %d FOR NO KEY UPDATE", voyage),
+	} {
+		if _, err := holder.Exec(step); err != nil {
+			t.Fatalf("%s: %v", step, err)
+		}
+	}
+	done := make(chan int, 1)
+	go func() {
+		rr := securityRequest(h, "admin", http.MethodPost, fmt.Sprintf("/api/cruises/%d/publish", cruise), `{"include_legs":true}`)
+		done <- rr.Code
+	}()
+	waitForBlockedBy(t, conn, holderPID)
+
+	if _, err := holder.Exec(`SELECT id FROM trips WHERE id = $1 FOR UPDATE`, trip); err != nil {
+		t.Fatalf("holder locks the leg: %v", err)
+	}
+	if err := holder.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if code := <-done; code != http.StatusOK {
+		t.Fatalf("publish cruise: got %d, want 200", code)
+	}
+	var hidden int
+	if err := conn.QueryRow(`SELECT (SELECT count(*) FROM trips WHERE id = $1 AND published_at IS NULL)
+		+ (SELECT count(*) FROM voyages WHERE id = $2 AND published_at IS NULL)`, trip, voyage).Scan(&hidden); err != nil {
+		t.Fatal(err)
+	}
+	if hidden != 0 {
+		t.Fatalf("%d legs still hidden after the publish", hidden)
+	}
+}
+
 // beginWithPID starts a transaction and returns it with its backend PID.
 func beginWithPID(t *testing.T, conn *sql.DB) (tx *sql.Tx, pid int) {
 	t.Helper()

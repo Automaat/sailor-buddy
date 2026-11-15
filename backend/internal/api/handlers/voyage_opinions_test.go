@@ -59,8 +59,11 @@ func TestVoyageOpinion_Delete(t *testing.T) {
 			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
 				return sqlcdb.Voyage{ID: id}, nil
 			},
-			getVoyageOpinionFn: func(context.Context, int64) (sqlcdb.VoyageOpinion, error) {
-				return sqlcdb.VoyageOpinion{ID: 1, VoyageID: 99}, nil
+			deleteVoyageOpinionFn: func(_ context.Context, arg sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+				if arg.ID != 1 || arg.VoyageID != 3 {
+					t.Errorf("delete params = %+v", arg)
+				}
+				return sqlcdb.DeleteVoyageOpinionRow{Ok: true}, nil
 			},
 		}
 		resp := opinionTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
@@ -74,10 +77,9 @@ func TestVoyageOpinion_Delete(t *testing.T) {
 			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
 				return sqlcdb.Voyage{ID: id}, nil
 			},
-			getVoyageOpinionFn: func(context.Context, int64) (sqlcdb.VoyageOpinion, error) {
-				return sqlcdb.VoyageOpinion{ID: 1, VoyageID: 3, FilePath: "/nonexistent/x.pdf"}, nil
+			deleteVoyageOpinionFn: func(context.Context, sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+				return sqlcdb.DeleteVoyageOpinionRow{Ok: true, FilePath: "/nonexistent/x.pdf"}, nil
 			},
-			deleteVoyageOpinionFn: func(context.Context, int64) error { return nil },
 		}
 		resp := opinionTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
 		if resp.Code != http.StatusNoContent {

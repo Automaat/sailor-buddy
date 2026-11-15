@@ -24,29 +24,35 @@ func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
 }
 
 func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput) (*noContentOutput, error) {
-	voyage, err := getVoyageForCaptain(ctx, h.q, in.ID)
-	if err != nil {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.ID); err != nil {
 		return nil, err
 	}
-	if err := h.q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
-		HoursTotal:   valOrZeroFloat(in.Body.HoursTotal),
-		HoursSail:    valOrZeroFloat(in.Body.HoursSail),
-		HoursEngine:  valOrZeroFloat(in.Body.HoursEngine),
-		HoursOver6bf: valOrZeroFloat(in.Body.HoursOver6bf),
-		Miles:        valOrZeroFloat(in.Body.Miles),
-		Days:         valOrZeroInt(in.Body.Days),
-		TidalWaters:  valOrZeroInt(in.Body.TidalWaters),
-		CaptainNotes: nullString(in.Body.CaptainNotes),
-		YachtID:      nullInt64(in.Body.YachtID),
-		TrackUrl:     nullString(trimmedPtr(in.Body.TrackUrl)),
-		VoyageCard:   nullString(trimmedPtr(in.Body.VoyageCard)),
-		ID:           voyage.ID,
-	}); err != nil {
+	callerID, admin := captainCaller(ctx)
+	n, err := h.q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
+		HoursTotal:    valOrZeroFloat(in.Body.HoursTotal),
+		HoursSail:     valOrZeroFloat(in.Body.HoursSail),
+		HoursEngine:   valOrZeroFloat(in.Body.HoursEngine),
+		HoursOver6bf:  valOrZeroFloat(in.Body.HoursOver6bf),
+		Miles:         valOrZeroFloat(in.Body.Miles),
+		Days:          valOrZeroInt(in.Body.Days),
+		TidalWaters:   valOrZeroInt(in.Body.TidalWaters),
+		CaptainNotes:  nullString(in.Body.CaptainNotes),
+		YachtID:       nullInt64(in.Body.YachtID),
+		TrackUrl:      nullString(trimmedPtr(in.Body.TrackUrl)),
+		VoyageCard:    nullString(trimmedPtr(in.Body.VoyageCard)),
+		ID:            in.ID,
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
+	})
+	if err != nil {
 		if isForeignKeyViolation(err, "voyages_yacht_id_fkey") {
 			return nil, yachtNotFound()
 		}
 		slog.Error("update voyage log", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update voyage log")
+	}
+	if n == 0 {
+		return nil, refusedCaptainWrite(ctx, h.q, in.ID, errAdminOrCaptainOnly())
 	}
 	return &noContentOutput{}, nil
 }
@@ -59,8 +65,11 @@ func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (
 	if _, err := getVoyageForCaptain(ctx, h.q, in.ID); err != nil {
 		return nil, err
 	}
-	yacht, err := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
-		CreatedBy:      types.NullInt64{Int64: middleware.GetUser(ctx).UserID, Valid: true},
+	callerID, admin := captainCaller(ctx)
+	yacht, err := h.q.AddVoyageYacht(ctx, sqlcdb.AddVoyageYachtParams{
+		CallerID:       callerID,
+		CallerIsAdmin:  admin,
+		VoyageID:       in.ID,
 		Name:           in.Body.Name,
 		RegistrationNo: nullString(in.Body.RegistrationNo),
 		YachtType:      nullString(in.Body.YachtType),
@@ -70,6 +79,9 @@ func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (
 		Engine:         nullString(in.Body.Engine),
 		OwnerName:      nullString(in.Body.OwnerName),
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, refusedCaptainWrite(ctx, h.q, in.ID, errAdminOrCaptainOnly())
+	}
 	if err != nil {
 		slog.Error("add voyage yacht", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to add yacht")
@@ -96,6 +108,35 @@ func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcd
 		})
 	}
 	return voyage, nil
+}
+
+// captainCaller returns what a captain write statement checks the caller
+// by: the account ID and whether it is an admin. Those statements write
+// only for an admin or the account linked to the voyage's captain person,
+// so a captain change committed after getVoyageForCaptain still refuses
+// the write without locking the voyage.
+func captainCaller(ctx context.Context) (userID int64, admin bool) {
+	u := middleware.GetUser(ctx)
+	if u == nil {
+		return 0, false
+	}
+	return u.UserID, u.Role == "admin"
+}
+
+// refusedCaptainWrite answers a captain write whose statement changed
+// nothing because the caller no longer passed its captain check. The
+// voyage is authorized again to pick 403 or, for a hidden voyage the
+// caller cannot see, 404; a caller who passes again by then gets fallback.
+func refusedCaptainWrite(ctx context.Context, q sqlcdb.Querier, id int64, fallback error) error {
+	if _, err := getVoyageForCaptain(ctx, q, id); err != nil {
+		return err
+	}
+	return fallback
+}
+
+// errAdminOrCaptainOnly is requireAdminOrCaptain's refusal.
+func errAdminOrCaptainOnly() error {
+	return huma.Error403Forbidden("admin or captain only")
 }
 
 type voyageIDParam struct {

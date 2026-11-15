@@ -11,6 +11,74 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const addVoyageYacht = `-- name: AddVoyageYacht :one
+INSERT INTO yachts (created_by, name, registration_no, yacht_type, berths, length_m, build_year, engine, owner_name)
+SELECT $1::BIGINT, $2::TEXT, $3::TEXT,
+    $4::TEXT, $5::BIGINT, $6::DOUBLE PRECISION,
+    $7::BIGINT, $8::TEXT, $9::TEXT
+WHERE $10::BOOLEAN OR EXISTS (
+    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+    WHERE v.id = $11::BIGINT AND cm.user_id = $1::BIGINT)
+RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name
+`
+
+type AddVoyageYachtParams struct {
+	CallerID       int64             `json:"caller_id"`
+	Name           string            `json:"name"`
+	RegistrationNo types.NullString  `json:"registration_no"`
+	YachtType      types.NullString  `json:"yacht_type"`
+	Berths         types.NullInt64   `json:"berths"`
+	LengthM        types.NullFloat64 `json:"length_m"`
+	BuildYear      types.NullInt64   `json:"build_year"`
+	Engine         types.NullString  `json:"engine"`
+	OwnerName      types.NullString  `json:"owner_name"`
+	CallerIsAdmin  bool              `json:"caller_is_admin"`
+	VoyageID       int64             `json:"voyage_id"`
+}
+
+// Adds a club yacht from a voyage form for an admin or the account linked
+// to the voyage's captain person, else inserts no row.
+//
+//	INSERT INTO yachts (created_by, name, registration_no, yacht_type, berths, length_m, build_year, engine, owner_name)
+//	SELECT $1::BIGINT, $2::TEXT, $3::TEXT,
+//	    $4::TEXT, $5::BIGINT, $6::DOUBLE PRECISION,
+//	    $7::BIGINT, $8::TEXT, $9::TEXT
+//	WHERE $10::BOOLEAN OR EXISTS (
+//	    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+//	    WHERE v.id = $11::BIGINT AND cm.user_id = $1::BIGINT)
+//	RETURNING id, created_by, name, registration_no, yacht_type, created_at, updated_at, berths, length_m, build_year, engine, owner_name
+func (q *Queries) AddVoyageYacht(ctx context.Context, arg AddVoyageYachtParams) (Yacht, error) {
+	row := q.db.QueryRowContext(ctx, addVoyageYacht,
+		arg.CallerID,
+		arg.Name,
+		arg.RegistrationNo,
+		arg.YachtType,
+		arg.Berths,
+		arg.LengthM,
+		arg.BuildYear,
+		arg.Engine,
+		arg.OwnerName,
+		arg.CallerIsAdmin,
+		arg.VoyageID,
+	)
+	var i Yacht
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.RegistrationNo,
+		&i.YachtType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Berths,
+		&i.LengthM,
+		&i.BuildYear,
+		&i.Engine,
+		&i.OwnerName,
+	)
+	return i, err
+}
+
 const countYachts = `-- name: CountYachts :one
 SELECT COUNT(*)::BIGINT FROM yachts
 `
