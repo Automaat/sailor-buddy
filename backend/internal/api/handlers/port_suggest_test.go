@@ -17,7 +17,7 @@ import (
 
 func captainGroupCtx() context.Context {
 	return context.WithValue(context.Background(), middleware.UserCtxKey, &auth.Claims{
-		Approved: true, EmailVerified: true, UserID: 7, Role: "member", IsCaptain: true,
+		EmailVerified: true, UserID: 7, Role: "member", IsCaptain: true,
 	})
 }
 
