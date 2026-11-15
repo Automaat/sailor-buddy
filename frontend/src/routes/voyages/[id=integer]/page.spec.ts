@@ -1,3 +1,4 @@
+import { tick } from 'svelte';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { makeVoyage } from '#lib/test-utils.js';
@@ -383,8 +384,8 @@ describe('voyage page same-route navigation', () => {
 
 		await view.rerender({ data: await runLoad(nextId) });
 		answer();
-		await Promise.resolve();
-		await Promise.resolve();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		await tick();
 
 		expect(
 			screen.getByRole('heading', { name: nextId === '5' ? 'Rejs A' : 'Rejs B' })
