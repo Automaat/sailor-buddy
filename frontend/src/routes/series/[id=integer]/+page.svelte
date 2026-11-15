@@ -170,7 +170,6 @@
 					<tr class="border-b text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
 						<th scope="col" class="w-28 pb-2 pr-4 font-medium">Edycja</th>
 						<th scope="col" class="pb-2 font-medium">Nazwa</th>
-						<th scope="col" class="w-8 pb-2"><span class="sr-only">Otwórz</span></th>
 					</tr>
 				</thead>
 				<tbody class="divide-y">
@@ -183,19 +182,18 @@
 								>
 							</td>
 							<td class="py-3 align-middle">
-								<a
-									href="/cruises/{e.cruise_id}"
-									class="font-medium text-[var(--navy)] after:absolute after:inset-0 group-hover:text-[var(--ocean)]"
-									>{e.name}</a
-								>
-								{#if showHidden && isHidden(e)}<span class="relative ml-2"><HiddenBadge /></span
-									>{/if}
-							</td>
-							<td class="py-3 text-right align-middle text-[var(--text-muted)]">
-								<ChevronRight
-									class="ml-auto h-4 w-4 group-hover:text-[var(--ocean)]"
-									aria-hidden="true"
-								/>
+								<div class="flex items-center gap-2">
+									<a
+										href="/cruises/{e.cruise_id}"
+										class="min-w-0 flex-1 font-medium text-[var(--navy)] after:absolute after:inset-0 group-hover:text-[var(--ocean)]"
+										>{e.name}</a
+									>
+									{#if showHidden && isHidden(e)}<span class="relative"><HiddenBadge /></span>{/if}
+									<ChevronRight
+										class="h-4 w-4 shrink-0 text-[var(--text-muted)] group-hover:text-[var(--ocean)]"
+										aria-hidden="true"
+									/>
+								</div>
 							</td>
 						</tr>
 					{/each}

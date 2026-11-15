@@ -88,11 +88,11 @@ describe('series detail page', () => {
 
 		expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
 			'Edycja',
-			'Nazwa',
-			'Otwórz'
+			'Nazwa'
 		]);
 		const rows = screen.getAllByTestId('edition-row');
 		expect(rows).toHaveLength(3);
+		for (const row of rows) expect(within(row).getAllByRole('cell')).toHaveLength(2);
 		expect(within(rows[0]).getByText('2025')).toBeInTheDocument();
 		expect(within(rows[0]).getByRole('link', { name: 'MIS 2025' })).toHaveAttribute(
 			'href',
