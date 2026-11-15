@@ -53,7 +53,7 @@ func TestVoyagePorts_Add(t *testing.T) {
 		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
 			return sqlcdb.Voyage{ID: 5}, nil
 		},
-		createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
+		addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
 			return sqlcdb.VoyagePort{
 				ID: 9, VoyageID: arg.VoyageID, Name: arg.Name,
 				Latitude: arg.Latitude, Longitude: arg.Longitude, Position: arg.Position,
@@ -113,9 +113,9 @@ func TestVoyagePorts_Reorder(t *testing.T) {
 				{ID: 2, VoyageID: 5, Name: "Vis", Position: 2},
 			}, nil
 		},
-		setPortPositionFn: func(_ context.Context, arg sqlcdb.SetVoyagePortPositionParams) error {
+		setPortPositionFn: func(_ context.Context, arg sqlcdb.SetVoyagePortPositionParams) (int64, error) {
 			got = append(got, arg)
-			return nil
+			return 1, nil
 		},
 	}
 
@@ -125,9 +125,9 @@ func TestVoyagePorts_Reorder(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
 	}
 	want := []sqlcdb.SetVoyagePortPositionParams{
-		{ID: 3, VoyageID: 5, Position: 0},
-		{ID: 1, VoyageID: 5, Position: 1},
-		{ID: 2, VoyageID: 5, Position: 2},
+		{ID: 3, VoyageID: 5, Position: 0, CallerIsAdmin: true, CallerID: 1},
+		{ID: 1, VoyageID: 5, Position: 1, CallerIsAdmin: true, CallerID: 1},
+		{ID: 2, VoyageID: 5, Position: 2, CallerIsAdmin: true, CallerID: 1},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("position writes = %+v, want %+v", got, want)
@@ -153,9 +153,9 @@ func TestVoyagePorts_Reorder_StopsOnError(t *testing.T) {
 				{ID: 1, VoyageID: 5, Name: "Split"},
 			}, nil
 		},
-		setPortPositionFn: func(context.Context, sqlcdb.SetVoyagePortPositionParams) error {
+		setPortPositionFn: func(context.Context, sqlcdb.SetVoyagePortPositionParams) (int64, error) {
 			writes++
-			return errors.New("boom")
+			return 0, errors.New("boom")
 		},
 	}
 	resp := voyagePortTestAPI(t, m).PutCtx(userCtx(context.Background()),
@@ -165,6 +165,30 @@ func TestVoyagePorts_Reorder_StopsOnError(t *testing.T) {
 	}
 	if writes != 1 {
 		t.Fatalf("position writes = %d, want 1", writes)
+	}
+}
+
+// TestVoyagePorts_Reorder_PortGoneMeanwhile covers a position write that
+// changes no row while the caller still passes the captain check: a port
+// went away after the list was read, so the reorder no longer matches it.
+func TestVoyagePorts_Reorder_PortGoneMeanwhile(t *testing.T) {
+	writes := 0
+	m := &mockQuerier{
+		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) {
+			return sqlcdb.Voyage{ID: 5}, nil
+		},
+		listVoyagePortsFn: func(context.Context, int64) ([]sqlcdb.VoyagePort, error) {
+			return []sqlcdb.VoyagePort{{ID: 3, VoyageID: 5}, {ID: 1, VoyageID: 5}}, nil
+		},
+		setPortPositionFn: func(context.Context, sqlcdb.SetVoyagePortPositionParams) (int64, error) {
+			writes++
+			return 0, nil
+		},
+	}
+	resp := voyagePortTestAPI(t, m).PutCtx(userCtx(context.Background()),
+		"/voyages/5/ports/order", map[string]any{"port_ids": []int64{3, 1}})
+	if resp.Code != http.StatusUnprocessableEntity || writes != 1 {
+		t.Fatalf("status = %d after %d writes, want 422 after 1; body=%s", resp.Code, writes, resp.Body)
 	}
 }
 
@@ -192,9 +216,9 @@ func TestVoyagePorts_Remove(t *testing.T) {
 	var got sqlcdb.DeleteVoyagePortParams
 	m := &mockQuerier{
 		getVoyageFn: func(context.Context, int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: 5}, nil },
-		deleteVoyagePortFn: func(_ context.Context, arg sqlcdb.DeleteVoyagePortParams) error {
+		deleteVoyagePortFn: func(_ context.Context, arg sqlcdb.DeleteVoyagePortParams) (bool, error) {
 			got = arg
-			return nil
+			return true, nil
 		},
 	}
 	resp := voyagePortTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/voyages/5/ports/9")

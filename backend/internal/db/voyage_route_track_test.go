@@ -81,13 +81,14 @@ func TestVoyageRoute_NameOnlyPortsAndRecordFields(t *testing.T) {
 		t.Fatal("a port with only a latitude was accepted")
 	}
 
-	if err := q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
-		ID:         voyageID,
-		YachtID:    types.NullInt64{Int64: yachtID, Valid: true},
-		TrackUrl:   types.NullString{String: "https://example.com/t", Valid: true},
-		VoyageCard: types.NullString{String: "w klubie", Valid: true},
-	}); err != nil {
-		t.Fatalf("update log: %v", err)
+	if n, err := q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
+		ID:            voyageID,
+		YachtID:       types.NullInt64{Int64: yachtID, Valid: true},
+		TrackUrl:      types.NullString{String: "https://example.com/t", Valid: true},
+		VoyageCard:    types.NullString{String: "w klubie", Valid: true},
+		CallerIsAdmin: true,
+	}); err != nil || n != 1 {
+		t.Fatalf("update log: %d rows, %v", n, err)
 	}
 	v, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: voyageID, IncludeHidden: true})
 	if err != nil {

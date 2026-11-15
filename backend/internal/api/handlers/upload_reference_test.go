@@ -40,7 +40,7 @@ func TestImageReferences_AllResourceFieldsSurviveCleanup(t *testing.T) {
 	q := sqlcdb.New(f.conn)
 	RegisterCruiseRoutes(api, q, f.conn)
 	RegisterTripRoutes(api, q, f.conn)
-	RegisterVoyageRoutes(api, q, f.conn)
+	RegisterVoyageRoutes(api, q)
 	var parentID int64
 	if err := f.conn.QueryRow("INSERT INTO cruises(name) VALUES ('Parent') RETURNING id").Scan(&parentID); err != nil {
 		t.Fatal(err)

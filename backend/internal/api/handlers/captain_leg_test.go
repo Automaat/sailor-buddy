@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -215,33 +216,34 @@ func TestVoyageCaptain_OpinionsAndPorts(t *testing.T) {
 	for _, c := range callers {
 		t.Run(c.name, func(t *testing.T) {
 			var wrote []string
+			u := middleware.GetUser(c.ctx)
+			write := func(name string, callerID int64, admin bool) {
+				if callerID != u.UserID || admin != (u.Role == "admin") {
+					t.Errorf("%s checked caller %d (admin %t), want %d (%s)", name, callerID, admin, u.UserID, u.Role)
+				}
+				wrote = append(wrote, name)
+			}
 			m := &mockQuerier{
 				getVoyageFn:     captainVoyage,
 				getCrewMemberFn: legPeople,
 				getVoyageCrewByMemberFn: func(context.Context, sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
 					return assignment, nil
 				},
-				getOpinionByMemberFn: func(context.Context, sqlcdb.GetVoyageOpinionByMemberParams) (sqlcdb.VoyageOpinion, error) {
-					return sqlcdb.VoyageOpinion{}, sql.ErrNoRows
+				upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
+					write("generate", arg.CallerID, arg.CallerIsAdmin)
+					return sqlcdb.UpsertVoyageOpinionRow{ID: 7, VoyageID: arg.VoyageID, CrewMemberID: arg.CrewMemberID, FileFormat: arg.FileFormat}, nil
 				},
-				upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
-					wrote = append(wrote, "generate")
-					return sqlcdb.VoyageOpinion{ID: 7, VoyageID: arg.VoyageID, CrewMemberID: arg.CrewMemberID, FileFormat: arg.FileFormat}, nil
+				deleteVoyageOpinionFn: func(_ context.Context, arg sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+					write("delete opinion", arg.CallerID, arg.CallerIsAdmin)
+					return sqlcdb.DeleteVoyageOpinionRow{Ok: true, FilePath: "/nonexistent/7.pdf"}, nil
 				},
-				getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
-					return sqlcdb.VoyageOpinion{ID: id, VoyageID: 5, CrewMemberID: 4}, nil
-				},
-				deleteVoyageOpinionFn: func(context.Context, int64) error {
-					wrote = append(wrote, "delete opinion")
-					return nil
-				},
-				createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
-					wrote = append(wrote, "add port")
+				addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
+					write("add port", arg.CallerID, arg.CallerIsAdmin)
 					return sqlcdb.VoyagePort{ID: 3, VoyageID: arg.VoyageID, Name: arg.Name}, nil
 				},
-				deleteVoyagePortFn: func(context.Context, sqlcdb.DeleteVoyagePortParams) error {
-					wrote = append(wrote, "remove port")
-					return nil
+				deleteVoyagePortFn: func(_ context.Context, arg sqlcdb.DeleteVoyagePortParams) (bool, error) {
+					write("remove port", arg.CallerID, arg.CallerIsAdmin)
+					return true, nil
 				},
 			}
 			opinions := opinionTestAPI(t, m)

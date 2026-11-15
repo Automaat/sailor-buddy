@@ -5,11 +5,41 @@ VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 -- name: ListVoyagePorts :many
 SELECT * FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id;
 
--- name: DeleteVoyagePort :exec
-DELETE FROM voyage_ports WHERE id = $1 AND voyage_id = $2;
+-- name: AddVoyagePort :one
+-- Adds a port for an admin or the account linked to the voyage's captain
+-- person, else inserts no row. The check runs in the statement, so a
+-- captain change committed before it refuses the write.
+INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+SELECT sqlc.arg(voyage_id)::BIGINT, sqlc.arg(name)::TEXT, sqlc.narg(latitude)::DOUBLE PRECISION,
+    sqlc.narg(longitude)::DOUBLE PRECISION, sqlc.arg(position)::BIGINT, sqlc.arg(anchorage)::BOOLEAN
+WHERE sqlc.arg(caller_is_admin)::BOOLEAN OR EXISTS (
+    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+    WHERE v.id = sqlc.arg(voyage_id)::BIGINT AND cm.user_id = sqlc.arg(caller_id)::BIGINT)
+RETURNING *;
 
--- name: SetVoyagePortPosition :exec
-UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2;
+-- name: DeleteVoyagePort :one
+-- Deletes the port for an admin or the account linked to the voyage's
+-- captain person and answers whether the caller passed that check, since a
+-- port already gone is no error.
+WITH allowed AS (
+    SELECT (sqlc.arg(caller_is_admin)::BOOLEAN OR EXISTS (
+        SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+        WHERE v.id = sqlc.arg(voyage_id)::BIGINT AND cm.user_id = sqlc.arg(caller_id)::BIGINT)) AS ok
+), deleted AS (
+    DELETE FROM voyage_ports p
+    WHERE p.id = sqlc.arg(id)::BIGINT AND p.voyage_id = sqlc.arg(voyage_id)::BIGINT
+      AND (SELECT ok FROM allowed)
+)
+SELECT ok::BOOLEAN AS ok FROM allowed;
+
+-- name: SetVoyagePortPosition :execrows
+-- Moves the port for an admin or the account linked to the voyage's captain
+-- person, else updates no row.
+UPDATE voyage_ports SET position = sqlc.arg(position)::BIGINT
+WHERE id = sqlc.arg(id)::BIGINT AND voyage_id = sqlc.arg(voyage_id)::BIGINT
+  AND (sqlc.arg(caller_is_admin)::BOOLEAN OR EXISTS (
+      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+      WHERE v.id = sqlc.arg(voyage_id)::BIGINT AND cm.user_id = sqlc.arg(caller_id)::BIGINT));
 
 -- name: SuggestPorts :many
 -- Port names the club already entered that match a typed query, ignoring

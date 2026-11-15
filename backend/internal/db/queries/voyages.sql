@@ -16,13 +16,6 @@ WHERE v.id = sqlc.arg(id)
   AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)));
 
--- name: LockVoyageForCaptain :one
--- Row-locks the voyage for a captain write, which rechecks the captain on
--- the locked row: a reassignment committed first is seen, a later one waits
--- for the write. FOR NO KEY UPDATE serializes captain writes on one voyage
--- and still lets foreign-key checks (KEY SHARE) of its ports through.
-SELECT * FROM voyages WHERE id = $1 FOR NO KEY UPDATE;
-
 -- name: ListVoyages :many
 -- A set after_id starts the page after the cursor's sort key. The keyset
 -- tuple sorts descending like the ORDER BY: a NULL year or embark_date first.
@@ -57,13 +50,21 @@ UPDATE voyages SET
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $25;
 
--- name: UpdateVoyageLog :exec
-UPDATE voyages SET
-    hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
-    miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
-    yacht_id = $10, track_url = $11, voyage_card = $12,
+-- name: UpdateVoyageLog :execrows
+-- Writes for an admin or the account linked to the voyage's captain person,
+-- else updates no row. The check reads the row it updates: a captain change
+-- committed before the statement refuses it, and one still open makes it
+-- wait for that change and recheck the new captain.
+UPDATE voyages lv SET
+    hours_total = sqlc.arg(hours_total), hours_sail = sqlc.arg(hours_sail),
+    hours_engine = sqlc.arg(hours_engine), hours_over_6bf = sqlc.arg(hours_over_6bf),
+    miles = sqlc.arg(miles), days = sqlc.arg(days), tidal_waters = sqlc.arg(tidal_waters),
+    captain_notes = sqlc.narg(captain_notes), yacht_id = sqlc.narg(yacht_id),
+    track_url = sqlc.narg(track_url), voyage_card = sqlc.narg(voyage_card),
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9;
+WHERE lv.id = sqlc.arg(id)
+  AND (sqlc.arg(caller_is_admin)::BOOLEAN OR lv.captain_person_id IN (
+      SELECT cm.id FROM crew_members cm WHERE cm.user_id = sqlc.arg(caller_id)::BIGINT));
 
 -- name: DeleteVoyage :exec
 DELETE FROM voyages WHERE id = $1;

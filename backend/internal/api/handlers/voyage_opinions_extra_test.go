@@ -48,12 +48,12 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 			getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
 				return sqlcdb.Yacht{ID: id, Name: "Bavaria"}, nil
 			},
-			getOpinionByMemberFn: func(context.Context, sqlcdb.GetVoyageOpinionByMemberParams) (sqlcdb.VoyageOpinion, error) {
-				return sqlcdb.VoyageOpinion{ID: 7, VoyageID: 3, CrewMemberID: 4, FilePath: filepath.Join(dir, "opinions", "3_4.pdf")}, nil
-			},
-			upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
+			upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
 				stored = arg.FilePath
-				return sqlcdb.VoyageOpinion{ID: 7, VoyageID: arg.VoyageID, FileFormat: arg.FileFormat}, nil
+				return sqlcdb.UpsertVoyageOpinionRow{
+					ID: 7, VoyageID: arg.VoyageID, FileFormat: arg.FileFormat,
+					ReplacedPath: filepath.Join(dir, "opinions", "3_4.pdf"),
+				}, nil
 			},
 		}
 		resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
@@ -136,11 +136,8 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 			getVoyageCrewByMemberFn: func(context.Context, sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
 				return assignmentRow, nil
 			},
-			getOpinionByMemberFn: func(context.Context, sqlcdb.GetVoyageOpinionByMemberParams) (sqlcdb.VoyageOpinion, error) {
-				return sqlcdb.VoyageOpinion{ID: 7, VoyageID: 3, CrewMemberID: 4, FilePath: filepath.Join(dir, "opinions", "3_4.pdf")}, nil
-			},
-			upsertVoyageOpinionFn: func(context.Context, sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
-				return sqlcdb.VoyageOpinion{}, errors.New("fail")
+			upsertVoyageOpinionFn: func(context.Context, sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
+				return sqlcdb.UpsertVoyageOpinionRow{}, errors.New("fail")
 			},
 		}
 		resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
@@ -286,10 +283,9 @@ func TestVoyageOpinion_DeleteRemovesFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &mockQuerier{
 				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
-				getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
-					return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: tc.stored}, nil
+				deleteVoyageOpinionFn: func(context.Context, sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+					return sqlcdb.DeleteVoyageOpinionRow{Ok: true, FilePath: tc.stored}, nil
 				},
-				deleteVoyageOpinionFn: func(context.Context, int64) error { return nil },
 			}
 			resp := opinionTestAPIIn(t, m, dir).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
 			if resp.Code != http.StatusNoContent {
@@ -308,10 +304,9 @@ func TestVoyageOpinion_Delete_DBError(t *testing.T) {
 	writeUpload(t, dir, "opinions/3_4.pdf", "pdf")
 	m := &mockQuerier{
 		getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
-		getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
-			return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: filepath.Join(dir, "opinions", "3_4.pdf")}, nil
+		deleteVoyageOpinionFn: func(context.Context, sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+			return sqlcdb.DeleteVoyageOpinionRow{}, errors.New("fail")
 		},
-		deleteVoyageOpinionFn: func(context.Context, int64) error { return errors.New("fail") },
 	}
 	resp := opinionTestAPIIn(t, m, dir).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
 	if resp.Code != http.StatusInternalServerError {
@@ -382,7 +377,7 @@ func TestRenderOpinionFile(t *testing.T) {
 }
 
 func TestNewVoyageOpinionHandler(t *testing.T) {
-	if NewVoyageOpinionHandler(&mockQuerier{}, nil, nil) == nil {
+	if NewVoyageOpinionHandler(&mockQuerier{}, nil) == nil {
 		t.Fatal("want non-nil handler")
 	}
 }

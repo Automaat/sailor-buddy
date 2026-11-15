@@ -25,12 +25,11 @@ import (
 // the opinions directory under uploads and are only accessed through it.
 type VoyageOpinionHandler struct {
 	q       sqlcdb.Querier
-	runTx   txRunner
 	uploads *os.Root
 }
 
-func NewVoyageOpinionHandler(q sqlcdb.Querier, db *sql.DB, uploads *os.Root) *VoyageOpinionHandler {
-	return &VoyageOpinionHandler{q: q, runTx: retryDeadlock(sqlTxRunner(db)), uploads: uploads}
+func NewVoyageOpinionHandler(q sqlcdb.Querier, uploads *os.Root) *VoyageOpinionHandler {
+	return &VoyageOpinionHandler{q: q, uploads: uploads}
 }
 
 type generateOpinionInput struct {
@@ -60,11 +59,8 @@ type opinionFileOutput struct {
 // RegisterVoyageOpinionRoutes wires the crew opinion document operations.
 // Listing and downloading show a member only their own opinions; generating
 // and deleting require an admin or the voyage's captain.
-func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB, uploads *os.Root) {
-	registerVoyageOpinionRoutes(api, NewVoyageOpinionHandler(q, db, uploads))
-}
-
-func registerVoyageOpinionRoutes(api huma.API, h *VoyageOpinionHandler) {
+func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploads *os.Root) {
+	h := NewVoyageOpinionHandler(q, uploads)
 	tag := []string{"Voyage opinions"}
 
 	huma.Register(api, huma.Operation{
@@ -120,7 +116,6 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 		}
 	}
 
-	// Render before the voyage lock: a Chromium render takes seconds.
 	data := opinionDocData(voyage, assignment, yachtName, yachtType)
 	fileBytes, err := renderOpinionFile(ctx, format, data)
 	if err != nil {
@@ -128,41 +123,37 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 		return nil, huma.Error500InternalServerError("failed to generate opinion document")
 	}
 
-	// Each generation gets its own file, so a rolled-back write never
+	// Each generation gets its own file, so a refused or failed write never
 	// overwrites the file of the opinion it would replace.
 	rel := filepath.Join(opinionsDir, fmt.Sprintf("%d_%d_%s.%s", in.VoyageID, in.Body.CrewMemberID, rand.Text(), format))
-	var opinion sqlcdb.VoyageOpinion
-	var replaced string
-	err = lockedCaptainWrite(ctx, h.runTx, in.VoyageID, func(q sqlcdb.Querier, _ sqlcdb.Voyage) error {
-		prior, err := q.GetVoyageOpinionByMember(ctx, sqlcdb.GetVoyageOpinionByMemberParams{
-			VoyageID: in.VoyageID, CrewMemberID: in.Body.CrewMemberID,
-		})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return &QueryError{Op: "GetVoyageOpinionByMember", Err: err}
-		}
-		stored, err := storeOpinionFile(h.uploads, rel, fileBytes)
-		if err != nil {
-			return fmt.Errorf("store opinion file: %w", err)
-		}
-		opinion, err = q.UpsertVoyageOpinion(ctx, sqlcdb.UpsertVoyageOpinionParams{
-			VoyageID:     in.VoyageID,
-			CrewMemberID: in.Body.CrewMemberID,
-			FilePath:     stored,
-			FileFormat:   format,
-		})
-		if err != nil {
-			return &QueryError{Op: "UpsertVoyageOpinion", Err: err}
-		}
-		replaced = prior.FilePath
-		return nil
+	stored, err := storeOpinionFile(h.uploads, rel, fileBytes)
+	if err != nil {
+		slog.Error("store opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
+		return nil, huma.Error500InternalServerError("failed to generate opinion document")
+	}
+	callerID, admin := captainCaller(ctx)
+	row, err := h.q.UpsertVoyageOpinion(ctx, sqlcdb.UpsertVoyageOpinionParams{
+		VoyageID:      in.VoyageID,
+		CrewMemberID:  in.Body.CrewMemberID,
+		FilePath:      stored,
+		FileFormat:    format,
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
 	})
 	if err != nil {
-		removeUploadedFiles(h.uploads, filepath.Join(h.uploads.Name(), rel))
-		return nil, voyageMutationError(err, "save voyage opinion", "failed to save opinion record",
-			[]any{"voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format})
+		removeUploadedFiles(h.uploads, stored)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
+		}
+		slog.Error("upsert voyage opinion", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to save opinion record")
 	}
-	if replaced != "" {
-		removeUploadedFiles(h.uploads, replaced)
+	if row.ReplacedPath != "" {
+		removeUploadedFiles(h.uploads, row.ReplacedPath)
+	}
+	opinion := sqlcdb.VoyageOpinion{
+		ID: row.ID, VoyageID: row.VoyageID, CrewMemberID: row.CrewMemberID,
+		FilePath: row.FilePath, FileFormat: row.FileFormat, CreatedAt: row.CreatedAt,
 	}
 	return &opinionOutput{Body: dto.VoyageOpinionFromDB(opinion)}, nil
 }
@@ -190,26 +181,30 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 	}, nil
 }
 
-// delete removes the opinion's file only once the row's delete commits, so
-// a refused or failed delete keeps the file the row still points to.
+// delete removes the opinion's file only once its row is deleted, so a
+// refused or failed delete keeps the file the row still points to.
 func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*noContentOutput, error) {
-	var file string
-	err := captainVoyageWrite(ctx, h.q, h.runTx, in.VoyageID, func(q sqlcdb.Querier, _ sqlcdb.Voyage) error {
-		opinion, err := loadVoyageOpinion(ctx, q, in.OpinionID, in.VoyageID)
-		if err != nil {
-			return err
-		}
-		if err := q.DeleteVoyageOpinion(ctx, in.OpinionID); err != nil {
-			return &QueryError{Op: "DeleteVoyageOpinion", Err: err}
-		}
-		file = opinion.FilePath
-		return nil
+	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
+		return nil, err
+	}
+	callerID, admin := captainCaller(ctx)
+	deleted, err := h.q.DeleteVoyageOpinion(ctx, sqlcdb.DeleteVoyageOpinionParams{
+		ID:            in.OpinionID,
+		VoyageID:      in.VoyageID,
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
 	})
 	if err != nil {
-		return nil, voyageMutationError(err, "delete voyage opinion", "failed to delete opinion",
-			[]any{"opinion_id", in.OpinionID, "voyage_id", in.VoyageID})
+		slog.Error("delete voyage opinion", "opinion_id", in.OpinionID, "voyage_id", in.VoyageID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to delete opinion")
 	}
-	removeUploadedFiles(h.uploads, file)
+	if !deleted.Ok {
+		return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
+	}
+	if deleted.FilePath == "" {
+		return nil, huma.Error404NotFound("opinion not found")
+	}
+	removeUploadedFiles(h.uploads, deleted.FilePath)
 	return &noContentOutput{}, nil
 }
 

@@ -86,9 +86,9 @@ func TestVoyageLog_Authorization(t *testing.T) {
 					}
 					return *tt.captain, nil
 				},
-				updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
+				updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) (int64, error) {
 					got = &arg
-					return nil
+					return 1, nil
 				},
 			}
 			resp := voyageTestAPI(t, m).PutCtx(tt.ctx, "/voyages/5/log", map[string]any{
@@ -127,7 +127,7 @@ func TestVoyagePorts_CaptainRights(t *testing.T) {
 					return sqlcdb.Voyage{ID: id, CaptainPersonID: types.NullInt64{Int64: 70, Valid: true}}, nil
 				},
 				getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) { return tt.captain, nil },
-				createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
+				addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
 					created = true
 					return sqlcdb.VoyagePort{ID: 1, VoyageID: arg.VoyageID, Name: arg.Name}, nil
 				},

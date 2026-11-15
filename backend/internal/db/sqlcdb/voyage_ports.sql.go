@@ -11,6 +11,63 @@ import (
 	types "github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+const addVoyagePort = `-- name: AddVoyagePort :one
+INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+SELECT $1::BIGINT, $2::TEXT, $3::DOUBLE PRECISION,
+    $4::DOUBLE PRECISION, $5::BIGINT, $6::BOOLEAN
+WHERE $7::BOOLEAN OR EXISTS (
+    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+    WHERE v.id = $1::BIGINT AND cm.user_id = $8::BIGINT)
+RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
+`
+
+type AddVoyagePortParams struct {
+	VoyageID      int64             `json:"voyage_id"`
+	Name          string            `json:"name"`
+	Latitude      types.NullFloat64 `json:"latitude"`
+	Longitude     types.NullFloat64 `json:"longitude"`
+	Position      int64             `json:"position"`
+	Anchorage     bool              `json:"anchorage"`
+	CallerIsAdmin bool              `json:"caller_is_admin"`
+	CallerID      int64             `json:"caller_id"`
+}
+
+// Adds a port for an admin or the account linked to the voyage's captain
+// person, else inserts no row. The check runs in the statement, so a
+// captain change committed before it refuses the write.
+//
+//	INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
+//	SELECT $1::BIGINT, $2::TEXT, $3::DOUBLE PRECISION,
+//	    $4::DOUBLE PRECISION, $5::BIGINT, $6::BOOLEAN
+//	WHERE $7::BOOLEAN OR EXISTS (
+//	    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+//	    WHERE v.id = $1::BIGINT AND cm.user_id = $8::BIGINT)
+//	RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
+func (q *Queries) AddVoyagePort(ctx context.Context, arg AddVoyagePortParams) (VoyagePort, error) {
+	row := q.db.QueryRowContext(ctx, addVoyagePort,
+		arg.VoyageID,
+		arg.Name,
+		arg.Latitude,
+		arg.Longitude,
+		arg.Position,
+		arg.Anchorage,
+		arg.CallerIsAdmin,
+		arg.CallerID,
+	)
+	var i VoyagePort
+	err := row.Scan(
+		&i.ID,
+		&i.VoyageID,
+		&i.Name,
+		&i.Latitude,
+		&i.Longitude,
+		&i.Position,
+		&i.CreatedAt,
+		&i.Anchorage,
+	)
+	return i, err
+}
+
 const createVoyagePort = `-- name: CreateVoyagePort :one
 INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, voyage_id, name, latitude, longitude, position, created_at, anchorage
@@ -52,21 +109,50 @@ func (q *Queries) CreateVoyagePort(ctx context.Context, arg CreateVoyagePortPara
 	return i, err
 }
 
-const deleteVoyagePort = `-- name: DeleteVoyagePort :exec
-DELETE FROM voyage_ports WHERE id = $1 AND voyage_id = $2
+const deleteVoyagePort = `-- name: DeleteVoyagePort :one
+WITH allowed AS (
+    SELECT ($1::BOOLEAN OR EXISTS (
+        SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+        WHERE v.id = $2::BIGINT AND cm.user_id = $3::BIGINT)) AS ok
+), deleted AS (
+    DELETE FROM voyage_ports p
+    WHERE p.id = $4::BIGINT AND p.voyage_id = $2::BIGINT
+      AND (SELECT ok FROM allowed)
+)
+SELECT ok::BOOLEAN AS ok FROM allowed
 `
 
 type DeleteVoyagePortParams struct {
-	ID       int64 `json:"id"`
-	VoyageID int64 `json:"voyage_id"`
+	CallerIsAdmin bool  `json:"caller_is_admin"`
+	VoyageID      int64 `json:"voyage_id"`
+	CallerID      int64 `json:"caller_id"`
+	ID            int64 `json:"id"`
 }
 
-// DeleteVoyagePort
+// Deletes the port for an admin or the account linked to the voyage's
+// captain person and answers whether the caller passed that check, since a
+// port already gone is no error.
 //
-//	DELETE FROM voyage_ports WHERE id = $1 AND voyage_id = $2
-func (q *Queries) DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortParams) error {
-	_, err := q.db.ExecContext(ctx, deleteVoyagePort, arg.ID, arg.VoyageID)
-	return err
+//	WITH allowed AS (
+//	    SELECT ($1::BOOLEAN OR EXISTS (
+//	        SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+//	        WHERE v.id = $2::BIGINT AND cm.user_id = $3::BIGINT)) AS ok
+//	), deleted AS (
+//	    DELETE FROM voyage_ports p
+//	    WHERE p.id = $4::BIGINT AND p.voyage_id = $2::BIGINT
+//	      AND (SELECT ok FROM allowed)
+//	)
+//	SELECT ok::BOOLEAN AS ok FROM allowed
+func (q *Queries) DeleteVoyagePort(ctx context.Context, arg DeleteVoyagePortParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, deleteVoyagePort,
+		arg.CallerIsAdmin,
+		arg.VoyageID,
+		arg.CallerID,
+		arg.ID,
+	)
+	var ok bool
+	err := row.Scan(&ok)
+	return ok, err
 }
 
 const listVoyagePorts = `-- name: ListVoyagePorts :many
@@ -108,22 +194,42 @@ func (q *Queries) ListVoyagePorts(ctx context.Context, voyageID int64) ([]Voyage
 	return items, nil
 }
 
-const setVoyagePortPosition = `-- name: SetVoyagePortPosition :exec
-UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2
+const setVoyagePortPosition = `-- name: SetVoyagePortPosition :execrows
+UPDATE voyage_ports SET position = $1::BIGINT
+WHERE id = $2::BIGINT AND voyage_id = $3::BIGINT
+  AND ($4::BOOLEAN OR EXISTS (
+      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+      WHERE v.id = $3::BIGINT AND cm.user_id = $5::BIGINT))
 `
 
 type SetVoyagePortPositionParams struct {
-	ID       int64 `json:"id"`
-	VoyageID int64 `json:"voyage_id"`
-	Position int64 `json:"position"`
+	Position      int64 `json:"position"`
+	ID            int64 `json:"id"`
+	VoyageID      int64 `json:"voyage_id"`
+	CallerIsAdmin bool  `json:"caller_is_admin"`
+	CallerID      int64 `json:"caller_id"`
 }
 
-// SetVoyagePortPosition
+// Moves the port for an admin or the account linked to the voyage's captain
+// person, else updates no row.
 //
-//	UPDATE voyage_ports SET position = $3 WHERE id = $1 AND voyage_id = $2
-func (q *Queries) SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) error {
-	_, err := q.db.ExecContext(ctx, setVoyagePortPosition, arg.ID, arg.VoyageID, arg.Position)
-	return err
+//	UPDATE voyage_ports SET position = $1::BIGINT
+//	WHERE id = $2::BIGINT AND voyage_id = $3::BIGINT
+//	  AND ($4::BOOLEAN OR EXISTS (
+//	      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
+//	      WHERE v.id = $3::BIGINT AND cm.user_id = $5::BIGINT))
+func (q *Queries) SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setVoyagePortPosition,
+		arg.Position,
+		arg.ID,
+		arg.VoyageID,
+		arg.CallerIsAdmin,
+		arg.CallerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const suggestPorts = `-- name: SuggestPorts :many
