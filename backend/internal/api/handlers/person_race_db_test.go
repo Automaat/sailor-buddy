@@ -5,11 +5,16 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -259,6 +264,16 @@ func TestCrewAssign_PersonGoneDuringAssign(t *testing.T) {
 // entry onto the same slot and waits for the insert, and the insert loses
 // the deadlock. It runs again after the merge commits and answers 409,
 // since the kept person now holds the slot.
+//
+// PostgreSQL checks a wait for deadlock once, deadlock_timeout after it
+// starts. Under load the merge can start waiting on the insert more than
+// the default second after the insert started waiting, so the insert's only
+// check finds no cycle and the merge loses instead. The insert gets a longer
+// timeout than that gap and the merge a far longer one, so the insert's
+// check sees the cycle unless the merge resumes more than five seconds
+// after the insert starts waiting, and the merge never checks first. The
+// conflict message tells the insert's rerun apart from an exhausted
+// deadlock retry, which also answers 409.
 func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 	for _, target := range []string{"trip", "voyage"} {
 		t.Run(target, func(t *testing.T) {
@@ -275,10 +290,12 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 			column := target + "_id"
 			path := fmt.Sprintf("/voyages/%d/crew", targetID)
 			body := map[string]any{"crew_member_id": f.keptID, "role": "zalogant"}
+			conflict := "crew member is already on the crew list"
 			seed := "INSERT INTO crew_assignments (voyage_id, crew_member_id) VALUES ($1, $2)"
 			if target == "trip" {
 				path = fmt.Sprintf("/trips/%d/enrollments", targetID)
 				body = map[string]any{"crew_member_id": f.keptID}
+				conflict = "the person is already signed up for this leg"
 				seed = "INSERT INTO trip_enrollments (trip_id, crew_member_id) VALUES ($1, $2)"
 			}
 			if _, err := f.conn.ExecContext(ctx, seed, targetID, f.duplicateID); err != nil {
@@ -293,18 +310,19 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 				t.Fatalf("hold leg 1: %v", err)
 			}
 
-			api := f.api(t, sqlTxRunner(f.conn))
+			mergeAPI := f.apiOn(t, connWithDeadlockTimeout(t, f.conn, "60s"))
+			insertAPI := f.apiOn(t, connWithDeadlockTimeout(t, f.conn, "5s"))
 			merged := make(chan int, 1)
 			go func() {
-				resp := api.PostCtx(callerCtx(1, "admin"),
+				resp := mergeAPI.PostCtx(callerCtx(1, "admin"),
 					fmt.Sprintf("/crew/%d/merge", f.keptID), map[string]any{"duplicate_id": f.duplicateID})
 				merged <- resp.Code
 			}()
 			waitForLockWaiters(t, f.conn, 1)
-			assigned := make(chan int, 1)
+			assigned := make(chan *httptest.ResponseRecorder, 1)
 			go func() {
-				resp := api.PostCtx(userCtx(ctx), path, body)
-				assigned <- resp.Code
+				resp := insertAPI.PostCtx(userCtx(ctx), path, body)
+				assigned <- resp
 			}()
 			waitForLockWaiters(t, f.conn, 2)
 			if err := holder.Commit(); err != nil {
@@ -313,8 +331,9 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 			if code := <-merged; code != http.StatusOK {
 				t.Fatalf("merge: got %d, want 200", code)
 			}
-			if code := <-assigned; code != http.StatusConflict {
-				t.Fatalf("POST %s: got %d, want 409", path, code)
+			resp := <-assigned
+			if resp.Code != http.StatusConflict || !strings.Contains(resp.Body.String(), conflict) {
+				t.Fatalf("POST %s: got %d %s, want 409 %q", path, resp.Code, resp.Body, conflict)
 			}
 			if target == "trip" {
 				want := []string{fmt.Sprintf("%d pending", f.keptID)}
@@ -429,4 +448,40 @@ func TestAdminSignUp_WaitsForMergeOfPerson(t *testing.T) {
 	if got := signUpsOn(t, f.conn, leg); len(got) != 0 {
 		t.Errorf("leg sign-ups = %v, want none", got)
 	}
+}
+
+// connWithDeadlockTimeout opens another pool on conn's database whose
+// sessions start with the given deadlock_timeout, so a test can choose which
+// side of a deadlock checks for it first, whether that side runs a
+// transaction or a single statement.
+func connWithDeadlockTimeout(t *testing.T, conn *sql.DB, timeout string) *sql.DB {
+	t.Helper()
+	var name string
+	if err := conn.QueryRow("SELECT current_database()").Scan(&name); err != nil {
+		t.Fatalf("current database: %v", err)
+	}
+	u, err := url.Parse(os.Getenv("SAILOR_TEST_DATABASE_URL"))
+	if err != nil {
+		t.Fatalf("parse dsn: %v", err)
+	}
+	u.Path = "/" + name
+	q := u.Query()
+	q.Set("deadlock_timeout", timeout)
+	u.RawQuery = q.Encode()
+	pool, err := db.Open(u.String())
+	if err != nil {
+		t.Fatalf("open pool with deadlock_timeout %s: %v", timeout, err)
+	}
+	t.Cleanup(func() { _ = pool.Close() })
+	return pool
+}
+
+// apiOn is api with both its queries and its transactions on conn.
+func (f mergeFixture) apiOn(t *testing.T, conn *sql.DB) humatest.TestAPI {
+	t.Helper()
+	_, api := humatest.New(t)
+	q := sqlcdb.New(conn)
+	registerCrewRoutes(api, &CrewHandler{q: q, runTx: sqlTxRunner(conn), uploads: f.uploads})
+	registerEnrollmentRoutes(api, &EnrollmentHandler{q: q, runTx: sqlTxRunner(conn)})
+	return api
 }
