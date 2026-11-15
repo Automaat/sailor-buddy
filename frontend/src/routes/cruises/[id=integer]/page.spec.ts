@@ -755,6 +755,124 @@ describe('cruise page leg sign-up', () => {
 	});
 });
 
+describe('cruise page leg tiles', () => {
+	let followed: (string | null)[];
+	/**
+	 * Records what SvelteKit's router would follow: the link holding a click's
+	 * target unless the default was prevented. A click on the link's ::after,
+	 * which covers the tile, targets the link itself.
+	 */
+	function follow(e: MouseEvent) {
+		const link = e.defaultPrevented ? null : (e.target as Element).closest('a');
+		followed.push(link?.getAttribute('href') ?? null);
+		e.preventDefault();
+	}
+
+	beforeEach(() => {
+		followed = [];
+		document.addEventListener('click', follow);
+		mockGet.mockResolvedValue(cruise());
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A')]);
+		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120, days: 7 }]);
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50)]);
+	});
+	afterEach(() => {
+		document.removeEventListener('click', follow);
+	});
+
+	it.each([
+		{ kind: 'leg', testId: 'leg-row', name: 'Jacht A', href: '/trips/50' },
+		{ kind: 'voyage', testId: 'voyage-row', name: 'Rejs 2025', href: '/voyages/9' }
+	])('stretches the $kind name link over its tile', async ({ testId, name, href }) => {
+		await renderPage();
+		const tile = await screen.findByTestId(testId);
+		const links = within(tile).getAllByRole('link');
+		expect(links).toHaveLength(1);
+		const [link] = links;
+		expect(link).toHaveAccessibleName(name);
+		expect(link).toHaveAttribute('href', href);
+		expect(tile).toHaveClass('relative', 'group');
+		expect(link).toHaveClass('after:absolute', 'after:inset-0', '[overflow-wrap:anywhere]');
+		expect(link.querySelector('a, button, input, textarea, select')).toBeNull();
+
+		await fireEvent.click(link);
+		expect(followed).toEqual([href]);
+		expect(goto).not.toHaveBeenCalled();
+	});
+
+	it('signs up from the tile without opening the leg', async () => {
+		fn(signUpForTrip).mockResolvedValue({
+			trip_id: 50,
+			result: 'created',
+			enrollment: pending(50)
+		});
+		await renderPage();
+		const tile = await screen.findByTestId('leg-row');
+		const button = within(tile).getByRole('button', { name: 'Zapisz się: Jacht A' });
+		const control = within(tile).getByTestId('leg-sign-up');
+		expect(control.parentElement).toHaveClass('relative', 'z-10');
+		expect(button.closest('a')).toBeNull();
+
+		await fireEvent.click(button);
+
+		await waitFor(() => expect(signUpForTrip).toHaveBeenCalledWith(50));
+		expect(await within(tile).findByText('oczekujący')).toBeInTheDocument();
+		expect(followed).toEqual([null]);
+		expect(goto).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ state: 'closed sign-ups', over: { open: false }, text: 'Zapisy zamknięte' },
+		{ state: 'a sign-up', over: { enrollment: pending(50) }, text: 'oczekujący' }
+	])('lets the sign-up panel text with $state open the leg', async ({ over, text }) => {
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, over)]);
+		await renderPage();
+		const tile = await screen.findByTestId('leg-row');
+		const panel = within(tile).getByTestId('leg-sign-up').parentElement!;
+		expect(panel).toHaveClass(
+			'pointer-events-none',
+			'[&_button]:pointer-events-auto',
+			'[&_form]:pointer-events-auto'
+		);
+		expect(within(tile).getByText(text).closest('button, form')).toBeNull();
+	});
+
+	it('withdraws from the tile without opening the leg', async () => {
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { enrollment: pending(50) })]);
+		fn(withdrawTripSignUp).mockResolvedValue(undefined);
+		await renderPage();
+		const tile = await screen.findByTestId('leg-row');
+
+		await fireEvent.click(within(tile).getByRole('button', { name: 'Wycofaj zapis: Jacht A' }));
+
+		await waitFor(() => expect(withdrawTripSignUp).toHaveBeenCalledWith(50));
+		expect(
+			await within(tile).findByRole('button', { name: 'Zapisz się: Jacht A' })
+		).toBeInTheDocument();
+		expect(followed).toEqual([null]);
+		expect(goto).not.toHaveBeenCalled();
+	});
+
+	it('reaches each tile link by keyboard before its sign-up control', async () => {
+		await renderPage();
+		const tile = await screen.findByTestId('leg-row');
+		const link = within(tile).getByRole('link', { name: 'Jacht A' });
+		const button = within(tile).getByRole('button', { name: 'Zapisz się: Jacht A' });
+
+		expect(link.tabIndex).toBe(0);
+		link.focus();
+		expect(link).toHaveFocus();
+		expect(link).toHaveClass('focus-visible:after:ring-2');
+		expect(link.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+		const voyage = within(screen.getByTestId('voyage-row')).getByRole('link', {
+			name: 'Rejs 2025'
+		});
+		voyage.focus();
+		expect(voyage).toHaveFocus();
+	});
+});
+
 describe('cruise page admin sign-ups by leg', () => {
 	beforeEach(() => {
 		mockAuth.isAdmin = true;
@@ -845,17 +963,17 @@ describe('cruise page past planned legs', () => {
 	it('flags a leg past its end and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;
 		await renderPage();
-		await screen.findByRole('link', { name: 'Jacht A' });
+		await screen.findByRole('link', { name: 'Jacht A Ukryte' });
 
-		const overdue = rowOf('Jacht A');
-		expect(within(overdue).getByRole('link', { name: 'Jacht A' })).toHaveAttribute(
+		const overdue = rowOf('Jacht A Ukryte');
+		expect(within(overdue).getByRole('link', { name: 'Jacht A Ukryte' })).toHaveAttribute(
 			'href',
 			'/trips/50'
 		);
 		expect(within(overdue).getByText('Do rozliczenia')).toBeInTheDocument();
 		expect(within(overdue).getByText('Zrealizuj →')).toBeInTheDocument();
 
-		const ongoing = rowOf('Jacht B');
+		const ongoing = rowOf('Jacht B Ukryte');
 		expect(within(ongoing).getByText('Nadchodzący')).toBeInTheDocument();
 		expect(within(ongoing).queryByText('Zrealizuj →')).not.toBeInTheDocument();
 	});
@@ -984,16 +1102,27 @@ describe('cruise page publication', () => {
 	const header = () => screen.getByTestId('cruise-header');
 	const legRow = (name: string) =>
 		screen.getAllByTestId('leg-row').find((r) => within(r).queryByText(name))!;
-	const voyageLink = () => screen.getByRole('link', { name: /Rejs 2025/ });
+	const voyageRow = () => screen.getByTestId('voyage-row');
 
 	it('shows an admin which cruise and legs are hidden', async () => {
 		await renderPage();
 		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
 		expect(within(legRow('Jacht A')).getByText('Ukryte')).toBeInTheDocument();
 		expect(within(legRow('Jacht B')).queryByText('Ukryte')).not.toBeInTheDocument();
-		expect(within(voyageLink()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(voyageRow()).getByText('Ukryte')).toBeInTheDocument();
 		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeInTheDocument();
 		expect(within(header()).queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+
+	it.each([
+		{ kind: 'leg', row: () => legRow('Jacht A'), href: '/trips/50' },
+		{ kind: 'voyage', row: voyageRow, href: '/voyages/9' }
+	])('opens the $kind from its hidden badge, which keeps its tooltip', async ({ row, href }) => {
+		await renderPage();
+		const badge = within(row()).getByTestId('hidden-badge');
+		expect(badge).toHaveAttribute('title');
+		expect(badge.closest('a')).toHaveAttribute('href', href);
+		expect(badge.parentElement).toHaveClass('relative', 'z-10');
 	});
 
 	it('publishes the hidden legs too when the admin agrees', async () => {
@@ -1015,7 +1144,7 @@ describe('cruise page publication', () => {
 		expect(publishCruise).toHaveBeenCalledWith(7, false);
 		await waitFor(() => expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument());
 		expect(within(legRow('Jacht A')).getByText('Ukryte')).toBeInTheDocument();
-		expect(within(voyageLink()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(voyageRow()).getByText('Ukryte')).toBeInTheDocument();
 	});
 
 	it('asks nothing when every leg is published', async () => {
