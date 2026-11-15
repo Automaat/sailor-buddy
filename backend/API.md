@@ -641,6 +641,75 @@ Port body — `name` required; `latitude` and `longitude` are optional but come
 together (one without the other is 422). A name-only port is listed in the
 route but not drawn on the map. `anchorage: true` marks an anchorage.
 
+### Port search
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/ports/suggest?q=` | member | Port names the club already entered | 200 |
+| GET | `/api/geocode?q=` | member | Search towns in OpenStreetMap | 200 |
+
+Both take `q` (required, at least 2 visible characters; surrounding blanks
+and invisible characters are trimmed). A bare `q`, a blank one or a
+one-character one is `422`.
+
+**Suggestions** (`/ports/suggest`) search the `voyage_ports` table, ignoring
+case and accents and tolerating small typos (PostgreSQL `pg_trgm` +
+`unaccent`): `swinou` finds Świnoujście, `Jastarn` Jastarnia, `Svolvar`
+Svolvær. Names starting with the query come first, then by similarity, then
+by use count. Spellings that differ only in case or accents collapse into one
+row named after the most used spelling. `limit` is 1–20 (default 8). Callers
+who cannot see hidden voyages (everyone but admins and the captain group)
+get names only from published voyages of published cruises.
+
+```json
+[{ "name": "Hel", "latitude": 54.6, "longitude": 18.8, "uses": 3 },
+ { "name": "Zatoka Pucka", "uses": 1 }]
+```
+
+`latitude`/`longitude` come from the latest port of that name with a
+location; a name only ever entered without one has none.
+
+**Geocoding** (`/geocode`) proxies
+[Nominatim](https://nominatim.org/release-docs/latest/api/Search/) and returns
+up to 5 settlements:
+
+- Kept: `place` records of type city, town, village, hamlet, suburb,
+  locality or municipality, and `boundary=administrative` records whose
+  address type is one of those. Islands, streets, POIs, marinas, natural
+  features and regions are dropped (an island and its town often share a
+  name and label; the port is the town).
+- Names come in Polish where OpenStreetMap has them, else English, else the
+  local name (`accept-language=pl,en`). `label` is "Town, County, Region,
+  Country".
+- Duplicates collapse to the best-ranked record: same name and full
+  address (case- and accent-insensitive), or same name within 5 km.
+- Optional `lat` and `lon` (map centre, both or neither, else `422`) rank
+  nearby towns first without excluding others. The centre is rounded to a
+  0.5° grid and sent as a Nominatim `viewbox` (±2° lat, ±3° lon) with
+  `bounded=0`.
+- When Nominatim finds no settlement or fails (anything but `429`), the proxy
+  asks [Photon](https://photon.komoot.io) (`osm_tag=place`, English names,
+  same bias), which matches prefixes and typos. `source` on each result is
+  `nominatim` or `photon`.
+- Answers are cached for 24 h by normalized query and rounded bias.
+  Nominatim calls are limited to 1/s, Photon calls to 2/s. A request that
+  would queue longer than 5 s, or an upstream `429`, answers
+  `503 geocoding service busy, try again` without falling back. Other
+  upstream failures answer `502`. A failed Photon fallback answers the same
+  way (`503` when throttled, else `502`), never an empty list, and is not
+  cached.
+
+```json
+[{ "name": "Jastarnia", "label": "Jastarnia, Puck County, Pomeranian Voivodeship, Poland",
+   "latitude": 54.696, "longitude": 18.679, "source": "photon" }]
+```
+
+Results are © OpenStreetMap contributors (ODbL); the picker shows that
+attribution, plus "Photon (komoot)" when a result came from Photon. Both
+services are called with the User-Agent
+`sailor-buddy/1.0 (+https://github.com/Automaat/sailor-buddy)` and are never
+queried as the user types; only `/ports/suggest` is.
+
 ### Voyage opinions (crew documents)
 
 | Method | Path | Auth | Description | Success |

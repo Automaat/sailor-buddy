@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { ApiError } from '#lib/api/client.js';
 import PortPicker from './PortPicker.svelte';
 
 const geocodeMock = vi.fn();
-vi.mock('#lib/api/routes.js', () => ({ geocode: (q: string) => geocodeMock(q) }));
+const suggestMock = vi.fn();
+vi.mock('#lib/api/routes.js', () => ({
+	geocode: (q: string, bias?: unknown) => geocodeMock(q, bias),
+	suggestPorts: (q: string) => suggestMock(q)
+}));
 
 describe('PortPicker', () => {
-	beforeEach(() => geocodeMock.mockReset());
+	beforeEach(() => {
+		geocodeMock.mockReset();
+		suggestMock.mockReset();
+		suggestMock.mockResolvedValue([]);
+	});
 
 	it('renders existing ports numbered in order', () => {
 		render(PortPicker, {
@@ -49,7 +58,7 @@ describe('PortPicker', () => {
 		await fireEvent.click(result);
 
 		expect(geocodeMock).toHaveBeenCalledTimes(1);
-		expect(geocodeMock).toHaveBeenCalledWith('Split');
+		expect(geocodeMock.mock.calls[0][0]).toBe('Split');
 		expect(onAdd).toHaveBeenCalledWith({ name: 'Split', latitude: 43.5, longitude: 16.4 });
 	});
 
@@ -67,12 +76,199 @@ describe('PortPicker', () => {
 			});
 
 			expect(await screen.findByRole('button', { name: 'Hvar' })).toBeInTheDocument();
-			expect(geocodeMock).toHaveBeenCalledWith('Hvar');
+			expect(geocodeMock.mock.calls[0][0]).toBe('Hvar');
 			expect(notCancelled).toBe(false);
 			expect(onSubmit).not.toHaveBeenCalled();
 		} finally {
 			form.remove();
 		}
+	});
+
+	it('suggests club ports while typing, once typing pauses', async () => {
+		suggestMock.mockResolvedValue([
+			{ name: 'Świnoujście', latitude: 53.91, longitude: 14.25, uses: 3 }
+		]);
+		vi.useFakeTimers();
+		try {
+			render(PortPicker, { props: { ports: [], onAdd: vi.fn() } });
+			await typeQuery('sw');
+			await typeQuery('swi');
+			await vi.advanceTimersByTimeAsync(100);
+			await typeQuery('swin');
+			await vi.advanceTimersByTimeAsync(249);
+			expect(suggestMock).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(1);
+			expect(suggestMock).toHaveBeenCalledTimes(1);
+			expect(suggestMock).toHaveBeenCalledWith('swin');
+			expect(geocodeMock).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+		expect(await screen.findByText('Wcześniej odwiedzone')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /Świnoujście/ })).toHaveTextContent('3×');
+	});
+
+	it('does not ask for suggestions below two characters', async () => {
+		vi.useFakeTimers();
+		try {
+			render(PortPicker, { props: { ports: [] } });
+			await typeQuery('s');
+			await vi.advanceTimersByTimeAsync(1000);
+			expect(suggestMock).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('adds a picked suggestion with its coordinates', async () => {
+		suggestMock.mockResolvedValue([{ name: 'Hel', latitude: 54.6, longitude: 18.8, uses: 2 }]);
+		const onAdd = vi.fn();
+		render(PortPicker, { props: { ports: [], onAdd } });
+		await typeQuery('he');
+		await fireEvent.click(await screen.findByRole('button', { name: /^Hel/ }));
+		expect(onAdd).toHaveBeenCalledWith({ name: 'Hel', latitude: 54.6, longitude: 18.8 });
+		expect(geocodeMock).not.toHaveBeenCalled();
+	});
+
+	it('adds a name-only suggestion without coordinates', async () => {
+		suggestMock.mockResolvedValue([{ name: 'Zatoka Pucka', uses: 1 }]);
+		const onAdd = vi.fn();
+		render(PortPicker, { props: { ports: [], onAdd } });
+		await typeQuery('zat');
+		const sug = await screen.findByRole('button', { name: /Zatoka Pucka/ });
+		expect(sug).toHaveTextContent('bez mapy');
+		await fireEvent.click(sug);
+		expect(onAdd).toHaveBeenCalledWith({ name: 'Zatoka Pucka' });
+	});
+
+	it('notes a failed suggestion request instead of showing no suggestions', async () => {
+		suggestMock.mockRejectedValue(new ApiError(500, 'boom'));
+		render(PortPicker, { props: { ports: [] } });
+		await typeQuery('he');
+		expect(
+			await screen.findByText('Nie udało się pobrać wcześniej odwiedzonych portów')
+		).toBeInTheDocument();
+	});
+
+	it('shows suggestions and geocoder results together, with OSM attribution', async () => {
+		suggestMock.mockResolvedValue([
+			{ name: 'Jastarnia', latitude: 54.7, longitude: 18.68, uses: 1 }
+		]);
+		geocodeMock.mockResolvedValue([
+			{
+				name: 'Jastarnia',
+				label: 'Jastarnia, Puck County, Pomeranian Voivodeship, Poland',
+				latitude: 54.69,
+				longitude: 18.67,
+				source: 'photon'
+			}
+		]);
+		render(PortPicker, { props: { ports: [] } });
+		await typeQuery('Jastarn');
+		await screen.findByText('Wcześniej odwiedzone');
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		expect(await screen.findByText('Wyniki wyszukiwania')).toBeInTheDocument();
+		expect(
+			screen.getByText('Jastarnia, Puck County, Pomeranian Voivodeship, Poland')
+		).toBeInTheDocument();
+		expect(screen.getByText('Wcześniej odwiedzone')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'współtwórcy OpenStreetMap' })).toHaveAttribute(
+			'href',
+			'https://www.openstreetmap.org/copyright'
+		);
+		expect(screen.getByText(/Photon \(komoot\)/)).toBeInTheDocument();
+	});
+
+	it.each([
+		[
+			'busy',
+			new ApiError(503, 'geocoding service busy, try again'),
+			'Wyszukiwarka jest chwilowo zajęta, spróbuj za chwilę'
+		],
+		[
+			'failed upstream',
+			new ApiError(502, 'geocoding service unavailable'),
+			'Nie udało się wyszukać miejsca'
+		],
+		['network failure', new TypeError('Failed to fetch'), 'Nie udało się wyszukać miejsca']
+	])('tells a %s search apart', async (_, err, message) => {
+		geocodeMock.mockRejectedValue(err);
+		render(PortPicker, { props: { ports: [] } });
+		await typeQuery('Split');
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		expect(await screen.findByText(message)).toBeInTheDocument();
+	});
+
+	it('says when the geocoder finds nothing', async () => {
+		geocodeMock.mockResolvedValue([]);
+		render(PortPicker, { props: { ports: [] } });
+		await typeQuery('Zzzz');
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		expect(await screen.findByText('Brak wyników')).toBeInTheDocument();
+	});
+
+	it('sends the map centre as bias once the map is ready', async () => {
+		geocodeMock.mockResolvedValue([]);
+		const { container } = render(PortPicker, { props: { ports: [] } });
+		await waitFor(() => expect(container.querySelector('.leaflet-container')).not.toBeNull());
+		await typeQuery('Hel');
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await waitFor(() => expect(geocodeMock).toHaveBeenCalledTimes(1));
+		expect(geocodeMock).toHaveBeenCalledWith('Hel', { lat: 54, lon: 15 });
+	});
+
+	const clickMap = async (container: HTMLElement) => {
+		await waitFor(() => expect(container.querySelector('.leaflet-container')).not.toBeNull());
+		await fireEvent.click(screen.getByLabelText('Mapa portów'), { clientX: 10, clientY: 10 });
+	};
+
+	it('adds a point clicked on the map under the typed name', async () => {
+		const onAdd = vi.fn();
+		const { container } = render(PortPicker, { props: { ports: [], onAdd } });
+		await typeQuery('Port Leba');
+		await clickMap(container);
+
+		const name = await screen.findByLabelText('Nazwa punktu z mapy');
+		expect(name).toHaveValue('Port Leba');
+		await fireEvent.input(name, { target: { value: 'Łeba' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj punkt' }));
+
+		expect(onAdd).toHaveBeenCalledTimes(1);
+		const added = onAdd.mock.calls[0][0];
+		expect(added.name).toBe('Łeba');
+		expect(Number.isFinite(added.latitude)).toBe(true);
+		expect(Number.isFinite(added.longitude)).toBe(true);
+		expect(Math.abs(added.longitude)).toBeLessThanOrEqual(180);
+		await waitFor(() => expect(screen.queryByLabelText('Nazwa punktu z mapy')).toBeNull());
+		expect(geocodeMock).not.toHaveBeenCalled();
+	});
+
+	it('needs a name for a map point and can drop it', async () => {
+		const onAdd = vi.fn();
+		const { container } = render(PortPicker, { props: { ports: [], onAdd } });
+		await clickMap(container);
+		await screen.findByLabelText('Nazwa punktu z mapy');
+		expect(screen.getByRole('button', { name: 'Dodaj punkt' })).toBeDisabled();
+		await fireEvent.click(screen.getByRole('button', { name: 'Anuluj' }));
+		expect(screen.queryByLabelText('Nazwa punktu z mapy')).toBeNull();
+		expect(onAdd).not.toHaveBeenCalled();
+	});
+
+	it('ignores map clicks when readonly', async () => {
+		const { container } = render(PortPicker, {
+			props: { ports: [], readonly: true }
+		});
+		await clickMap(container);
+		expect(screen.queryByLabelText('Nazwa punktu z mapy')).toBeNull();
+	});
+
+	it('adds a port by name only', async () => {
+		const onAdd = vi.fn();
+		render(PortPicker, { props: { ports: [], onAdd } });
+		await typeQuery('Zatoka Gdańska');
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj bez lokalizacji na mapie' }));
+		expect(onAdd).toHaveBeenCalledWith({ name: 'Zatoka Gdańska' });
+		expect(geocodeMock).not.toHaveBeenCalled();
 	});
 
 	it('disables Szukaj for a query shorter than two characters', async () => {
