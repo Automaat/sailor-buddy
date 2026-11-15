@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { listCruises, listMyCruiseIds, listTrips, listVoyages } from '#lib/api/routes.js';
+	import {
+		listCruises,
+		listMyCruiseIds,
+		listSeries,
+		listTrips,
+		listVoyages
+	} from '#lib/api/routes.js';
 	import { cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import {
 		buildRejsEntries,
@@ -80,16 +86,17 @@
 	async function load() {
 		loading = true;
 		try {
-			const [cruises, trips, voyages, mineIds] = await Promise.all([
+			const [cruises, trips, voyages, series, mineIds] = await Promise.all([
 				listCruises(),
 				listTrips(),
 				listVoyages(),
+				listSeries(),
 				listMyCruiseIds().catch((err) => {
 					console.error('Failed to load your cruises:', err);
 					return null;
 				})
 			]);
-			entries = buildRejsEntries(cruises ?? [], trips ?? [], voyages ?? []);
+			entries = buildRejsEntries(cruises ?? [], trips ?? [], voyages ?? [], series ?? []);
 			myCruiseIds = mineIds ? new Set(mineIds) : null;
 		} catch (err) {
 			console.error('Failed to load cruises:', err);
@@ -206,27 +213,26 @@
 								{rejsStatusLabels[entry.status]}
 							</span>
 							{#if showHidden && entry.hidden}<HiddenBadge />{/if}
-							{#if entry.kind}
-								<span
-									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
-								>
-									{cruiseKindLabels[entry.kind]}
-								</span>
-							{/if}
+							<span
+								class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+							>
+								{cruiseKindLabels[entry.kind]}
+							</span>
 						</div>
 						<div class="mt-1 text-sm text-[var(--text-muted)]">
 							{#if entry.startPort && entry.endPort}
 								{entry.startPort} → {entry.endPort}
+								{#if entry.countries}·{/if}
 							{/if}
-							{#if entry.countries}
-								· {entry.countries}{/if}
+							{#if entry.countries}{entry.countries}{/if}
 						</div>
 						<div class="mt-1 text-xs text-[var(--text-muted)]">
 							{#if entry.embarkDate}
 								{formatDateRangeWithDays(entry.embarkDate, entry.disembarkDate)}
 							{/if}
 							{#if entry.plannedLegs + entry.completedLegs > 0}
-								· etapy: {entry.completedLegs}/{entry.plannedLegs + entry.completedLegs} zrealizowane
+								{#if entry.embarkDate}·{/if} etapy: {entry.completedLegs}/{entry.plannedLegs +
+									entry.completedLegs} zrealizowane
 							{/if}
 						</div>
 					</div>

@@ -74,8 +74,6 @@ function cruise(overrides: Partial<Cruise> = {}): Cruise {
 	return {
 		id: 7,
 		name: 'Sycylia 2026',
-		kind: 'sea',
-		currency: 'PLN',
 		included: [],
 		not_included: [],
 		created_at: '2026-01-01T00:00:00Z',
@@ -114,23 +112,13 @@ beforeEach(() => {
 });
 
 describe('cruise page logistics', () => {
-	it('shows travel notes, minimum age and the group chat link', async () => {
-		mockGet.mockResolvedValue(
-			cruise({
-				travel_notes: 'Tanie loty do Katanii',
-				min_age: 18,
-				group_chat_url: 'https://discord.gg/sycylia'
-			})
-		);
+	it('shows travel notes and minimum age', async () => {
+		mockGet.mockResolvedValue(cruise({ travel_notes: 'Tanie loty do Katanii', min_age: 18 }));
 		await renderPage();
 
 		expect(await screen.findByText('Informacje dla załogi')).toBeInTheDocument();
 		expect(screen.getByText('Tanie loty do Katanii')).toBeInTheDocument();
 		expect(screen.getByText('18+')).toBeInTheDocument();
-		const link = screen.getByRole('link', { name: 'Czat grupy' });
-		expect(link).toHaveAttribute('href', 'https://discord.gg/sycylia');
-		expect(link).toHaveAttribute('target', '_blank');
-		expect(link).toHaveAttribute('rel', 'noopener noreferrer');
 	});
 
 	it('shows a minimum age of zero', async () => {
@@ -147,19 +135,18 @@ describe('cruise page logistics', () => {
 		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.queryByText('Informacje dla załogi')).not.toBeInTheDocument();
 		expect(screen.queryByTestId('cruise-logistics')).not.toBeInTheDocument();
-		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
 		expect(screen.getByText('Planowane etapy (0)')).toBeInTheDocument();
 		expect(screen.queryByTestId('admin-sign-ups')).not.toBeInTheDocument();
 	});
 });
 
-describe('cruise page logistics edge cases', () => {
-	it('shows no logistics card when the only field is a non-http link', async () => {
-		mockGet.mockResolvedValue(cruise({ group_chat_url: 'https://chat.example.com:99999/g' }));
+describe('cruise page header', () => {
+	it("shows the edition's countries", async () => {
+		mockGet.mockResolvedValue(cruise({ countries: 'Włochy, Malta' }));
 		await renderPage();
 
 		await screen.findByRole('heading', { name: 'Sycylia 2026' });
-		expect(screen.queryByText('Informacje dla załogi')).not.toBeInTheDocument();
+		expect(screen.getByText('Włochy, Malta')).toBeInTheDocument();
 	});
 });
 
@@ -493,32 +480,26 @@ describe('cruise page load errors', () => {
 	});
 });
 
-describe('cruise page price', () => {
-	it.each([
-		['czlonek', '820 PLN'],
-		['sympatyk', '820 PLN'],
-		['gosc', '870 PLN']
-	] as const)('shows %s their price and the included lists', async (membership, want) => {
-		mockAuth.user = { id: 2, role: 'member', membership };
-		mockGet.mockResolvedValue(
-			cruise({
-				cost_per_person: 820,
-				cost_per_person_non_member: 870,
-				included: ['jacht', 'paliwo'],
-				not_included: ['dojazd']
-			})
-		);
+describe('cruise page price coverage', () => {
+	it('shows what the leg price covers without a cruise price', async () => {
+		mockGet.mockResolvedValue(cruise({ included: ['jacht', 'paliwo'], not_included: ['dojazd'] }));
 		await renderPage();
-		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
-		expect(screen.getByTestId('price-included')).toHaveTextContent('paliwo');
-		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
+
+		const heading = await screen.findByRole('heading', { name: 'Co obejmuje cena etapu' });
+		const card = heading.parentElement!;
+		expect(within(card).getByTestId('price-included')).toHaveTextContent('paliwo');
+		expect(within(card).getByTestId('price-not-included')).toHaveTextContent('dojazd');
+		expect(screen.queryByRole('heading', { name: 'Cena' })).not.toBeInTheDocument();
+		expect(screen.queryByTestId('your-price')).not.toBeInTheDocument();
 	});
 
-	it('hides the price card for an unpriced cruise', async () => {
-		mockGet.mockResolvedValue(cruise({ cost_per_person: 0 }));
+	it('hides the coverage card when both lists are empty', async () => {
+		mockGet.mockResolvedValue(cruise());
 		await renderPage();
 		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
-		expect(screen.queryByRole('heading', { name: 'Cena' })).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole('heading', { name: 'Co obejmuje cena etapu' })
+		).not.toBeInTheDocument();
 	});
 });
 
@@ -845,9 +826,9 @@ describe('cruise page past planned legs', () => {
 	beforeEach(() => {
 		vi.useFakeTimers({ toFake: ['Date'] });
 		vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
-		mockGet.mockResolvedValue(cruise({ disembark_date: '2026-08-09' }));
+		mockGet.mockResolvedValue(cruise());
 		fn(listCruiseTrips).mockResolvedValue([
-			tripRow(50, 'Jacht A', 'planned'),
+			{ ...tripRow(50, 'Jacht A', 'planned'), disembark_date: '2026-08-09' },
 			{ ...tripRow(51, 'Jacht B', 'planned'), disembark_date: '2026-11-20' }
 		]);
 	});
@@ -855,7 +836,7 @@ describe('cruise page past planned legs', () => {
 		vi.useRealTimers();
 	});
 
-	it('flags a leg past the cruise end and prompts an admin to complete it', async () => {
+	it('flags a leg past its end and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;
 		await renderPage();
 		await screen.findByRole('link', { name: 'Jacht A' });

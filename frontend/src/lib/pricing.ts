@@ -1,6 +1,6 @@
-import type { Cruise, User } from '#lib/api/types.js';
+import type { Trip, User } from '#lib/api/types.js';
 
-export type Currency = Cruise['currency'];
+export type Currency = Trip['currency'];
 export type Membership = User['membership'];
 
 export const currencies: readonly Currency[] = ['PLN', 'EUR'];
@@ -81,24 +81,12 @@ export function priceLines(p: Priced): PriceLine[] {
 	return lines;
 }
 
-/**
- * hasPriceInfo reports whether a cruise or trip has anything to show in its
- * price section: an amount, or an "included" / "not included" entry.
- */
-export function hasPriceInfo(
-	p: Priced,
-	included?: readonly string[] | null,
-	notIncluded?: readonly string[] | null
-): boolean {
-	return (
-		yourPrice(p, null) !== null ||
-		priceLines(p).length > 0 ||
-		(included?.length ?? 0) > 0 ||
-		(notIncluded?.length ?? 0) > 0
-	);
+/** hasPriceInfo reports whether a trip has any amount to show in its price section. */
+export function hasPriceInfo(p: Priced): boolean {
+	return yourPrice(p, null) !== null || priceLines(p).length > 0;
 }
 
-/** PriceForm is the editable price state of the cruise and trip forms. */
+/** PriceForm is the editable price state of the trip forms. */
 export interface PriceForm {
 	currency: Currency;
 	cost_per_person: number | null;

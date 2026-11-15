@@ -2,9 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
-	import { cruiseBody, cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
-	import PriceFields from '#lib/components/PriceFields.svelte';
-	import { parseList, priceBody, priceFormFrom } from '#lib/pricing.js';
+	import { cruiseBody } from '#lib/cruise.js';
+	import PriceCoverageFields from '#lib/components/PriceCoverageFields.svelte';
+	import { parseList } from '#lib/pricing.js';
 	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
@@ -24,20 +24,12 @@
 		return {
 			form: {
 				name: '',
-				kind: 'sea' as CruiseKind,
 				edition: '',
-				embark_date: '',
-				disembark_date: '',
 				countries: '',
-				start_port: '',
-				end_port: '',
-				max_crew: 0,
 				description: '',
-				group_chat_url: '',
 				travel_notes: '',
 				min_age: null as number | null
 			},
-			price: priceFormFrom(),
 			included: '',
 			notIncluded: '',
 			error: '',
@@ -65,7 +57,6 @@
 		try {
 			await createCruise({
 				...cruiseBody({ ...run.form, series_id: seriesId }),
-				...priceBody(run.price),
 				included: parseList(run.included),
 				not_included: parseList(run.notIncluded)
 			});
@@ -97,14 +88,6 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div class="sm:col-span-2">
-				<label for="kind" class="mb-1 block text-sm font-medium">Rodzaj rejsu</label>
-				<select id="kind" bind:value={form.kind} class="w-full rounded-lg border px-3 py-2">
-					{#each cruiseKinds as kind (kind)}
-						<option value={kind}>{cruiseKindLabels[kind]}</option>
-					{/each}
-				</select>
-			</div>
 			<div>
 				<label for="series" class="mb-1 block text-sm font-medium">Seria</label>
 				<input
@@ -127,42 +110,6 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div>
-				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
-				<input
-					id="embark"
-					type="date"
-					bind:value={form.embark_date}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
-				<input
-					id="disembark"
-					type="date"
-					bind:value={form.disembark_date}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-				<input
-					id="start_port"
-					type="text"
-					bind:value={form.start_port}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-				<input
-					id="end_port"
-					type="text"
-					bind:value={form.end_port}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
 				<input
@@ -172,28 +119,8 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div>
-				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. liczba uczestników</label
-				>
-				<input
-					id="max_crew"
-					type="number"
-					bind:value={form.max_crew}
-					min="0"
-					class="w-full rounded-lg border px-3 py-2"
-					placeholder="0 = bez limitu"
-				/>
-			</div>
-			<PriceFields
-				bind:price={draft.price}
-				bind:included={draft.included}
-				bind:notIncluded={draft.notIncluded}
-			/>
-			<CruiseLogisticsFields
-				bind:groupChatUrl={form.group_chat_url}
-				bind:travelNotes={form.travel_notes}
-				bind:minAge={form.min_age}
-			/>
+			<PriceCoverageFields bind:included={draft.included} bind:notIncluded={draft.notIncluded} />
+			<CruiseLogisticsFields bind:travelNotes={form.travel_notes} bind:minAge={form.min_age} />
 		</div>
 
 		<div>

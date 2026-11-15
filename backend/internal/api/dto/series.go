@@ -13,6 +13,7 @@ type CruiseSeries struct {
 	CreatedBy   *int64    `json:"created_by,omitempty"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description,omitempty"`
+	Kind        string    `json:"kind" enum:"sea,inland" doc:"Kind of every edition: sea (morski) or inland (śródlądowy)"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -21,21 +22,19 @@ type CruiseSeries struct {
 type CruiseSeriesBody struct {
 	Name        string  `json:"name" minLength:"1" doc:"Series name"`
 	Description *string `json:"description,omitempty"`
+	Kind        string  `json:"kind,omitempty" enum:"sea,inland" default:"sea" doc:"Kind of every edition: sea (morski) or inland (śródlądowy)"`
 }
 
 // CruiseSeriesEdition is one cruise of a series with the miles and hours
 // summed over its voyages.
 type CruiseSeriesEdition struct {
-	CruiseID      int64      `json:"cruise_id"`
-	Name          string     `json:"name"`
-	Edition       *string    `json:"edition,omitempty"`
-	Kind          string     `json:"kind" enum:"sea,inland"`
-	EmbarkDate    *string    `json:"embark_date,omitempty"`
-	DisembarkDate *string    `json:"disembark_date,omitempty"`
-	PublishedAt   *time.Time `json:"published_at,omitempty" doc:"When the edition was published; absent while it is a hidden draft"`
-	VoyageCount   int64      `json:"voyage_count"`
-	TotalMiles    float64    `json:"total_miles"`
-	TotalHours    float64    `json:"total_hours"`
+	CruiseID    int64      `json:"cruise_id"`
+	Name        string     `json:"name"`
+	Edition     *string    `json:"edition,omitempty"`
+	PublishedAt *time.Time `json:"published_at,omitempty" doc:"When the edition was published; absent while it is a hidden draft"`
+	VoyageCount int64      `json:"voyage_count"`
+	TotalMiles  float64    `json:"total_miles"`
+	TotalHours  float64    `json:"total_hours"`
 }
 
 // CruiseSeriesFromDB maps a database row to the API model.
@@ -45,6 +44,7 @@ func CruiseSeriesFromDB(s sqlcdb.CruiseSeries) CruiseSeries {
 		CreatedBy:   intPtr(s.CreatedBy),
 		Name:        s.Name,
 		Description: strPtr(s.Description),
+		Kind:        s.Kind,
 		CreatedAt:   timeVal(s.CreatedAt),
 		UpdatedAt:   timeVal(s.UpdatedAt),
 	}
@@ -66,16 +66,13 @@ func CruiseSeriesEditionsFromDB(rows []sqlcdb.ListCruiseSeriesEditionsRow) []Cru
 	for i := range rows {
 		r := &rows[i]
 		out[i] = CruiseSeriesEdition{
-			CruiseID:      r.ID,
-			Name:          r.Name,
-			Edition:       strPtr(r.Edition),
-			Kind:          r.Kind,
-			EmbarkDate:    strPtr(r.EmbarkDate),
-			DisembarkDate: strPtr(r.DisembarkDate),
-			PublishedAt:   timePtr(r.PublishedAt),
-			VoyageCount:   r.VoyageCount,
-			TotalMiles:    r.TotalMiles,
-			TotalHours:    r.TotalHours,
+			CruiseID:    r.ID,
+			Name:        r.Name,
+			Edition:     strPtr(r.Edition),
+			PublishedAt: timePtr(r.PublishedAt),
+			VoyageCount: r.VoyageCount,
+			TotalMiles:  r.TotalMiles,
+			TotalHours:  r.TotalHours,
 		}
 	}
 	return out

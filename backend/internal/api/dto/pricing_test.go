@@ -35,14 +35,10 @@ func TestEnrollFromRow_Prices(t *testing.T) {
 	price := func(f float64) types.NullFloat64 { return types.NullFloat64{Float64: f, Valid: true} }
 
 	c := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{
-		ID: 1, Name: "SSS", Currency: "EUR",
-		CostPerPerson: price(760), CostPerPersonNonMember: price(800),
-		YachtFund: price(150), Deposit: price(50),
+		ID: 1, Name: "SSS",
 		Included: json.RawMessage(`["jacht"]`), NotIncluded: json.RawMessage(`["dojazd"]`),
-	}, false)
-	if c.Currency != "EUR" || *c.CostPerPerson != 760 || *c.CostPerPersonNonMember != 800 ||
-		*c.YachtFund != 150 || *c.Deposit != 50 ||
-		!reflect.DeepEqual(c.Included, []string{"jacht"}) || !reflect.DeepEqual(c.NotIncluded, []string{"dojazd"}) {
+	})
+	if !reflect.DeepEqual(c.Included, []string{"jacht"}) || !reflect.DeepEqual(c.NotIncluded, []string{"dojazd"}) {
 		t.Fatalf("cruise = %+v", c)
 	}
 

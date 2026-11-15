@@ -14,8 +14,9 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-// standaloneTripBody is a trip without a cruise, with every field the
-// wrapper cruise copies.
+// standaloneTripBody is a trip without a cruise, with the fields the wrapper
+// cruise copies (name, countries, description) and the leg's own dates,
+// ports, crew limit and prices.
 func standaloneTripBody() map[string]any {
 	return map[string]any{
 		"name":                       "Etap Bałtyk",
@@ -80,26 +81,27 @@ func TestTripCreate_StandaloneGetsWrapperCruise(t *testing.T) {
 	if cruise.SeriesID.Valid || cruise.Edition.Valid {
 		t.Fatalf("wrapper cruise has a series: %+v", cruise)
 	}
-	if cruise.Kind != "sea" || cruise.Name != "Etap Bałtyk" || cruise.CreatedBy.Int64 != 1 {
-		t.Fatalf("wrapper kind/name/creator = %q/%q/%d", cruise.Kind, cruise.Name, cruise.CreatedBy.Int64)
+	if cruise.Name != "Etap Bałtyk" || cruise.CreatedBy.Int64 != 1 {
+		t.Fatalf("wrapper name/creator = %q/%d", cruise.Name, cruise.CreatedBy.Int64)
 	}
-	copied := map[string][2]any{
-		"embark_date":                {cruise.EmbarkDate.String, "2027-06-01"},
-		"disembark_date":             {cruise.DisembarkDate.String, "2027-06-08"},
-		"countries":                  {cruise.Countries.String, "PL, SE"},
-		"start_port":                 {cruise.StartPort.String, "Gdynia"},
-		"end_port":                   {cruise.EndPort.String, "Visby"},
-		"description":                {cruise.Description.String, "Tydzień na Bałtyku"},
-		"max_crew":                   {cruise.MaxCrew.Int64, int64(7)},
-		"cost_per_person":            {cruise.CostPerPerson.Float64, 1500.0},
-		"currency":                   {cruise.Currency, "EUR"},
-		"cost_per_person_non_member": {cruise.CostPerPersonNonMember.Float64, 1700.0},
-		"yacht_fund":                 {cruise.YachtFund.Float64, 300.0},
-		"deposit":                    {cruise.Deposit.Float64, 200.0},
+	if cruise.Countries.String != "PL, SE" || cruise.Description.String != "Tydzień na Bałtyku" {
+		t.Errorf("wrapper countries/description = %q/%q", cruise.Countries.String, cruise.Description.String)
 	}
-	for field, pair := range copied {
+	onTrip := map[string][2]any{
+		"embark_date":                {trip.EmbarkDate.String, "2027-06-01"},
+		"disembark_date":             {trip.DisembarkDate.String, "2027-06-08"},
+		"start_port":                 {trip.StartPort.String, "Gdynia"},
+		"end_port":                   {trip.EndPort.String, "Visby"},
+		"max_crew":                   {trip.MaxCrew.Int64, int64(7)},
+		"cost_per_person":            {trip.CostPerPerson.Float64, 1500.0},
+		"currency":                   {trip.Currency, "EUR"},
+		"cost_per_person_non_member": {trip.CostPerPersonNonMember.Float64, 1700.0},
+		"yacht_fund":                 {trip.YachtFund.Float64, 300.0},
+		"deposit":                    {trip.Deposit.Float64, 200.0},
+	}
+	for field, pair := range onTrip {
 		if pair[0] != pair[1] {
-			t.Errorf("wrapper %s = %v, want %v", field, pair[0], pair[1])
+			t.Errorf("trip %s = %v, want %v", field, pair[0], pair[1])
 		}
 	}
 	if string(cruise.Included) != "[]" || string(cruise.NotIncluded) != "[]" {
@@ -221,7 +223,10 @@ func TestTripCreate_StandaloneRollbackAgainstDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wrapper cruise: %v", err)
 	}
-	if cruise.SeriesID.Valid || cruise.Name != "Etap Bałtyk" || cruise.Currency != "EUR" {
+	if cruise.SeriesID.Valid || cruise.Name != "Etap Bałtyk" || cruise.Countries.String != "PL, SE" {
 		t.Fatalf("wrapper cruise = %+v", cruise)
+	}
+	if trip.Currency != "EUR" || trip.EmbarkDate == nil || *trip.EmbarkDate != "2027-06-01" {
+		t.Fatalf("trip = %+v, want its own currency and dates", trip)
 	}
 }

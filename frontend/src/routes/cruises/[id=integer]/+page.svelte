@@ -11,11 +11,10 @@
 	import type { LegSignUp } from '#lib/api/types.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import CruiseEnrollmentAdmin from './CruiseEnrollmentAdmin.svelte';
-	import PriceInfo from '#lib/components/PriceInfo.svelte';
-	import { formatPrice, hasPriceInfo, yourPrice } from '#lib/pricing.js';
+	import PriceCoverage from '#lib/components/PriceCoverage.svelte';
+	import { formatPrice, yourPrice } from '#lib/pricing.js';
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
-	import { isHttpUrl } from '#lib/cruise.js';
 	import { freePlacesLabel, numberLegs, signUpDeadlineLabel } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
 	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
@@ -154,20 +153,9 @@
 						· edycja {cruise.edition}{/if}
 				</p>
 			{/if}
-			<p class="mt-1 text-[var(--text-muted)]">
-				{#if cruise.start_port && cruise.end_port}
-					{cruise.start_port} → {cruise.end_port}
-				{/if}
-				{#if cruise.countries}
-					· {cruise.countries}{/if}
-			</p>
-			<p class="mt-1 text-sm text-[var(--text-muted)]">
-				{#if cruise.embark_date}
-					{formatDateRangeWithDays(cruise.embark_date, cruise.disembark_date)}
-				{/if}
-				{#if cruise.max_crew}
-					· max {cruise.max_crew} os.{/if}
-			</p>
+			{#if cruise.countries}
+				<p class="mt-1 text-[var(--text-muted)]">{cruise.countries}</p>
+			{/if}
 		</div>
 		{#if isAdmin}
 			<div class="flex gap-2">
@@ -218,26 +206,17 @@
 		</div>
 	{/if}
 
-	{#if hasPriceInfo(cruise, cruise.included, cruise.not_included)}
+	{#if cruise.included?.length || cruise.not_included?.length}
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
-			<h2 class="mb-3 font-semibold text-[var(--navy)]">Cena</h2>
-			<PriceInfo
-				priced={cruise}
-				membership={auth.user?.membership}
-				included={cruise.included}
-				notIncluded={cruise.not_included}
-			/>
+			<h2 class="mb-3 font-semibold text-[var(--navy)]">Co obejmuje cena etapu</h2>
+			<PriceCoverage included={cruise.included} notIncluded={cruise.not_included} />
 		</div>
 	{/if}
 
-	{#if cruise.travel_notes || cruise.min_age != null || (cruise.group_chat_url && isHttpUrl(cruise.group_chat_url))}
+	{#if cruise.travel_notes || cruise.min_age != null}
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-3 font-semibold text-[var(--navy)]">Informacje dla załogi</h2>
-			<CruiseLogistics
-				groupChatUrl={cruise.group_chat_url}
-				travelNotes={cruise.travel_notes}
-				minAge={cruise.min_age}
-			/>
+			<CruiseLogistics travelNotes={cruise.travel_notes} minAge={cruise.min_age} />
 		</div>
 	{/if}
 
@@ -259,7 +238,7 @@
 			<div class="space-y-2">
 				{#each legs as leg (leg.trip.id)}
 					{@const trip = leg.trip}
-					{@const status = legStatus(trip, cruise)}
+					{@const status = legStatus(trip)}
 					{@const signUp = signUpByTrip.get(trip.id)}
 					{@const price = yourPrice(trip, auth.user?.membership)}
 					{@const places = signUp ? freePlacesLabel(trip.max_crew, signUp.accepted_count) : null}

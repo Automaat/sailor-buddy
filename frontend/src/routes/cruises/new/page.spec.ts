@@ -10,6 +10,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 import { goto } from '$app/navigation';
 import { ApiError } from '#lib/api/client.js';
 import { createCruise, getSeries } from '#lib/api/routes.js';
+import { makeSeries } from '#lib/test-utils.js';
 import NewEditionPage from './+page.svelte';
 import { load } from './+page.js';
 import type { PageData } from './$types';
@@ -17,12 +18,7 @@ import type { PageData } from './$types';
 const mockCreate = createCruise as unknown as ReturnType<typeof vi.fn>;
 const mockGetSeries = getSeries as unknown as ReturnType<typeof vi.fn>;
 
-const series = {
-	id: 3,
-	name: 'May I Sail',
-	created_at: '2026-01-01T00:00:00Z',
-	updated_at: '2026-01-01T00:00:00Z'
-};
+const series = makeSeries({ id: 3, name: 'May I Sail' });
 
 function runLoad(href = 'http://localhost/cruises/new?series_id=3') {
 	return load({ url: new URL(href) } as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
@@ -92,6 +88,24 @@ describe('new edition page', () => {
 		);
 	});
 
+	it('asks only for edition-wide fields: no kind, dates, ports, crew limit, prices or chat', async () => {
+		await renderPage();
+		for (const label of [
+			'Rodzaj rejsu',
+			'Data zaokrętowania',
+			'Data wyokrętowania',
+			'Port wyjścia',
+			'Port docelowy',
+			'Maks. liczba uczestników',
+			'Waluta',
+			'Link do czatu grupy'
+		]) {
+			expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+		}
+		expect(screen.getByLabelText('Kraje')).toBeInTheDocument();
+		expect(screen.getByText('Co obejmuje cena etapu')).toBeInTheDocument();
+	});
+
 	it('refuses a blank edition label', async () => {
 		await renderPage();
 		await fillRequired('MIS', '   ');
@@ -113,11 +127,14 @@ describe('new edition page', () => {
 });
 
 describe('new edition page logistics fields', () => {
-	it('sends the group chat link, travel notes and minimum age', async () => {
+	it('sends travel notes, minimum age and what the leg price covers', async () => {
 		await renderPage();
 		await fillRequired('Sycylia', '2026');
-		await fireEvent.input(screen.getByLabelText('Link do czatu grupy'), {
-			target: { value: 'https://discord.gg/sycylia' }
+		await fireEvent.input(screen.getByLabelText('W cenie (jedna pozycja w wierszu)'), {
+			target: { value: 'jacht\npaliwo' }
+		});
+		await fireEvent.input(screen.getByLabelText('Poza ceną (jedna pozycja w wierszu)'), {
+			target: { value: 'dojazd' }
 		});
 		await fireEvent.input(screen.getByLabelText('Dojazd'), {
 			target: { value: 'Tanie loty do Katanii' }
@@ -125,13 +142,17 @@ describe('new edition page logistics fields', () => {
 		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '18' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz edycję' }));
 
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				group_chat_url: 'https://discord.gg/sycylia',
-				travel_notes: 'Tanie loty do Katanii',
-				min_age: 18
-			})
-		);
+		expect(mockCreate).toHaveBeenCalledWith({
+			name: 'Sycylia',
+			series_id: 3,
+			edition: '2026',
+			countries: '',
+			description: '',
+			travel_notes: 'Tanie loty do Katanii',
+			min_age: 18,
+			included: ['jacht', 'paliwo'],
+			not_included: ['dojazd']
+		});
 	});
 
 	it('omits min_age when the field is left empty', async () => {

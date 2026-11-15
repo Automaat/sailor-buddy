@@ -42,82 +42,52 @@ func (q *Queries) CountCruises(ctx context.Context, includeHidden bool) (int64, 
 
 const createCruise = `-- name: CreateCruise :one
 INSERT INTO cruises (
-    created_by, name, embark_date, disembark_date, countries, start_port, end_port,
-    description, image_logo_url, image_photo_url, image_route_url,
-    max_crew, cost_per_person, kind, series_id, edition,
-    currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-    group_chat_url, travel_notes, min_age
+    created_by, name, countries, description,
+    image_logo_url, image_photo_url, image_route_url, series_id, edition,
+    included, not_included, travel_notes, min_age
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21, $22, $23, $24, $25
-) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+) RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 `
 
 type CreateCruiseParams struct {
-	CreatedBy              types.NullInt64   `json:"created_by"`
-	Name                   string            `json:"name"`
-	EmbarkDate             types.NullString  `json:"embark_date"`
-	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
-	StartPort              types.NullString  `json:"start_port"`
-	EndPort                types.NullString  `json:"end_port"`
-	Description            types.NullString  `json:"description"`
-	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl          types.NullString  `json:"image_route_url"`
-	MaxCrew                types.NullInt64   `json:"max_crew"`
-	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
-	Kind                   string            `json:"kind"`
-	SeriesID               types.NullInt64   `json:"series_id"`
-	Edition                types.NullString  `json:"edition"`
-	Currency               string            `json:"currency"`
-	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
-	YachtFund              types.NullFloat64 `json:"yacht_fund"`
-	Deposit                types.NullFloat64 `json:"deposit"`
-	Included               json.RawMessage   `json:"included"`
-	NotIncluded            json.RawMessage   `json:"not_included"`
-	GroupChatUrl           types.NullString  `json:"group_chat_url"`
-	TravelNotes            types.NullString  `json:"travel_notes"`
-	MinAge                 types.NullInt64   `json:"min_age"`
+	CreatedBy     types.NullInt64  `json:"created_by"`
+	Name          string           `json:"name"`
+	Countries     types.NullString `json:"countries"`
+	Description   types.NullString `json:"description"`
+	ImageLogoUrl  types.NullString `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString `json:"image_photo_url"`
+	ImageRouteUrl types.NullString `json:"image_route_url"`
+	SeriesID      types.NullInt64  `json:"series_id"`
+	Edition       types.NullString `json:"edition"`
+	Included      json.RawMessage  `json:"included"`
+	NotIncluded   json.RawMessage  `json:"not_included"`
+	TravelNotes   types.NullString `json:"travel_notes"`
+	MinAge        types.NullInt64  `json:"min_age"`
 }
 
 // CreateCruise
 //
 //	INSERT INTO cruises (
-//	    created_by, name, embark_date, disembark_date, countries, start_port, end_port,
-//	    description, image_logo_url, image_photo_url, image_route_url,
-//	    max_crew, cost_per_person, kind, series_id, edition,
-//	    currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-//	    group_chat_url, travel_notes, min_age
+//	    created_by, name, countries, description,
+//	    image_logo_url, image_photo_url, image_route_url, series_id, edition,
+//	    included, not_included, travel_notes, min_age
 //	) VALUES (
-//	    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-//	    $17, $18, $19, $20, $21, $22, $23, $24, $25
-//	) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+//	    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+//	) RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, createCruise,
 		arg.CreatedBy,
 		arg.Name,
-		arg.EmbarkDate,
-		arg.DisembarkDate,
 		arg.Countries,
-		arg.StartPort,
-		arg.EndPort,
 		arg.Description,
 		arg.ImageLogoUrl,
 		arg.ImagePhotoUrl,
 		arg.ImageRouteUrl,
-		arg.MaxCrew,
-		arg.CostPerPerson,
-		arg.Kind,
 		arg.SeriesID,
 		arg.Edition,
-		arg.Currency,
-		arg.CostPerPersonNonMember,
-		arg.YachtFund,
-		arg.Deposit,
 		arg.Included,
 		arg.NotIncluded,
-		arg.GroupChatUrl,
 		arg.TravelNotes,
 		arg.MinAge,
 	)
@@ -126,30 +96,18 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.ID,
 		&i.CreatedBy,
 		&i.Name,
-		&i.EmbarkDate,
-		&i.DisembarkDate,
 		&i.Countries,
-		&i.StartPort,
-		&i.EndPort,
 		&i.Description,
 		&i.ImageLogoUrl,
 		&i.ImagePhotoUrl,
 		&i.ImageRouteUrl,
-		&i.MaxCrew,
-		&i.CostPerPerson,
 		&i.EnrollToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Kind,
 		&i.SeriesID,
 		&i.Edition,
-		&i.Currency,
-		&i.CostPerPersonNonMember,
-		&i.YachtFund,
-		&i.Deposit,
 		&i.Included,
 		&i.NotIncluded,
-		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
 		&i.PublishedAt,
@@ -170,7 +128,7 @@ func (q *Queries) DeleteCruise(ctx context.Context, id int64) error {
 }
 
 const getCruise = `-- name: GetCruise :one
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 WHERE id = $1
   AND ($2::BOOLEAN OR published_at IS NOT NULL)
 `
@@ -183,7 +141,7 @@ type GetCruiseParams struct {
 // include_hidden is true for callers who may read hidden drafts (admins and
 // the captain group); others get no row for an unpublished cruise.
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+//	SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 //	WHERE id = $1
 //	  AND ($2::BOOLEAN OR published_at IS NOT NULL)
 func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error) {
@@ -193,30 +151,18 @@ func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, e
 		&i.ID,
 		&i.CreatedBy,
 		&i.Name,
-		&i.EmbarkDate,
-		&i.DisembarkDate,
 		&i.Countries,
-		&i.StartPort,
-		&i.EndPort,
 		&i.Description,
 		&i.ImageLogoUrl,
 		&i.ImagePhotoUrl,
 		&i.ImageRouteUrl,
-		&i.MaxCrew,
-		&i.CostPerPerson,
 		&i.EnrollToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Kind,
 		&i.SeriesID,
 		&i.Edition,
-		&i.Currency,
-		&i.CostPerPersonNonMember,
-		&i.YachtFund,
-		&i.Deposit,
 		&i.Included,
 		&i.NotIncluded,
-		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
 		&i.PublishedAt,
@@ -225,42 +171,27 @@ func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, e
 }
 
 const getCruiseByEnrollToken = `-- name: GetCruiseByEnrollToken :one
-SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
-       description, image_photo_url, max_crew, cost_per_person,
-       currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-       group_chat_url, travel_notes, min_age
+SELECT id, name, countries, description, image_photo_url,
+       included, not_included, travel_notes, min_age
 FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL
 `
 
 type GetCruiseByEnrollTokenRow struct {
-	ID                     int64             `json:"id"`
-	Name                   string            `json:"name"`
-	EmbarkDate             types.NullString  `json:"embark_date"`
-	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
-	StartPort              types.NullString  `json:"start_port"`
-	EndPort                types.NullString  `json:"end_port"`
-	Description            types.NullString  `json:"description"`
-	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
-	MaxCrew                types.NullInt64   `json:"max_crew"`
-	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
-	Currency               string            `json:"currency"`
-	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
-	YachtFund              types.NullFloat64 `json:"yacht_fund"`
-	Deposit                types.NullFloat64 `json:"deposit"`
-	Included               json.RawMessage   `json:"included"`
-	NotIncluded            json.RawMessage   `json:"not_included"`
-	GroupChatUrl           types.NullString  `json:"group_chat_url"`
-	TravelNotes            types.NullString  `json:"travel_notes"`
-	MinAge                 types.NullInt64   `json:"min_age"`
+	ID            int64            `json:"id"`
+	Name          string           `json:"name"`
+	Countries     types.NullString `json:"countries"`
+	Description   types.NullString `json:"description"`
+	ImagePhotoUrl types.NullString `json:"image_photo_url"`
+	Included      json.RawMessage  `json:"included"`
+	NotIncluded   json.RawMessage  `json:"not_included"`
+	TravelNotes   types.NullString `json:"travel_notes"`
+	MinAge        types.NullInt64  `json:"min_age"`
 }
 
 // GetCruiseByEnrollToken
 //
-//	SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
-//	       description, image_photo_url, max_crew, cost_per_person,
-//	       currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-//	       group_chat_url, travel_notes, min_age
+//	SELECT id, name, countries, description, image_photo_url,
+//	       included, not_included, travel_notes, min_age
 //	FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL
 func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getCruiseByEnrollToken, enrollToken)
@@ -268,22 +199,11 @@ func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.EmbarkDate,
-		&i.DisembarkDate,
 		&i.Countries,
-		&i.StartPort,
-		&i.EndPort,
 		&i.Description,
 		&i.ImagePhotoUrl,
-		&i.MaxCrew,
-		&i.CostPerPerson,
-		&i.Currency,
-		&i.CostPerPersonNonMember,
-		&i.YachtFund,
-		&i.Deposit,
 		&i.Included,
 		&i.NotIncluded,
-		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
 	)
@@ -442,41 +362,33 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, arg ListCruiseVoyagesPa
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
-  AND ($2::BIGINT IS NULL
-   OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
-    < ($3::TEXT IS NOT NULL,
-       COALESCE($3::TEXT, ''), $2::BIGINT))
-ORDER BY embark_date DESC NULLS LAST, id DESC
-LIMIT $5 OFFSET $4
+  AND ($2::BIGINT IS NULL OR id < $2::BIGINT)
+ORDER BY id DESC
+LIMIT $4 OFFSET $3
 `
 
 type ListCruisesParams struct {
-	IncludeHidden   bool             `json:"include_hidden"`
-	AfterID         types.NullInt64  `json:"after_id"`
-	AfterEmbarkDate types.NullString `json:"after_embark_date"`
-	RowOffset       int32            `json:"row_offset"`
-	RowLimit        int32            `json:"row_limit"`
+	IncludeHidden bool            `json:"include_hidden"`
+	AfterID       types.NullInt64 `json:"after_id"`
+	RowOffset     int32           `json:"row_offset"`
+	RowLimit      int32           `json:"row_limit"`
 }
 
-// A set after_id starts the page after the cursor's sort key. The keyset
-// tuple sorts descending like the ORDER BY: a NULL embark_date last.
-// Without include_hidden only published cruises are listed.
+// Newest first; a set after_id starts the page after that cruise. The Rejsy
+// list orders cruises by their legs' dates itself. Without include_hidden
+// only published cruises are listed.
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+//	SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 //	WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
-//	  AND ($2::BIGINT IS NULL
-//	   OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
-//	    < ($3::TEXT IS NOT NULL,
-//	       COALESCE($3::TEXT, ''), $2::BIGINT))
-//	ORDER BY embark_date DESC NULLS LAST, id DESC
-//	LIMIT $5 OFFSET $4
+//	  AND ($2::BIGINT IS NULL OR id < $2::BIGINT)
+//	ORDER BY id DESC
+//	LIMIT $4 OFFSET $3
 func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error) {
 	rows, err := q.db.QueryContext(ctx, listCruises,
 		arg.IncludeHidden,
 		arg.AfterID,
-		arg.AfterEmbarkDate,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -491,30 +403,18 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 			&i.ID,
 			&i.CreatedBy,
 			&i.Name,
-			&i.EmbarkDate,
-			&i.DisembarkDate,
 			&i.Countries,
-			&i.StartPort,
-			&i.EndPort,
 			&i.Description,
 			&i.ImageLogoUrl,
 			&i.ImagePhotoUrl,
 			&i.ImageRouteUrl,
-			&i.MaxCrew,
-			&i.CostPerPerson,
 			&i.EnrollToken,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Kind,
 			&i.SeriesID,
 			&i.Edition,
-			&i.Currency,
-			&i.CostPerPersonNonMember,
-			&i.YachtFund,
-			&i.Deposit,
 			&i.Included,
 			&i.NotIncluded,
-			&i.GroupChatUrl,
 			&i.TravelNotes,
 			&i.MinAge,
 			&i.PublishedAt,
@@ -674,7 +574,7 @@ UPDATE cruises SET
     published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
     updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 WHERE id = $1
-RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 `
 
 // Publishes the cruise, keeping an earlier published_at.
@@ -683,7 +583,7 @@ RETURNING id, created_by, name, embark_date, disembark_date, countries, start_po
 //	    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
 //	    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 //	WHERE id = $1
-//	RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+//	RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 func (q *Queries) PublishCruise(ctx context.Context, id int64) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, publishCruise, id)
 	var i Cruise
@@ -691,30 +591,18 @@ func (q *Queries) PublishCruise(ctx context.Context, id int64) (Cruise, error) {
 		&i.ID,
 		&i.CreatedBy,
 		&i.Name,
-		&i.EmbarkDate,
-		&i.DisembarkDate,
 		&i.Countries,
-		&i.StartPort,
-		&i.EndPort,
 		&i.Description,
 		&i.ImageLogoUrl,
 		&i.ImagePhotoUrl,
 		&i.ImageRouteUrl,
-		&i.MaxCrew,
-		&i.CostPerPerson,
 		&i.EnrollToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Kind,
 		&i.SeriesID,
 		&i.Edition,
-		&i.Currency,
-		&i.CostPerPersonNonMember,
-		&i.YachtFund,
-		&i.Deposit,
 		&i.Included,
 		&i.NotIncluded,
-		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
 		&i.PublishedAt,
@@ -787,7 +675,7 @@ UPDATE cruises SET
     published_at = NULL,
     updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 WHERE id = $1
-RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 `
 
 // UnpublishCruise
@@ -796,7 +684,7 @@ RETURNING id, created_by, name, embark_date, disembark_date, countries, start_po
 //	    published_at = NULL,
 //	    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 //	WHERE id = $1
-//	RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+//	RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 func (q *Queries) UnpublishCruise(ctx context.Context, id int64) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, unpublishCruise, id)
 	var i Cruise
@@ -804,30 +692,18 @@ func (q *Queries) UnpublishCruise(ctx context.Context, id int64) (Cruise, error)
 		&i.ID,
 		&i.CreatedBy,
 		&i.Name,
-		&i.EmbarkDate,
-		&i.DisembarkDate,
 		&i.Countries,
-		&i.StartPort,
-		&i.EndPort,
 		&i.Description,
 		&i.ImageLogoUrl,
 		&i.ImagePhotoUrl,
 		&i.ImageRouteUrl,
-		&i.MaxCrew,
-		&i.CostPerPerson,
 		&i.EnrollToken,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Kind,
 		&i.SeriesID,
 		&i.Edition,
-		&i.Currency,
-		&i.CostPerPersonNonMember,
-		&i.YachtFund,
-		&i.Deposit,
 		&i.Included,
 		&i.NotIncluded,
-		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
 		&i.PublishedAt,
@@ -837,83 +713,51 @@ func (q *Queries) UnpublishCruise(ctx context.Context, id int64) (Cruise, error)
 
 const updateCruise = `-- name: UpdateCruise :exec
 UPDATE cruises SET
-    name = $1, embark_date = $2, disembark_date = $3, countries = $4,
-    start_port = $5, end_port = $6, description = $7,
-    image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
-    max_crew = $11, cost_per_person = $12, kind = $13,
-    series_id = $14, edition = $15,
-    currency = $16, cost_per_person_non_member = $17, yacht_fund = $18,
-    deposit = $19, included = $20, not_included = $21,
-    group_chat_url = $22, travel_notes = $23, min_age = $24,
+    name = $1, countries = $2, description = $3,
+    image_logo_url = $4, image_photo_url = $5, image_route_url = $6,
+    series_id = $7, edition = $8, included = $9, not_included = $10,
+    travel_notes = $11, min_age = $12,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $25
+WHERE id = $13
 `
 
 type UpdateCruiseParams struct {
-	Name                   string            `json:"name"`
-	EmbarkDate             types.NullString  `json:"embark_date"`
-	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
-	StartPort              types.NullString  `json:"start_port"`
-	EndPort                types.NullString  `json:"end_port"`
-	Description            types.NullString  `json:"description"`
-	ImageLogoUrl           types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl          types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl          types.NullString  `json:"image_route_url"`
-	MaxCrew                types.NullInt64   `json:"max_crew"`
-	CostPerPerson          types.NullFloat64 `json:"cost_per_person"`
-	Kind                   string            `json:"kind"`
-	SeriesID               types.NullInt64   `json:"series_id"`
-	Edition                types.NullString  `json:"edition"`
-	Currency               string            `json:"currency"`
-	CostPerPersonNonMember types.NullFloat64 `json:"cost_per_person_non_member"`
-	YachtFund              types.NullFloat64 `json:"yacht_fund"`
-	Deposit                types.NullFloat64 `json:"deposit"`
-	Included               json.RawMessage   `json:"included"`
-	NotIncluded            json.RawMessage   `json:"not_included"`
-	GroupChatUrl           types.NullString  `json:"group_chat_url"`
-	TravelNotes            types.NullString  `json:"travel_notes"`
-	MinAge                 types.NullInt64   `json:"min_age"`
-	ID                     int64             `json:"id"`
+	Name          string           `json:"name"`
+	Countries     types.NullString `json:"countries"`
+	Description   types.NullString `json:"description"`
+	ImageLogoUrl  types.NullString `json:"image_logo_url"`
+	ImagePhotoUrl types.NullString `json:"image_photo_url"`
+	ImageRouteUrl types.NullString `json:"image_route_url"`
+	SeriesID      types.NullInt64  `json:"series_id"`
+	Edition       types.NullString `json:"edition"`
+	Included      json.RawMessage  `json:"included"`
+	NotIncluded   json.RawMessage  `json:"not_included"`
+	TravelNotes   types.NullString `json:"travel_notes"`
+	MinAge        types.NullInt64  `json:"min_age"`
+	ID            int64            `json:"id"`
 }
 
 // UpdateCruise
 //
 //	UPDATE cruises SET
-//	    name = $1, embark_date = $2, disembark_date = $3, countries = $4,
-//	    start_port = $5, end_port = $6, description = $7,
-//	    image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
-//	    max_crew = $11, cost_per_person = $12, kind = $13,
-//	    series_id = $14, edition = $15,
-//	    currency = $16, cost_per_person_non_member = $17, yacht_fund = $18,
-//	    deposit = $19, included = $20, not_included = $21,
-//	    group_chat_url = $22, travel_notes = $23, min_age = $24,
+//	    name = $1, countries = $2, description = $3,
+//	    image_logo_url = $4, image_photo_url = $5, image_route_url = $6,
+//	    series_id = $7, edition = $8, included = $9, not_included = $10,
+//	    travel_notes = $11, min_age = $12,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $25
+//	WHERE id = $13
 func (q *Queries) UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error {
 	_, err := q.db.ExecContext(ctx, updateCruise,
 		arg.Name,
-		arg.EmbarkDate,
-		arg.DisembarkDate,
 		arg.Countries,
-		arg.StartPort,
-		arg.EndPort,
 		arg.Description,
 		arg.ImageLogoUrl,
 		arg.ImagePhotoUrl,
 		arg.ImageRouteUrl,
-		arg.MaxCrew,
-		arg.CostPerPerson,
-		arg.Kind,
 		arg.SeriesID,
 		arg.Edition,
-		arg.Currency,
-		arg.CostPerPersonNonMember,
-		arg.YachtFund,
-		arg.Deposit,
 		arg.Included,
 		arg.NotIncluded,
-		arg.GroupChatUrl,
 		arg.TravelNotes,
 		arg.MinAge,
 		arg.ID,

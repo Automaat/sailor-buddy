@@ -180,8 +180,7 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	nullID := func(id int64) types.NullInt64 { return types.NullInt64{Int64: id, Valid: true} }
 
 	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "Baltic", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "Baltic", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)

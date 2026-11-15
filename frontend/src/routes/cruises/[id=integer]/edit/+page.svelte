@@ -3,10 +3,10 @@
 	import { updateCruise } from '#lib/api/routes.js';
 	import type { Cruise } from '#lib/api/types.js';
 	import { goto } from '$app/navigation';
-	import { cruiseBody, cruiseKinds, cruiseKindLabels } from '#lib/cruise.js';
+	import { cruiseBody } from '#lib/cruise.js';
 	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
-	import PriceFields from '#lib/components/PriceFields.svelte';
-	import { listText, parseList, priceBody, priceFormFrom } from '#lib/pricing.js';
+	import PriceCoverageFields from '#lib/components/PriceCoverageFields.svelte';
+	import { listText, parseList } from '#lib/pricing.js';
 	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
@@ -14,7 +14,6 @@
 
 	const id = $derived(data.cruise.id);
 	let form = $derived(perLoad(data, cruiseForm(data.cruise)));
-	let price = $derived(perLoad(data, priceFormFrom(data.cruise)));
 	let included = $derived(listText(data.cruise.included));
 	let notIncluded = $derived(listText(data.cruise.not_included));
 	let submit = $derived(perLoad(data, { error: '', saving: false }));
@@ -28,17 +27,10 @@
 	function cruiseForm(cruise: Cruise) {
 		return {
 			name: cruise.name,
-			kind: cruise.kind,
 			series_id: cruise.series_id ?? null,
 			edition: cruise.edition ?? '',
-			embark_date: cruise.embark_date ?? '',
-			disembark_date: cruise.disembark_date ?? '',
 			countries: cruise.countries ?? '',
-			start_port: cruise.start_port ?? '',
-			end_port: cruise.end_port ?? '',
-			max_crew: cruise.max_crew ?? 0,
 			description: cruise.description ?? '',
-			group_chat_url: cruise.group_chat_url ?? '',
 			travel_notes: cruise.travel_notes ?? '',
 			min_age: cruise.min_age ?? null
 		};
@@ -53,7 +45,6 @@
 		try {
 			await updateCruise(cruiseId, {
 				...cruiseBody(form),
-				...priceBody(price),
 				included: parseList(included),
 				not_included: parseList(notIncluded)
 			});
@@ -85,55 +76,11 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div class="sm:col-span-2">
-				<label for="kind" class="mb-1 block text-sm font-medium">Rodzaj rejsu</label>
-				<select id="kind" bind:value={form.kind} class="w-full rounded-lg border px-3 py-2">
-					{#each cruiseKinds as kind (kind)}
-						<option value={kind}>{cruiseKindLabels[kind]}</option>
-					{/each}
-				</select>
-			</div>
 			<CruiseSeriesFields
 				bind:seriesId={form.series_id}
 				bind:edition={form.edition}
 				series={data.series}
 			/>
-			<div>
-				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
-				<input
-					id="embark"
-					type="date"
-					bind:value={form.embark_date}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="disembark" class="mb-1 block text-sm font-medium">Data wyokrętowania</label>
-				<input
-					id="disembark"
-					type="date"
-					bind:value={form.disembark_date}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-				<input
-					id="start_port"
-					type="text"
-					bind:value={form.start_port}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<div>
-				<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-				<input
-					id="end_port"
-					type="text"
-					bind:value={form.end_port}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
 				<input
@@ -143,23 +90,8 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div>
-				<label for="max_crew" class="mb-1 block text-sm font-medium">Maks. liczba uczestników</label
-				>
-				<input
-					id="max_crew"
-					type="number"
-					bind:value={form.max_crew}
-					min="0"
-					class="w-full rounded-lg border px-3 py-2"
-				/>
-			</div>
-			<PriceFields bind:price bind:included bind:notIncluded />
-			<CruiseLogisticsFields
-				bind:groupChatUrl={form.group_chat_url}
-				bind:travelNotes={form.travel_notes}
-				bind:minAge={form.min_age}
-			/>
+			<PriceCoverageFields bind:included bind:notIncluded />
+			<CruiseLogisticsFields bind:travelNotes={form.travel_notes} bind:minAge={form.min_age} />
 		</div>
 
 		<div>

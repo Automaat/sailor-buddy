@@ -152,15 +152,14 @@ func registerCruiseRoutes(api huma.API, h *CruiseHandler) {
 }
 
 func (h *CruiseHandler) list(ctx context.Context, in *pageParams) (*cruiseListOutput, error) {
-	var key dateKey
+	var key idKey
 	ok, err := decodeCursor(in.After, &key)
 	if err != nil {
 		return nil, err
 	}
 	hidden := canSeeHidden(ctx)
 	cruises, err := h.q.ListCruises(ctx, sqlcdb.ListCruisesParams{
-		IncludeHidden: hidden,
-		AfterID:       afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
+		IncludeHidden: hidden, AfterID: afterID(ok, key.ID),
 		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
 	if err != nil {
@@ -173,7 +172,7 @@ func (h *CruiseHandler) list(ctx context.Context, in *pageParams) (*cruiseListOu
 		return nil, huma.Error500InternalServerError("failed to list cruises")
 	}
 	return &cruiseListOutput{Body: buildPage(cruises, total, in.Limit, in.Offset, dto.CruisesFromDB,
-		func(r sqlcdb.Cruise) any { return dateKey{Date: nullTextKey(r.EmbarkDate), ID: r.ID} })}, nil
+		func(r sqlcdb.Cruise) any { return idKey{ID: r.ID} })}, nil
 }
 
 func (h *CruiseHandler) get(ctx context.Context, in *cruiseIDParam) (*cruiseOutput, error) {
@@ -203,40 +202,24 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 	if err != nil {
 		return nil, err
 	}
-	chatURL, err := groupChatURL(in.Body.GroupChatUrl)
-	if err != nil {
-		return nil, err
-	}
 	user := middleware.GetUser(ctx)
 	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
 		return nil, err
 	}
 	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
-		Name:                   in.Body.Name,
-		EmbarkDate:             nullString(in.Body.EmbarkDate),
-		DisembarkDate:          nullString(in.Body.DisembarkDate),
-		Countries:              nullString(in.Body.Countries),
-		StartPort:              nullString(in.Body.StartPort),
-		EndPort:                nullString(in.Body.EndPort),
-		Description:            nullString(in.Body.Description),
-		ImageLogoUrl:           nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
-		MaxCrew:                nullInt64(in.Body.MaxCrew),
-		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
-		Kind:                   in.Body.Kind,
-		SeriesID:               seriesID,
-		Edition:                nullEdition(in.Body.Edition),
-		Currency:               currencyOrDefault(in.Body.Currency),
-		CostPerPersonNonMember: nullFloat64(in.Body.CostPerPersonNonMember),
-		YachtFund:              nullFloat64(in.Body.YachtFund),
-		Deposit:                nullFloat64(in.Body.Deposit),
-		Included:               included,
-		NotIncluded:            notIncluded,
-		GroupChatUrl:           chatURL,
-		TravelNotes:            nullTrimmed(in.Body.TravelNotes),
-		MinAge:                 nullInt64(in.Body.MinAge),
+		CreatedBy:     types.NullInt64{Int64: user.UserID, Valid: true},
+		Name:          in.Body.Name,
+		Countries:     nullString(in.Body.Countries),
+		Description:   nullString(in.Body.Description),
+		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
+		SeriesID:      seriesID,
+		Edition:       nullEdition(in.Body.Edition),
+		Included:      included,
+		NotIncluded:   notIncluded,
+		TravelNotes:   nullTrimmed(in.Body.TravelNotes),
+		MinAge:        nullInt64(in.Body.MinAge),
 	})
 	if err != nil {
 		if isForeignKeyViolation(err, cruiseSeriesFKey) {
@@ -260,39 +243,23 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 	if err != nil {
 		return nil, err
 	}
-	chatURL, err := groupChatURL(in.Body.GroupChatUrl)
-	if err != nil {
-		return nil, err
-	}
 	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
 		return nil, err
 	}
 	if err := h.q.UpdateCruise(ctx, sqlcdb.UpdateCruiseParams{
-		Name:                   in.Body.Name,
-		EmbarkDate:             nullString(in.Body.EmbarkDate),
-		DisembarkDate:          nullString(in.Body.DisembarkDate),
-		Countries:              nullString(in.Body.Countries),
-		StartPort:              nullString(in.Body.StartPort),
-		EndPort:                nullString(in.Body.EndPort),
-		Description:            nullString(in.Body.Description),
-		ImageLogoUrl:           nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
-		MaxCrew:                nullInt64(in.Body.MaxCrew),
-		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
-		Kind:                   in.Body.Kind,
-		SeriesID:               seriesID,
-		Edition:                nullEdition(in.Body.Edition),
-		Currency:               currencyOrDefault(in.Body.Currency),
-		CostPerPersonNonMember: nullFloat64(in.Body.CostPerPersonNonMember),
-		YachtFund:              nullFloat64(in.Body.YachtFund),
-		Deposit:                nullFloat64(in.Body.Deposit),
-		Included:               included,
-		NotIncluded:            notIncluded,
-		GroupChatUrl:           chatURL,
-		TravelNotes:            nullTrimmed(in.Body.TravelNotes),
-		MinAge:                 nullInt64(in.Body.MinAge),
-		ID:                     in.ID,
+		Name:          in.Body.Name,
+		Countries:     nullString(in.Body.Countries),
+		Description:   nullString(in.Body.Description),
+		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
+		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
+		ImageRouteUrl: nullString(in.Body.ImageRouteUrl),
+		SeriesID:      seriesID,
+		Edition:       nullEdition(in.Body.Edition),
+		Included:      included,
+		NotIncluded:   notIncluded,
+		TravelNotes:   nullTrimmed(in.Body.TravelNotes),
+		MinAge:        nullInt64(in.Body.MinAge),
+		ID:            in.ID,
 	}); err != nil {
 		if isForeignKeyViolation(err, cruiseSeriesFKey) {
 			return nil, huma.Error422UnprocessableEntity("series not found")

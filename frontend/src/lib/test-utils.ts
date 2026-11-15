@@ -1,5 +1,5 @@
 // Reusable factories and helpers shared across form/component test suites.
-import type { CrewMember, Cruise, Member, Trip, Voyage } from '#lib/api/types.js';
+import type { CrewMember, Cruise, CruiseSeries, Member, Trip, Voyage } from '#lib/api/types.js';
 
 export function makePerson(overrides: Partial<CrewMember> = {}): CrewMember {
 	return {
@@ -33,10 +33,19 @@ export function makeCruise(overrides: Partial<Cruise> = {}): Cruise {
 	return {
 		id: 1,
 		name: 'Regaty Klubowe',
-		kind: 'sea',
-		currency: 'PLN',
 		included: [],
 		not_included: [],
+		created_at: '2026-01-01T00:00:00Z',
+		updated_at: '2026-01-01T00:00:00Z',
+		...overrides
+	};
+}
+
+export function makeSeries(overrides: Partial<CruiseSeries> = {}): CruiseSeries {
+	return {
+		id: 1,
+		name: 'Sycylia',
+		kind: 'sea',
 		created_at: '2026-01-01T00:00:00Z',
 		updated_at: '2026-01-01T00:00:00Z',
 		...overrides

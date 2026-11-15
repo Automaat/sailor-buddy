@@ -76,17 +76,19 @@ async function smallTapTargets(page: Page): Promise<string[]> {
 test.describe.serial('Phone layout', () => {
 	test.beforeAll(async () => {
 		const token = await adminToken();
-		const series = await post<{ id: number }>(token, '/series', { name: 'Seria mobilna' });
+		const series = await post<{ id: number }>(token, '/series', {
+			name: 'Seria mobilna',
+			kind: 'sea'
+		});
+		// An edition holds only edition-wide fields; dates, ports and prices live on its legs.
 		const cruise = await post<{ id: number }>(token, '/cruises', {
 			name: 'Wydarzenie z bardzo długą nazwą na telefon',
 			series_id: series.id,
 			edition: '2027',
-			embark_date: '2027-07-01',
-			disembark_date: '2027-07-14',
-			start_port: 'Gdańsk',
-			end_port: 'Visby',
+			countries: 'Polska, Dania, Szwecja',
 			description: 'Opis wydarzenia, który jest na tyle długi, że musi się zawinąć.',
-			deposit: 50000
+			included: ['Jacht z pełnym wyposażeniem i ubezpieczeniem'],
+			not_included: ['Dojazd do portu zaokrętowania']
 		});
 		const trip = await post<{ id: number }>(token, '/trips', {
 			cruise_id: cruise.id,
@@ -233,8 +235,7 @@ test.describe.serial('Phone layout', () => {
 		const rows: [string, string][] = [
 			[`/trips/${ids.trip}`, 'Daty'],
 			[`/trips/${ids.trip}`, 'Kaucja (zwrotna)'],
-			[`/voyages/${ids.voyage}`, 'Daty'],
-			[`/cruises/${ids.cruise}`, 'Kaucja (zwrotna)']
+			[`/voyages/${ids.voyage}`, 'Daty']
 		];
 		for (const [path, term] of rows) {
 			await page.goto(path);

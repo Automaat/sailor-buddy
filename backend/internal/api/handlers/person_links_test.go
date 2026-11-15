@@ -98,7 +98,7 @@ func (f *linkFixture) person(name string, email *string) int64 {
 // cruise.
 func (f *linkFixture) voyageOf(personID int64, name string) int64 {
 	f.t.Helper()
-	cruise := f.scalar(`INSERT INTO cruises (name, kind, currency) VALUES ($1, 'sea', 'PLN') RETURNING id`, name)
+	cruise := f.scalar(`INSERT INTO cruises (name) VALUES ($1) RETURNING id`, name)
 	voyage := f.scalar(`INSERT INTO voyages (cruise_id, name) VALUES ($1, $2) RETURNING id`, cruise, name)
 	f.scalar(`INSERT INTO crew_assignments (voyage_id, crew_member_id, role) VALUES ($1, $2, 'zalogant') RETURNING id`, voyage, personID)
 	return cruise

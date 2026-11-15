@@ -787,7 +787,7 @@ export interface paths {
         put?: never;
         /**
          * Create a trip (admin)
-         * @description Without cruise_id the trip is a standalone etap: one transaction creates a wrapper cruise without a series (name, dates, ports, countries, description, crew limit and prices copied from the trip, kind sea) and the trip in it.
+         * @description Without cruise_id the trip is a standalone etap: one transaction creates a wrapper cruise without a series (name, countries and description copied from the trip) and the trip in it.
          */
         post: operations["create-trip"];
         delete?: never;
@@ -1610,61 +1610,29 @@ export interface components {
              * @example /api/Cruise.json
              */
             readonly $schema?: string;
-            /**
-             * Format: double
-             * @description Member price per person (czlonek, sympatyk)
-             */
-            cost_per_person?: number;
-            /**
-             * Format: double
-             * @description Non-member (gosc) price per person
-             */
-            cost_per_person_non_member?: number;
             countries?: string;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
             created_by?: number;
-            /**
-             * @description Currency of every price on the cruise
-             * @enum {string}
-             */
-            currency: "PLN" | "EUR";
-            /**
-             * Format: double
-             * @description Refundable deposit (kaucja) per person
-             */
-            deposit?: number;
             description?: string;
-            disembark_date?: string;
             /** @description Edition label within the series, e.g. 2025 or 2026/27 */
             edition?: string;
-            embark_date?: string;
-            end_port?: string;
             enroll_token?: string;
-            /** @description Link to the crew group chat (http or https) */
-            group_chat_url?: string;
             /** Format: int64 */
             id: number;
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
-            /** @description What the price covers */
+            /** @description What every leg's price covers */
             included: string[] | null;
-            /**
-             * @description Cruise kind: sea (morski) or inland (śródlądowy)
-             * @enum {string}
-             */
-            kind: "sea" | "inland";
-            /** Format: int64 */
-            max_crew?: number;
             /**
              * Format: int64
              * @description Minimum crew age, shown as information only
              */
             min_age?: number;
             name: string;
-            /** @description What the price does not cover */
+            /** @description What no leg's price covers */
             not_included: string[] | null;
             /**
              * Format: date-time
@@ -1676,16 +1644,10 @@ export interface components {
              * @description Series this cruise is an edition of
              */
             series_id?: number;
-            start_port?: string;
             /** @description How to get there: flights, transport, meeting point */
             travel_notes?: string;
             /** Format: date-time */
             updated_at: string;
-            /**
-             * Format: double
-             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
-             */
-            yacht_fund?: number;
         };
         CruiseBody: {
             /**
@@ -1694,48 +1656,15 @@ export interface components {
              * @example /api/CruiseBody.json
              */
             readonly $schema?: string;
-            /**
-             * Format: double
-             * @description Member price per person (czlonek, sympatyk)
-             */
-            cost_per_person?: number;
-            /**
-             * Format: double
-             * @description Non-member (gosc) price per person
-             */
-            cost_per_person_non_member?: number;
             countries?: string;
-            /**
-             * @description Currency of every price on the cruise; PLN when omitted
-             * @enum {string}
-             */
-            currency?: "PLN" | "EUR";
-            /**
-             * Format: double
-             * @description Refundable deposit (kaucja) per person
-             */
-            deposit?: number;
             description?: string;
-            disembark_date?: string;
             /** @description Edition label within the series, e.g. 2025 or 2026/27 */
             edition?: string;
-            embark_date?: string;
-            end_port?: string;
-            /** @description Link to the crew group chat; must be an http or https URL, blank clears it */
-            group_chat_url?: string;
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
-            /** @description What the price covers; blank entries are dropped, each at most 200 characters */
+            /** @description What every leg's price covers; blank entries are dropped, each at most 200 characters */
             included?: string[] | null;
-            /**
-             * @description Cruise kind: sea (morski) or inland (śródlądowy)
-             * @default sea
-             * @enum {string}
-             */
-            kind: "sea" | "inland";
-            /** Format: int64 */
-            max_crew?: number;
             /**
              * Format: int64
              * @description Minimum crew age, shown as information only; the app does not check it
@@ -1743,21 +1672,15 @@ export interface components {
             min_age?: number;
             /** @description Cruise name */
             name: string;
-            /** @description What the price does not cover; blank entries are dropped, each at most 200 characters */
+            /** @description What no leg's price covers; blank entries are dropped, each at most 200 characters */
             not_included?: string[] | null;
             /**
              * Format: int64
              * @description Series this cruise is an edition of; omit or null for none
              */
             series_id?: number;
-            start_port?: string;
             /** @description How to get there: flights, transport, meeting point; blank clears it */
             travel_notes?: string;
-            /**
-             * Format: double
-             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
-             */
-            yacht_fund?: number;
         };
         CruiseEnrollmentDetail: {
             /** Format: date-time */
@@ -1800,6 +1723,11 @@ export interface components {
             description?: string;
             /** Format: int64 */
             id: number;
+            /**
+             * @description Kind of every edition: sea (morski) or inland (śródlądowy)
+             * @enum {string}
+             */
+            kind: "sea" | "inland";
             name: string;
             /** Format: date-time */
             updated_at: string;
@@ -1812,17 +1740,19 @@ export interface components {
              */
             readonly $schema?: string;
             description?: string;
+            /**
+             * @description Kind of every edition: sea (morski) or inland (śródlądowy)
+             * @default sea
+             * @enum {string}
+             */
+            kind: "sea" | "inland";
             /** @description Series name */
             name: string;
         };
         CruiseSeriesEdition: {
             /** Format: int64 */
             cruise_id: number;
-            disembark_date?: string;
             edition?: string;
-            embark_date?: string;
-            /** @enum {string} */
-            kind: "sea" | "inland";
             name: string;
             /**
              * Format: date-time
@@ -1858,53 +1788,23 @@ export interface components {
             note?: string;
         };
         EnrollCruise: {
-            /**
-             * Format: double
-             * @description Member price per person (czlonek, sympatyk)
-             */
-            cost_per_person?: number;
-            /**
-             * Format: double
-             * @description Non-member (gosc) price per person
-             */
-            cost_per_person_non_member?: number;
             countries?: string;
-            /** @enum {string} */
-            currency: "PLN" | "EUR";
-            /**
-             * Format: double
-             * @description Refundable deposit (kaucja) per person
-             */
-            deposit?: number;
             description?: string;
-            disembark_date?: string;
-            embark_date?: string;
-            end_port?: string;
-            /** @description Link to the crew group chat; omitted for anonymous callers */
-            group_chat_url?: string;
             /** Format: int64 */
             id: number;
             image_photo_url?: string;
-            /** @description What the price covers */
+            /** @description What every leg's price covers */
             included: string[] | null;
-            /** Format: int64 */
-            max_crew?: number;
             /**
              * Format: int64
              * @description Minimum crew age, shown as information only
              */
             min_age?: number;
             name: string;
-            /** @description What the price does not cover */
+            /** @description What no leg's price covers */
             not_included: string[] | null;
-            start_port?: string;
             /** @description How to get there: flights, transport, meeting point */
             travel_notes?: string;
-            /**
-             * Format: double
-             * @description Estimated yacht fund (kasa jachtowa) per person
-             */
-            yacht_fund?: number;
         };
         EnrollInfo: {
             /**

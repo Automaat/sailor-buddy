@@ -132,7 +132,7 @@ func seedMerge(t *testing.T) mergeFixture {
 	kept := scalar(`INSERT INTO crew_members (full_name, other_names, patent_number)
 		VALUES ('Anna Kowalska', '["anna nowak", "A. Kowalska"]', 'JSM-1') RETURNING id`)
 
-	cruise := scalar(`INSERT INTO cruises (name, kind, currency) VALUES ('Baltic', 'sea', 'PLN') RETURNING id`)
+	cruise := scalar(`INSERT INTO cruises (name) VALUES ('Baltic') RETURNING id`)
 	trip1 := scalar(`INSERT INTO trips (cruise_id, name, currency) VALUES ($1, 'Leg 1', 'PLN') RETURNING id`, cruise)
 	trip2 := scalar(`INSERT INTO trips (cruise_id, name, currency) VALUES ($1, 'Leg 2', 'PLN') RETURNING id`, cruise)
 	voyage1 := scalar(`INSERT INTO voyages (cruise_id, name) VALUES ($1, 'Voyage 1') RETURNING id`, cruise)

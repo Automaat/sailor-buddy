@@ -138,12 +138,14 @@ func seriesCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, seriesIDParam, cr
 				CreatedBy:   types.NullInt64{Int64: scope.userID, Valid: true},
 				Name:        in.Body.Name,
 				Description: nullString(in.Body.Description),
+				Kind:        in.Body.Kind,
 			})
 		},
 		update: func(ctx context.Context, _ crudScope, in *updateSeriesInput) error {
 			return q.UpdateCruiseSeries(ctx, sqlcdb.UpdateCruiseSeriesParams{
 				Name:        in.Body.Name,
 				Description: nullString(in.Body.Description),
+				Kind:        in.Body.Kind,
 				ID:          in.ID,
 			})
 		},

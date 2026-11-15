@@ -2,12 +2,14 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { listSeries, createSeries } from '#lib/api/routes.js';
 	import type { CruiseSeries } from '#lib/api/types.js';
+	import { cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import SeriesKindSelect from '#lib/components/SeriesKindSelect.svelte';
 	import Repeat from '@lucide/svelte/icons/repeat';
 
 	let series = $state<CruiseSeries[]>([]);
 	let loading = $state(true);
 	let showForm = $state(false);
-	let form = $state({ name: '', description: '' });
+	let form = $state({ name: '', description: '', kind: 'sea' as CruiseKind });
 	let saving = $state(false);
 	let error = $state('');
 
@@ -33,10 +35,11 @@
 		try {
 			const created = await createSeries({
 				name: form.name,
-				description: form.description || undefined
+				description: form.description || undefined,
+				kind: form.kind
 			});
 			series = [...series, created].sort((a, b) => a.name.localeCompare(b.name));
-			form = { name: '', description: '' };
+			form = { name: '', description: '', kind: 'sea' };
 			showForm = false;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Nie udało się dodać serii';
@@ -75,6 +78,7 @@
 						class="w-full rounded-lg border px-3 py-2"
 					/>
 				</div>
+				<SeriesKindSelect bind:kind={form.kind} />
 				<div>
 					<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
 					<textarea
@@ -109,6 +113,10 @@
 					class="block rounded-2xl bg-white px-6 py-4 shadow-sm hover:shadow-md"
 				>
 					<span class="font-semibold text-[var(--navy)]">{s.name}</span>
+					<span
+						class="ml-2 rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+						>{cruiseKindLabels[s.kind]}</span
+					>
 					{#if s.description}
 						<p class="mt-1 line-clamp-2 text-sm text-[var(--text-muted)]">{s.description}</p>
 					{/if}

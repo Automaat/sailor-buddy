@@ -359,8 +359,7 @@ func TestCompleteTrip_KeepsCaptainPerson(t *testing.T) {
 	q := sqlcdb.New(conn)
 
 	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "Bałtyk", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "Bałtyk", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)

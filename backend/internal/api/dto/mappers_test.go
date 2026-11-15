@@ -169,26 +169,22 @@ func TestVoyageCrewFromDB(t *testing.T) {
 func TestCruiseFromDB(t *testing.T) {
 	c := sqlcdb.Cruise{
 		ID: 1, CreatedBy: nint(2), Name: "Baltic",
-		EmbarkDate: nstr("2024-06-01"), MaxCrew: nint(8),
-		CostPerPerson: nflt(150.5), EnrollToken: nstr("tok"),
+		Countries: nstr("PL"), EnrollToken: nstr("tok"),
 		CreatedAt: ntime(), UpdatedAt: ntime(),
 	}
 	got := CruiseFromDB(c)
 	if got.ID != 1 || got.Name != "Baltic" {
 		t.Fatalf("unexpected: %+v", got)
 	}
-	if got.MaxCrew == nil || *got.MaxCrew != 8 {
-		t.Fatalf("max_crew = %v", got.MaxCrew)
-	}
-	if got.CostPerPerson == nil || *got.CostPerPerson != 150.5 {
-		t.Fatalf("cost_per_person = %v", got.CostPerPerson)
+	if got.Countries == nil || *got.Countries != "PL" {
+		t.Fatalf("countries = %v", got.Countries)
 	}
 	if got.EnrollToken == nil || *got.EnrollToken != "tok" {
 		t.Fatalf("enroll_token = %v", got.EnrollToken)
 	}
 
 	bare := CruiseFromDB(sqlcdb.Cruise{ID: 2, Name: "X"})
-	if bare.MaxCrew != nil || bare.CostPerPerson != nil || bare.EnrollToken != nil {
+	if bare.Countries != nil || bare.EnrollToken != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }
@@ -507,19 +503,15 @@ func TestEnrollTripFromRow(t *testing.T) {
 
 func TestEnrollCruiseFromRow(t *testing.T) {
 	row := sqlcdb.GetCruiseByEnrollTokenRow{
-		ID: 1, Name: "Token Cruise", MaxCrew: nint(10), CostPerPerson: nflt(300),
+		ID: 1, Name: "Token Cruise", Countries: nstr("IT"),
 		TravelNotes: nstr("Tanie loty do Katanii"), MinAge: nint(18),
-		GroupChatUrl: nstr("https://discord.gg/abc"),
 	}
-	got := EnrollCruiseFromRow(row, true)
+	got := EnrollCruiseFromRow(row)
 	if got.ID != 1 || got.Name != "Token Cruise" {
 		t.Fatalf("unexpected: %+v", got)
 	}
-	if got.MaxCrew == nil || *got.MaxCrew != 10 {
-		t.Fatalf("max_crew = %v", got.MaxCrew)
-	}
-	if got.CostPerPerson == nil || *got.CostPerPerson != 300 {
-		t.Fatalf("cost_per_person = %v", got.CostPerPerson)
+	if got.Countries == nil || *got.Countries != "IT" {
+		t.Fatalf("countries = %v", got.Countries)
 	}
 	if got.TravelNotes == nil || *got.TravelNotes != "Tanie loty do Katanii" {
 		t.Fatalf("travel_notes = %v", got.TravelNotes)
@@ -527,20 +519,9 @@ func TestEnrollCruiseFromRow(t *testing.T) {
 	if got.MinAge == nil || *got.MinAge != 18 {
 		t.Fatalf("min_age = %v", got.MinAge)
 	}
-	if got.GroupChatUrl == nil || *got.GroupChatUrl != "https://discord.gg/abc" {
-		t.Fatalf("group_chat_url = %v", got.GroupChatUrl)
-	}
 
-	anon := EnrollCruiseFromRow(row, false)
-	if anon.GroupChatUrl != nil {
-		t.Fatalf("anonymous caller got group_chat_url %q", *anon.GroupChatUrl)
-	}
-	if anon.TravelNotes == nil || anon.MinAge == nil {
-		t.Fatalf("anonymous caller lost public logistics: %+v", anon)
-	}
-
-	bare := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{ID: 2, Name: "X"}, true)
-	if bare.MaxCrew != nil || bare.CostPerPerson != nil || bare.GroupChatUrl != nil || bare.TravelNotes != nil || bare.MinAge != nil {
+	bare := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{ID: 2, Name: "X"})
+	if bare.Countries != nil || bare.TravelNotes != nil || bare.MinAge != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }
@@ -558,10 +539,10 @@ func TestCruiseFromDB_Series(t *testing.T) {
 
 func TestCruiseSeriesFromDB(t *testing.T) {
 	got := CruiseSeriesFromDB(sqlcdb.CruiseSeries{
-		ID: 4, CreatedBy: nint(1), Name: "May I Sail", Description: nstr("Od 2018"),
+		ID: 4, CreatedBy: nint(1), Name: "May I Sail", Description: nstr("Od 2018"), Kind: "inland",
 		CreatedAt: ntime(), UpdatedAt: ntime(),
 	})
-	if got.ID != 4 || got.Name != "May I Sail" || got.CreatedBy == nil || *got.CreatedBy != 1 {
+	if got.ID != 4 || got.Name != "May I Sail" || got.Kind != "inland" || got.CreatedBy == nil || *got.CreatedBy != 1 {
 		t.Fatalf("unexpected: %+v", got)
 	}
 	if got.Description == nil || *got.Description != "Od 2018" || !got.CreatedAt.Equal(testTime) {
@@ -583,25 +564,23 @@ func TestCruiseSeriesFromDB(t *testing.T) {
 func TestCruiseSeriesEditionsFromDB(t *testing.T) {
 	out := CruiseSeriesEditionsFromDB([]sqlcdb.ListCruiseSeriesEditionsRow{
 		{
-			ID: 10, Name: "MIS 2025", Edition: nstr("2025"), Kind: "inland",
-			EmbarkDate: nstr("2025-05-01"), DisembarkDate: nstr("2025-05-08"),
+			ID: 10, Name: "MIS 2025", Edition: nstr("2025"), PublishedAt: ntime(),
 			VoyageCount: 2, TotalMiles: 200.5, TotalHours: 40,
 		},
-		{ID: 11, Name: "MIS planned", Kind: "sea"},
+		{ID: 11, Name: "MIS planned"},
 	})
 	if len(out) != 2 {
 		t.Fatalf("got %d editions", len(out))
 	}
 	e := out[0]
-	if e.CruiseID != 10 || e.Name != "MIS 2025" || e.Kind != "inland" || e.VoyageCount != 2 ||
+	if e.CruiseID != 10 || e.Name != "MIS 2025" || e.VoyageCount != 2 ||
 		e.TotalMiles != 200.5 || e.TotalHours != 40 {
 		t.Fatalf("unexpected: %+v", e)
 	}
-	if e.Edition == nil || *e.Edition != "2025" || e.EmbarkDate == nil || *e.EmbarkDate != "2025-05-01" ||
-		e.DisembarkDate == nil || *e.DisembarkDate != "2025-05-08" {
+	if e.Edition == nil || *e.Edition != "2025" || e.PublishedAt == nil || !e.PublishedAt.Equal(testTime) {
 		t.Fatalf("unexpected optionals: %+v", e)
 	}
-	if p := out[1]; p.Edition != nil || p.EmbarkDate != nil || p.DisembarkDate != nil {
+	if p := out[1]; p.Edition != nil || p.PublishedAt != nil {
 		t.Fatalf("want nil optionals, got %+v", p)
 	}
 	if CruiseSeriesEditionsFromDB(nil) == nil {

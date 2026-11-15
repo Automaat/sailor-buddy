@@ -23,8 +23,7 @@ func capacityLeg(t *testing.T, conn *sql.DB, maxCrew, n int) (tripID int64, user
 	ctx := context.Background()
 	q := sqlcdb.New(conn)
 	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "WSEX", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "WSEX", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)

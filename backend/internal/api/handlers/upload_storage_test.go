@@ -302,7 +302,7 @@ func TestImageStorage_CleanupKeepsReferencedRecentAndOtherOwners(t *testing.T) {
 	other := storedURL(t, f.upload(2))
 	_, api := humatest.New(t)
 	RegisterCruiseRoutes(api, q, f.conn)
-	response := api.PostCtx(callerCtx(1, "admin"), "/cruises", asDBEdition(t, f.conn, map[string]any{"name": "Attached", "kind": "sea", "image_photo_url": retained}))
+	response := api.PostCtx(callerCtx(1, "admin"), "/cruises", asDBEdition(t, f.conn, map[string]any{"name": "Attached", "image_photo_url": retained}))
 	if response.Code != 201 {
 		t.Fatalf("attach: %d %s", response.Code, response.Body)
 	}
@@ -321,7 +321,7 @@ func TestImageStorage_CleanupKeepsReferencedRecentAndOtherOwners(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(f.dir, strings.TrimPrefix(abandoned, "/api/uploads/"))); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("abandoned remains: %v", err)
 	}
-	response = api.PostCtx(callerCtx(1, "admin"), "/cruises", asDBEdition(t, f.conn, map[string]any{"name": "Expired", "kind": "sea", "image_photo_url": abandoned}))
+	response = api.PostCtx(callerCtx(1, "admin"), "/cruises", asDBEdition(t, f.conn, map[string]any{"name": "Expired", "image_photo_url": abandoned}))
 	if response.Code != 422 {
 		t.Fatalf("attach deleted image: %d %s", response.Code, response.Body)
 	}

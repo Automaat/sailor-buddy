@@ -94,16 +94,14 @@ describe('trip page status', () => {
 		expect(await screen.findByRole('heading', { name: 'Zrealizuj rejs' })).toBeInTheDocument();
 	});
 
-	it('uses the cruise end when the leg has no dates', async () => {
+	it('keeps a leg without dates planned', async () => {
 		mockAuth.isAdmin = true;
-		serve(
-			makeTrip({ id: 50, embark_date: undefined, disembark_date: undefined }),
-			makeCruise({ id: 1, disembark_date: '2026-08-09' })
-		);
+		serve(makeTrip({ id: 50, embark_date: undefined, disembark_date: undefined }));
 		await renderPage();
 
-		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Zrealizuj teraz' })).toBeInTheDocument();
+		expect(await screen.findByText('Planowany')).toBeInTheDocument();
+		expect(screen.queryByText('Do rozliczenia')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Zrealizuj teraz' })).not.toBeInTheDocument();
 	});
 
 	it('shows the status but no prompt to a member', async () => {

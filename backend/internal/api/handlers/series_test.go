@@ -150,6 +150,111 @@ func TestSeriesHandler_AdminWrites(t *testing.T) {
 	})
 }
 
+func TestSeriesHandler_Kind(t *testing.T) {
+	admin := userCtx(context.Background())
+
+	createCases := []struct {
+		name string
+		body map[string]any
+		want string
+	}{
+		{name: "inland", body: map[string]any{"name": "Mazury", "kind": "inland"}, want: "inland"},
+		{name: "sea", body: map[string]any{"name": "Bałtyk", "kind": "sea"}, want: "sea"},
+		{name: "omitted defaults to sea", body: map[string]any{"name": "Bałtyk"}, want: "sea"},
+	}
+	for _, tc := range createCases {
+		t.Run("create "+tc.name, func(t *testing.T) {
+			var stored string
+			m := &mockQuerier{
+				createCruiseSeriesFn: func(_ context.Context, arg sqlcdb.CreateCruiseSeriesParams) (sqlcdb.CruiseSeries, error) {
+					stored = arg.Kind
+					return sqlcdb.CruiseSeries{ID: 1, Name: arg.Name, Kind: arg.Kind}, nil
+				},
+			}
+			resp := seriesTestAPI(t, m).PostCtx(admin, "/series", tc.body)
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
+			}
+			if stored != tc.want {
+				t.Errorf("stored kind = %q, want %q", stored, tc.want)
+			}
+			var out dto.CruiseSeries
+			if err := json.Unmarshal(resp.Body.Bytes(), &out); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if out.Kind != tc.want {
+				t.Errorf("response kind = %q, want %q", out.Kind, tc.want)
+			}
+		})
+	}
+
+	updateCases := []struct {
+		name string
+		body map[string]any
+		want string
+	}{
+		{name: "inland", body: map[string]any{"name": "Mazury", "kind": "inland"}, want: "inland"},
+		{name: "omitted defaults to sea", body: map[string]any{"name": "Bałtyk"}, want: "sea"},
+	}
+	for _, tc := range updateCases {
+		t.Run("update "+tc.name, func(t *testing.T) {
+			var stored string
+			m := &mockQuerier{
+				getCruiseSeriesFn: func(_ context.Context, id int64) (sqlcdb.CruiseSeries, error) {
+					return sqlcdb.CruiseSeries{ID: id}, nil
+				},
+				updateCruiseSeriesFn: func(_ context.Context, arg sqlcdb.UpdateCruiseSeriesParams) error {
+					stored = arg.Kind
+					return nil
+				},
+			}
+			resp := seriesTestAPI(t, m).PutCtx(admin, "/series/1", tc.body)
+			if resp.Code != http.StatusNoContent {
+				t.Fatalf("got %d, want 204; body=%s", resp.Code, resp.Body)
+			}
+			if stored != tc.want {
+				t.Errorf("stored kind = %q, want %q", stored, tc.want)
+			}
+		})
+	}
+
+	for _, kind := range []any{"lake", "", "SEA", 1} {
+		t.Run(fmt.Sprintf("create rejects kind %v", kind), func(t *testing.T) {
+			resp := seriesTestAPI(t, &mockQuerier{}).PostCtx(admin, "/series",
+				map[string]any{"name": "X", "kind": kind})
+			if resp.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
+			}
+		})
+		t.Run(fmt.Sprintf("update rejects kind %v", kind), func(t *testing.T) {
+			resp := seriesTestAPI(t, &mockQuerier{}).PutCtx(admin, "/series/1",
+				map[string]any{"name": "X", "kind": kind})
+			if resp.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
+			}
+		})
+	}
+
+	t.Run("get returns kind", func(t *testing.T) {
+		m := &mockQuerier{
+			getCruiseSeriesFn: func(_ context.Context, id int64) (sqlcdb.CruiseSeries, error) {
+				return sqlcdb.CruiseSeries{ID: id, Name: "Mazury", Kind: "inland"}, nil
+			},
+		}
+		resp := seriesTestAPI(t, m).GetCtx(userCtxRole(context.Background(), "member"), "/series/1")
+		if resp.Code != http.StatusOK {
+			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
+		}
+		var out dto.CruiseSeries
+		if err := json.Unmarshal(resp.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if out.Kind != "inland" {
+			t.Errorf("kind = %q, want inland", out.Kind)
+		}
+	})
+}
+
 func TestSeriesHandler_MemberWritesForbidden(t *testing.T) {
 	member := userCtxRole(context.Background(), "member")
 	body := map[string]any{"name": "X"}
@@ -184,8 +289,8 @@ func TestSeriesHandler_Editions(t *testing.T) {
 			listCruiseSeriesEditionsFn: func(_ context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error) {
 				gotSeries = seriesID
 				return []sqlcdb.ListCruiseSeriesEditionsRow{
-					{ID: 20, Name: "MIS 2025", Edition: types.NullString{String: "2025", Valid: true}, Kind: "sea", VoyageCount: 2, TotalMiles: 200, TotalHours: 40},
-					{ID: 10, Name: "MIS 2024", Edition: types.NullString{String: "2024", Valid: true}, Kind: "inland", VoyageCount: 1, TotalMiles: 100.5, TotalHours: 20},
+					{ID: 20, Name: "MIS 2025", Edition: types.NullString{String: "2025", Valid: true}, VoyageCount: 2, TotalMiles: 200, TotalHours: 40},
+					{ID: 10, Name: "MIS 2024", Edition: types.NullString{String: "2024", Valid: true}, VoyageCount: 1, TotalMiles: 100.5, TotalHours: 20},
 				}, nil
 			},
 		}
@@ -208,7 +313,7 @@ func TestSeriesHandler_Editions(t *testing.T) {
 			first.TotalMiles != 200 || first.TotalHours != 40 || first.VoyageCount != 2 {
 			t.Errorf("first edition = %+v", first)
 		}
-		if second.CruiseID != 10 || second.Kind != "inland" || second.TotalMiles != 100.5 || second.TotalHours != 20 {
+		if second.CruiseID != 10 || second.TotalMiles != 100.5 || second.TotalHours != 20 {
 			t.Errorf("second edition = %+v", second)
 		}
 	})
@@ -263,7 +368,7 @@ func TestCruiseHandler_Series(t *testing.T) {
 			getCruiseSeriesFn: knownSeries,
 			createCruiseFn: func(_ context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
 				got = arg
-				return sqlcdb.Cruise{ID: 1, Name: arg.Name, Kind: arg.Kind, SeriesID: arg.SeriesID, Edition: arg.Edition}, nil
+				return sqlcdb.Cruise{ID: 1, Name: arg.Name, SeriesID: arg.SeriesID, Edition: arg.Edition}, nil
 			},
 		}
 		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises",
@@ -287,7 +392,7 @@ func TestCruiseHandler_Series(t *testing.T) {
 		m := &mockQuerier{
 			getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) {
 				return sqlcdb.Cruise{
-					ID: id, Name: "MIS 2025", Kind: "sea",
+					ID: id, Name: "MIS 2025",
 					SeriesID: types.NullInt64{Int64: 3, Valid: true},
 					Edition:  types.NullString{String: "2025", Valid: true},
 				}, nil

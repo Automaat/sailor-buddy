@@ -154,7 +154,7 @@ func TestSensitiveDataAccess(t *testing.T) {
 	if _, err := conn.Exec(`UPDATE crew_members SET emergency_contact_name='PRIVATE-NAME',emergency_contact_phone='PRIVATE-PHONE' WHERE id=$1`, subject); err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.QueryRow(`INSERT INTO cruises(name,group_chat_url,enroll_token,published_at) VALUES('Event','https://chat.example/private','share',now()) RETURNING id`).Scan(&cruise); err != nil {
+	if err := conn.QueryRow(`INSERT INTO cruises(name,enroll_token,published_at) VALUES('Event','share',now()) RETURNING id`).Scan(&cruise); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.QueryRow(`INSERT INTO voyages(name,cruise_id,captain_person_id,published_at) VALUES('Voyage',$1,$2,now()) RETURNING id`, cruise, captain).Scan(&voyage); err != nil {
@@ -233,8 +233,8 @@ func TestSensitiveDataAccess(t *testing.T) {
 	}
 	for _, token := range []string{"pending", "unverified", "approved"} {
 		rr := securityRequest(h, token, "GET", "/api/enroll/share", "")
-		if rr.Code != 200 || strings.Contains(rr.Body.String(), "https://chat.example/private") != (token == "approved") {
-			t.Fatalf("chat access %s: %d %s", token, rr.Code, rr.Body)
+		if rr.Code != 200 {
+			t.Fatalf("enroll preview %s: %d %s", token, rr.Code, rr.Body)
 		}
 	}
 }

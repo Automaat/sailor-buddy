@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import type { CruiseSeries } from '#lib/api/types.js';
+import { makeSeries } from '#lib/test-utils.js';
 
 vi.mock('#lib/api/routes.js', () => ({ listSeries: vi.fn(), createSeries: vi.fn() }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
@@ -14,16 +14,6 @@ import SeriesPage from './+page.svelte';
 const mockList = listSeries as unknown as ReturnType<typeof vi.fn>;
 const mockCreate = createSeries as unknown as ReturnType<typeof vi.fn>;
 const mockAuth = auth as unknown as { isAdmin: boolean };
-
-function makeSeries(overrides: Partial<CruiseSeries> = {}): CruiseSeries {
-	return {
-		id: 1,
-		name: 'May I Sail',
-		created_at: '2026-01-01T00:00:00Z',
-		updated_at: '2026-01-01T00:00:00Z',
-		...overrides
-	};
-}
 
 beforeEach(() => {
 	mockList.mockReset().mockResolvedValue([]);
@@ -48,6 +38,16 @@ describe('series page', () => {
 		expect(screen.getByText('Od 2012')).toBeInTheDocument();
 	});
 
+	it("shows each series' kind on its card", async () => {
+		mockList.mockResolvedValue([
+			makeSeries({ id: 4, name: 'Mazury', kind: 'inland' }),
+			makeSeries({ id: 5, name: 'Bałtyk', kind: 'sea' })
+		]);
+		render(SeriesPage);
+		expect((await screen.findByText('Mazury')).closest('a')).toHaveTextContent('Śródlądowy');
+		expect(screen.getByText('Bałtyk').closest('a')).toHaveTextContent('Morski');
+	});
+
 	it('lets an admin create a series', async () => {
 		mockCreate.mockResolvedValue(makeSeries({ id: 7, name: 'Navigare Necesse Est' }));
 		render(SeriesPage);
@@ -61,9 +61,31 @@ describe('series page', () => {
 
 		expect(mockCreate).toHaveBeenCalledWith({
 			name: 'Navigare Necesse Est',
-			description: undefined
+			description: undefined,
+			kind: 'sea'
 		});
 		expect(await screen.findByText('Navigare Necesse Est')).toBeInTheDocument();
+	});
+
+	it('creates a series of the picked kind', async () => {
+		mockCreate.mockResolvedValue(makeSeries({ id: 8, name: 'Mazury', kind: 'inland' }));
+		render(SeriesPage);
+		await screen.findByText('Brak serii');
+
+		await fireEvent.click(screen.getByRole('button', { name: '+ Dodaj serię' }));
+		expect(screen.getByLabelText('Rodzaj rejsów')).toHaveValue('sea');
+		await fireEvent.input(screen.getByLabelText('Nazwa *'), { target: { value: 'Mazury' } });
+		await fireEvent.change(screen.getByLabelText('Rodzaj rejsów'), {
+			target: { value: 'inland' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
+
+		expect(mockCreate).toHaveBeenCalledWith({
+			name: 'Mazury',
+			description: undefined,
+			kind: 'inland'
+		});
+		expect((await screen.findByText('Mazury')).closest('a')).toHaveTextContent('Śródlądowy');
 	});
 
 	it('hides the create button for a member', async () => {
@@ -82,7 +104,7 @@ describe('series page', () => {
 		await fireEvent.input(screen.getByLabelText('Opis'), { target: { value: 'Opis serii' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj' }));
 
-		expect(mockCreate).toHaveBeenCalledWith({ name: 'X', description: 'Opis serii' });
+		expect(mockCreate).toHaveBeenCalledWith({ name: 'X', description: 'Opis serii', kind: 'sea' });
 		expect(await screen.findByText('boom')).toBeInTheDocument();
 	});
 

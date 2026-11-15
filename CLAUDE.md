@@ -107,6 +107,12 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   `cruise_id` wraps it in its own cruise without a series. Cruises without a
   series stay valid; the Rejsy list links one with a single trip and no
   voyages straight to the trip (`src/lib/rejsy.ts`).
+- An edycja (`cruises`) holds only what all its legs share: name, countries,
+  description, images, `included`/`not_included`, travel notes, min age.
+  Dates, ports, captain, yacht, crew limit and prices live on each etap;
+  the frontend derives an edition's dates from its legs only for sorting and
+  tabs and does not show them. `kind` (sea/inland) is on `cruise_series`; a
+  cruise without a series is sea.
 - Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require verified Firebase email and `users.access_approved`;
   `users.suspended` denies existing-token access. Emergency contacts are
   restricted to admins and assigned captains; opinions to admins, subject,

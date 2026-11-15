@@ -34,6 +34,11 @@ type dateKey struct {
 	ID   int64   `json:"i"`
 }
 
+// idKey is the keyset cursor of a list sorted by id alone.
+type idKey struct {
+	ID int64 `json:"i"`
+}
+
 // voyageKey is the keyset cursor of the voyage list: (year, embark_date, id).
 type voyageKey struct {
 	Year *int64  `json:"y"`
@@ -60,6 +65,7 @@ type cursorKey interface{ valid() bool }
 
 func (k *nameKey) valid() bool   { return k.ID > 0 && !strings.ContainsRune(k.Name, 0) }
 func (k *dateKey) valid() bool   { return k.ID > 0 && noNUL(k.Date) }
+func (k *idKey) valid() bool     { return k.ID > 0 }
 func (k *voyageKey) valid() bool { return k.ID > 0 && noNUL(k.Date) }
 
 func noNUL(s *string) bool { return s == nil || !strings.ContainsRune(*s, 0) }
