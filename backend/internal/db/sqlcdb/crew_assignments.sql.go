@@ -34,43 +34,6 @@ func (q *Queries) AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcce
 	return err
 }
 
-const createTripCrewAssignment = `-- name: CreateTripCrewAssignment :one
-INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
-`
-
-type CreateTripCrewAssignmentParams struct {
-	TripID       types.NullInt64  `json:"trip_id"`
-	CrewMemberID int64            `json:"crew_member_id"`
-	Role         string           `json:"role"`
-	PatentNumber types.NullString `json:"patent_number"`
-}
-
-// CreateTripCrewAssignment
-//
-//	INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
-func (q *Queries) CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error) {
-	row := q.db.QueryRowContext(ctx, createTripCrewAssignment,
-		arg.TripID,
-		arg.CrewMemberID,
-		arg.Role,
-		arg.PatentNumber,
-	)
-	var i CrewAssignment
-	err := row.Scan(
-		&i.ID,
-		&i.TripID,
-		&i.VoyageID,
-		&i.CrewMemberID,
-		&i.Role,
-		&i.PatentNumber,
-		&i.CreatedAt,
-		&i.AddedByAcceptance,
-	)
-	return i, err
-}
-
 const createVoyageCrewAssignment = `-- name: CreateVoyageCrewAssignment :one
 INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
 VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
@@ -653,10 +616,10 @@ USING crew_members cm
 WHERE ca.trip_id = $1::BIGINT
   AND ca.added_by_acceptance
   AND cm.id = ca.crew_member_id
-  AND cm.user_id = $2::BIGINT
+  AND (cm.id = $2::BIGINT OR cm.user_id = $3::BIGINT)
   AND NOT EXISTS (
       SELECT 1 FROM trip_enrollments te
-      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+      WHERE te.trip_id = ca.trip_id AND te.crew_member_id = cm.id AND te.status = 'accepted'
   )
   AND NOT EXISTS (
       SELECT 1 FROM cruise_enrollments ce
@@ -665,30 +628,32 @@ WHERE ca.trip_id = $1::BIGINT
 `
 
 type RemoveAcceptedTripCrewAssignmentParams struct {
-	TripID int64 `json:"trip_id"`
-	UserID int64 `json:"user_id"`
+	TripID       int64           `json:"trip_id"`
+	CrewMemberID types.NullInt64 `json:"crew_member_id"`
+	UserID       types.NullInt64 `json:"user_id"`
 }
 
-// Takes a user's person off a trip's crew when the entry came from an
-// accepted sign-up and the user no longer has any accepted sign-up for the
-// trip, direct or through a cruise enrollment assigned to it.
+// Takes a person off a trip's crew when the entry came from an accepted
+// sign-up and the person no longer has any accepted sign-up for the trip:
+// a direct one, or a cruise enrollment of the person's account assigned to
+// it. The person is crew_member_id, or the person of the account user_id.
 //
 //	DELETE FROM crew_assignments ca
 //	USING crew_members cm
 //	WHERE ca.trip_id = $1::BIGINT
 //	  AND ca.added_by_acceptance
 //	  AND cm.id = ca.crew_member_id
-//	  AND cm.user_id = $2::BIGINT
+//	  AND (cm.id = $2::BIGINT OR cm.user_id = $3::BIGINT)
 //	  AND NOT EXISTS (
 //	      SELECT 1 FROM trip_enrollments te
-//	      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+//	      WHERE te.trip_id = ca.trip_id AND te.crew_member_id = cm.id AND te.status = 'accepted'
 //	  )
 //	  AND NOT EXISTS (
 //	      SELECT 1 FROM cruise_enrollments ce
 //	      WHERE ce.trip_id = ca.trip_id AND ce.user_id = cm.user_id AND ce.status = 'accepted'
 //	  )
 func (q *Queries) RemoveAcceptedTripCrewAssignment(ctx context.Context, arg RemoveAcceptedTripCrewAssignmentParams) error {
-	_, err := q.db.ExecContext(ctx, removeAcceptedTripCrewAssignment, arg.TripID, arg.UserID)
+	_, err := q.db.ExecContext(ctx, removeAcceptedTripCrewAssignment, arg.TripID, arg.CrewMemberID, arg.UserID)
 	return err
 }
 
@@ -709,4 +674,55 @@ type RepointCrewAssignmentsToVoyageParams struct {
 func (q *Queries) RepointCrewAssignmentsToVoyage(ctx context.Context, arg RepointCrewAssignmentsToVoyageParams) error {
 	_, err := q.db.ExecContext(ctx, repointCrewAssignmentsToVoyage, arg.VoyageID, arg.TripID)
 	return err
+}
+
+const updateTripCrewAssignmentRole = `-- name: UpdateTripCrewAssignmentRole :one
+UPDATE crew_assignments ca SET role = $1
+FROM crew_members cm
+WHERE ca.id = $2 AND ca.trip_id = $3::BIGINT AND cm.id = ca.crew_member_id
+RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+          cm.full_name, cm.email
+`
+
+type UpdateTripCrewAssignmentRoleParams struct {
+	Role   string `json:"role"`
+	ID     int64  `json:"id"`
+	TripID int64  `json:"trip_id"`
+}
+
+type UpdateTripCrewAssignmentRoleRow struct {
+	ID           int64            `json:"id"`
+	TripID       types.NullInt64  `json:"trip_id"`
+	VoyageID     types.NullInt64  `json:"voyage_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Role         string           `json:"role"`
+	PatentNumber types.NullString `json:"patent_number"`
+	CreatedAt    types.NullTime   `json:"created_at"`
+	FullName     string           `json:"full_name"`
+	Email        types.NullString `json:"email"`
+}
+
+// Sets the role of one crew entry of a trip. No row when the trip has no
+// such entry.
+//
+//	UPDATE crew_assignments ca SET role = $1
+//	FROM crew_members cm
+//	WHERE ca.id = $2 AND ca.trip_id = $3::BIGINT AND cm.id = ca.crew_member_id
+//	RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+//	          cm.full_name, cm.email
+func (q *Queries) UpdateTripCrewAssignmentRole(ctx context.Context, arg UpdateTripCrewAssignmentRoleParams) (UpdateTripCrewAssignmentRoleRow, error) {
+	row := q.db.QueryRowContext(ctx, updateTripCrewAssignmentRole, arg.Role, arg.ID, arg.TripID)
+	var i UpdateTripCrewAssignmentRoleRow
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.VoyageID,
+		&i.CrewMemberID,
+		&i.Role,
+		&i.PatentNumber,
+		&i.CreatedAt,
+		&i.FullName,
+		&i.Email,
+	)
+	return i, err
 }

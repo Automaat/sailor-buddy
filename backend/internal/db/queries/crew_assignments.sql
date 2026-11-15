@@ -1,7 +1,3 @@
--- name: CreateTripCrewAssignment :one
-INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-VALUES ($1, $2, $3, $4) RETURNING *;
-
 -- name: CreateVoyageCrewAssignment :one
 INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
 VALUES ($1, $2, $3, $4) RETURNING *;
@@ -21,6 +17,15 @@ FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
 WHERE ca.voyage_id = $1
 ORDER BY cm.full_name;
+
+-- name: UpdateTripCrewAssignmentRole :one
+-- Sets the role of one crew entry of a trip. No row when the trip has no
+-- such entry.
+UPDATE crew_assignments ca SET role = sqlc.arg(role)
+FROM crew_members cm
+WHERE ca.id = sqlc.arg(id) AND ca.trip_id = sqlc.arg(trip_id)::BIGINT AND cm.id = ca.crew_member_id
+RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+          cm.full_name, cm.email;
 
 -- name: DeleteTripCrewAssignment :exec
 DELETE FROM crew_assignments WHERE id = $1 AND trip_id = $2;
@@ -71,18 +76,19 @@ VALUES (sqlc.arg(trip_id)::BIGINT, sqlc.arg(crew_member_id)::BIGINT, TRUE)
 ON CONFLICT (trip_id, crew_member_id) WHERE trip_id IS NOT NULL DO NOTHING;
 
 -- name: RemoveAcceptedTripCrewAssignment :exec
--- Takes a user's person off a trip's crew when the entry came from an
--- accepted sign-up and the user no longer has any accepted sign-up for the
--- trip, direct or through a cruise enrollment assigned to it.
+-- Takes a person off a trip's crew when the entry came from an accepted
+-- sign-up and the person no longer has any accepted sign-up for the trip:
+-- a direct one, or a cruise enrollment of the person's account assigned to
+-- it. The person is crew_member_id, or the person of the account user_id.
 DELETE FROM crew_assignments ca
 USING crew_members cm
 WHERE ca.trip_id = sqlc.arg(trip_id)::BIGINT
   AND ca.added_by_acceptance
   AND cm.id = ca.crew_member_id
-  AND cm.user_id = sqlc.arg(user_id)::BIGINT
+  AND (cm.id = sqlc.narg(crew_member_id)::BIGINT OR cm.user_id = sqlc.narg(user_id)::BIGINT)
   AND NOT EXISTS (
       SELECT 1 FROM trip_enrollments te
-      WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+      WHERE te.trip_id = ca.trip_id AND te.crew_member_id = cm.id AND te.status = 'accepted'
   )
   AND NOT EXISTS (
       SELECT 1 FROM cruise_enrollments ce

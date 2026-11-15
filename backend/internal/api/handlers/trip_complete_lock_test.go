@@ -103,8 +103,9 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 	if _, err := q.PublishTrip(ctx, trip.ID); err != nil {
 		t.Fatalf("publish trip: %v", err)
 	}
+	person := ensurePerson(t, conn, user.ID)
 	if _, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
-		TripID: trip.ID, UserID: user.ID, Status: enrollmentPending,
+		TripID: trip.ID, CrewMemberID: person, Status: enrollmentPending,
 	}); err != nil {
 		t.Fatalf("seed enrollment: %v", err)
 	}

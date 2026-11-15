@@ -7,11 +7,10 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	deleteTrip: vi.fn(),
 	listTripCrew: vi.fn(),
-	assignTripCrew: vi.fn(),
 	removeTripCrew: vi.fn(),
+	updateTripCrewRole: vi.fn(),
 	cancelTrip: vi.fn(),
 	completeTrip: vi.fn(),
-	listAssignableCrew: vi.fn(),
 	getCruise: vi.fn(),
 	generateTripEnrollToken: vi.fn(),
 	clearTripEnrollToken: vi.fn(),
@@ -35,10 +34,10 @@ import {
 	getCruise,
 	getTrip,
 	getTripSignUp,
-	listAssignableCrew,
 	listTripCrew,
 	publishTrip,
 	removeTripCrew,
+	updateTripCrewRole,
 	unpublishTrip,
 	signUpForTrip,
 	updateTripSignUpNote
@@ -70,7 +69,6 @@ beforeEach(() => {
 	vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
 	mockAuth.isAdmin = false;
 	vi.mocked(listTripCrew).mockResolvedValue([]);
-	vi.mocked(listAssignableCrew).mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -353,6 +351,95 @@ describe('trip page crew removal', () => {
 	});
 });
 
+describe('trip page crew from sign-ups', () => {
+	const anna = {
+		id: 1,
+		crew_member_id: 3,
+		full_name: 'Anna Nowak',
+		role: 'zalogant',
+		created_at: '2026-01-01T00:00:00Z'
+	};
+
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: 'Jacht A', status: 'planned' }));
+		vi.mocked(listTripCrew).mockResolvedValue([anna]);
+		vi.mocked(updateTripCrewRole).mockReset();
+	});
+
+	it('offers no form to add crew by hand and points to the sign-ups', async () => {
+		await renderPage();
+
+		const hint = await screen.findByTestId('crew-hint');
+		expect(hint).toHaveTextContent('Załoga powstaje z zaakceptowanych zapisów');
+		const manage = within(hint).getByRole('link', { name: 'Zarządzaj zapisami' });
+		expect(manage).toHaveAttribute('href', '/trips/50/enrollments');
+		expect(screen.queryByLabelText('Załogant')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Dodaj' })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Usuń' })).toBeInTheDocument();
+	});
+
+	it('saves an edited role for one crew member', async () => {
+		vi.mocked(updateTripCrewRole).mockResolvedValue({ ...anna, role: 'oficer' });
+		await renderPage();
+
+		const role = await screen.findByLabelText('Rola: Anna Nowak');
+		expect(role).toHaveValue('zalogant');
+		const save = screen.getByRole('button', { name: 'Zapisz rolę: Anna Nowak' });
+		expect(save).toBeDisabled();
+		await fireEvent.input(role, { target: { value: '  oficer ' } });
+		expect(save).toBeEnabled();
+		await fireEvent.click(save);
+
+		await waitFor(() => expect(updateTripCrewRole).toHaveBeenCalledWith(50, 1, 'oficer'));
+		await waitFor(() => expect(save).toBeDisabled());
+		expect(role).toHaveValue('oficer');
+		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+	});
+
+	it('keeps a blank role from being saved', async () => {
+		await renderPage();
+
+		const role = await screen.findByLabelText('Rola: Anna Nowak');
+		await fireEvent.input(role, { target: { value: '   ' } });
+		expect(screen.getByRole('button', { name: 'Zapisz rolę: Anna Nowak' })).toBeDisabled();
+		expect(updateTripCrewRole).not.toHaveBeenCalled();
+	});
+
+	it('shows the error and keeps the draft when saving the role fails', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(updateTripCrewRole).mockRejectedValue(new ApiError(404, 'crew assignment not found'));
+		await renderPage();
+
+		const role = await screen.findByLabelText('Rola: Anna Nowak');
+		await fireEvent.input(role, { target: { value: 'oficer' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz rolę: Anna Nowak' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się zmienić roli: crew assignment not found'
+		);
+		expect(role).toHaveValue('oficer');
+	});
+
+	it('shows the role without editing on a cancelled leg', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A', status: 'cancelled' }));
+		await renderPage();
+
+		expect(await screen.findByText('zalogant')).toBeInTheDocument();
+		expect(screen.queryByLabelText('Rola: Anna Nowak')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('crew-hint')).not.toBeInTheDocument();
+	});
+
+	it('shows a member neither the crew nor the role editor', async () => {
+		mockAuth.isAdmin = false;
+		await renderPage();
+
+		await screen.findByRole('heading', { name: 'Jacht A' });
+		expect(screen.queryByLabelText('Rola: Anna Nowak')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('crew-hint')).not.toBeInTheDocument();
+	});
+});
+
 describe('trip page load errors', () => {
 	it('names a failed crew list instead of showing no crew, and renders the leg', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -380,11 +467,10 @@ describe('trip page load errors', () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		serve(makeTrip({ id: 50, name: 'Jacht A' }));
 		vi.mocked(listTripCrew).mockRejectedValueOnce(new Error('500'));
-		vi.mocked(listAssignableCrew).mockRejectedValueOnce(new Error('500'));
 		await renderPage();
 
 		await screen.findByRole('heading', { name: 'Jacht A' });
-		await waitFor(() => expect(listAssignableCrew).toHaveBeenCalled());
+		await waitFor(() => expect(listTripCrew).toHaveBeenCalled());
 		expect(screen.queryByText(/Nie udało się wczytać/)).not.toBeInTheDocument();
 	});
 

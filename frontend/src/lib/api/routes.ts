@@ -56,8 +56,11 @@ export function listTripCrew(id: number) {
 	return api.get('/trips/{tripID}/crew', { path: { tripID: id } });
 }
 
-export function assignTripCrew(id: number, body: Schemas['CrewAssignmentBody']) {
-	return api.post('/trips/{tripID}/crew', { path: { tripID: id }, body });
+export function updateTripCrewRole(id: number, assignmentID: number, role: string) {
+	return api.patch('/trips/{tripID}/crew/{assignmentID}', {
+		path: { tripID: id, assignmentID },
+		body: { role }
+	});
 }
 
 export function removeTripCrew(id: number, assignmentID: number) {
@@ -74,6 +77,11 @@ export function clearTripEnrollToken(id: number) {
 
 export function listTripEnrollments(id: number) {
 	return api.get('/trips/{tripID}/enrollments', { path: { tripID: id } });
+}
+
+/** An admin signs up any person, also one without an account. */
+export function createTripEnrollment(tripID: number, body: Schemas['TripEnrollmentCreateBody']) {
+	return api.post('/trips/{tripID}/enrollments', { path: { tripID }, body });
 }
 
 export function updateTripEnrollmentStatus(
@@ -248,7 +256,7 @@ export function listCrew() {
 	return api.list('/crew');
 }
 
-// listAssignableCrew returns the crew pool for trip/voyage assignment pickers.
+// listAssignableCrew returns the people for the voyage crew and leg sign-up pickers.
 export function listAssignableCrew() {
 	return api.list('/crew');
 }

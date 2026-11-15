@@ -764,17 +764,19 @@ describe('cruise page admin sign-ups by leg', () => {
 			{
 				...pending(50),
 				id: 1,
+				crew_member_id: 14,
 				user_id: 4,
-				user_name: 'Ola Nowak',
-				user_email: 'ola@example.com',
+				person_name: 'Ola Nowak',
+				email: 'ola@example.com',
 				note: 'koja dziobowa'
 			},
 			{
 				...pending(51),
 				id: 2,
-				user_id: 5,
-				user_name: '',
-				user_email: 'piotr@example.com',
+				crew_member_id: 15,
+				user_id: undefined,
+				person_name: 'Piotr Bezkonta',
+				email: 'piotr@example.com',
 				status: 'accepted'
 			}
 		]);
@@ -800,7 +802,9 @@ describe('cruise page admin sign-ups by leg', () => {
 		expect(within(a).getByText('Ola Nowak')).toBeInTheDocument();
 		expect(within(a).getByText('koja dziobowa')).toBeInTheDocument();
 		expect(within(a).getByText('Ala Kowalska')).toBeInTheDocument();
-		expect(within(b).getByText('piotr@example.com')).toBeInTheDocument();
+		expect(within(a).queryByText('bez konta')).not.toBeInTheDocument();
+		expect(within(b).getByText('Piotr Bezkonta')).toBeInTheDocument();
+		expect(within(b).getByText('bez konta')).toBeInTheDocument();
 		expect(within(b).getByText('zaakceptowany')).toBeInTheDocument();
 	});
 

@@ -43,6 +43,24 @@ async function post<T>(token: string, path: string, body?: unknown): Promise<T> 
 	return (await apiRequest(token, 'POST', path, body)) as T;
 }
 
+// A planned leg's crew comes only from accepted sign-ups: sign the person
+// up, accept the sign-up, then set the crew entry's role.
+async function addLegCrew(token: string, tripId: number, personId: number, role: string) {
+	const signUp = await post<{ id: number }>(token, `/trips/${tripId}/enrollments`, {
+		crew_member_id: personId
+	});
+	await apiRequest(token, 'PUT', `/trips/${tripId}/enrollments/${signUp.id}/status`, {
+		status: 'accepted'
+	});
+	const crew = (await apiRequest(token, 'GET', `/trips/${tripId}/crew`)) as {
+		id: number;
+		crew_member_id: number;
+	}[];
+	const entry = crew.find((c) => c.crew_member_id === personId);
+	if (!entry) throw new Error(`person ${personId} is not on the crew of leg ${tripId}`);
+	await apiRequest(token, 'PATCH', `/trips/${tripId}/crew/${entry.id}`, { role });
+}
+
 // main scrolls on its own, so content wider than the screen widens main's
 // scroll area without widening the document.
 async function pageWidth(page: Page, path: string): Promise<number> {
@@ -116,9 +134,9 @@ test.describe.serial('Phone layout', () => {
 			full_name: 'Aleksandra Konstancja Brzęczyszczykiewicz-Wolańczyk',
 			email: 'konstanty.brzeczyszczykiewicz@student.agh.edu.pl'
 		});
-		// The long name widens the crew selects on trip and voyage pages; the
-		// unbreakable email widens the /crew card.
-		await post(token, `/trips/${leg.id}/crew`, { crew_member_id: longCrew.id, role: 'Załoga' });
+		// The long name widens the people pickers on the sign-up and voyage
+		// pages; the unbreakable email widens the /crew card.
+		await addLegCrew(token, leg.id, longCrew.id, 'Załoga');
 		const voyage = await post<{ id: number }>(token, `/trips/${leg.id}/complete`, {
 			hours_sail: 30,
 			hours_engine: 18,
@@ -128,7 +146,7 @@ test.describe.serial('Phone layout', () => {
 			full_name: 'Załogant Testowy',
 			email: 'zalogant-z-dlugim-adresem@test.local'
 		});
-		await post(token, `/trips/${trip.id}/crew`, { crew_member_id: crew.id, role: 'Sternik' });
+		await addLegCrew(token, trip.id, crew.id, 'Sternik');
 		await post(token, '/yachts', { name: 'Jacht', yacht_type: 'Slup', length_m: 12 });
 		await post(token, '/trainings', { name: 'Szkolenie', date: '2027-03-01' });
 		const { token: enrollToken } = await post<{ token: string }>(

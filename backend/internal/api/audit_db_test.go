@@ -139,7 +139,8 @@ func TestAuditRealRoleChangesAndEarlyDenials(t *testing.T) {
 		t.Fatalf("sign-up: %d %s", signup.Code, signup.Body)
 	}
 	var enrollmentID int64
-	if err := conn.QueryRow(`SELECT id FROM trip_enrollments WHERE trip_id=$1 AND user_id=$2`, tripID, ids["target"]).Scan(&enrollmentID); err != nil {
+	if err := conn.QueryRow(`SELECT te.id FROM trip_enrollments te JOIN crew_members cm ON cm.id = te.crew_member_id
+		WHERE te.trip_id=$1 AND cm.user_id=$2`, tripID, ids["target"]).Scan(&enrollmentID); err != nil {
 		t.Fatal(err)
 	}
 	check(http.MethodPut, fmt.Sprintf("/api/trips/%d/enrollments/%d/payment-status", tripID, enrollmentID), `{"payment_status":"paid"}`, "update-trip-enrollment-payment-status", 200, map[string]int64{"trip_id": tripID, "record_id": enrollmentID})

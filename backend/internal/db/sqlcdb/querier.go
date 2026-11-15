@@ -63,15 +63,17 @@ type Querier interface {
 	//      decided_by = $2, decided_at = CURRENT_TIMESTAMP
 	//  WHERE user_id = $3 AND status = 'pending'
 	CloseUserPendingLinkRequests(ctx context.Context, arg CloseUserPendingLinkRequestsParams) error
-	// Accepted crew per trip of a cruise: distinct users with an accepted direct
-	// trip enrollment or an accepted cruise enrollment assigned to the trip.
+	// Accepted crew per trip of a cruise: distinct people with an accepted
+	// direct trip enrollment, or whose account has an accepted cruise
+	// enrollment assigned to the trip.
 	//
 	//  SELECT t.id AS trip_id,
 	//      (SELECT COUNT(*) FROM (
-	//          SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
+	//          SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
 	//          UNION
-	//          SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'
-	//      ) accepted_users)::BIGINT AS accepted
+	//          SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+	//          WHERE ce.trip_id = t.id AND ce.status = 'accepted'
+	//      ) accepted_people)::BIGINT AS accepted
 	//  FROM trips t
 	//  WHERE t.cruise_id = $1
 	//  ORDER BY t.id
@@ -79,10 +81,11 @@ type Querier interface {
 	// Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 	//
 	//  SELECT COUNT(*)::BIGINT AS accepted FROM (
-	//      SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
+	//      SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
 	//      UNION
-	//      SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'
-	//  ) accepted_users
+	//      SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+	//      WHERE ce.trip_id = $1 AND ce.status = 'accepted'
+	//  ) accepted_people
 	CountAcceptedForTrip(ctx context.Context, tripID int64) (int64, error)
 	//CountAdmins
 	//
@@ -100,7 +103,8 @@ type Querier interface {
 	//     )
 	CountCrewMembers(ctx context.Context, search types.NullString) (int64, error)
 	// Counts what merging the duplicate into the kept person moves. A shared
-	// row is a leg, voyage or voyage opinion both people already have.
+	// row is a leg, voyage, voyage opinion or leg sign-up both people already
+	// have.
 	//
 	//  SELECT
 	//      (SELECT COUNT(*) FROM crew_assignments
@@ -119,7 +123,12 @@ type Querier interface {
 	//      (SELECT COUNT(*) FROM trips
 	//       WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
 	//      (SELECT COUNT(*) FROM voyages
-	//       WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
+	//       WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages,
+	//      (SELECT COUNT(*) FROM trip_enrollments
+	//       WHERE crew_member_id = $1::BIGINT)::BIGINT AS trip_enrollments,
+	//      (SELECT COUNT(*) FROM trip_enrollments d
+	//       JOIN trip_enrollments k ON k.crew_member_id = $2::BIGINT AND k.trip_id = d.trip_id
+	//       WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_trip_enrollments
 	CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRowsParams) (CountCrewMergeRowsRow, error)
 	//CountCruiseEnrollments
 	//
@@ -151,16 +160,19 @@ type Querier interface {
 	//        OR image_upload_requests.requests < $2
 	//  RETURNING requests
 	CountImageUploadRequest(ctx context.Context, arg CountImageUploadRequestParams) (int64, error)
-	// Accepted crew of one trip other than the given user, counted the same way
-	// as CountAcceptedForTrip. Accepting that user's sign-up takes one more place.
+	// Accepted crew of one trip other than the given person, counted the same
+	// way as CountAcceptedForTrip. Accepting that person's sign-up takes one
+	// more place.
 	//
 	//  SELECT COUNT(*)::BIGINT AS accepted FROM (
-	//      SELECT te.user_id FROM trip_enrollments te
-	//      WHERE te.trip_id = $1 AND te.status = 'accepted' AND te.user_id <> $2
+	//      SELECT te.crew_member_id FROM trip_enrollments te
+	//      WHERE te.trip_id = $1::BIGINT AND te.status = 'accepted'
+	//        AND te.crew_member_id <> $2::BIGINT
 	//      UNION
-	//      SELECT ce.user_id FROM cruise_enrollments ce
-	//      WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
-	//  ) accepted_users
+	//      SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+	//      WHERE ce.trip_id = $1::BIGINT AND ce.status = 'accepted'
+	//        AND cm.id <> $2::BIGINT
+	//  ) accepted_people
 	CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherAcceptedForTripParams) (int64, error)
 	// CountOtherAdmins counts admins other than the given user, so a request
 	// holding a stale role still learns when its own account was promoted.
@@ -190,19 +202,20 @@ type Querier interface {
 	//      + (SELECT COUNT(*) FROM trip_enrollments te WHERE te.trip_id = $1::BIGINT)
 	//  )::BIGINT AS linked
 	CountTripLinkedEnrollments(ctx context.Context, tripID int64) (int64, error)
-	// How one trip's places are used. taken counts distinct users with an
-	// accepted or pending direct trip enrollment or cruise enrollment assigned
-	// to the trip; waitlisted counts its waitlisted trip enrollments. A new
-	// sign-up is waitlisted once taken reaches max_crew or anyone is waiting.
+	// How one trip's places are used. taken counts distinct people with an
+	// accepted or pending direct trip enrollment, or whose account has such a
+	// cruise enrollment assigned to the trip; waitlisted counts its waitlisted
+	// trip enrollments. A new sign-up is waitlisted once taken reaches max_crew
+	// or anyone is waiting.
 	//
 	//  SELECT
 	//      (SELECT COUNT(*) FROM (
-	//          SELECT te.user_id FROM trip_enrollments te
+	//          SELECT te.crew_member_id FROM trip_enrollments te
 	//          WHERE te.trip_id = $1::BIGINT AND te.status IN ('accepted', 'pending')
 	//          UNION
-	//          SELECT ce.user_id FROM cruise_enrollments ce
+	//          SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
 	//          WHERE ce.trip_id = $1::BIGINT AND ce.status IN ('accepted', 'pending')
-	//      ) taken_users)::BIGINT AS taken,
+	//      ) taken_people)::BIGINT AS taken,
 	//      (SELECT COUNT(*) FROM trip_enrollments w
 	//       WHERE w.trip_id = $1::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted
 	CountTripPlaceUse(ctx context.Context, tripID int64) (CountTripPlaceUseRow, error)
@@ -269,24 +282,19 @@ type Querier interface {
 	//      $20, $21, $22, $23, $24
 	//  ) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
 	CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, error)
-	//CreateTripCrewAssignment
-	//
-	//  INSERT INTO crew_assignments (trip_id, crew_member_id, role, patent_number)
-	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, voyage_id, crew_member_id, role, patent_number, created_at, added_by_acceptance
-	CreateTripCrewAssignment(ctx context.Context, arg CreateTripCrewAssignmentParams) (CrewAssignment, error)
 	// status is 'pending', or 'waitlisted' when the leg's places are taken.
 	//
-	//  INSERT INTO trip_enrollments (trip_id, user_id, note, status)
-	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+	//  INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
+	//  VALUES ($1, $2, $3, $4) RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 	CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error)
-	// Inserts a trip enrollment unless the user already has one for the trip;
+	// Inserts a trip enrollment unless the person already has one for the trip;
 	// returns no row (sql.ErrNoRows) when the enrollment already exists. status
 	// is 'pending', or 'waitlisted' when the leg's places are taken.
 	//
-	//  INSERT INTO trip_enrollments (trip_id, user_id, note, status)
+	//  INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
 	//  VALUES ($1, $2, $3, $4)
-	//  ON CONFLICT (trip_id, user_id) DO NOTHING
-	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+	//  ON CONFLICT (trip_id, crew_member_id) DO NOTHING
+	//  RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 	CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTripEnrollmentIfAbsentParams) (TripEnrollment, error)
 	//CreateUser
 	//
@@ -356,6 +364,20 @@ type Querier interface {
 	//    AND k.crew_member_id = $2::BIGINT
 	//    AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
 	DeleteSharedCrewAssignments(ctx context.Context, arg DeleteSharedCrewAssignmentsParams) (int64, error)
+	// On a leg both people signed up for, a merge keeps the sign-up with the
+	// stronger status (accepted > pending > waitlisted > rejected), the kept
+	// person's on a tie, and deletes the other one.
+	//
+	//  DELETE FROM trip_enrollments x
+	//  USING trip_enrollments k, trip_enrollments d
+	//  WHERE k.crew_member_id = $1::BIGINT
+	//    AND d.crew_member_id = $2::BIGINT
+	//    AND d.trip_id = k.trip_id
+	//    AND x.id = CASE
+	//        WHEN COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], d.status), 0)
+	//           > COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], k.status), 0)
+	//        THEN k.id ELSE d.id END
+	DeleteSharedTripEnrollments(ctx context.Context, arg DeleteSharedTripEnrollmentsParams) (int64, error)
 	// On a voyage both people have an opinion for, the kept person's stays. The
 	// returned file paths are removed once the merge commits.
 	//
@@ -535,6 +557,18 @@ type Querier interface {
 	//  WHERE t.enroll_token = $1 AND t.published_at IS NOT NULL AND EXISTS (
 	//      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)
 	GetTripByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetTripByEnrollTokenRow, error)
+	// One sign-up of a trip with its person, as in ListTripEnrollments. No row
+	// when the trip has no such sign-up.
+	//
+	//  SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+	//         te.created_at, te.updated_at,
+	//         cm.full_name AS person_name,
+	//         cm.email AS person_email, u.email AS account_email
+	//  FROM trip_enrollments te
+	//  JOIN crew_members cm ON cm.id = te.crew_member_id
+	//  LEFT JOIN users u ON u.id = cm.user_id
+	//  WHERE te.id = $1 AND te.trip_id = $2
+	GetTripEnrollmentDetail(ctx context.Context, arg GetTripEnrollmentDetailParams) (GetTripEnrollmentDetailRow, error)
 	// Row-locks the trip for the rest of the transaction. Trip completion takes
 	// it first, so a concurrent leg enrollment waits on its trip lock and
 	// then sees the trip gone instead of deadlocking with the deletes.
@@ -567,10 +601,11 @@ type Querier interface {
 	//  ORDER BY id
 	//  LIMIT 1
 	GetUserCruiseEnrollmentForTrip(ctx context.Context, arg GetUserCruiseEnrollmentForTripParams) (CruiseEnrollment, error)
-	//GetUserTripEnrollment
+	// The user's sign-up for a trip: the one of the account's person.
 	//
-	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
-	//  WHERE trip_id = $1 AND user_id = $2
+	//  SELECT id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id FROM trip_enrollments
+	//  WHERE trip_id = $1
+	//    AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
 	GetUserTripEnrollment(ctx context.Context, arg GetUserTripEnrollmentParams) (TripEnrollment, error)
 	// include_hidden is true for callers who may read hidden drafts; others get
 	// no row unless the voyage and its cruise are both published.
@@ -698,15 +733,17 @@ type Querier interface {
 	//      ) l
 	//  ) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 	ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSeriesEditionsParams) ([]ListCruiseSeriesEditionsRow, error)
-	// Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
-	// leg in leg order, then by sign-up time.
+	// Every trip (leg) enrollment of a cruise with its person, as in
+	// ListTripEnrollments, grouped by leg in leg order, then by sign-up time.
 	//
-	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+	//  SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
 	//         te.created_at, te.updated_at,
-	//         u.name AS user_name, u.email AS user_email
+	//         cm.full_name AS person_name,
+	//         cm.email AS person_email, u.email AS account_email
 	//  FROM trip_enrollments te
 	//  JOIN trips t ON t.id = te.trip_id
-	//  JOIN users u ON u.id = te.user_id
+	//  JOIN crew_members cm ON cm.id = te.crew_member_id
+	//  LEFT JOIN users u ON u.id = cm.user_id
 	//  WHERE t.cruise_id = $1
 	//  ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
 	ListCruiseTripEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseTripEnrollmentsRow, error)
@@ -795,15 +832,18 @@ type Querier interface {
 	//  WHERE ca.trip_id = $1
 	//  ORDER BY cm.full_name
 	ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]ListTripCrewAssignmentsRow, error)
-	//ListTripEnrollments
+	// A trip's sign-ups with their person. user_id and account_email are the
+	// person's account, NULL for a person without one.
 	//
-	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+	//  SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
 	//         te.created_at, te.updated_at,
-	//         u.name AS user_name, u.email AS user_email
+	//         cm.full_name AS person_name,
+	//         cm.email AS person_email, u.email AS account_email
 	//  FROM trip_enrollments te
-	//  JOIN users u ON u.id = te.user_id
+	//  JOIN crew_members cm ON cm.id = te.crew_member_id
+	//  LEFT JOIN users u ON u.id = cm.user_id
 	//  WHERE te.trip_id = $1
-	//  ORDER BY te.created_at
+	//  ORDER BY te.created_at, te.id
 	ListTripEnrollments(ctx context.Context, tripID int64) ([]ListTripEnrollmentsRow, error)
 	// A set after_id starts the page after the cursor's sort key. The keyset
 	// tuple sorts like the ORDER BY: a NULL embark_date last, then by id.
@@ -820,9 +860,10 @@ type Querier interface {
 	//  ORDER BY t.embark_date ASC, t.id ASC
 	//  LIMIT $5 OFFSET $4
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
-	// Cruises the user took part in: an accepted cruise or trip enrollment, a
-	// leg captained by the account's person, or a crew-list entry linked to the
-	// account, or one without an account that carries its email. Another
+	// Cruises the user took part in: an accepted cruise enrollment, an
+	// accepted trip enrollment of the account's person, a leg captained by the
+	// account's person, or a crew-list entry linked to the account, or one
+	// without an account that carries its email. Another
 	// account's person never matches by email: it keeps the email that account
 	// had when the person was created. Without include_hidden, a hidden cruise
 	// and a cruise reached only through a hidden leg are left out.
@@ -839,8 +880,10 @@ type Querier interface {
 	//      SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
 	//      WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
 	//      UNION ALL
-	//      SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
-	//      WHERE te.user_id = me.me_id AND te.status = 'accepted'
+	//      SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te
+	//      JOIN trips t ON t.id = te.trip_id
+	//      JOIN crew_members cm ON cm.id = te.crew_member_id, me
+	//      WHERE cm.user_id = me.me_id AND te.status = 'accepted'
 	//      UNION ALL
 	//      SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
 	//      JOIN crew_members cm ON cm.id = t.captain_person_id, me
@@ -863,14 +906,16 @@ type Querier interface {
 	//  WHERE $1::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
 	//  ORDER BY tp.cruise_id
 	ListUserCruiseIDs(ctx context.Context, arg ListUserCruiseIDsParams) ([]int64, error)
-	// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
-	// Without include_hidden, enrollments in hidden legs are left out; the
-	// caller has already checked the cruise itself is visible.
+	// A user's trip (leg) enrollments, those of the account's person, across
+	// the trips of one cruise, in leg order. Without include_hidden,
+	// enrollments in hidden legs are left out; the caller has already checked
+	// the cruise itself is visible.
 	//
-	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
+	//  SELECT te.id, te.trip_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status, te.crew_member_id
 	//  FROM trip_enrollments te
 	//  JOIN trips t ON t.id = te.trip_id
-	//  WHERE t.cruise_id = $1 AND te.user_id = $2
+	//  WHERE t.cruise_id = $1
+	//    AND te.crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
 	//    AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 	//  ORDER BY t.embark_date ASC, t.id ASC
 	ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error)
@@ -970,15 +1015,29 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR UPDATE
 	LockCrewMembersForMerge(ctx context.Context, arg LockCrewMembersForMergeParams) ([]CrewMember, error)
-	// Share-locks every leg either person is on or captains, so completing a
-	// leg waits for the merge instead of moving its crew or captain under it.
-	// Taken after the people, in the person-then-leg order of leg completion
-	// and person deletion.
+	// Row-locks both people's leg sign-ups, in id order, after their legs. A
+	// payment or note change on one waits for the merge, so the merge reads each
+	// sign-up's latest payment before it keeps one and deletes the other, and a
+	// change to the deleted sign-up then finds it gone instead of being lost.
+	//
+	//  SELECT te.id FROM trip_enrollments te
+	//  WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  ORDER BY te.id
+	//  FOR UPDATE
+	LockCrewMergeTripEnrollments(ctx context.Context, arg LockCrewMergeTripEnrollmentsParams) error
+	// Share-locks every leg either person is on, signed up for or captains, so
+	// completing a leg, or a sign-up change on it, waits for the merge instead
+	// of moving its crew, sign-ups or captain under it. Taken after the people,
+	// in the person-then-leg order of leg completion and person deletion.
 	//
 	//  SELECT t.id FROM trips t
 	//  WHERE t.id IN (
 	//      SELECT ca.trip_id FROM crew_assignments ca
 	//      WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  )
+	//     OR t.id IN (
+	//      SELECT te.trip_id FROM trip_enrollments te
+	//      WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 	//  )
 	//     OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 	//  ORDER BY t.id
@@ -1068,7 +1127,7 @@ type Querier interface {
 	// Row-locks one enrollment of a trip for a status change. No row when the
 	// enrollment does not exist or belongs to another trip.
 	//
-	//  SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
+	//  SELECT id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id FROM trip_enrollments
 	//  WHERE id = $1 AND trip_id = $2
 	//  FOR UPDATE
 	LockTripEnrollmentOfTrip(ctx context.Context, arg LockTripEnrollmentOfTripParams) (TripEnrollment, error)
@@ -1134,6 +1193,22 @@ type Querier interface {
 	//    AND d.crew_member_id = $2::BIGINT
 	//    AND (k.trip_id = d.trip_id OR k.voyage_id = d.voyage_id)
 	MergeSharedCrewAssignments(ctx context.Context, arg MergeSharedCrewAssignmentsParams) error
+	// On a leg both people signed up for, both sign-ups take the more advanced
+	// payment status of the two (unpaid < deposit < paid), so the one a merge
+	// keeps (DeleteSharedTripEnrollments) loses no recorded payment.
+	//
+	//  UPDATE trip_enrollments w SET
+	//      payment_status = (ARRAY['unpaid', 'deposit', 'paid'])[GREATEST(
+	//          COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], k.payment_status), 1),
+	//          COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], d.payment_status), 1))],
+	//      updated_at = CURRENT_TIMESTAMP
+	//  FROM trip_enrollments k
+	//  JOIN trip_enrollments d ON d.trip_id = k.trip_id
+	//  WHERE k.crew_member_id = $1::BIGINT
+	//    AND d.crew_member_id = $2::BIGINT
+	//    AND w.id IN (k.id, d.id)
+	//    AND k.payment_status <> d.payment_status
+	MergeSharedTripEnrollmentPayments(ctx context.Context, arg MergeSharedTripEnrollmentPaymentsParams) error
 	//MoveCrewAssignments
 	//
 	//  UPDATE crew_assignments SET crew_member_id = $1::BIGINT
@@ -1150,6 +1225,11 @@ type Querier interface {
 	//  UPDATE trips SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
 	//  WHERE captain_person_id = $2::BIGINT
 	MoveTripCaptain(ctx context.Context, arg MoveTripCaptainParams) (int64, error)
+	//MoveTripEnrollments
+	//
+	//  UPDATE trip_enrollments SET crew_member_id = $1::BIGINT
+	//  WHERE crew_member_id = $2::BIGINT
+	MoveTripEnrollments(ctx context.Context, arg MoveTripEnrollmentsParams) (int64, error)
 	//MoveVoyageCaptain
 	//
 	//  UPDATE voyages SET captain_person_id = $1::BIGINT, updated_at = CURRENT_TIMESTAMP
@@ -1210,19 +1290,20 @@ type Querier interface {
 	//  WHERE id = $1
 	//  RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
 	PublishVoyage(ctx context.Context, id int64) (Voyage, error)
-	// Takes a user's person off a trip's crew when the entry came from an
-	// accepted sign-up and the user no longer has any accepted sign-up for the
-	// trip, direct or through a cruise enrollment assigned to it.
+	// Takes a person off a trip's crew when the entry came from an accepted
+	// sign-up and the person no longer has any accepted sign-up for the trip:
+	// a direct one, or a cruise enrollment of the person's account assigned to
+	// it. The person is crew_member_id, or the person of the account user_id.
 	//
 	//  DELETE FROM crew_assignments ca
 	//  USING crew_members cm
 	//  WHERE ca.trip_id = $1::BIGINT
 	//    AND ca.added_by_acceptance
 	//    AND cm.id = ca.crew_member_id
-	//    AND cm.user_id = $2::BIGINT
+	//    AND (cm.id = $2::BIGINT OR cm.user_id = $3::BIGINT)
 	//    AND NOT EXISTS (
 	//        SELECT 1 FROM trip_enrollments te
-	//        WHERE te.trip_id = ca.trip_id AND te.user_id = cm.user_id AND te.status = 'accepted'
+	//        WHERE te.trip_id = ca.trip_id AND te.crew_member_id = cm.id AND te.status = 'accepted'
 	//    )
 	//    AND NOT EXISTS (
 	//        SELECT 1 FROM cruise_enrollments ce
@@ -1349,13 +1430,32 @@ type Querier interface {
 	//      updated_at = CURRENT_TIMESTAMP
 	//  WHERE id = $23
 	UpdateTrip(ctx context.Context, arg UpdateTripParams) error
-	// Sets the manual payment status of one sign-up of a trip. The review
-	// status is left unchanged. No row when the trip has no such enrollment.
+	// Sets the role of one crew entry of a trip. No row when the trip has no
+	// such entry.
 	//
-	//  UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $2 AND trip_id = $3
-	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
-	UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg UpdateTripEnrollmentPaymentStatusParams) (TripEnrollment, error)
+	//  UPDATE crew_assignments ca SET role = $1
+	//  FROM crew_members cm
+	//  WHERE ca.id = $2 AND ca.trip_id = $3::BIGINT AND cm.id = ca.crew_member_id
+	//  RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
+	//            cm.full_name, cm.email
+	UpdateTripCrewAssignmentRole(ctx context.Context, arg UpdateTripCrewAssignmentRoleParams) (UpdateTripCrewAssignmentRoleRow, error)
+	// Sets the manual payment status of one sign-up of a trip and returns it
+	// with its person, as in ListTripEnrollments. The review status is left
+	// unchanged. No row when the trip has no such enrollment.
+	//
+	//  WITH updated AS (
+	//      UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
+	//      WHERE trip_enrollments.id = $2 AND trip_enrollments.trip_id = $3
+	//      RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
+	//  )
+	//  SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+	//         te.created_at, te.updated_at,
+	//         cm.full_name AS person_name,
+	//         cm.email AS person_email, u.email AS account_email
+	//  FROM updated te
+	//  JOIN crew_members cm ON cm.id = te.crew_member_id
+	//  LEFT JOIN users u ON u.id = cm.user_id
+	UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg UpdateTripEnrollmentPaymentStatusParams) (UpdateTripEnrollmentPaymentStatusRow, error)
 	//UpdateTripEnrollmentStatus
 	//
 	//  UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
@@ -1402,12 +1502,13 @@ type Querier interface {
 	//
 	//  UPDATE users SET suspended = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 	UpdateUserSuspended(ctx context.Context, arg UpdateUserSuspendedParams) error
-	// Sets the note on the caller's own sign-up for a trip. No row when the
-	// user has no sign-up for it.
+	// Sets the note on the caller's own sign-up for a trip, the one of the
+	// account's person. No row when the user has no sign-up for it.
 	//
-	//  UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
-	//  WHERE trip_id = $1 AND user_id = $2
-	//  RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+	//  UPDATE trip_enrollments SET note = $1, updated_at = CURRENT_TIMESTAMP
+	//  WHERE trip_id = $2
+	//    AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $3::BIGINT)
+	//  RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 	UpdateUserTripEnrollmentNote(ctx context.Context, arg UpdateUserTripEnrollmentNoteParams) (TripEnrollment, error)
 	//UpdateVoyage
 	//
@@ -1462,7 +1563,9 @@ type Querier interface {
 	// has no such sign-up for it.
 	//
 	//  DELETE FROM trip_enrollments
-	//  WHERE trip_id = $1 AND user_id = $2 AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
+	//  WHERE trip_id = $1
+	//    AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
+	//    AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
 	//  RETURNING id
 	WithdrawUserTripEnrollment(ctx context.Context, arg WithdrawUserTripEnrollmentParams) (int64, error)
 }

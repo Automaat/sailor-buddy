@@ -240,8 +240,10 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
 				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok, Published: true}, nil
 			},
+			ensureUserPersonFn: func(context.Context, int64) error { return nil },
+			lockUserPersonFn:   func(_ context.Context, u types.NullInt64) (int64, error) { return u.Int64 + 100, nil },
 			createTripEnrollmentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
-				return sqlcdb.TripEnrollment{ID: 1, TripID: arg.TripID, UserID: arg.UserID, Status: "pending"}, nil
+				return sqlcdb.TripEnrollment{ID: 1, TripID: arg.TripID, CrewMemberID: arg.CrewMemberID, Status: "pending"}, nil
 			},
 		}
 		resp := enrollTestAPI(t, m).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{})
@@ -303,6 +305,8 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
 				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok, Published: true}, nil
 			},
+			ensureUserPersonFn: func(context.Context, int64) error { return nil },
+			lockUserPersonFn:   func(_ context.Context, u types.NullInt64) (int64, error) { return u.Int64, nil },
 			createTripEnrollmentFn: func(context.Context, sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 				return sqlcdb.TripEnrollment{}, &pgconn.PgError{Code: "23505"}
 			},
@@ -321,6 +325,8 @@ func TestEnrollment_Enroll_Trip(t *testing.T) {
 			lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
 				return sqlcdb.LockTripForSignUpRow{ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok, Published: true}, nil
 			},
+			ensureUserPersonFn: func(context.Context, int64) error { return nil },
+			lockUserPersonFn:   func(_ context.Context, u types.NullInt64) (int64, error) { return u.Int64, nil },
 			createTripEnrollmentFn: func(context.Context, sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 				return sqlcdb.TripEnrollment{}, errors.New("fail")
 			},
@@ -468,7 +474,7 @@ func TestEnrollment_DeleteEnrollment(t *testing.T) {
 			return sqlcdb.LockTripForSignUpRow{ID: id}, nil
 		}
 		m.lockTripEnrollmentOfTripFn = func(_ context.Context, arg sqlcdb.LockTripEnrollmentOfTripParams) (sqlcdb.TripEnrollment, error) {
-			return sqlcdb.TripEnrollment{ID: arg.ID, TripID: arg.TripID, UserID: 4}, nil
+			return sqlcdb.TripEnrollment{ID: arg.ID, TripID: arg.TripID, CrewMemberID: 4}, nil
 		}
 		return m
 	}
@@ -486,8 +492,8 @@ func TestEnrollment_DeleteEnrollment(t *testing.T) {
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
 		}
-		if removed != (sqlcdb.RemoveAcceptedTripCrewAssignmentParams{TripID: 9, UserID: 4}) {
-			t.Fatalf("removed crew %+v, want trip 9 user 4", removed)
+		if removed != (sqlcdb.RemoveAcceptedTripCrewAssignmentParams{TripID: 9, CrewMemberID: types.NullInt64{Int64: 4, Valid: true}}) {
+			t.Fatalf("removed crew %+v, want trip 9 person 4", removed)
 		}
 	})
 

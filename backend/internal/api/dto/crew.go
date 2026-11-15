@@ -59,6 +59,14 @@ type CrewAssignment struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// MaxCrewRoleLen caps a crew role, in characters.
+const MaxCrewRoleLen = 100
+
+// CrewRoleBody sets the role of one crew entry.
+type CrewRoleBody struct {
+	Role string `json:"role" minLength:"1" maxLength:"100" doc:"Crew role, such as zalogant; trimmed, must not be blank"`
+}
+
 // CrewAssignmentBody is the request payload for assigning a crew member.
 type CrewAssignmentBody struct {
 	CrewMemberID int64   `json:"crew_member_id" doc:"Crew member ID"`
@@ -109,22 +117,26 @@ func CrewAssignmentFromDB(a sqlcdb.CrewAssignment) CrewAssignment {
 	}
 }
 
+// TripCrewMemberFromDB maps one joined trip-crew row.
+func TripCrewMemberFromDB(r sqlcdb.ListTripCrewAssignmentsRow) CrewAssignment {
+	return CrewAssignment{
+		ID:           r.ID,
+		TripID:       intPtr(r.TripID),
+		VoyageID:     intPtr(r.VoyageID),
+		CrewMemberID: r.CrewMemberID,
+		Role:         r.Role,
+		PatentNumber: strPtr(r.PatentNumber),
+		FullName:     r.FullName,
+		Email:        strPtr(r.Email),
+		CreatedAt:    timeVal(r.CreatedAt),
+	}
+}
+
 // TripCrewFromDB maps the joined trip-crew rows, returning a non-nil slice.
 func TripCrewFromDB(rows []sqlcdb.ListTripCrewAssignmentsRow) []CrewAssignment {
 	out := make([]CrewAssignment, len(rows))
 	for i := range rows {
-		r := rows[i]
-		out[i] = CrewAssignment{
-			ID:           r.ID,
-			TripID:       intPtr(r.TripID),
-			VoyageID:     intPtr(r.VoyageID),
-			CrewMemberID: r.CrewMemberID,
-			Role:         r.Role,
-			PatentNumber: strPtr(r.PatentNumber),
-			FullName:     r.FullName,
-			Email:        strPtr(r.Email),
-			CreatedAt:    timeVal(r.CreatedAt),
-		}
+		out[i] = TripCrewMemberFromDB(rows[i])
 	}
 	return out
 }
@@ -156,8 +168,9 @@ type PersonMergeBody struct {
 
 // PersonMerge describes a merge of a duplicate person into a kept one: the
 // kept person as it is (or would be) afterwards, the removed duplicate, and
-// how many crew assignments and voyage opinions move. A shared assignment or
-// opinion is one both people already had; the kept person's copy stays.
+// how many crew assignments, voyage opinions and leg sign-ups move. A shared
+// assignment or opinion is one both people already had; the kept person's
+// copy stays. Of two sign-ups for one leg, one stays.
 type PersonMerge struct {
 	Person            CrewMember `json:"person" doc:"Kept person after the merge"`
 	Duplicate         CrewMember `json:"duplicate" doc:"Person removed by the merge"`
@@ -168,6 +181,8 @@ type PersonMerge struct {
 	SharedOpinions    int64      `json:"shared_opinions" doc:"Duplicate's opinions for voyages the kept person already has one for; the kept person's stays"`
 	CaptainedTrips    int64      `json:"captained_trips" doc:"Legs the duplicate captains"`
 	CaptainedVoyages  int64      `json:"captained_voyages" doc:"Voyages the duplicate captains"`
+	TripEnrollments   int64      `json:"trip_enrollments" doc:"Leg sign-ups of the duplicate"`
+	SharedEnrollments int64      `json:"shared_trip_enrollments" doc:"Duplicate's sign-ups for legs the kept person also signed up for; one sign-up per leg stays"`
 }
 
 // PersonMergeFromDB maps merge counts and both people to the API model.
@@ -182,5 +197,7 @@ func PersonMergeFromDB(kept, duplicate sqlcdb.CrewMember, c sqlcdb.CountCrewMerg
 		SharedOpinions:    c.SharedOpinions,
 		CaptainedTrips:    c.CaptainedTrips,
 		CaptainedVoyages:  c.CaptainedVoyages,
+		TripEnrollments:   c.TripEnrollments,
+		SharedEnrollments: c.SharedTripEnrollments,
 	}
 }

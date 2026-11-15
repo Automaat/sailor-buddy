@@ -301,7 +301,10 @@
 							<div
 								class="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
 							>
-								<span class="font-medium">{e.user_name || e.user_email}</span>
+								<span class="font-medium">{e.person_name || e.email}</span>
+								{#if e.user_id == null}
+									<span class="text-xs text-[var(--text-muted)]">bez konta</span>
+								{/if}
 								<span
 									class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[e.status] ??
 										'bg-gray-100'}"

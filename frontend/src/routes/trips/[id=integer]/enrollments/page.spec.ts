@@ -6,6 +6,8 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	getTripSignUp: vi.fn(),
 	listTripEnrollments: vi.fn(),
+	listAssignableCrew: vi.fn(),
+	createTripEnrollment: vi.fn(),
 	updateTripEnrollmentStatus: vi.fn(),
 	updateTripEnrollmentPaymentStatus: vi.fn(),
 	deleteTripEnrollment: vi.fn()
@@ -18,10 +20,12 @@ import {
 	getTrip,
 	getTripSignUp,
 	listTripEnrollments,
+	listAssignableCrew,
+	createTripEnrollment,
 	updateTripEnrollmentStatus,
 	updateTripEnrollmentPaymentStatus
 } from '#lib/api/routes.js';
-import { makeTrip } from '#lib/test-utils.js';
+import { makePerson, makeTrip } from '#lib/test-utils.js';
 import { ApiError } from '#lib/api/client.js';
 import EnrollmentsPage from './+page.svelte';
 import { load } from './+page.js';
@@ -43,9 +47,10 @@ function row(id: number, name: string, overrides: Record<string, unknown> = {}) 
 	return {
 		id,
 		trip_id: 50,
+		crew_member_id: 100 + id,
 		user_id: id,
-		user_name: name,
-		user_email: `${name.toLowerCase()}@example.com`,
+		person_name: name,
+		email: `${name.toLowerCase()}@example.com`,
 		status: 'pending',
 		payment_status: 'unpaid',
 		created_at: '2026-01-01T00:00:00Z',
@@ -67,6 +72,8 @@ beforeEach(() => {
 			row(3, 'Celina', { payment_status: 'deposit' }),
 			row(4, 'Darek')
 		]);
+	fn(listAssignableCrew).mockReset().mockResolvedValue([]);
+	fn(createTripEnrollment).mockReset();
 	fn(updateTripEnrollmentStatus).mockReset();
 	fn(updateTripEnrollmentPaymentStatus).mockReset();
 });
@@ -274,5 +281,97 @@ describe('trip enrollments page same-route navigation', () => {
 
 		expect(screen.getByText(/Jacht B/)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Akceptuj' })).toBeInTheDocument();
+	});
+});
+
+describe('trip enrollments page sign-up on behalf', () => {
+	beforeEach(() => {
+		fn(listTripEnrollments).mockResolvedValue([row(1, 'Anna', { crew_member_id: 11 })]);
+		fn(listAssignableCrew).mockResolvedValue([
+			makePerson({ id: 11, full_name: 'Anna', has_account: true, user_id: 1 }),
+			makePerson({ id: 12, full_name: 'Ewa Bezkonta', email: 'ewa@example.dev' }),
+			makePerson({ id: 13, full_name: 'Jan Kowal' })
+		]);
+	});
+
+	it('offers only people without a sign-up for the leg', async () => {
+		await renderPage();
+		const picker = await screen.findByLabelText('Osoba');
+		const options = within(picker)
+			.getAllByRole('option')
+			.map((o) => o.textContent);
+		expect(options).toEqual(['Wybierz...', 'Ewa Bezkonta (ewa@example.dev)', 'Jan Kowal']);
+		expect(screen.getByRole('button', { name: 'Dodaj zapis' })).toBeDisabled();
+	});
+
+	it('signs up a person without an account and lists the new sign-up', async () => {
+		fn(createTripEnrollment).mockResolvedValue({
+			...row(7, 'Ewa Bezkonta', { crew_member_id: 12, status: 'waitlisted' }),
+			user_id: undefined,
+			email: 'ewa@example.dev',
+			note: 'dzwoniła'
+		});
+		await renderPage();
+		await fireEvent.change(await screen.findByLabelText('Osoba'), { target: { value: '12' } });
+		await fireEvent.input(screen.getByLabelText('Notatka (opcjonalnie)'), {
+			target: { value: '  dzwoniła ' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj zapis' }));
+
+		await waitFor(() =>
+			expect(createTripEnrollment).toHaveBeenCalledWith(50, {
+				crew_member_id: 12,
+				note: 'dzwoniła'
+			})
+		);
+		const card = (await screen.findByText('Ewa Bezkonta')).closest('div.rounded-xl') as HTMLElement;
+		expect(within(card).getByTestId('no-account')).toHaveTextContent('bez konta');
+		expect(within(card).getByText('ewa@example.dev')).toBeInTheDocument();
+		expect(within(card).getByText('lista rezerwowa')).toBeInTheDocument();
+		const options = within(screen.getByLabelText('Osoba'))
+			.getAllByRole('option')
+			.map((o) => o.textContent);
+		expect(options).toEqual(['Wybierz...', 'Jan Kowal']);
+		expect(screen.getByLabelText('Osoba')).toHaveValue('');
+	});
+
+	it('shows why a sign-up was refused and keeps the choice', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(createTripEnrollment).mockRejectedValue(new ApiError(409, 'already signed up'));
+		await renderPage();
+		await fireEvent.change(await screen.findByLabelText('Osoba'), { target: { value: '13' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj zapis' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się dodać zapisu: ta osoba jest już zapisana albo etap nie przyjmuje zapisów.'
+		);
+		expect(screen.getByLabelText('Osoba')).toHaveValue('13');
+	});
+
+	it('marks a sign-up without an account and shows the person e-mail', async () => {
+		fn(listTripEnrollments).mockResolvedValue([
+			row(1, 'Anna', { crew_member_id: 11 }),
+			{ ...row(2, 'Ewa Bezkonta', { crew_member_id: 12 }), user_id: undefined }
+		]);
+		await renderPage();
+		const ewa = (await screen.findByText('Ewa Bezkonta')).closest('div.rounded-xl') as HTMLElement;
+		expect(within(ewa).getByTestId('no-account')).toHaveTextContent('bez konta');
+		const anna = screen.getByText('Anna').closest('div.rounded-xl') as HTMLElement;
+		expect(within(anna).queryByTestId('no-account')).not.toBeInTheDocument();
+		expect(within(anna).getByText('anna@example.com')).toBeInTheDocument();
+	});
+
+	it('hides the form on a cancelled leg', async () => {
+		fn(getTrip).mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', status: 'cancelled' }));
+		await renderPage();
+		await screen.findByText('Anna');
+		expect(screen.queryByRole('button', { name: 'Dodaj zapis' })).not.toBeInTheDocument();
+	});
+
+	it('names a failed people list instead of offering no one', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listAssignableCrew).mockRejectedValue(new Error('500'));
+		await renderPage();
+		expect(await screen.findByText(/Nie udało się wczytać: lista osób\./)).toBeInTheDocument();
 	});
 });
