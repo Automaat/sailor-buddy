@@ -412,7 +412,7 @@ type UnlinkCrewMemberParams struct {
 
 // Detaches the person from its account. The e-mail goes too when it is the
 // account's, since an unlinked person with the account's e-mail would still
-// count toward the account's cruises.
+// be offered back to the account as an e-mail match.
 //
 //	UPDATE crew_members SET
 //	    user_id = NULL,

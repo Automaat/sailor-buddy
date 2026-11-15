@@ -9,9 +9,27 @@ CREATE EXTENSION IF NOT EXISTS unaccent;
 -- no surrounding blanks. unaccent() is only STABLE because its dictionary
 -- could change; naming the dictionary and its schema pins the result, so the
 -- wrapper can be IMMUTABLE and back an index.
-CREATE FUNCTION port_search_norm(name TEXT) RETURNS TEXT
-    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-    AS $$ SELECT lower(public.unaccent('public.unaccent'::regdictionary, btrim($1))) $$;
+--
+-- unaccent may already be installed outside public (for example in an
+-- extensions schema, which IF NOT EXISTS keeps), so the schema is read from
+-- pg_extension instead of hard-coded.
+DO $do$
+DECLARE
+    ext_schema TEXT;
+BEGIN
+    SELECT n.nspname INTO STRICT ext_schema
+    FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'unaccent';
+
+    EXECUTE format(
+        'CREATE FUNCTION port_search_norm(name TEXT) RETURNS TEXT
+             LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+             AS %L',
+        format(' SELECT lower(%I.unaccent(%L::regdictionary, btrim($1))) ',
+               ext_schema, quote_ident(ext_schema) || '.unaccent'));
+END
+$do$;
 
 CREATE INDEX voyage_ports_name_trgm_idx
     ON voyage_ports USING gin (port_search_norm(name) gin_trgm_ops);

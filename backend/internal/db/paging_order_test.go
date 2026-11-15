@@ -117,8 +117,8 @@ func TestListCrewMembers_PagesTiedNamesOnce(t *testing.T) {
 			break
 		}
 		for _, r := range rows {
-			if r.FullName == "Jan Kowalski" {
-				got = append(got, r.ID)
+			if r.CrewMember.FullName == "Jan Kowalski" {
+				got = append(got, r.CrewMember.ID)
 			}
 		}
 	}

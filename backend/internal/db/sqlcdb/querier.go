@@ -508,6 +508,25 @@ type Querier interface {
 	//
 	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members WHERE user_id = $1
 	GetCrewMemberByUserID(ctx context.Context, userID types.NullInt64) (CrewMember, error)
+	// A person as the people page shows it to the caller. contacts_visible is
+	// true only for an admin or a caller who captains a leg or voyage the person
+	// is assigned to, and the handler drops the emergency contact otherwise. The
+	// captain check runs in the same statement as the person read, so a contact
+	// change and a captain change committed between two reads can never pair the
+	// old contact with the new captain.
+	//
+	//  SELECT crew_members.id, crew_members.created_by, crew_members.user_id, crew_members.full_name, crew_members.email, crew_members.patent_number, crew_members.phone, crew_members.pzz_license_type, crew_members.pzz_license_number, crew_members.emergency_contact_name, crew_members.emergency_contact_phone, crew_members.created_at, crew_members.updated_at, crew_members.other_names,
+	//    ($1::BOOLEAN OR EXISTS (
+	//        SELECT 1 FROM crew_assignments ca
+	//        LEFT JOIN trips t ON t.id = ca.trip_id
+	//        LEFT JOIN voyages v ON v.id = ca.voyage_id
+	//        JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+	//        WHERE ca.crew_member_id = crew_members.id
+	//          AND captain.user_id = $2::BIGINT
+	//    ))::BOOLEAN AS contacts_visible
+	//  FROM crew_members
+	//  WHERE crew_members.id = $3
+	GetCrewMemberForCaller(ctx context.Context, arg GetCrewMemberForCallerParams) (GetCrewMemberForCallerRow, error)
 	//GetCrewMemberStats
 	//
 	//  SELECT
@@ -711,32 +730,34 @@ type Querier interface {
 	//    AND (firebase_uid IS NULL OR firebase_uid = $1)
 	//  RETURNING id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at, suspended
 	LinkFirebaseUIDByEmail(ctx context.Context, arg LinkFirebaseUIDByEmailParams) (User, error)
-	//ListCaptainCrewPersonIDs
-	//
-	//  SELECT DISTINCT ca.crew_member_id
-	//  FROM crew_assignments ca
-	//  LEFT JOIN trips t ON t.id = ca.trip_id
-	//  LEFT JOIN voyages v ON v.id = ca.voyage_id
-	//  JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
-	//  WHERE captain.user_id = $1
-	ListCaptainCrewPersonIDs(ctx context.Context, userID types.NullInt64) ([]int64, error)
 	// A NULL search lists everyone; otherwise it matches a case-insensitive
 	// substring of the name, any other name, or the e-mail. A set after_id
 	// starts the page after the cursor's (full_name, id) sort key.
+	// contacts_visible follows the rule of GetCrewMemberForCaller, read in the
+	// same statement as the people.
 	//
-	//  SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
-	//  WHERE ($1::TEXT IS NULL
-	//     OR strpos(lower(full_name), lower($1::TEXT)) > 0
-	//     OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
+	//  SELECT crew_members.id, crew_members.created_by, crew_members.user_id, crew_members.full_name, crew_members.email, crew_members.patent_number, crew_members.phone, crew_members.pzz_license_type, crew_members.pzz_license_number, crew_members.emergency_contact_name, crew_members.emergency_contact_phone, crew_members.created_at, crew_members.updated_at, crew_members.other_names,
+	//    ($1::BOOLEAN OR EXISTS (
+	//        SELECT 1 FROM crew_assignments ca
+	//        LEFT JOIN trips t ON t.id = ca.trip_id
+	//        LEFT JOIN voyages v ON v.id = ca.voyage_id
+	//        JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+	//        WHERE ca.crew_member_id = crew_members.id
+	//          AND captain.user_id = $2::BIGINT
+	//    ))::BOOLEAN AS contacts_visible
+	//  FROM crew_members
+	//  WHERE ($3::TEXT IS NULL
+	//     OR strpos(lower(full_name), lower($3::TEXT)) > 0
+	//     OR strpos(lower(COALESCE(email, '')), lower($3::TEXT)) > 0
 	//     OR EXISTS (
 	//         SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
-	//         WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
+	//         WHERE strpos(lower(other.name), lower($3::TEXT)) > 0
 	//     ))
-	//    AND ($2::BIGINT IS NULL
-	//     OR (full_name, id) > ($3::TEXT, $2::BIGINT))
+	//    AND ($4::BIGINT IS NULL
+	//     OR (full_name, id) > ($5::TEXT, $4::BIGINT))
 	//  ORDER BY full_name, id
-	//  LIMIT $5 OFFSET $4
-	ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error)
+	//  LIMIT $7 OFFSET $6
+	ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]ListCrewMembersRow, error)
 	//ListCruiseEnrollments
 	//
 	//  SELECT ce.id, ce.cruise_id, ce.user_id, ce.trip_id, ce.note, ce.status, ce.created_at, ce.updated_at,
@@ -812,9 +833,8 @@ type Querier interface {
 	//        SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 	//  ORDER BY v.year DESC, v.embark_date DESC, v.id DESC
 	ListCruiseVoyages(ctx context.Context, arg ListCruiseVoyagesParams) ([]Voyage, error)
-	// Newest first; a set after_id starts the page after that cruise. The Rejsy
-	// list orders cruises by their legs' dates itself. Without include_hidden
-	// only published cruises are listed.
+	// Newest first; a set after_id starts the page after that cruise. Without
+	// include_hidden only published cruises are listed.
 	//
 	//  SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 	//  WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
@@ -858,6 +878,40 @@ type Querier interface {
 	//  ORDER BY email_match DESC, cm.full_name, cm.id
 	//  LIMIT 20
 	ListPersonClaimCandidates(ctx context.Context, arg ListPersonClaimCandidatesParams) ([]ListPersonClaimCandidatesRow, error)
+	// The "Bez serii" group: the trips and voyages of cruises without a series,
+	// one row each, plus one row for such a cruise that has neither, so none
+	// becomes unreachable. Newest first by embark date; an undated row is still
+	// being planned, so it sorts before every dated one. Without include_hidden
+	// a row is listed only while it and its cruise are published.
+	//
+	//  SELECT s.kind, s.id, s.name, s.cancelled, s.embark_date, s.disembark_date,
+	//         s.start_port, s.end_port, s.published_at,
+	//         s.cruise_id, s.cruise_name, s.cruise_published_at
+	//  FROM (
+	//      SELECT 'trip'::TEXT AS kind, t.id, t.name, (t.status = 'cancelled') AS cancelled,
+	//             t.embark_date, t.disembark_date, t.start_port, t.end_port, t.published_at,
+	//             c.id AS cruise_id, c.name AS cruise_name, c.published_at AS cruise_published_at
+	//      FROM trips t JOIN cruises c ON c.id = t.cruise_id
+	//      WHERE c.series_id IS NULL
+	//      UNION ALL
+	//      SELECT 'voyage', v.id, v.name, FALSE,
+	//             v.embark_date, v.disembark_date, v.start_port, v.end_port, v.published_at,
+	//             c.id, c.name, c.published_at
+	//      FROM voyages v JOIN cruises c ON c.id = v.cruise_id
+	//      WHERE c.series_id IS NULL
+	//      UNION ALL
+	//      SELECT 'cruise', c.id, c.name, FALSE,
+	//             NULL, NULL, NULL, NULL, c.published_at,
+	//             c.id, c.name, c.published_at
+	//      FROM cruises c
+	//      WHERE c.series_id IS NULL
+	//        AND NOT EXISTS (SELECT 1 FROM trips t WHERE t.cruise_id = c.id)
+	//        AND NOT EXISTS (SELECT 1 FROM voyages v WHERE v.cruise_id = c.id)
+	//  ) s
+	//  WHERE $1::BOOLEAN
+	//     OR (s.published_at IS NOT NULL AND s.cruise_published_at IS NOT NULL)
+	//  ORDER BY NULLIF(s.embark_date, '') DESC NULLS FIRST, s.cruise_id DESC, s.kind, s.id DESC
+	ListStandaloneLegs(ctx context.Context, includeHidden bool) ([]ListStandaloneLegsRow, error)
 	// A set after_id starts the page after the cursor's sort key. The keyset
 	// tuple sorts descending like the ORDER BY: a NULL date first.
 	//
@@ -920,52 +974,6 @@ type Querier interface {
 	//  ORDER BY t.embark_date ASC, t.id ASC
 	//  LIMIT $5 OFFSET $4
 	ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, error)
-	// Cruises the user took part in: an accepted cruise enrollment, an
-	// accepted trip enrollment of the account's person, a leg captained by the
-	// account's person, or a crew-list entry linked to the account, or one
-	// without an account that carries its email. Another
-	// account's person never matches by email: it keeps the email that account
-	// had when the person was created. Without include_hidden, a hidden cruise
-	// and a cruise reached only through a hidden leg are left out.
-	//
-	//  WITH me AS (
-	//      SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $2
-	//  ),
-	//  my_crew AS (
-	//      SELECT cm.id AS crew_id FROM crew_members cm, me
-	//      WHERE cm.user_id = me.me_id
-	//         OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
-	//  ),
-	//  took_part AS (
-	//      SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
-	//      WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
-	//      UNION ALL
-	//      SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te
-	//      JOIN trips t ON t.id = te.trip_id
-	//      JOIN crew_members cm ON cm.id = te.crew_member_id, me
-	//      WHERE cm.user_id = me.me_id AND te.status = 'accepted'
-	//      UNION ALL
-	//      SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
-	//      JOIN crew_members cm ON cm.id = t.captain_person_id, me
-	//      WHERE cm.user_id = me.me_id
-	//      UNION ALL
-	//      SELECT v.cruise_id, v.published_at IS NOT NULL FROM voyages v
-	//      JOIN crew_members cm ON cm.id = v.captain_person_id, me
-	//      WHERE cm.user_id = me.me_id
-	//      UNION ALL
-	//      SELECT t.cruise_id, t.published_at IS NOT NULL FROM crew_assignments ca
-	//      JOIN trips t ON t.id = ca.trip_id
-	//      JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-	//      UNION ALL
-	//      SELECT v.cruise_id, v.published_at IS NOT NULL FROM crew_assignments ca
-	//      JOIN voyages v ON v.id = ca.voyage_id
-	//      JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-	//  )
-	//  SELECT DISTINCT tp.cruise_id FROM took_part tp
-	//  JOIN cruises c ON c.id = tp.cruise_id
-	//  WHERE $1::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
-	//  ORDER BY tp.cruise_id
-	ListUserCruiseIDs(ctx context.Context, arg ListUserCruiseIDsParams) ([]int64, error)
 	// A user's trip (leg) enrollments, those of the account's person, across
 	// the trips of one cruise, in leg order. Without include_hidden,
 	// enrollments in hidden legs are left out; the caller has already checked
@@ -1502,7 +1510,7 @@ type Querier interface {
 	SuggestPorts(ctx context.Context, arg SuggestPortsParams) ([]SuggestPortsRow, error)
 	// Detaches the person from its account. The e-mail goes too when it is the
 	// account's, since an unlinked person with the account's e-mail would still
-	// count toward the account's cruises.
+	// be offered back to the account as an e-mail match.
 	//
 	//  UPDATE crew_members SET
 	//      user_id = NULL,

@@ -73,6 +73,10 @@ type cruiseEnrollmentsOutput struct {
 	Body []dto.CruiseEnrollmentDetail
 }
 
+type standaloneLegsOutput struct {
+	Body []dto.StandaloneLeg
+}
+
 // RegisterCruiseRoutes wires the club cruise operations onto the API. Reads are
 // open to any member; mutations require an admin.
 func RegisterCruiseRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
@@ -114,6 +118,15 @@ func registerCruiseRoutes(api huma.API, h *CruiseHandler) {
 		OperationID: "clear-cruise-enroll-token", Method: http.MethodDelete, Path: "/cruises/{cruiseID}/enroll-token",
 		Summary: "Clear a cruise enrollment token (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.clearEnrollToken)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-standalone-legs", Method: http.MethodGet, Path: "/standalone-legs",
+		Summary: "List legs of cruises without a series",
+		Description: "The \"Bez serii\" group of the Rejsy page: every trip and voyage of a cruise without " +
+			"a series, plus such a cruise that has no leg, newest first by embark date with undated " +
+			"entries first. Not paged. Hidden entries and entries of hidden cruises are listed only " +
+			"for admins and the captain group.",
+		Tags: tag,
+	}, h.listStandaloneLegs)
 	huma.Register(api, huma.Operation{
 		OperationID: "list-cruise-trips", Method: http.MethodGet, Path: "/cruises/{cruiseID}/trips",
 		Summary: "List a cruise's child trips", Tags: tag,
@@ -317,6 +330,15 @@ func (h *CruiseHandler) clearEnrollToken(ctx context.Context, in *cruiseIDParam)
 		return nil, huma.Error500InternalServerError("failed to clear token")
 	}
 	return &noContentOutput{}, nil
+}
+
+func (h *CruiseHandler) listStandaloneLegs(ctx context.Context, _ *struct{}) (*standaloneLegsOutput, error) {
+	rows, err := h.q.ListStandaloneLegs(ctx, canSeeHidden(ctx))
+	if err != nil {
+		slog.Error("list standalone legs", "err", err)
+		return nil, huma.Error500InternalServerError("failed to list legs")
+	}
+	return &standaloneLegsOutput{Body: dto.StandaloneLegsFromDB(rows)}, nil
 }
 
 func (h *CruiseHandler) listChildTrips(ctx context.Context, in *cruiseIDParam) (*cruiseTripsOutput, error) {

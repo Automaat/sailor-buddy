@@ -19,7 +19,7 @@
 	// Planning trips is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			void goto('/cruises');
+			void goto('/series');
 		}
 	});
 
@@ -114,7 +114,7 @@
 			current.form.captain_person_id = auth.user.person_id;
 	});
 
-	const cancelHref = $derived(form.cruise_id ? `/cruises/${form.cruise_id}` : '/cruises');
+	const cancelHref = $derived(form.cruise_id ? `/cruises/${form.cruise_id}` : '/series');
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();

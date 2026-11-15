@@ -3,12 +3,15 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -16,7 +19,7 @@ import (
 func TestCrewHandler_List_Errors(t *testing.T) {
 	t.Run("list error", func(t *testing.T) {
 		m := &mockQuerier{
-			listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) {
+			listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error) {
 				return nil, errors.New("fail")
 			},
 		}
@@ -28,7 +31,9 @@ func TestCrewHandler_List_Errors(t *testing.T) {
 
 	t.Run("count error", func(t *testing.T) {
 		m := &mockQuerier{
-			listCrewMembersFn:  func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) { return nil, nil },
+			listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error) {
+				return nil, nil
+			},
 			countCrewMembersFn: func(context.Context, types.NullString) (int64, error) { return 0, errors.New("fail") },
 		}
 		resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew")
@@ -41,8 +46,8 @@ func TestCrewHandler_List_Errors(t *testing.T) {
 func TestCrewHandler_Get(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
-			getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{ID: id, FullName: "Jan"}, nil
+			getCrewMemberForCallerFn: func(_ context.Context, arg sqlcdb.GetCrewMemberForCallerParams) (sqlcdb.GetCrewMemberForCallerRow, error) {
+				return sqlcdb.GetCrewMemberForCallerRow{CrewMember: sqlcdb.CrewMember{ID: arg.ID, FullName: "Jan"}}, nil
 			},
 		}
 		resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew/1")
@@ -53,8 +58,8 @@ func TestCrewHandler_Get(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		m := &mockQuerier{
-			getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{}, sql.ErrNoRows
+			getCrewMemberForCallerFn: func(context.Context, sqlcdb.GetCrewMemberForCallerParams) (sqlcdb.GetCrewMemberForCallerRow, error) {
+				return sqlcdb.GetCrewMemberForCallerRow{}, sql.ErrNoRows
 			},
 		}
 		resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew/1")
@@ -65,8 +70,8 @@ func TestCrewHandler_Get(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
-			getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{}, errors.New("fail")
+			getCrewMemberForCallerFn: func(context.Context, sqlcdb.GetCrewMemberForCallerParams) (sqlcdb.GetCrewMemberForCallerRow, error) {
+				return sqlcdb.GetCrewMemberForCallerRow{}, errors.New("fail")
 			},
 		}
 		resp := crewTestAPI(t, m).GetCtx(userCtx(context.Background()), "/crew/1")
@@ -74,6 +79,62 @@ func TestCrewHandler_Get(t *testing.T) {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
 	})
+}
+
+// TestCrewHandler_EmergencyContactsFollowRow checks the person detail and
+// list pass the caller's admin flag and account to the query and keep the
+// emergency contact only where the row allows it.
+func TestCrewHandler_EmergencyContactsFollowRow(t *testing.T) {
+	person := sqlcdb.CrewMember{
+		ID: 7, FullName: "Jan", Phone: types.NullString{String: "+48 600", Valid: true},
+		EmergencyContactName:  types.NullString{String: "Ewa", Valid: true},
+		EmergencyContactPhone: types.NullString{String: "+48 700", Valid: true},
+	}
+	for _, tt := range []struct {
+		name    string
+		caller  context.Context
+		admin   bool
+		visible bool
+	}{
+		{name: "admin", caller: callerCtx(4, "admin"), admin: true, visible: true},
+		{name: "captain", caller: callerCtx(4, "member"), visible: true},
+		{name: "member", caller: callerCtx(4, "member"), visible: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var matched []bool
+			want := types.NullInt64{Int64: 4, Valid: true}
+			m := &mockQuerier{
+				getCrewMemberForCallerFn: func(_ context.Context, arg sqlcdb.GetCrewMemberForCallerParams) (sqlcdb.GetCrewMemberForCallerRow, error) {
+					matched = append(matched, arg.IsAdmin == tt.admin && arg.CallerUserID == want)
+					return sqlcdb.GetCrewMemberForCallerRow{CrewMember: person, ContactsVisible: tt.visible}, nil
+				},
+				listCrewMembersFn: func(_ context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error) {
+					matched = append(matched, arg.IsAdmin == tt.admin && arg.CallerUserID == want)
+					return []sqlcdb.ListCrewMembersRow{{CrewMember: person, ContactsVisible: tt.visible}}, nil
+				},
+				countCrewMembersFn: func(context.Context, types.NullString) (int64, error) { return 1, nil },
+			}
+			api := crewTestAPI(t, m)
+			var one dto.CrewMember
+			var page dto.Page[dto.CrewMember]
+			if err := json.Unmarshal(api.GetCtx(tt.caller, "/crew/7").Body.Bytes(), &one); err != nil {
+				t.Fatalf("decode person: %v", err)
+			}
+			if err := json.Unmarshal(api.GetCtx(tt.caller, "/crew").Body.Bytes(), &page); err != nil || len(page.Items) != 1 {
+				t.Fatalf("decode people: %v", err)
+			}
+			if !slices.Equal(matched, []bool{true, true}) {
+				t.Fatalf("query caller params matched = %v, want admin = %v and account 4 on both", matched, tt.admin)
+			}
+			for _, got := range []dto.CrewMember{one, page.Items[0]} {
+				present := got.EmergencyContactName != nil && got.EmergencyContactPhone != nil
+				absent := got.EmergencyContactName == nil && got.EmergencyContactPhone == nil
+				if tt.visible && !present || !tt.visible && !absent || got.Phone == nil {
+					t.Errorf("person = %+v, want emergency contact present = %v and the phone kept", got, tt.visible)
+				}
+			}
+		})
+	}
 }
 
 func TestCrewHandler_Create_DBError(t *testing.T) {

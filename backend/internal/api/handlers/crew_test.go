@@ -25,8 +25,8 @@ func crewTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 
 func TestCrewHandler_List(t *testing.T) {
 	m := &mockQuerier{
-		listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) {
-			return []sqlcdb.CrewMember{{ID: 1, FullName: "Jan Nowak"}}, nil
+		listCrewMembersFn: func(context.Context, sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error) {
+			return []sqlcdb.ListCrewMembersRow{{CrewMember: sqlcdb.CrewMember{ID: 1, FullName: "Jan Nowak"}}}, nil
 		},
 		countCrewMembersFn: func(context.Context, types.NullString) (int64, error) { return 1, nil },
 	}

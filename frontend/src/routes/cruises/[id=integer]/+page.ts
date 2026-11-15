@@ -14,7 +14,7 @@ export const load: PageLoad = async ({ params }) => {
 	const cruise = await found(getCruise(id), {
 		title: 'Nie znaleziono wydarzenia',
 		message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
-		backHref: '/cruises',
+		backHref: '/series',
 		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];

@@ -302,87 +302,142 @@ func (q *Queries) GetCrewMemberByUserID(ctx context.Context, userID types.NullIn
 	return i, err
 }
 
-const listCaptainCrewPersonIDs = `-- name: ListCaptainCrewPersonIDs :many
-SELECT DISTINCT ca.crew_member_id
-FROM crew_assignments ca
-LEFT JOIN trips t ON t.id = ca.trip_id
-LEFT JOIN voyages v ON v.id = ca.voyage_id
-JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
-WHERE captain.user_id = $1
+const getCrewMemberForCaller = `-- name: GetCrewMemberForCaller :one
+SELECT crew_members.id, crew_members.created_by, crew_members.user_id, crew_members.full_name, crew_members.email, crew_members.patent_number, crew_members.phone, crew_members.pzz_license_type, crew_members.pzz_license_number, crew_members.emergency_contact_name, crew_members.emergency_contact_phone, crew_members.created_at, crew_members.updated_at, crew_members.other_names,
+  ($1::BOOLEAN OR EXISTS (
+      SELECT 1 FROM crew_assignments ca
+      LEFT JOIN trips t ON t.id = ca.trip_id
+      LEFT JOIN voyages v ON v.id = ca.voyage_id
+      JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+      WHERE ca.crew_member_id = crew_members.id
+        AND captain.user_id = $2::BIGINT
+  ))::BOOLEAN AS contacts_visible
+FROM crew_members
+WHERE crew_members.id = $3
 `
 
-// ListCaptainCrewPersonIDs
+type GetCrewMemberForCallerParams struct {
+	IsAdmin      bool            `json:"is_admin"`
+	CallerUserID types.NullInt64 `json:"caller_user_id"`
+	ID           int64           `json:"id"`
+}
+
+type GetCrewMemberForCallerRow struct {
+	CrewMember      CrewMember `json:"crew_member"`
+	ContactsVisible bool       `json:"contacts_visible"`
+}
+
+// A person as the people page shows it to the caller. contacts_visible is
+// true only for an admin or a caller who captains a leg or voyage the person
+// is assigned to, and the handler drops the emergency contact otherwise. The
+// captain check runs in the same statement as the person read, so a contact
+// change and a captain change committed between two reads can never pair the
+// old contact with the new captain.
 //
-//	SELECT DISTINCT ca.crew_member_id
-//	FROM crew_assignments ca
-//	LEFT JOIN trips t ON t.id = ca.trip_id
-//	LEFT JOIN voyages v ON v.id = ca.voyage_id
-//	JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
-//	WHERE captain.user_id = $1
-func (q *Queries) ListCaptainCrewPersonIDs(ctx context.Context, userID types.NullInt64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listCaptainCrewPersonIDs, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var crew_member_id int64
-		if err := rows.Scan(&crew_member_id); err != nil {
-			return nil, err
-		}
-		items = append(items, crew_member_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+//	SELECT crew_members.id, crew_members.created_by, crew_members.user_id, crew_members.full_name, crew_members.email, crew_members.patent_number, crew_members.phone, crew_members.pzz_license_type, crew_members.pzz_license_number, crew_members.emergency_contact_name, crew_members.emergency_contact_phone, crew_members.created_at, crew_members.updated_at, crew_members.other_names,
+//	  ($1::BOOLEAN OR EXISTS (
+//	      SELECT 1 FROM crew_assignments ca
+//	      LEFT JOIN trips t ON t.id = ca.trip_id
+//	      LEFT JOIN voyages v ON v.id = ca.voyage_id
+//	      JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+//	      WHERE ca.crew_member_id = crew_members.id
+//	        AND captain.user_id = $2::BIGINT
+//	  ))::BOOLEAN AS contacts_visible
+//	FROM crew_members
+//	WHERE crew_members.id = $3
+func (q *Queries) GetCrewMemberForCaller(ctx context.Context, arg GetCrewMemberForCallerParams) (GetCrewMemberForCallerRow, error) {
+	row := q.db.QueryRowContext(ctx, getCrewMemberForCaller, arg.IsAdmin, arg.CallerUserID, arg.ID)
+	var i GetCrewMemberForCallerRow
+	err := row.Scan(
+		&i.CrewMember.ID,
+		&i.CrewMember.CreatedBy,
+		&i.CrewMember.UserID,
+		&i.CrewMember.FullName,
+		&i.CrewMember.Email,
+		&i.CrewMember.PatentNumber,
+		&i.CrewMember.Phone,
+		&i.CrewMember.PzzLicenseType,
+		&i.CrewMember.PzzLicenseNumber,
+		&i.CrewMember.EmergencyContactName,
+		&i.CrewMember.EmergencyContactPhone,
+		&i.CrewMember.CreatedAt,
+		&i.CrewMember.UpdatedAt,
+		&i.CrewMember.OtherNames,
+		&i.ContactsVisible,
+	)
+	return i, err
 }
 
 const listCrewMembers = `-- name: ListCrewMembers :many
-SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
-WHERE ($1::TEXT IS NULL
-   OR strpos(lower(full_name), lower($1::TEXT)) > 0
-   OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
+SELECT crew_members.id, crew_members.created_by, crew_members.user_id, crew_members.full_name, crew_members.email, crew_members.patent_number, crew_members.phone, crew_members.pzz_license_type, crew_members.pzz_license_number, crew_members.emergency_contact_name, crew_members.emergency_contact_phone, crew_members.created_at, crew_members.updated_at, crew_members.other_names,
+  ($1::BOOLEAN OR EXISTS (
+      SELECT 1 FROM crew_assignments ca
+      LEFT JOIN trips t ON t.id = ca.trip_id
+      LEFT JOIN voyages v ON v.id = ca.voyage_id
+      JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+      WHERE ca.crew_member_id = crew_members.id
+        AND captain.user_id = $2::BIGINT
+  ))::BOOLEAN AS contacts_visible
+FROM crew_members
+WHERE ($3::TEXT IS NULL
+   OR strpos(lower(full_name), lower($3::TEXT)) > 0
+   OR strpos(lower(COALESCE(email, '')), lower($3::TEXT)) > 0
    OR EXISTS (
        SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
-       WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
+       WHERE strpos(lower(other.name), lower($3::TEXT)) > 0
    ))
-  AND ($2::BIGINT IS NULL
-   OR (full_name, id) > ($3::TEXT, $2::BIGINT))
+  AND ($4::BIGINT IS NULL
+   OR (full_name, id) > ($5::TEXT, $4::BIGINT))
 ORDER BY full_name, id
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type ListCrewMembersParams struct {
-	Search    types.NullString `json:"search"`
-	AfterID   types.NullInt64  `json:"after_id"`
-	AfterName types.NullString `json:"after_name"`
-	RowOffset int32            `json:"row_offset"`
-	RowLimit  int32            `json:"row_limit"`
+	IsAdmin      bool             `json:"is_admin"`
+	CallerUserID types.NullInt64  `json:"caller_user_id"`
+	Search       types.NullString `json:"search"`
+	AfterID      types.NullInt64  `json:"after_id"`
+	AfterName    types.NullString `json:"after_name"`
+	RowOffset    int32            `json:"row_offset"`
+	RowLimit     int32            `json:"row_limit"`
+}
+
+type ListCrewMembersRow struct {
+	CrewMember      CrewMember `json:"crew_member"`
+	ContactsVisible bool       `json:"contacts_visible"`
 }
 
 // A NULL search lists everyone; otherwise it matches a case-insensitive
 // substring of the name, any other name, or the e-mail. A set after_id
 // starts the page after the cursor's (full_name, id) sort key.
+// contacts_visible follows the rule of GetCrewMemberForCaller, read in the
+// same statement as the people.
 //
-//	SELECT id, created_by, user_id, full_name, email, patent_number, phone, pzz_license_type, pzz_license_number, emergency_contact_name, emergency_contact_phone, created_at, updated_at, other_names FROM crew_members
-//	WHERE ($1::TEXT IS NULL
-//	   OR strpos(lower(full_name), lower($1::TEXT)) > 0
-//	   OR strpos(lower(COALESCE(email, '')), lower($1::TEXT)) > 0
+//	SELECT crew_members.id, crew_members.created_by, crew_members.user_id, crew_members.full_name, crew_members.email, crew_members.patent_number, crew_members.phone, crew_members.pzz_license_type, crew_members.pzz_license_number, crew_members.emergency_contact_name, crew_members.emergency_contact_phone, crew_members.created_at, crew_members.updated_at, crew_members.other_names,
+//	  ($1::BOOLEAN OR EXISTS (
+//	      SELECT 1 FROM crew_assignments ca
+//	      LEFT JOIN trips t ON t.id = ca.trip_id
+//	      LEFT JOIN voyages v ON v.id = ca.voyage_id
+//	      JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+//	      WHERE ca.crew_member_id = crew_members.id
+//	        AND captain.user_id = $2::BIGINT
+//	  ))::BOOLEAN AS contacts_visible
+//	FROM crew_members
+//	WHERE ($3::TEXT IS NULL
+//	   OR strpos(lower(full_name), lower($3::TEXT)) > 0
+//	   OR strpos(lower(COALESCE(email, '')), lower($3::TEXT)) > 0
 //	   OR EXISTS (
 //	       SELECT 1 FROM jsonb_array_elements_text(other_names) AS other(name)
-//	       WHERE strpos(lower(other.name), lower($1::TEXT)) > 0
+//	       WHERE strpos(lower(other.name), lower($3::TEXT)) > 0
 //	   ))
-//	  AND ($2::BIGINT IS NULL
-//	   OR (full_name, id) > ($3::TEXT, $2::BIGINT))
+//	  AND ($4::BIGINT IS NULL
+//	   OR (full_name, id) > ($5::TEXT, $4::BIGINT))
 //	ORDER BY full_name, id
-//	LIMIT $5 OFFSET $4
-func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]CrewMember, error) {
+//	LIMIT $7 OFFSET $6
+func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams) ([]ListCrewMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCrewMembers,
+		arg.IsAdmin,
+		arg.CallerUserID,
 		arg.Search,
 		arg.AfterID,
 		arg.AfterName,
@@ -393,24 +448,25 @@ func (q *Queries) ListCrewMembers(ctx context.Context, arg ListCrewMembersParams
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CrewMember
+	var items []ListCrewMembersRow
 	for rows.Next() {
-		var i CrewMember
+		var i ListCrewMembersRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedBy,
-			&i.UserID,
-			&i.FullName,
-			&i.Email,
-			&i.PatentNumber,
-			&i.Phone,
-			&i.PzzLicenseType,
-			&i.PzzLicenseNumber,
-			&i.EmergencyContactName,
-			&i.EmergencyContactPhone,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OtherNames,
+			&i.CrewMember.ID,
+			&i.CrewMember.CreatedBy,
+			&i.CrewMember.UserID,
+			&i.CrewMember.FullName,
+			&i.CrewMember.Email,
+			&i.CrewMember.PatentNumber,
+			&i.CrewMember.Phone,
+			&i.CrewMember.PzzLicenseType,
+			&i.CrewMember.PzzLicenseNumber,
+			&i.CrewMember.EmergencyContactName,
+			&i.CrewMember.EmergencyContactPhone,
+			&i.CrewMember.CreatedAt,
+			&i.CrewMember.UpdatedAt,
+			&i.CrewMember.OtherNames,
+			&i.ContactsVisible,
 		); err != nil {
 			return nil, err
 		}

@@ -184,8 +184,13 @@ func (h *CrewHandler) list(ctx context.Context, in *listCrewInput) (*crewListOut
 	if err != nil {
 		return nil, err
 	}
+	isAdmin, callerID, err := contactsCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
 	search := nullString(trimmedPtr(&in.Query))
 	members, err := h.q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
+		IsAdmin: isAdmin, CallerUserID: callerID,
 		Search: search, AfterID: afterID(ok, key.ID), AfterName: afterText(ok, key.Name),
 		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
@@ -198,16 +203,21 @@ func (h *CrewHandler) list(ctx context.Context, in *listCrewInput) (*crewListOut
 		slog.Error("count crew members", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list crew members")
 	}
-	page := buildPage(members, total, in.Limit, in.Offset, dto.CrewMembersFromDB,
-		func(r sqlcdb.CrewMember) any { return nameKey{Name: r.FullName, ID: r.ID} })
-	if err := h.redactEmergency(ctx, page.Items); err != nil {
-		return nil, err
-	}
+	page := buildPage(members, total, in.Limit, in.Offset, dto.CrewMembersForCaller,
+		func(r sqlcdb.ListCrewMembersRow) any {
+			return nameKey{Name: r.CrewMember.FullName, ID: r.CrewMember.ID}
+		})
 	return &crewListOutput{Body: page}, nil
 }
 
 func (h *CrewHandler) get(ctx context.Context, in *crewIDParam) (*crewOutput, error) {
-	member, err := h.q.GetCrewMember(ctx, in.ID)
+	isAdmin, callerID, err := contactsCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	row, err := h.q.GetCrewMemberForCaller(ctx, sqlcdb.GetCrewMemberForCallerParams{
+		IsAdmin: isAdmin, CallerUserID: callerID, ID: in.ID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("crew member not found")
@@ -215,11 +225,7 @@ func (h *CrewHandler) get(ctx context.Context, in *crewIDParam) (*crewOutput, er
 		slog.Error("get crew member", "crew_member_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to get crew member")
 	}
-	people := []dto.CrewMember{dto.CrewMemberFromDB(member)}
-	if err := h.redactEmergency(ctx, people); err != nil {
-		return nil, err
-	}
-	return &crewOutput{Body: people[0]}, nil
+	return &crewOutput{Body: dto.CrewMemberForCaller(row.CrewMember, row.ContactsVisible)}, nil
 }
 
 func (h *CrewHandler) create(ctx context.Context, in *createCrewInput) (*crewOutput, error) {
@@ -497,28 +503,14 @@ func (h *CrewHandler) removeVoyageCrew(ctx context.Context, in *removeVoyageCrew
 	return &noContentOutput{}, nil
 }
 
-func (h *CrewHandler) redactEmergency(ctx context.Context, people []dto.CrewMember) error {
+// contactsCaller returns what the people queries need to decide, in the
+// statement that reads the people, whether the caller sees their emergency
+// contacts: admins do, and so does the captain of a leg or voyage a person
+// is assigned to.
+func contactsCaller(ctx context.Context) (bool, types.NullInt64, error) {
 	user := middleware.GetUser(ctx)
 	if user == nil {
-		return huma.Error401Unauthorized("not authenticated")
+		return false, types.NullInt64{}, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role == "admin" || len(people) == 0 {
-		return nil
-	}
-	ids, err := h.q.ListCaptainCrewPersonIDs(ctx, types.NullInt64{Int64: user.UserID, Valid: true})
-	if err != nil {
-		slog.Error("load captain crew access", "user_id", user.UserID, "err", err)
-		return huma.Error500InternalServerError("failed to check emergency contact access")
-	}
-	allowed := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		allowed[id] = true
-	}
-	for i := range people {
-		if !allowed[people[i].ID] {
-			people[i].EmergencyContactName = nil
-			people[i].EmergencyContactPhone = nil
-		}
-	}
-	return nil
+	return user.Role == "admin", types.NullInt64{Int64: user.UserID, Valid: true}, nil
 }

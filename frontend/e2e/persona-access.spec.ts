@@ -130,7 +130,10 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL('/profile', { timeout: 10_000 });
 
 		await page.goto('/cruises');
+		await page.waitForURL('/series', { timeout: 10_000 });
+		await expect(page.getByRole('heading', { name: 'Rejsy', level: 1 })).toBeVisible();
 		await expect(page.getByRole('link', { name: '+ Nowy rejs' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: '+ Dodaj serię' })).toHaveCount(0);
 
 		// Legacy bookmarks retain the admin-only directory gate.
 		await page.goto('/members');
@@ -202,7 +205,8 @@ test.describe.serial('Single-club persona matrix', () => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
 		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
-		await page.waitForURL('/cruises');
+		await page.waitForURL('/series');
+		await expect(page.getByRole('link', { name: 'Serie', exact: true })).toHaveCount(0);
 		await expect(page.locator('a[href="/cruises/new"]')).toHaveCount(0);
 		await page.getByRole('link', { name: '+ Nowy rejs' }).click();
 		await page.waitForURL('/trips/new');
@@ -213,10 +217,11 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(/\/trips\/\d+/, { timeout: 10_000 });
 		const soloId = Number(page.url().split('/').pop());
 		await page.goto('/cruises?tab=all');
-		await expect(page.getByRole('link', { name: new RegExp(soloName) })).toHaveAttribute(
-			'href',
-			`/trips/${soloId}`
-		);
+		await page.waitForURL('/series');
+		const noSeries = page.getByRole('region', { name: 'Bez serii' });
+		const solo = noSeries.getByRole('link', { name: new RegExp(soloName) });
+		await expect(solo).toHaveAttribute('href', `/trips/${soloId}`);
+		await expect(solo.getByTestId('hidden-badge')).toBeVisible();
 	});
 
 	// SvelteKit reuses the page component when a link stays on the same route,
@@ -321,14 +326,14 @@ test.describe.serial('Single-club persona matrix', () => {
 		await expect(page.getByText('120')).toBeVisible();
 	});
 
-	test('fully sailed cruise appears in the completed tab', async ({ page }) => {
+	test('fully sailed cruise opens from its series on Rejsy', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
-		await page.waitForURL('/cruises');
-		await page.getByRole('tab', { name: 'Zrealizowane' }).click();
-		await expect(page.getByText(cruiseName)).toBeVisible();
+		await page.waitForURL('/series');
+		await page.getByRole('link', { name: `Series ${RUN_ID}` }).click();
+		await page.waitForURL(`/series/${seriesId}`);
 
-		await page.getByText(cruiseName).click();
+		await page.getByRole('link', { name: cruiseName }).click();
 		await page.waitForURL(`/cruises/${cruiseId}`);
 		await expect(page.getByText(tripName)).toBeVisible();
 	});
@@ -339,9 +344,11 @@ test.describe.serial('Single-club persona matrix', () => {
 		await apiRequest(idToken, 'POST', `/cruises/${cruiseId}/publish`, { include_legs: true });
 		await loginViaUI(page, memberEmail, PASSWORD);
 
-		await page.goto('/cruises?tab=all');
-		await expect(page.getByText(cruiseName)).toBeVisible();
+		await page.goto('/series');
 		await expect(page.getByRole('link', { name: '+ Nowy rejs' })).toHaveCount(0);
+		await page.getByRole('link', { name: `Series ${RUN_ID}` }).click();
+		await page.waitForURL(`/series/${seriesId}`);
+		await expect(page.getByText(cruiseName)).toBeVisible();
 
 		await page.goto(`/cruises/${cruiseId}`);
 		await expect(page.getByText(tripName)).toBeVisible();

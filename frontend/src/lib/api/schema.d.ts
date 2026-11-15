@@ -22,23 +22,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/me/cruises": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Cruises the current user took part in */
-        get: operations["list-my-cruises"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/me/legs": {
         parameters: {
             query?: never;
@@ -767,6 +750,26 @@ export interface paths {
         };
         /** List a series' editions, newest first, with voyage totals */
         get: operations["list-series-editions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/standalone-legs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List legs of cruises without a series
+         * @description The "Bez serii" group of the Rejsy page: every trip and voyage of a cruise without a series, plus such a cruise that has no leg, newest first by embark date with undated entries first. Not paged. Hidden entries and entries of hidden cruises are listed only for admins and the captain group.
+         */
+        get: operations["list-standalone-legs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2235,16 +2238,6 @@ export interface components {
              */
             membership: "czlonek" | "sympatyk" | "gosc";
         };
-        MyCruises: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example /api/MyCruises.json
-             */
-            readonly $schema?: string;
-            /** @description Cruises with the user's accepted enrollment, captained leg or crew-list entry */
-            cruise_ids: number[] | null;
-        };
         MyLeg: {
             /** Format: int64 */
             cruise_id: number;
@@ -2726,6 +2719,38 @@ export interface components {
             readonly $schema?: string;
             /** @description Note to the organizer; omit or send an empty string to clear it */
             note?: string;
+        };
+        StandaloneLeg: {
+            /** @description True for a cancelled trip */
+            cancelled: boolean;
+            /** Format: int64 */
+            cruise_id: number;
+            cruise_name: string;
+            /**
+             * Format: date-time
+             * @description When the cruise was published; absent while it is a hidden draft
+             */
+            cruise_published_at?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            /**
+             * Format: int64
+             * @description The trip, voyage or cruise ID, per kind
+             */
+            id: number;
+            /**
+             * @description What the entry opens: a trip, a voyage, or a cruise with no leg
+             * @enum {string}
+             */
+            kind: "trip" | "voyage" | "cruise";
+            name: string;
+            /**
+             * Format: date-time
+             * @description When the entry was published; absent while it is a hidden draft
+             */
+            published_at?: string;
+            start_port?: string;
         };
         TokenOutputBody: {
             /**
@@ -3439,35 +3464,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Me"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-my-cruises": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MyCruises"];
                 };
             };
             /** @description Error */
@@ -5169,6 +5165,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CruiseSeriesEdition"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-standalone-legs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandaloneLeg"][] | null;
                 };
             };
             /** @description Error */

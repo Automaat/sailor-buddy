@@ -127,9 +127,10 @@ type mockQuerier struct {
 	deleteTrainingFn func(ctx context.Context, arg sqlcdb.DeleteTrainingParams) error
 
 	// crew members
-	listCrewMembersFn        func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
+	listCrewMembersFn        func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error)
 	countCrewMembersFn       func(ctx context.Context, search types.NullString) (int64, error)
 	getCrewMemberFn          func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
+	getCrewMemberForCallerFn func(ctx context.Context, arg sqlcdb.GetCrewMemberForCallerParams) (sqlcdb.GetCrewMemberForCallerRow, error)
 	lockCrewMemberForShareFn func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
 	// person merge
 	lockCrewMembersForMergeFn      func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
@@ -163,8 +164,8 @@ type mockQuerier struct {
 	getUserByIDFn          func(ctx context.Context, id int64) (sqlcdb.User, error)
 	updateUserProfileFn    func(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error)
 	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
-	listUserCruiseIDsFn    func(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error)
 	listUserLegsFn         func(ctx context.Context, arg sqlcdb.ListUserUpcomingLegsParams) ([]sqlcdb.ListUserUpcomingLegsRow, error)
+	listStandaloneLegsFn   func(ctx context.Context, includeHidden bool) ([]sqlcdb.ListStandaloneLegsRow, error)
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
 	updateUserSuspendedFn  func(ctx context.Context, arg sqlcdb.UpdateUserSuspendedParams) error
@@ -658,7 +659,7 @@ func (m *mockQuerier) DeleteTraining(ctx context.Context, arg sqlcdb.DeleteTrain
 
 // --- crew members ---
 
-func (m *mockQuerier) ListCrewMembers(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) {
+func (m *mockQuerier) ListCrewMembers(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error) {
 	if m.listCrewMembersFn == nil {
 		panic("unexpected call to ListCrewMembers")
 	}
@@ -670,6 +671,13 @@ func (m *mockQuerier) CountCrewMembers(ctx context.Context, search types.NullStr
 		panic("unexpected call to CountCrewMembers")
 	}
 	return m.countCrewMembersFn(ctx, search)
+}
+
+func (m *mockQuerier) GetCrewMemberForCaller(ctx context.Context, arg sqlcdb.GetCrewMemberForCallerParams) (sqlcdb.GetCrewMemberForCallerRow, error) {
+	if m.getCrewMemberForCallerFn == nil {
+		panic("unexpected call to GetCrewMemberForCaller")
+	}
+	return m.getCrewMemberForCallerFn(ctx, arg)
 }
 
 func (m *mockQuerier) GetCrewMember(ctx context.Context, id int64) (sqlcdb.CrewMember, error) {
@@ -973,11 +981,11 @@ func (m *mockQuerier) CountTripLinkedEnrollments(ctx context.Context, tripID int
 	return m.countTripLinkedFn(ctx, tripID)
 }
 
-func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error) {
-	if m.listUserCruiseIDsFn == nil {
-		panic("unexpected call to ListUserCruiseIDs")
+func (m *mockQuerier) ListStandaloneLegs(ctx context.Context, includeHidden bool) ([]sqlcdb.ListStandaloneLegsRow, error) {
+	if m.listStandaloneLegsFn == nil {
+		panic("unexpected call to ListStandaloneLegs")
 	}
-	return m.listUserCruiseIDsFn(ctx, arg)
+	return m.listStandaloneLegsFn(ctx, includeHidden)
 }
 
 func (m *mockQuerier) ListUserUpcomingLegs(ctx context.Context, arg sqlcdb.ListUserUpcomingLegsParams) ([]sqlcdb.ListUserUpcomingLegsRow, error) {

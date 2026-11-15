@@ -6,7 +6,7 @@ const notFoundCopy: NotFoundCopy = {
 	title: 'Nie znaleziono serii',
 	message: 'Nowa edycja powstaje na stronie swojej serii. Ta seria nie istnieje.',
 	backHref: '/series',
-	backLabel: 'Wszystkie serie'
+	backLabel: 'Wszystkie rejsy'
 };
 
 /** Loads the series a new edition belongs to (?series_id=); without one the page is not found. */

@@ -400,6 +400,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		verb: 'get',
 		args: ['/series/{seriesID}/editions', { path: { seriesID: 4 } }]
 	},
+	{
+		name: 'listStandaloneLegs',
+		run: () => routes.listStandaloneLegs(),
+		verb: 'get',
+		args: ['/standalone-legs']
+	},
 
 	{ name: 'listCruises', run: () => routes.listCruises(), verb: 'list', args: ['/cruises'] },
 	{
@@ -604,6 +610,19 @@ describe('listMyLegs', () => {
 	it('falls back to an empty array for a null list', async () => {
 		api.get.mockResolvedValueOnce({ legs: null });
 		await expect(routes.listMyLegs()).resolves.toEqual([]);
+	});
+});
+
+describe('listStandaloneLegs', () => {
+	it('returns the entries', async () => {
+		const legs = [{ kind: 'trip', id: 7, name: 'Chorwacja', cancelled: false, cruise_id: 3 }];
+		api.get.mockResolvedValueOnce(legs);
+		await expect(routes.listStandaloneLegs()).resolves.toEqual(legs);
+	});
+
+	it('falls back to an empty array for a null body', async () => {
+		api.get.mockResolvedValueOnce(null);
+		await expect(routes.listStandaloneLegs()).resolves.toEqual([]);
 	});
 });
 

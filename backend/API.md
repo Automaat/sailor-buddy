@@ -287,7 +287,6 @@ require the caller to be an `admin` (marked **admin** below).
 |--------|------|-------------|
 | GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number, person_id}`; `person_id` is the account's person |
 | PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
-| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise enrollment or trip enrollment of the caller's person, leg captained by the account's person, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
 | GET | `/api/auth/me/legs` | `{legs}`: the caller's upcoming legs and how they take part (see below) |
 | GET | `/api/dashboard` | Caller's sea time; club totals for admins |
 
@@ -786,6 +785,18 @@ series); a cruise without a series counts as a sea cruise.
 
 `GET /api/cruises` lists cruises newest first (by `id`).
 
+`GET /api/standalone-legs` feeds the "Bez serii" group of the Rejsy page:
+a bare array, not paged, of every trip and voyage of a cruise without a
+series, plus one entry for each such cruise that has neither, so none
+becomes unreachable. Each entry has `kind` (`trip`, `voyage` or `cruise`:
+what `id` names and the page it opens), `id`, `name`, `cancelled` (true
+for a cancelled trip), `cruise_id`, `cruise_name`, optional
+`embark_date`, `disembark_date`, `start_port` and `end_port`, and, once
+published, `published_at` (the entry's own) and `cruise_published_at`.
+Entries are sorted newest first by `embark_date`, undated entries on top.
+Hidden entries and entries of hidden cruises are listed only for admins
+and the captain group.
+
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/cruises` | member | List cruises | 200 |
@@ -795,6 +806,7 @@ series); a cruise without a series counts as a sea cruise.
 | DELETE | `/api/cruises/{id}` | **admin** | Delete cruise; `409` while it has trips or voyages | 204 |
 | GET | `/api/cruises/{id}/trips` | member | Child trips | 200 |
 | GET | `/api/cruises/{id}/voyages` | member | Child voyages | 200 |
+| GET | `/api/standalone-legs` | member | Legs of cruises without a series (see above) | 200 |
 | POST | `/api/cruises/{id}/enroll-token` | **admin** | Generate token → `{token}` | 200 |
 | DELETE | `/api/cruises/{id}/enroll-token` | **admin** | Clear token, 204 | 204 |
 | GET | `/api/cruises/{id}/enrollments` | **admin** | List cruise enrollments | 200 |
@@ -1005,7 +1017,8 @@ linked to it; an admin approves. There is no instant self-link.
   asked for that person, rejected otherwise. A person with another account
   → `409`.
 - Unlinking clears the person's account link and its e-mail when it is the
-  account's (otherwise it would still count toward `/api/auth/me/cruises`);
+  account's (otherwise `/api/auth/me/person-candidates` would still offer
+  it to the account as an e-mail match);
   the account gets a new person built from its profile, without history.
   An approved request for that person no longer shows in
   `/api/auth/me/person-link-request`, so the user can ask again. A person
