@@ -16,8 +16,8 @@ export const load: PageLoad = async ({ params }) => {
 	const voyage = await found(getVoyage(id), {
 		title: 'Nie znaleziono rejsu',
 		message: 'Ten zrealizowany rejs nie istnieje lub nie masz do niego dostępu.',
-		backHref: '/cruises?tab=completed',
-		backLabel: 'Zrealizowane rejsy'
+		backHref: '/series',
+		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];
 	// Crew and opinions feed sections only admins and the voyage captain see,

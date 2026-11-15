@@ -1318,27 +1318,6 @@ components:
       required:
         - membership
       type: object
-    MyCruises:
-      additionalProperties: false
-      properties:
-        $schema:
-          description: A URL to the JSON Schema for this object.
-          examples:
-            - /api/MyCruises.json
-          format: uri
-          readOnly: true
-          type: string
-        cruise_ids:
-          description: Cruises with the user's accepted enrollment, captained leg or crew-list entry
-          items:
-            format: int64
-            type: integer
-          type:
-            - array
-            - "null"
-      required:
-        - cruise_ids
-      type: object
     MyLeg:
       additionalProperties: false
       properties:
@@ -2100,6 +2079,54 @@ components:
           description: Note to the organizer; omit or send an empty string to clear it
           maxLength: 2000
           type: string
+      type: object
+    StandaloneLeg:
+      additionalProperties: false
+      properties:
+        cancelled:
+          description: True for a cancelled trip
+          type: boolean
+        cruise_id:
+          format: int64
+          type: integer
+        cruise_name:
+          type: string
+        cruise_published_at:
+          description: When the cruise was published; absent while it is a hidden draft
+          format: date-time
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        id:
+          description: The trip, voyage or cruise ID, per kind
+          format: int64
+          type: integer
+        kind:
+          description: "What the entry opens: a trip, a voyage, or a cruise with no leg"
+          enum:
+            - trip
+            - voyage
+            - cruise
+          type: string
+        name:
+          type: string
+        published_at:
+          description: When the entry was published; absent while it is a hidden draft
+          format: date-time
+          type: string
+        start_port:
+          type: string
+      required:
+        - kind
+        - id
+        - name
+        - cancelled
+        - cruise_id
+        - cruise_name
       type: object
     TokenOutputBody:
       additionalProperties: false
@@ -3062,25 +3089,6 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Save the current user's profile and finish onboarding
-      tags:
-        - Auth
-  /auth/me/cruises:
-    get:
-      operationId: list-my-cruises
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MyCruises"
-          description: OK
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ErrorModel"
-          description: Error
-      summary: Cruises the current user took part in
       tags:
         - Auth
   /auth/me/legs:
@@ -4669,6 +4677,30 @@ paths:
       summary: List a series' editions, newest first, with voyage totals
       tags:
         - Series
+  /standalone-legs:
+    get:
+      description: "The \"Bez serii\" group of the Rejsy page: every trip and voyage of a cruise without a series, plus such a cruise that has no leg, newest first by embark date with undated entries first. Not paged. Hidden entries and entries of hidden cruises are listed only for admins and the captain group."
+      operationId: list-standalone-legs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/StandaloneLeg"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List legs of cruises without a series
+      tags:
+        - Cruises
   /trainings:
     get:
       operationId: list-trainings

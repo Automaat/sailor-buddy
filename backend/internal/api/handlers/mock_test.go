@@ -161,8 +161,8 @@ type mockQuerier struct {
 	getUserByIDFn          func(ctx context.Context, id int64) (sqlcdb.User, error)
 	updateUserProfileFn    func(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error)
 	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
-	listUserCruiseIDsFn    func(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error)
 	listUserLegsFn         func(ctx context.Context, arg sqlcdb.ListUserUpcomingLegsParams) ([]sqlcdb.ListUserUpcomingLegsRow, error)
+	listStandaloneLegsFn   func(ctx context.Context, includeHidden bool) ([]sqlcdb.ListStandaloneLegsRow, error)
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
 	updateUserSuspendedFn  func(ctx context.Context, arg sqlcdb.UpdateUserSuspendedParams) error
@@ -957,11 +957,11 @@ func (m *mockQuerier) CountTripLinkedEnrollments(ctx context.Context, tripID int
 	return m.countTripLinkedFn(ctx, tripID)
 }
 
-func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error) {
-	if m.listUserCruiseIDsFn == nil {
-		panic("unexpected call to ListUserCruiseIDs")
+func (m *mockQuerier) ListStandaloneLegs(ctx context.Context, includeHidden bool) ([]sqlcdb.ListStandaloneLegsRow, error) {
+	if m.listStandaloneLegsFn == nil {
+		panic("unexpected call to ListStandaloneLegs")
 	}
-	return m.listUserCruiseIDsFn(ctx, arg)
+	return m.listStandaloneLegsFn(ctx, includeHidden)
 }
 
 func (m *mockQuerier) ListUserUpcomingLegs(ctx context.Context, arg sqlcdb.ListUserUpcomingLegsParams) ([]sqlcdb.ListUserUpcomingLegsRow, error) {

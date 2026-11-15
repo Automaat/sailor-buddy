@@ -433,7 +433,7 @@ describe('voyage page load', () => {
 			body: {
 				message: 'Ten zrealizowany rejs nie istnieje lub nie masz do niego dostępu.',
 				title: 'Nie znaleziono rejsu',
-				backHref: '/cruises?tab=completed'
+				backHref: '/series'
 			}
 		});
 	});

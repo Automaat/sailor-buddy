@@ -58,6 +58,8 @@ export type Cruise = Schemas['Cruise'];
 export type CruiseBody = Schemas['CruiseBody'];
 export type CruiseSeries = Schemas['CruiseSeries'];
 export type CruiseSeriesEdition = Schemas['CruiseSeriesEdition'];
+/** StandaloneLeg is one "Bez serii" entry: a leg of a cruise without a series, or such a cruise without a leg. */
+export type StandaloneLeg = Schemas['StandaloneLeg'];
 
 export type VoyageOpinion = Schemas['VoyageOpinion'];
 

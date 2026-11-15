@@ -6,7 +6,7 @@ const notFoundCopy: NotFoundCopy = {
 	title: 'Nie znaleziono serii',
 	message: 'Ta seria nie istnieje lub nie masz do niej dostępu.',
 	backHref: '/series',
-	backLabel: 'Wszystkie serie'
+	backLabel: 'Wszystkie rejsy'
 };
 
 export const load: PageLoad = async ({ params }) => {

@@ -13,7 +13,6 @@
 	import Sailboat from '@lucide/svelte/icons/sailboat';
 	import Ship from '@lucide/svelte/icons/ship';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
-	import Repeat from '@lucide/svelte/icons/repeat';
 	import Menu from '@lucide/svelte/icons/menu';
 	import X from '@lucide/svelte/icons/x';
 	import Contact from '@lucide/svelte/icons/contact';
@@ -31,8 +30,12 @@
 
 	const navItems: NavItem[] = [
 		{ href: '/', label: 'Pulpit', icon: Anchor },
-		{ href: '/cruises', label: 'Rejsy', icon: Sailboat, alsoActiveUnder: ['/trips', '/voyages'] },
-		{ href: '/series', label: 'Serie', icon: Repeat },
+		{
+			href: '/series',
+			label: 'Rejsy',
+			icon: Sailboat,
+			alsoActiveUnder: ['/cruises', '/trips', '/voyages']
+		},
 		{ href: '/yachts', label: 'Jachty', icon: Ship },
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
 		{

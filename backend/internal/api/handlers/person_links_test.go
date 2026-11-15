@@ -145,13 +145,30 @@ func (f *linkFixture) userIDOf(personID int64) types.NullInt64 {
 	return p.UserID
 }
 
+// cruisesOf lists the cruises whose voyages crew a person linked to the
+// account, sorted by ID.
 func (f *linkFixture) cruisesOf(userID int64) []int64 {
 	f.t.Helper()
-	ids, err := f.q.ListUserCruiseIDs(context.Background(), sqlcdb.ListUserCruiseIDsParams{UserID: userID, IncludeHidden: true})
+	rows, err := f.conn.QueryContext(context.Background(), `SELECT DISTINCT v.cruise_id
+		FROM crew_assignments ca
+		JOIN voyages v ON v.id = ca.voyage_id
+		JOIN crew_members cm ON cm.id = ca.crew_member_id
+		WHERE cm.user_id = $1 ORDER BY v.cruise_id`, userID)
 	if err != nil {
 		f.t.Fatalf("list cruises: %v", err)
 	}
-	slices.Sort(ids)
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			f.t.Fatalf("scan cruise: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		f.t.Fatalf("list cruises: %v", err)
+	}
 	return ids
 }
 

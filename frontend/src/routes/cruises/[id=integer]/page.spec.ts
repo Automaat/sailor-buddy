@@ -312,8 +312,12 @@ describe('cruise page admin flows', () => {
 		expect(goto).not.toHaveBeenCalled();
 	});
 
-	it('deletes the cruise after confirmation', async () => {
+	it.each([
+		['the Rejsy list for a cruise without a series', undefined, '/series'],
+		["its series' page for an edition", 3, '/series/3']
+	])('deletes the cruise after confirmation and opens %s', async (_, seriesId, href) => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		mockGet.mockResolvedValue(cruise({ series_id: seriesId }));
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
 		await renderPage();
@@ -321,7 +325,7 @@ describe('cruise page admin flows', () => {
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 		await waitFor(() => expect(deleteCruise).toHaveBeenCalledWith(7));
-		expect(goto).toHaveBeenCalledWith('/cruises');
+		expect(goto).toHaveBeenCalledWith(href);
 	});
 
 	it('keeps the page usable when actions fail', async () => {
@@ -426,7 +430,7 @@ describe('cruise page load errors', () => {
 			body: {
 				message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
 				title: 'Nie znaleziono wydarzenia',
-				backHref: '/cruises'
+				backHref: '/series'
 			}
 		});
 	});

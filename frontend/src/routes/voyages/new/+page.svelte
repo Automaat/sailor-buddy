@@ -17,7 +17,7 @@
 	// Logging voyages is an admin task; redirect regular members away.
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			void goto('/cruises?tab=completed');
+			void goto('/series');
 		}
 	});
 
@@ -52,9 +52,7 @@
 		};
 	}
 
-	const cancelHref = $derived(
-		form.cruise_id ? `/cruises/${form.cruise_id}` : '/cruises?tab=completed'
-	);
+	const cancelHref = $derived(form.cruise_id ? `/cruises/${form.cruise_id}` : '/series');
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();

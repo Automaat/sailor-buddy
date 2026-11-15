@@ -96,22 +96,25 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - Single club: all sailing data (cruises, trips, voyages, yachts, crew) is
   club-wide and shared. No per-user/per-org scoping.
 - Every trip and voyage belongs to a cruise (club event): `cruise_id` is
-  NOT NULL. The UI has one "Rejsy" list (`/cruises`) of events with
-  Nadchodzące/Zrealizowane/Wszystkie tabs; trips and voyages are legs shown
-  on the event page. There are no standalone trip/voyage list pages.
+  NOT NULL. The "Rejsy" nav item opens the series list (`/series`); each
+  series page lists its editions, and trips and voyages are legs shown on
+  the edition page. At the end of Rejsy, "Bez serii" lists every leg of a
+  cruise without a series, plus such a cruise with no leg
+  (`GET /standalone-legs`, `src/lib/rejsy.ts`), so none is unreachable.
+  `/cruises` redirects to `/series`. There are no other trip/voyage list
+  pages; the caller's own upcoming legs are on the dashboard.
 - Seria (`cruise_series`) → Edycja (`cruises` with `series_id`) → Etap
   (`trips`/`voyages`). Edycje are created only from the series page
   (`/cruises/new?series_id=`); `POST /cruises` requires `series_id` and
-  `edition`. The Rejsy page creates only etapy (`/trips/new`): a trip may
-  pick a Seria → Edycja or stay standalone, and `POST /trips` without
+  `edition`. Rejsy's "+ Nowy rejs" creates an etap (`/trips/new`): a trip
+  may pick a Seria → Edycja or stay standalone, and `POST /trips` without
   `cruise_id` wraps it in its own cruise without a series. Cruises without a
-  series stay valid; the Rejsy list links one with a single trip and no
-  voyages straight to the trip (`src/lib/rejsy.ts`).
+  series stay valid and show under "Bez serii".
 - An edycja (`cruises`) holds only what all its legs share: name, countries,
   description, images, `included`/`not_included`, travel notes, min age.
   Dates, ports, captain, yacht, crew limit and prices live on each etap;
-  the frontend derives an edition's dates from its legs only for sorting and
-  tabs and does not show them. `kind` (sea/inland) is on `cruise_series`; a
+  a series' editions are sorted by their legs' dates and the UI does not
+  show an edition's dates. `kind` (sea/inland) is on `cruise_series`; a
   cruise without a series is sea.
 - Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require a verified Firebase email
   (no approval step); `users.suspended` denies access, existing tokens included. Emergency contacts are

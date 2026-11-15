@@ -59,11 +59,6 @@ type UpdateProfileBody struct {
 	PatentNumber *string `json:"patent_number,omitempty" doc:"Patent registration number"`
 }
 
-// MyCruises lists the cruises the current user took part in.
-type MyCruises struct {
-	CruiseIDs []int64 `json:"cruise_ids" doc:"Cruises with the user's accepted enrollment, captained leg or crew-list entry"`
-}
-
 // MyLeg is one of the caller's upcoming legs and how they take part in it.
 type MyLeg struct {
 	ID            int64   `json:"id"`

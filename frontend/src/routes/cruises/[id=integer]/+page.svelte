@@ -134,11 +134,12 @@
 		}
 		if (!confirm('Usunąć wydarzenie?')) return;
 		const cruiseId = id;
+		const backHref = cruise.series_id ? `/series/${cruise.series_id}` : '/series';
 		deleteError = '';
 		try {
 			await deleteCruise(cruiseId);
 			if (!mounted || cruiseId !== id) return;
-			void goto('/cruises');
+			void goto(backHref);
 		} catch (err) {
 			if (!mounted || cruiseId !== id) return;
 			deleteError = err instanceof Error ? err.message : 'Nie udało się usunąć wydarzenia';

@@ -376,9 +376,8 @@ type ListCruisesParams struct {
 	RowLimit      int32           `json:"row_limit"`
 }
 
-// Newest first; a set after_id starts the page after that cruise. The Rejsy
-// list orders cruises by their legs' dates itself. Without include_hidden
-// only published cruises are listed.
+// Newest first; a set after_id starts the page after that cruise. Without
+// include_hidden only published cruises are listed.
 //
 //	SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 //	WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
@@ -432,109 +431,110 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 	return items, nil
 }
 
-const listUserCruiseIDs = `-- name: ListUserCruiseIDs :many
-WITH me AS (
-    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $2
-),
-my_crew AS (
-    SELECT cm.id AS crew_id FROM crew_members cm, me
-    WHERE cm.user_id = me.me_id
-       OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
-),
-took_part AS (
-    SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
-    WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+const listStandaloneLegs = `-- name: ListStandaloneLegs :many
+SELECT s.kind, s.id, s.name, s.cancelled, s.embark_date, s.disembark_date,
+       s.start_port, s.end_port, s.published_at,
+       s.cruise_id, s.cruise_name, s.cruise_published_at
+FROM (
+    SELECT 'trip'::TEXT AS kind, t.id, t.name, (t.status = 'cancelled') AS cancelled,
+           t.embark_date, t.disembark_date, t.start_port, t.end_port, t.published_at,
+           c.id AS cruise_id, c.name AS cruise_name, c.published_at AS cruise_published_at
+    FROM trips t JOIN cruises c ON c.id = t.cruise_id
+    WHERE c.series_id IS NULL
     UNION ALL
-    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te
-    JOIN trips t ON t.id = te.trip_id
-    JOIN crew_members cm ON cm.id = te.crew_member_id, me
-    WHERE cm.user_id = me.me_id AND te.status = 'accepted'
+    SELECT 'voyage', v.id, v.name, FALSE,
+           v.embark_date, v.disembark_date, v.start_port, v.end_port, v.published_at,
+           c.id, c.name, c.published_at
+    FROM voyages v JOIN cruises c ON c.id = v.cruise_id
+    WHERE c.series_id IS NULL
     UNION ALL
-    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
-    JOIN crew_members cm ON cm.id = t.captain_person_id, me
-    WHERE cm.user_id = me.me_id
-    UNION ALL
-    SELECT v.cruise_id, v.published_at IS NOT NULL FROM voyages v
-    JOIN crew_members cm ON cm.id = v.captain_person_id, me
-    WHERE cm.user_id = me.me_id
-    UNION ALL
-    SELECT t.cruise_id, t.published_at IS NOT NULL FROM crew_assignments ca
-    JOIN trips t ON t.id = ca.trip_id
-    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-    UNION ALL
-    SELECT v.cruise_id, v.published_at IS NOT NULL FROM crew_assignments ca
-    JOIN voyages v ON v.id = ca.voyage_id
-    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-)
-SELECT DISTINCT tp.cruise_id FROM took_part tp
-JOIN cruises c ON c.id = tp.cruise_id
-WHERE $1::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
-ORDER BY tp.cruise_id
+    SELECT 'cruise', c.id, c.name, FALSE,
+           NULL, NULL, NULL, NULL, c.published_at,
+           c.id, c.name, c.published_at
+    FROM cruises c
+    WHERE c.series_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM trips t WHERE t.cruise_id = c.id)
+      AND NOT EXISTS (SELECT 1 FROM voyages v WHERE v.cruise_id = c.id)
+) s
+WHERE $1::BOOLEAN
+   OR (s.published_at IS NOT NULL AND s.cruise_published_at IS NOT NULL)
+ORDER BY NULLIF(s.embark_date, '') DESC NULLS FIRST, s.cruise_id DESC, s.kind, s.id DESC
 `
 
-type ListUserCruiseIDsParams struct {
-	IncludeHidden bool  `json:"include_hidden"`
-	UserID        int64 `json:"user_id"`
+type ListStandaloneLegsRow struct {
+	Kind              string           `json:"kind"`
+	ID                int64            `json:"id"`
+	Name              string           `json:"name"`
+	Cancelled         bool             `json:"cancelled"`
+	EmbarkDate        types.NullString `json:"embark_date"`
+	DisembarkDate     types.NullString `json:"disembark_date"`
+	StartPort         types.NullString `json:"start_port"`
+	EndPort           types.NullString `json:"end_port"`
+	PublishedAt       types.NullTime   `json:"published_at"`
+	CruiseID          int64            `json:"cruise_id"`
+	CruiseName        string           `json:"cruise_name"`
+	CruisePublishedAt types.NullTime   `json:"cruise_published_at"`
 }
 
-// Cruises the user took part in: an accepted cruise enrollment, an
-// accepted trip enrollment of the account's person, a leg captained by the
-// account's person, or a crew-list entry linked to the account, or one
-// without an account that carries its email. Another
-// account's person never matches by email: it keeps the email that account
-// had when the person was created. Without include_hidden, a hidden cruise
-// and a cruise reached only through a hidden leg are left out.
+// The "Bez serii" group: the trips and voyages of cruises without a series,
+// one row each, plus one row for such a cruise that has neither, so none
+// becomes unreachable. Newest first by embark date; an undated row is still
+// being planned, so it sorts before every dated one. Without include_hidden
+// a row is listed only while it and its cruise are published.
 //
-//	WITH me AS (
-//	    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $2
-//	),
-//	my_crew AS (
-//	    SELECT cm.id AS crew_id FROM crew_members cm, me
-//	    WHERE cm.user_id = me.me_id
-//	       OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
-//	),
-//	took_part AS (
-//	    SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
-//	    WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+//	SELECT s.kind, s.id, s.name, s.cancelled, s.embark_date, s.disembark_date,
+//	       s.start_port, s.end_port, s.published_at,
+//	       s.cruise_id, s.cruise_name, s.cruise_published_at
+//	FROM (
+//	    SELECT 'trip'::TEXT AS kind, t.id, t.name, (t.status = 'cancelled') AS cancelled,
+//	           t.embark_date, t.disembark_date, t.start_port, t.end_port, t.published_at,
+//	           c.id AS cruise_id, c.name AS cruise_name, c.published_at AS cruise_published_at
+//	    FROM trips t JOIN cruises c ON c.id = t.cruise_id
+//	    WHERE c.series_id IS NULL
 //	    UNION ALL
-//	    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te
-//	    JOIN trips t ON t.id = te.trip_id
-//	    JOIN crew_members cm ON cm.id = te.crew_member_id, me
-//	    WHERE cm.user_id = me.me_id AND te.status = 'accepted'
+//	    SELECT 'voyage', v.id, v.name, FALSE,
+//	           v.embark_date, v.disembark_date, v.start_port, v.end_port, v.published_at,
+//	           c.id, c.name, c.published_at
+//	    FROM voyages v JOIN cruises c ON c.id = v.cruise_id
+//	    WHERE c.series_id IS NULL
 //	    UNION ALL
-//	    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
-//	    JOIN crew_members cm ON cm.id = t.captain_person_id, me
-//	    WHERE cm.user_id = me.me_id
-//	    UNION ALL
-//	    SELECT v.cruise_id, v.published_at IS NOT NULL FROM voyages v
-//	    JOIN crew_members cm ON cm.id = v.captain_person_id, me
-//	    WHERE cm.user_id = me.me_id
-//	    UNION ALL
-//	    SELECT t.cruise_id, t.published_at IS NOT NULL FROM crew_assignments ca
-//	    JOIN trips t ON t.id = ca.trip_id
-//	    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-//	    UNION ALL
-//	    SELECT v.cruise_id, v.published_at IS NOT NULL FROM crew_assignments ca
-//	    JOIN voyages v ON v.id = ca.voyage_id
-//	    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-//	)
-//	SELECT DISTINCT tp.cruise_id FROM took_part tp
-//	JOIN cruises c ON c.id = tp.cruise_id
-//	WHERE $1::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
-//	ORDER BY tp.cruise_id
-func (q *Queries) ListUserCruiseIDs(ctx context.Context, arg ListUserCruiseIDsParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listUserCruiseIDs, arg.IncludeHidden, arg.UserID)
+//	    SELECT 'cruise', c.id, c.name, FALSE,
+//	           NULL, NULL, NULL, NULL, c.published_at,
+//	           c.id, c.name, c.published_at
+//	    FROM cruises c
+//	    WHERE c.series_id IS NULL
+//	      AND NOT EXISTS (SELECT 1 FROM trips t WHERE t.cruise_id = c.id)
+//	      AND NOT EXISTS (SELECT 1 FROM voyages v WHERE v.cruise_id = c.id)
+//	) s
+//	WHERE $1::BOOLEAN
+//	   OR (s.published_at IS NOT NULL AND s.cruise_published_at IS NOT NULL)
+//	ORDER BY NULLIF(s.embark_date, '') DESC NULLS FIRST, s.cruise_id DESC, s.kind, s.id DESC
+func (q *Queries) ListStandaloneLegs(ctx context.Context, includeHidden bool) ([]ListStandaloneLegsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listStandaloneLegs, includeHidden)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []int64
+	var items []ListStandaloneLegsRow
 	for rows.Next() {
-		var cruise_id int64
-		if err := rows.Scan(&cruise_id); err != nil {
+		var i ListStandaloneLegsRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.ID,
+			&i.Name,
+			&i.Cancelled,
+			&i.EmbarkDate,
+			&i.DisembarkDate,
+			&i.StartPort,
+			&i.EndPort,
+			&i.PublishedAt,
+			&i.CruiseID,
+			&i.CruiseName,
+			&i.CruisePublishedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, cruise_id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
