@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { getMe } from '#lib/api/routes.js';
+	import { ApiError } from '#lib/api/client.js';
 	import { ONBOARDING_PATH, onboardingRedirect } from '#lib/onboarding.js';
 	import { ACCESS_PATH, accessRedirect, isEnrollRoute, isPublicRoute } from '#lib/access.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
@@ -47,6 +48,9 @@
 	// tapped link lands on the page, not behind the open menu.
 	let menuOpen = $state(false);
 	let profileError = $state('');
+	// A suspended account is refused even /auth/me, so it has no profile to
+	// show; the API's reason code tells the layout to explain the suspension.
+	let suspended = $state(false);
 
 	$effect(() => {
 		void page.url.pathname;
@@ -64,6 +68,7 @@
 
 	async function handleLogout() {
 		profileError = '';
+		suspended = false;
 		await auth.logout();
 		void goto('/login');
 	}
@@ -104,6 +109,10 @@
 						auth.user = u;
 					}
 				} catch (err) {
+					if (err instanceof ApiError && err.code === 'account_suspended') {
+						suspended = true;
+						return;
+					}
 					profileError = err instanceof Error ? err.message : 'Nie udało się wczytać konta';
 				}
 			})();
@@ -117,7 +126,13 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if profileError && auth.isAuthenticated}
+{#if suspended && auth.isAuthenticated}
+	<div class="mx-auto max-w-lg space-y-4 p-8" data-testid="account-suspended">
+		<h1 class="text-2xl font-bold">Konto zawieszone</h1>
+		<p>Twoje konto zostało zawieszone przez klub. Skontaktuj się z zarządem klubu.</p>
+		<button onclick={handleLogout} class="rounded-lg border p-2">Wyloguj się</button>
+	</div>
+{:else if profileError && auth.isAuthenticated}
 	<div class="mx-auto max-w-lg p-8">
 		<p role="alert">{profileError}</p>
 		<button onclick={handleLogout} class="mt-4 rounded-lg border p-2">Wyloguj się</button>
