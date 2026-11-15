@@ -38,7 +38,7 @@ func TestCruiseHandler_ListStandaloneLegs(t *testing.T) {
 				`{"kind":"cruise","id":3,"name":"Bez etapów","cancelled":false,"published_at":"2025-01-01T00:00:00Z",` +
 				`"cruise_id":3,"cruise_name":"Bez etapów","cruise_published_at":"2025-01-01T00:00:00Z"}]`,
 		},
-		{name: "captain group reads hidden entries", ctx: captainGroupCtx(), wantHidden: true, wantBody: `[]`},
+		{name: "captain group reads hidden entries", ctx: captainGroupCtx(7), wantHidden: true, wantBody: `[]`},
 		{name: "member reads published entries", ctx: userCtxRole(context.Background(), "member"), wantBody: `[]`},
 	}
 	for _, tt := range tests {
