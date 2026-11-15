@@ -104,6 +104,9 @@ describe('series detail page', () => {
 		);
 		expect(within(rows[2]).getByText('—')).toBeInTheDocument();
 		expect(screen.queryByText(/Mile|Godziny|Razem/)).not.toBeInTheDocument();
+		// A long name without spaces must wrap instead of widening the table on a phone.
+		expect(screen.getByRole('table')).toHaveClass('table-fixed');
+		expect(within(rows[0]).getByRole('link')).toHaveClass('[overflow-wrap:anywhere]');
 	});
 
 	it('hides edit, delete and new edition for a member', async () => {

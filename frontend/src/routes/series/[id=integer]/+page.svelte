@@ -165,7 +165,7 @@
 				{auth.isAdmin ? 'Brak edycji. Dodaj pierwszą przyciskiem „+ Nowa edycja”.' : 'Brak edycji.'}
 			</p>
 		{:else}
-			<table class="w-full text-left text-sm">
+			<table class="w-full table-fixed text-left text-sm">
 				<thead>
 					<tr class="border-b text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
 						<th scope="col" class="w-28 pb-2 pr-4 font-medium">Edycja</th>
@@ -185,7 +185,7 @@
 								<div class="flex items-center gap-2">
 									<a
 										href="/cruises/{e.cruise_id}"
-										class="min-w-0 flex-1 font-medium text-[var(--navy)] after:absolute after:inset-0 group-hover:text-[var(--ocean)]"
+										class="min-w-0 flex-1 font-medium text-[var(--navy)] [overflow-wrap:anywhere] after:absolute after:inset-0 group-hover:text-[var(--ocean)]"
 										>{e.name}</a
 									>
 									{#if showHidden && isHidden(e)}<span class="relative"><HiddenBadge /></span>{/if}
