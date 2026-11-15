@@ -29,6 +29,7 @@ const cruiseName = `Cruise ${RUN_ID}`;
 const tripName = `Trip ${RUN_ID}`;
 let tripId = 0;
 let cruiseId = 0;
+let seriesId = 0;
 
 // mutationStatus issues an authenticated mutating request and returns the HTTP
 // status, so a member can be asserted forbidden (403).
@@ -127,7 +128,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL('/profile', { timeout: 10_000 });
 
 		await page.goto('/cruises');
-		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: '+ Nowy rejs' })).toHaveCount(0);
 
 		// Legacy bookmarks retain the admin-only directory gate.
 		await page.goto('/members');
@@ -163,20 +164,53 @@ test.describe.serial('Single-club persona matrix', () => {
 		).toHaveValue('sympatyk');
 	});
 
-	test('admin: creates a cruise', async ({ page }) => {
+	test('admin: creates an edition from its series page', async ({ page }) => {
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		const series = (await apiRequest(idToken, 'POST', '/series', {
+			name: `Series ${RUN_ID}`
+		})) as { id: number };
+		seriesId = series.id;
+		await loginViaUI(page, adminEmail, PASSWORD);
+
+		await page.goto(`/series/${seriesId}`);
+		await page.getByRole('link', { name: '+ Nowa edycja' }).click();
+		await page.waitForURL(`/cruises/new?series_id=${seriesId}`);
+		await expect(page.getByRole('heading', { name: 'Nowa edycja' })).toBeVisible();
+
+		await page.getByLabel('Nazwa wydarzenia *').fill(cruiseName);
+		await page.getByLabel('Edycja *').fill('2026');
+		await page.getByRole('button', { name: 'Utwórz edycję' }).click();
+
+		await page.waitForURL(`/series/${seriesId}`, { timeout: 10_000 });
+		const row = page.getByTestId('edition-row').filter({ hasText: cruiseName });
+		await expect(row).toContainText('2026');
+		await row.getByRole('link', { name: cruiseName }).click();
+		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
+		cruiseId = Number(page.url().split('/').pop());
+		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+	});
+
+	test('admin: plans a standalone trip from Rejsy', async ({ page }) => {
+		// The name must not contain cruiseName or tripName: Playwright matches substrings.
+		const soloName = `Solo ${RUN_ID}`;
 		await loginViaUI(page, adminEmail, PASSWORD);
 
 		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
 		await page.waitForURL('/cruises');
-		await page.getByRole('link', { name: '+ Nowe wydarzenie' }).click();
-		await page.waitForURL('/cruises/new');
+		await expect(page.locator('a[href="/cruises/new"]')).toHaveCount(0);
+		await page.getByRole('link', { name: '+ Nowy rejs' }).click();
+		await page.waitForURL('/trips/new');
+		await expect(page.getByLabel('Seria')).toHaveValue('standalone');
+		await page.getByLabel('Nazwa rejsu *').fill(soloName);
+		await page.getByRole('button', { name: 'Zaplanuj rejs' }).click();
 
-		await page.getByLabel('Nazwa wydarzenia *').fill(cruiseName);
-		await page.getByRole('button', { name: 'Utwórz wydarzenie' }).click();
-
-		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
-		cruiseId = Number(page.url().split('/').pop());
-		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+		await page.waitForURL(/\/trips\/\d+/, { timeout: 10_000 });
+		const soloId = Number(page.url().split('/').pop());
+		await page.goto('/cruises?tab=all');
+		await expect(page.getByRole('link', { name: new RegExp(soloName) })).toHaveAttribute(
+			'href',
+			`/trips/${soloId}`
+		);
 	});
 
 	// SvelteKit reuses the page component when a link stays on the same route,
@@ -187,7 +221,11 @@ test.describe.serial('Single-club persona matrix', () => {
 		// The name must not contain cruiseName: Playwright matches names as
 		// case-insensitive substrings, here and in the later cruise-list steps.
 		const otherName = `Second ${RUN_ID}`;
-		const other = (await apiRequest(idToken, 'POST', '/cruises', { name: otherName })) as {
+		const other = (await apiRequest(idToken, 'POST', '/cruises', {
+			name: otherName,
+			series_id: seriesId,
+			edition: 'B'
+		})) as {
 			id: number;
 		};
 		await loginViaUI(page, adminEmail, PASSWORD);
@@ -211,7 +249,8 @@ test.describe.serial('Single-club persona matrix', () => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
 		await page.goto(`/trips/new?cruise_id=${cruiseId}`);
-		await expect(page.getByLabel('Wydarzenie klubu *')).toHaveValue(String(cruiseId));
+		await expect(page.getByLabel('Edycja *')).toHaveValue(String(cruiseId));
+		await expect(page.getByLabel('Edycja *')).toBeDisabled();
 		await page.getByLabel('Nazwa rejsu *').fill(tripName);
 		await page.getByLabel('Port wyjścia').fill('Gdańsk');
 		await page.getByLabel('Port docelowy').fill('Visby');
@@ -227,7 +266,9 @@ test.describe.serial('Single-club persona matrix', () => {
 		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
 		// A separate cruise keeps cruiseName fully sailed for the completed-tab step, and neither name may contain cruiseName or tripName because Playwright matches substrings. EXC:FILE011:documents-a-non-obvious-invariant
 		const otherCruise = (await apiRequest(idToken, 'POST', '/cruises', {
-			name: `Third ${RUN_ID}`
+			name: `Third ${RUN_ID}`,
+			series_id: seriesId,
+			edition: 'C'
 		})) as {
 			id: number;
 		};
@@ -291,7 +332,7 @@ test.describe.serial('Single-club persona matrix', () => {
 
 		await page.goto('/cruises?tab=all');
 		await expect(page.getByText(cruiseName)).toBeVisible();
-		await expect(page.getByRole('link', { name: '+ Nowe wydarzenie' })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: '+ Nowy rejs' })).toHaveCount(0);
 
 		await page.goto(`/cruises/${cruiseId}`);
 		await expect(page.getByText(tripName)).toBeVisible();

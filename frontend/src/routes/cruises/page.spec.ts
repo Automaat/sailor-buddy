@@ -172,18 +172,22 @@ describe('rejsy page', () => {
 		expect(mockGoto).toHaveBeenCalledWith('/cruises?tab=all', { replace: true, shallow: true });
 	});
 
-	it('shows the create button for an admin only', async () => {
+	it('shows the trip create button for an admin only, and no cruise create button', async () => {
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
-		expect(screen.getByRole('link', { name: '+ Nowe wydarzenie' })).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Utwórz pierwsze wydarzenie' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: '+ Nowy rejs' })).toHaveAttribute('href', '/trips/new');
+		expect(screen.getByRole('link', { name: 'Zaplanuj pierwszy rejs' })).toHaveAttribute(
+			'href',
+			'/trips/new'
+		);
+		expect(document.querySelector('a[href="/cruises/new"]')).toBeNull();
 	});
 
 	it('hides the create button for a non-admin member', async () => {
 		mockAuth.isAdmin = false;
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
-		expect(screen.queryByRole('link', { name: '+ Nowe wydarzenie' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: '+ Nowy rejs' })).not.toBeInTheDocument();
 	});
 
 	it('falls back to the empty state when loading fails', async () => {

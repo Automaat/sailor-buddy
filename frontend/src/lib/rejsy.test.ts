@@ -144,6 +144,47 @@ describe('buildRejsEntries', () => {
 		});
 	});
 
+	it.each([
+		{
+			name: 'a standalone trip links to the trip',
+			cruise: makeCruise({ id: 7 }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 })],
+			voyages: [],
+			want: '/trips/4'
+		},
+		{
+			name: 'an edition with one trip links to the edition',
+			cruise: makeCruise({ id: 7, series_id: 2, edition: '2026' }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 })],
+			voyages: [],
+			want: '/cruises/7'
+		},
+		{
+			name: 'a cruise without series with two trips links to the cruise',
+			cruise: makeCruise({ id: 7 }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 }), makeTrip({ id: 5, cruise_id: 7 })],
+			voyages: [],
+			want: '/cruises/7'
+		},
+		{
+			name: 'a cruise without series with a trip and a voyage links to the cruise',
+			cruise: makeCruise({ id: 7 }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 })],
+			voyages: [makeVoyage({ cruise_id: 7 })],
+			want: '/cruises/7'
+		},
+		{
+			name: 'a cruise without legs links to the cruise',
+			cruise: makeCruise({ id: 7 }),
+			trips: [],
+			voyages: [],
+			want: '/cruises/7'
+		}
+	])('$name', ({ cruise, trips, voyages, want }) => {
+		const [entry] = buildRejsEntries([cruise], trips, voyages);
+		expect(entry.href).toBe(want);
+	});
+
 	it('ignores legs of other cruises', () => {
 		const [entry] = buildRejsEntries(
 			[makeCruise({ id: 1 })],

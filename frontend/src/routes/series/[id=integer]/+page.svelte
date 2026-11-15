@@ -150,10 +150,20 @@
 	{/if}
 
 	<div class="rounded-2xl bg-white p-6 shadow-sm">
-		<h2 class="mb-3 font-semibold text-[var(--navy)]">Edycje ({editions.length})</h2>
+		<div class="mb-3 flex items-center justify-between gap-3">
+			<h2 class="font-semibold text-[var(--navy)]">Edycje ({editions.length})</h2>
+			{#if auth.isAdmin}
+				<a
+					href="/cruises/new?series_id={id}"
+					class="tap-target rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--ocean-dark)]"
+				>
+					+ Nowa edycja
+				</a>
+			{/if}
+		</div>
 		{#if editions.length === 0}
 			<p class="text-sm text-[var(--text-muted)]">
-				Brak edycji. Przypisz wydarzenie do serii w jego edycji.
+				{auth.isAdmin ? 'Brak edycji. Dodaj pierwszą przyciskiem „+ Nowa edycja”.' : 'Brak edycji.'}
 			</p>
 		{:else}
 			<div class="overflow-x-auto">

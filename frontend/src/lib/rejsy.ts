@@ -127,6 +127,17 @@ function cruiseStatus(
 	return 'upcoming';
 }
 
+/**
+ * Where a Rejsy entry links: a standalone trip's wrapper cruise (no series,
+ * exactly one trip, no voyages) opens the trip itself, any other cruise its
+ * event page.
+ */
+function rejsHref(c: Cruise, legs: Trip[], sailed: Voyage[]): string {
+	if (c.series_id == null && legs.length === 1 && sailed.length === 0)
+		return `/trips/${legs[0].id}`;
+	return `/cruises/${c.id}`;
+}
+
 /** Builds the "Rejsy" list: one row per club event, with its legs summarized; legs stay on the event page. */
 export function buildRejsEntries(
 	cruises: Cruise[],
@@ -153,7 +164,7 @@ export function buildRejsEntries(
 		return {
 			key: `cruise-${c.id}`,
 			cruiseId: c.id,
-			href: `/cruises/${c.id}`,
+			href: rejsHref(c, legs, sailed),
 			name: c.name,
 			status: cruiseStatus(planned, overdue, cancelled, sailed.length),
 			ended: !!end && end < today,

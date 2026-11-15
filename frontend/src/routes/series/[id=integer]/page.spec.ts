@@ -113,11 +113,24 @@ describe('series detail page', () => {
 		expect(within(totals).getByText('60')).toBeInTheDocument();
 	});
 
-	it('hides edit and delete for a member', async () => {
+	it('hides edit, delete and new edition for a member', async () => {
 		await renderPage();
 		await screen.findByText('May I Sail');
 		expect(screen.queryByRole('button', { name: 'Edytuj' })).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Usuń' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: '+ Nowa edycja' })).not.toBeInTheDocument();
+		expect(screen.getByText('Brak edycji.')).toBeInTheDocument();
+	});
+
+	it('links an admin to a new edition of this series', async () => {
+		mockAuth.isAdmin = true;
+		await renderPage();
+		await screen.findByText('May I Sail');
+		expect(screen.getByRole('link', { name: '+ Nowa edycja' })).toHaveAttribute(
+			'href',
+			'/cruises/new?series_id=4'
+		);
+		expect(screen.getByText(/Dodaj pierwszą przyciskiem „\+ Nowa edycja”/)).toBeInTheDocument();
 	});
 
 	it('throws a 404 with the series copy for +error.svelte', async () => {
