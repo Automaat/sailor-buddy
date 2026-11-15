@@ -334,28 +334,43 @@ func TestCruiseHandler_Series(t *testing.T) {
 		{"blank edition", map[string]any{"name": "Solo", "edition": "   "}},
 	}
 	for _, tc := range noSeries {
-		t.Run("cruise without series: "+tc.name, func(t *testing.T) {
-			var created sqlcdb.CreateCruiseParams
+		t.Run("update keeps a cruise without series: "+tc.name, func(t *testing.T) {
 			var updated sqlcdb.UpdateCruiseParams
 			m := &mockQuerier{
-				createCruiseFn: func(_ context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
-					created = arg
-					return sqlcdb.Cruise{ID: 1, Name: arg.Name, Kind: arg.Kind}, nil
-				},
 				updateCruiseFn: func(_ context.Context, arg sqlcdb.UpdateCruiseParams) error {
 					updated = arg
 					return nil
 				},
 			}
 			api := cruiseTestAPI(t, m)
-			if resp := api.PostCtx(userCtx(context.Background()), "/cruises", tc.body); resp.Code != http.StatusCreated {
-				t.Fatalf("create: got %d, want 201; body=%s", resp.Code, resp.Body)
-			}
 			if resp := api.PutCtx(userCtx(context.Background()), "/cruises/1", tc.body); resp.Code != http.StatusNoContent {
 				t.Fatalf("update: got %d, want 204; body=%s", resp.Code, resp.Body)
 			}
-			if created.SeriesID.Valid || created.Edition.Valid || updated.SeriesID.Valid || updated.Edition.Valid {
-				t.Fatalf("want null series and edition; created=%+v updated=%+v", created, updated)
+			if updated.SeriesID.Valid || updated.Edition.Valid {
+				t.Fatalf("want null series and edition; updated=%+v", updated)
+			}
+		})
+	}
+
+	notEditions := []struct {
+		name   string
+		body   map[string]any
+		detail string
+	}{
+		{"no series or edition", map[string]any{"name": "Solo"}, "series_id is required"},
+		{"null series and edition", map[string]any{"name": "Solo", "series_id": nil, "edition": nil}, "series_id is required"},
+		{"edition without series", map[string]any{"name": "Solo", "edition": "2026"}, "series_id is required"},
+		{"series without edition", map[string]any{"name": "Solo", "series_id": 3}, "edition is required"},
+		{"series with blank edition", map[string]any{"name": "Solo", "series_id": 3, "edition": "   "}, "edition is required"},
+	}
+	for _, tc := range notEditions {
+		t.Run("create requires an edition of a series: "+tc.name, func(t *testing.T) {
+			resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises", tc.body)
+			if resp.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
+			}
+			if !strings.Contains(resp.Body.String(), tc.detail) {
+				t.Fatalf("body=%s, want %q", resp.Body, tc.detail)
 			}
 		})
 	}
@@ -367,7 +382,7 @@ func TestCruiseHandler_Series(t *testing.T) {
 			},
 		}
 		api := cruiseTestAPI(t, m)
-		body := map[string]any{"name": "Ghost", "series_id": 404}
+		body := map[string]any{"name": "Ghost", "series_id": 404, "edition": "2026"}
 		if resp := api.PostCtx(userCtx(context.Background()), "/cruises", body); resp.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("create: got %d, want 422; body=%s", resp.Code, resp.Body)
 		}
@@ -386,7 +401,7 @@ func TestCruiseHandler_Series(t *testing.T) {
 			updateCruiseFn: func(context.Context, sqlcdb.UpdateCruiseParams) error { return fk },
 		}
 		api := cruiseTestAPI(t, m)
-		body := map[string]any{"name": "Race", "series_id": 3}
+		body := map[string]any{"name": "Race", "series_id": 3, "edition": "2026"}
 		if resp := api.PostCtx(userCtx(context.Background()), "/cruises", body); resp.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("create: got %d, want 422; body=%s", resp.Code, resp.Body)
 		}
@@ -402,7 +417,7 @@ func TestCruiseHandler_Series(t *testing.T) {
 			},
 		}
 		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises",
-			map[string]any{"name": "X", "series_id": 3})
+			map[string]any{"name": "X", "series_id": 3, "edition": "2026"})
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500; body=%s", resp.Code, resp.Body)
 		}

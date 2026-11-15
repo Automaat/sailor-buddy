@@ -127,6 +127,16 @@ function cruiseStatus(
 	return 'upcoming';
 }
 
+/**
+ * The trip a cruise stands for: a standalone trip's wrapper cruise (no series,
+ * exactly one trip, no voyages). Its entry links to and describes the trip,
+ * falling back to the cruise only for fields the trip lacks, since editing
+ * the trip leaves the wrapper's copied fields behind.
+ */
+function standaloneTrip(c: Cruise, legs: Trip[], sailed: Voyage[]): Trip | undefined {
+	return c.series_id == null && legs.length === 1 && sailed.length === 0 ? legs[0] : undefined;
+}
+
 /** Builds the "Rejsy" list: one row per club event, with its legs summarized; legs stay on the event page. */
 export function buildRejsEntries(
 	cruises: Cruise[],
@@ -136,10 +146,21 @@ export function buildRejsEntries(
 ): RejsEntry[] {
 	return cruises.map((c) => {
 		const legs = trips.filter((t) => t.cruise_id === c.id);
+		const sailed = voyages.filter((v) => v.cruise_id === c.id);
+		const solo = standaloneTrip(c, legs, sailed);
+		const info = {
+			name: solo?.name || c.name,
+			embark_date: solo?.embark_date || c.embark_date,
+			disembark_date: solo?.disembark_date || c.disembark_date,
+			start_port: solo?.start_port || c.start_port,
+			end_port: solo?.end_port || c.end_port,
+			countries: solo?.countries || c.countries,
+			max_crew: solo?.max_crew || c.max_crew,
+			enroll_token: solo ? solo.enroll_token : c.enroll_token
+		};
 		const planned = legs.filter((t) => t.status === 'planned').length;
 		const overdue = legs.filter((t) => isLegOverdue(t, c, today)).length;
 		const cancelled = legs.length - planned;
-		const sailed = voyages.filter((v) => v.cruise_id === c.id);
 		const legDates = [...legs, ...sailed]
 			.map((l) => l.embark_date)
 			.filter((d): d is string => !!d)
@@ -149,22 +170,22 @@ export function buildRejsEntries(
 			.filter((d) => d !== '')
 			.sort()
 			.at(-1);
-		const end = (c.disembark_date || '').slice(0, 10) || lastLegEnd;
+		const end = (info.disembark_date || '').slice(0, 10) || lastLegEnd;
 		return {
 			key: `cruise-${c.id}`,
 			cruiseId: c.id,
-			href: `/cruises/${c.id}`,
-			name: c.name,
+			href: solo ? `/trips/${solo.id}` : `/cruises/${c.id}`,
+			name: info.name,
 			status: cruiseStatus(planned, overdue, cancelled, sailed.length),
 			ended: !!end && end < today,
 			kind: c.kind,
-			embarkDate: c.embark_date || legDates[0],
-			disembarkDate: c.disembark_date || undefined,
-			startPort: c.start_port || undefined,
-			endPort: c.end_port || undefined,
-			countries: c.countries || undefined,
-			maxCrew: c.max_crew || undefined,
-			enrollOpen: !!c.enroll_token,
+			embarkDate: info.embark_date || legDates[0],
+			disembarkDate: info.disembark_date || undefined,
+			startPort: info.start_port || undefined,
+			endPort: info.end_port || undefined,
+			countries: info.countries || undefined,
+			maxCrew: info.max_crew || undefined,
+			enrollOpen: !!info.enroll_token,
 			plannedLegs: planned,
 			completedLegs: sailed.length,
 			hoursTotal: sailed.reduce((sum, v) => sum + v.hours_total, 0),

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -15,9 +16,34 @@ import (
 
 func cruiseTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
+	if m.getCruiseSeriesFn == nil {
+		m.getCruiseSeriesFn = func(_ context.Context, id int64) (sqlcdb.CruiseSeries, error) {
+			return sqlcdb.CruiseSeries{ID: id, Name: "Seria"}, nil
+		}
+	}
 	_, api := humatest.New(t)
 	registerCruiseRoutes(api, &CruiseHandler{q: m, runTx: directTxRunner(m)})
 	return api
+}
+
+// asDBEdition returns body as a valid new cruise against a real database: an
+// edition of a series it inserts.
+func asDBEdition(t *testing.T, conn *sql.DB, body map[string]any) map[string]any {
+	t.Helper()
+	var seriesID int64
+	if err := conn.QueryRow("INSERT INTO cruise_series(name) VALUES ('Seria') RETURNING id").Scan(&seriesID); err != nil {
+		t.Fatalf("insert series: %v", err)
+	}
+	out := asEdition(body)
+	out["series_id"] = seriesID
+	return out
+}
+
+// asEdition returns body as a valid new cruise: an edition of series 1.
+func asEdition(body map[string]any) map[string]any {
+	out := map[string]any{"series_id": 1, "edition": "2026"}
+	maps.Copy(out, body)
+	return out
 }
 
 func TestCruiseHandler_List(t *testing.T) {
@@ -103,14 +129,14 @@ func TestCruiseHandler_Create(t *testing.T) {
 				return sqlcdb.Cruise{ID: 1, Name: arg.Name}, nil
 			},
 		}
-		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{"name": "New"})
+		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", asEdition(map[string]any{"name": "New"}))
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
 	})
 
 	t.Run("missing name", func(t *testing.T) {
-		resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{})
+		resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises", asEdition(map[string]any{}))
 		if resp.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("got %d, want 422", resp.Code)
 		}
@@ -122,7 +148,7 @@ func TestCruiseHandler_Create(t *testing.T) {
 				return sqlcdb.Cruise{}, errors.New("fail")
 			},
 		}
-		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{"name": "X"})
+		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", asEdition(map[string]any{"name": "X"}))
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
@@ -482,7 +508,7 @@ func TestCruiseHandler_Kind(t *testing.T) {
 	for _, tc := range createCases {
 		t.Run("create "+tc.name, func(t *testing.T) {
 			var stored string
-			resp := cruiseTestAPI(t, echoCreate(&stored)).PostCtx(userCtx(context.Background()), "/cruises", tc.body)
+			resp := cruiseTestAPI(t, echoCreate(&stored)).PostCtx(userCtx(context.Background()), "/cruises", asEdition(tc.body))
 			if resp.Code != http.StatusCreated {
 				t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 			}
@@ -505,7 +531,7 @@ func TestCruiseHandler_Kind(t *testing.T) {
 	for _, kind := range invalid {
 		t.Run("create rejects invalid kind", func(t *testing.T) {
 			resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises",
-				map[string]any{"name": "X", "kind": kind})
+				asEdition(map[string]any{"name": "X", "kind": kind}))
 			if resp.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("kind %v: got %d, want 422; body=%s", kind, resp.Code, resp.Body)
 			}

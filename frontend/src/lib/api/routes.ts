@@ -23,7 +23,8 @@ export function getTrip(id: number) {
 	return api.get('/trips/{tripID}', { path: { tripID: id } });
 }
 
-export function createTrip(body: Schemas['TripBody']) {
+/** Without cruise_id the trip is standalone: the API wraps it in its own cruise without a series. */
+export function createTrip(body: Schemas['CreateTripBody']) {
 	return api.post('/trips', { body });
 }
 

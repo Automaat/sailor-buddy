@@ -3,69 +3,86 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
 	import { cruiseBody, cruiseKinds, cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
-	import CruiseSeriesFields from '#lib/components/CruiseSeriesFields.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { parseList, priceBody, priceFormFrom } from '#lib/pricing.js';
 	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
+	import { perLoad } from '#lib/state.svelte.js';
 
-	let error = $state('');
-	let loading = $state(false);
+	let { data } = $props();
+
+	const series = $derived(data.series);
+	const seriesHref = $derived(`/series/${data.series.id}`);
 
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
-			void goto('/cruises');
+			void goto(seriesHref);
 		}
 	});
 
-	let form = $state({
-		name: '',
-		kind: 'sea' as CruiseKind,
-		series_id: null as number | null,
-		edition: '',
-		embark_date: '',
-		disembark_date: '',
-		countries: '',
-		start_port: '',
-		end_port: '',
-		max_crew: 0,
-		description: '',
-		group_chat_url: '',
-		travel_notes: '',
-		min_age: null as number | null
-	});
-	let price = $state(priceFormFrom());
-	let included = $state('');
-	let notIncluded = $state('');
+	/** A fresh edition form; a link to another series starts it over. */
+	function newDraft() {
+		return {
+			form: {
+				name: '',
+				kind: 'sea' as CruiseKind,
+				edition: '',
+				embark_date: '',
+				disembark_date: '',
+				countries: '',
+				start_port: '',
+				end_port: '',
+				max_crew: 0,
+				description: '',
+				group_chat_url: '',
+				travel_notes: '',
+				min_age: null as number | null
+			},
+			price: priceFormFrom(),
+			included: '',
+			notIncluded: '',
+			error: '',
+			saving: false
+		};
+	}
+
+	let draft = $derived(perLoad(data, newDraft()));
+	const form = $derived(draft.form);
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		const run = draft;
+		const seriesId = data.series.id;
 		if (!auth.isAdmin) {
-			error = 'Tylko administratorzy mogą tworzyć wydarzenia';
+			run.error = 'Tylko administratorzy mogą tworzyć edycje';
 			return;
 		}
-		loading = true;
-		error = '';
+		if (!run.form.edition.trim()) {
+			run.error = 'Podaj oznaczenie edycji';
+			return;
+		}
+		run.saving = true;
+		run.error = '';
 		try {
-			const cruise = await createCruise({
-				...cruiseBody(form),
-				...priceBody(price),
-				included: parseList(included),
-				not_included: parseList(notIncluded)
+			await createCruise({
+				...cruiseBody({ ...run.form, series_id: seriesId }),
+				...priceBody(run.price),
+				included: parseList(run.included),
+				not_included: parseList(run.notIncluded)
 			});
-			void goto(`/cruises/${cruise.id}`);
+			if (run === draft) void goto(`/series/${seriesId}`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Nie udało się utworzyć wydarzenia';
+			run.error = err instanceof Error ? err.message : 'Nie udało się utworzyć edycji';
 		} finally {
-			loading = false;
+			run.saving = false;
 		}
 	}
 </script>
 
 <div class="mx-auto max-w-3xl">
-	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Nowe wydarzenie</h1>
+	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Nowa edycja</h1>
 
-	{#if error}
-		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
+	{#if draft.error}
+		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{draft.error}</div>
 	{/if}
 
 	<form onsubmit={handleSubmit} class="space-y-6 rounded-2xl bg-white p-6 shadow-sm">
@@ -88,7 +105,28 @@
 					{/each}
 				</select>
 			</div>
-			<CruiseSeriesFields bind:seriesId={form.series_id} bind:edition={form.edition} />
+			<div>
+				<label for="series" class="mb-1 block text-sm font-medium">Seria</label>
+				<input
+					id="series"
+					type="text"
+					value={series.name}
+					readonly
+					class="w-full rounded-lg border bg-gray-50 px-3 py-2 text-[var(--text-muted)]"
+				/>
+			</div>
+			<div>
+				<label for="edition" class="mb-1 block text-sm font-medium">Edycja *</label>
+				<input
+					id="edition"
+					type="text"
+					bind:value={form.edition}
+					required
+					maxlength="50"
+					placeholder="np. 2025 lub 2026/27"
+					class="w-full rounded-lg border px-3 py-2"
+				/>
+			</div>
 			<div>
 				<label for="embark" class="mb-1 block text-sm font-medium">Data zaokrętowania</label>
 				<input
@@ -146,7 +184,11 @@
 					placeholder="0 = bez limitu"
 				/>
 			</div>
-			<PriceFields bind:price bind:included bind:notIncluded />
+			<PriceFields
+				bind:price={draft.price}
+				bind:included={draft.included}
+				bind:notIncluded={draft.notIncluded}
+			/>
 			<CruiseLogisticsFields
 				bind:groupChatUrl={form.group_chat_url}
 				bind:travelNotes={form.travel_notes}
@@ -166,13 +208,13 @@
 		<div class="flex gap-3">
 			<button
 				type="submit"
-				disabled={loading}
+				disabled={draft.saving}
 				class="rounded-lg bg-[var(--ocean)] px-6 py-2 font-medium text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 			>
-				{loading ? 'Tworzenie...' : 'Utwórz wydarzenie'}
+				{draft.saving ? 'Tworzenie...' : 'Utwórz edycję'}
 			</button>
 			<a
-				href="/cruises"
+				href={seriesHref}
 				class="tap-target rounded-lg border px-6 py-2 text-[var(--text-muted)] hover:bg-gray-50"
 				>Anuluj</a
 			>

@@ -4,7 +4,7 @@
 	import { createTrip } from '#lib/api/routes.js';
 	import type { Cruise } from '#lib/api/types.js';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
-	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
+	import EditionPicker, { groupOf, STANDALONE } from '#lib/components/EditionPicker.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom, type PriceForm } from '#lib/pricing.js';
@@ -13,6 +13,7 @@
 	let { data } = $props();
 
 	const cruises = $derived(data.cruises);
+	const series = $derived(data.series);
 	const loadErrors = $derived(data.loadErrors);
 
 	// Planning trips is an admin task; redirect regular members away.
@@ -45,6 +46,8 @@
 			max_crew: number;
 			description: string;
 		};
+		/** The edition picker's first step: standalone, "Bez serii" or a series id. */
+		group: string;
 		price: PriceForm;
 		prefilled: Partial<Record<Prefillable, string>>;
 		prefilledPrice: string;
@@ -68,6 +71,7 @@
 				max_crew: 0,
 				description: ''
 			},
+			group: groupOf(cruiseID, list),
 			price: priceFormFrom(),
 			prefilled: {},
 			prefilledPrice: JSON.stringify(priceFormFrom()),
@@ -126,8 +130,9 @@
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		const run = draft;
-		if (!run.form.cruise_id) {
-			run.error = 'Wybierz wydarzenie, do którego należy rejs';
+		const standalone = run.group === STANDALONE;
+		if (!standalone && !run.form.cruise_id) {
+			run.error = 'Wybierz edycję, do której należy rejs';
 			return;
 		}
 		run.saving = true;
@@ -136,6 +141,7 @@
 			const payload = {
 				...run.form,
 				...priceBody(run.price),
+				cruise_id: standalone ? undefined : run.form.cruise_id,
 				sign_up_deadline: run.form.sign_up_deadline || undefined,
 				captain_person_id: run.form.captain_person_id || undefined
 			};
@@ -169,10 +175,14 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div class="sm:col-span-2">
-				<label for="cruise" class="mb-1 block text-sm font-medium">Wydarzenie klubu *</label>
-				<CruiseSelect bind:value={form.cruise_id} {cruises} onchange={prefillFromCruise} />
-			</div>
+			<EditionPicker
+				bind:group={draft.group}
+				bind:value={form.cruise_id}
+				{cruises}
+				{series}
+				locked={data.cruiseId > 0}
+				onchange={prefillFromCruise}
+			/>
 			<div class="sm:col-span-2">
 				<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
 				<CaptainSelect bind:value={form.captain_person_id} />

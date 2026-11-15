@@ -92,7 +92,11 @@ func registerCruiseRoutes(api huma.API, h *CruiseHandler) {
 	}, h.get)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-cruise", Method: http.MethodPost, Path: "/cruises",
-		Summary: "Create a cruise (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Create a cruise edition (admin)",
+		Description: "A new cruise is an edition of a series: series_id and a non-blank edition label are " +
+			"required (422 otherwise). Cruises without a series come only from standalone trips (POST /trips " +
+			"without cruise_id); PUT keeps both fields optional.",
+		Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.create)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-cruise", Method: http.MethodPut, Path: "/cruises/{cruiseID}",
@@ -184,6 +188,9 @@ func (h *CruiseHandler) get(ctx context.Context, in *cruiseIDParam) (*cruiseOutp
 
 func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cruiseOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if err := requireEdition(&in.Body); err != nil {
 		return nil, err
 	}
 	seriesID, err := h.resolveSeries(ctx, in.Body.SeriesID)
@@ -503,6 +510,18 @@ func (h *CruiseHandler) resolveSeries(ctx context.Context, id *int64) (types.Nul
 		return types.NullInt64{}, huma.Error500InternalServerError("failed to verify series")
 	}
 	return types.NullInt64{Int64: *id, Valid: true}, nil
+}
+
+// requireEdition rejects a new cruise that is not an edition of a series: it
+// needs series_id and a non-blank edition label.
+func requireEdition(b *dto.CruiseBody) error {
+	if b.SeriesID == nil {
+		return huma.Error422UnprocessableEntity("series_id is required: create an edition from its series")
+	}
+	if !nullEdition(b.Edition).Valid {
+		return huma.Error422UnprocessableEntity("edition is required")
+	}
+	return nil
 }
 
 // nullEdition stores a blank edition label as null.

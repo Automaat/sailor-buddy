@@ -38,8 +38,8 @@ type Trip struct {
 	UpdatedAt              time.Time `json:"updated_at"`
 }
 
-// TripBody is the create/update request payload for a trip.
-type TripBody struct {
+// TripFields are the trip fields shared by the create and update payloads.
+type TripFields struct {
 	Name                   string   `json:"name" minLength:"1" doc:"Trip name"`
 	EmbarkDate             *string  `json:"embark_date,omitempty"`
 	DisembarkDate          *string  `json:"disembark_date,omitempty"`
@@ -61,7 +61,20 @@ type TripBody struct {
 	ImageRouteUrl          *string  `json:"image_route_url,omitempty"`
 	Description            *string  `json:"description,omitempty"`
 	SignUpDeadline         *string  `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline"`
-	CruiseID               int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this trip is a leg of"`
+}
+
+// TripBody is the update request payload for a trip.
+type TripBody struct {
+	TripFields
+	CruiseID int64 `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this trip is a leg of"`
+}
+
+// CreateTripBody is the create request payload for a trip. Without a
+// cruise_id the trip is a standalone etap: it gets a wrapper cruise without
+// a series.
+type CreateTripBody struct {
+	TripFields
+	CruiseID *int64 `json:"cruise_id,omitempty" minimum:"1" doc:"Club event (cruise) this trip is a leg of; omit for a standalone trip, which gets its own cruise without a series"`
 }
 
 // CompleteTripBody is the request payload for completing a trip into a voyage.

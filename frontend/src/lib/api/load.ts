@@ -34,6 +34,18 @@ function notFound({ message, ...rest }: NotFoundCopy): never {
  * or 0 when the parameter is missing or not a positive integer.
  */
 export function cruiseIdParam(url: URL): number {
-	const n = Number(url.searchParams.get('cruise_id') ?? 0);
+	return idParam(url, 'cruise_id');
+}
+
+/**
+ * seriesIdParam is the series a "new edition" link names with ?series_id=,
+ * or 0 when the parameter is missing or not a positive integer.
+ */
+export function seriesIdParam(url: URL): number {
+	return idParam(url, 'series_id');
+}
+
+function idParam(url: URL, name: string): number {
+	const n = Number(url.searchParams.get(name) ?? 0);
 	return Number.isInteger(n) && n > 0 ? n : 0;
 }

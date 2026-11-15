@@ -202,7 +202,11 @@ matching e-mail: linking waits for admin approval. `GetCrewMemberByUserID`
 returns an account's person.
 
 Every trip and voyage is a leg of a club event: `cruise_id` is required on
-trip and voyage bodies (`422 cruise not found` for an unknown id). A cruise
+voyage bodies and on trip updates (`422 cruise not found` for an unknown id).
+`POST /api/trips` without `cruise_id` creates a standalone etap: one
+transaction creates a wrapper cruise without a series (kind `sea`, with the
+trip's name, dates, ports, countries, description, crew limit and prices)
+and the trip in it. A failed trip insert rolls the wrapper cruise back. A cruise
 that still has trips or voyages cannot be deleted (`409`). A trip with cruise or
 leg enrollments cannot be moved to another cruise (`409`).
 A trip or voyage create or update, and a voyage log, with a `yacht_id` that
@@ -266,7 +270,7 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/trips` | member | List trips | 200 |
-| POST | `/api/trips` | **admin** | Create trip (body needs `cruise_id`) | 201 |
+| POST | `/api/trips` | **admin** | Create trip; without `cruise_id` it gets its own wrapper cruise | 201 |
 | GET | `/api/trips/{id}` | member | Get trip | 200 |
 | PUT | `/api/trips/{id}` | **admin** | Update trip | 204 |
 | DELETE | `/api/trips/{id}` | **admin** | Delete trip | 204 |
@@ -576,7 +580,7 @@ value is rejected with 422.
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/cruises` | member | List cruises | 200 |
-| POST | `/api/cruises` | **admin** | Create cruise | 201 |
+| POST | `/api/cruises` | **admin** | Create cruise edition (needs `series_id` and `edition`) | 201 |
 | GET | `/api/cruises/{id}` | member | Get cruise | 200 |
 | PUT | `/api/cruises/{id}` | **admin** | Update cruise | 204 |
 | DELETE | `/api/cruises/{id}` | **admin** | Delete cruise; `409` while it has trips or voyages | 204 |
@@ -592,7 +596,10 @@ value is rejected with 422.
 Cruise body — `name` required, plus `embark_date`, `disembark_date`,
 `countries`, `start_port`, `end_port`, `description`, `image_*_url`,
 `max_crew`, the price fields below, `series_id`, `edition` (see Cruise
-series), and the logistics fields below.
+series), and the logistics fields below. `POST /api/cruises` creates an
+edition of a series: it also requires `series_id` and a non-blank `edition`
+(422 otherwise). `PUT` keeps both optional, so cruises without a series stay
+editable.
 
 Cruise prices are shown only; payments are not computed (admins record a
 sign-up's payment status by hand, see Trip enrollment). All amounts are per
@@ -640,6 +647,9 @@ A **series** groups the yearly editions of a recurring cruise (for example
 AGH Winter Sail Expedition or May I Sail). A cruise links to at most one
 series with `series_id` and carries a free-form `edition` label up to 50
 characters, such as `2025` or `2026/27`; a blank label is stored as null.
+New cruises are created as editions (both fields required on `POST`);
+cruises without a series are the wrapper cruises of standalone trips and
+older events.
 A `series_id` that does not exist is rejected with 422. `PUT
 /api/cruises/{id}` replaces both fields, so omitting them unlinks the
 cruise. Deleting a series keeps its cruises and clears their `series_id`.

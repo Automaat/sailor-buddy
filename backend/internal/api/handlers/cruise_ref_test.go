@@ -23,7 +23,6 @@ func TestTripAndVoyageWrites_RequireCruise(t *testing.T) {
 		getCruise func(context.Context, int64) (sqlcdb.Cruise, error)
 		want      int
 	}{
-		{name: "trip create without cruise", method: http.MethodPost, path: "/trips", body: map[string]any{"name": "X"}, want: http.StatusUnprocessableEntity},
 		{name: "trip create with cruise 0", method: http.MethodPost, path: "/trips", body: map[string]any{"name": "X", "cruise_id": 0}, want: http.StatusUnprocessableEntity},
 		{name: "trip create with unknown cruise", method: http.MethodPost, path: "/trips", body: map[string]any{"name": "X", "cruise_id": 99}, getCruise: missing, want: http.StatusUnprocessableEntity},
 		{name: "trip update with unknown cruise", method: http.MethodPut, path: "/trips/1", body: map[string]any{"name": "X", "cruise_id": 99}, getCruise: missing, want: http.StatusUnprocessableEntity},
