@@ -22,6 +22,29 @@ type PublicationHandler struct {
 	runTx txRunner
 }
 
+// errLegCruiseChanged reports that the trip or voyage being published moved
+// to another cruise between the cruise lock and the leg update on every
+// publish attempt.
+var errLegCruiseChanged = errors.New("leg cruise changed during publish")
+
+// publishLegAttempts bounds the leg publish transactions retryLegMove runs.
+const publishLegAttempts = 3
+
+// retryLegMove runs a leg publish transaction again while it fails with
+// errLegCruiseChanged, up to publishLegAttempts times in all. Locking the
+// leg's new cruise while holding the leg would invert the cruise-then-leg
+// order publishCruise uses, so the attempt rolls back and the next one locks
+// the new cruise first.
+func retryLegMove(ctx context.Context, run txRunner, fn func(sqlcdb.Querier) error) error {
+	var err error
+	for range publishLegAttempts {
+		if err = run(ctx, fn); !errors.Is(err, errLegCruiseChanged) {
+			return err
+		}
+	}
+	return err
+}
+
 type publishCruiseInput struct {
 	ID   int64                  `path:"cruiseID" doc:"Cruise ID"`
 	Body *dto.PublishCruiseBody `required:"false"`
@@ -126,21 +149,25 @@ func (h *PublicationHandler) unpublishCruise(ctx context.Context, in *cruiseIDPa
 
 // publishTrip publishes the trip and, when its cruise is a hidden standalone
 // wrapper (no series), that cruise too, in one transaction. It locks the
-// cruise before the trip, the order publishCruise uses.
+// cruise before the trip, the order publishCruise uses, and starts over when
+// the trip moved to another cruise in between.
 func (h *PublicationHandler) publishTrip(ctx context.Context, in *tripIDParam) (*tripOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
 	var trip sqlcdb.Trip
-	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		if _, err := q.LockTripCruiseForPublish(ctx, in.ID); err != nil {
+	err := retryLegMove(ctx, h.runTx, func(q sqlcdb.Querier) error {
+		cruiseID, err := q.LockTripCruiseForPublish(ctx, in.ID)
+		if err != nil {
 			return err
 		}
-		var err error
 		if trip, err = q.PublishTrip(ctx, in.ID); err != nil {
 			return err
 		}
-		if err := q.PublishStandaloneCruise(ctx, trip.CruiseID); err != nil {
+		if trip.CruiseID != cruiseID {
+			return errLegCruiseChanged
+		}
+		if err := q.PublishStandaloneCruise(ctx, cruiseID); err != nil {
 			return &QueryError{Op: "PublishStandaloneCruise", Err: err}
 		}
 		return nil
@@ -148,6 +175,9 @@ func (h *PublicationHandler) publishTrip(ctx context.Context, in *tripIDParam) (
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
+		}
+		if errors.Is(err, errLegCruiseChanged) {
+			return nil, huma.Error409Conflict("trip moved to another cruise; retry")
 		}
 		slog.Error("publish trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to publish trip")
@@ -172,21 +202,25 @@ func (h *PublicationHandler) unpublishTrip(ctx context.Context, in *tripIDParam)
 
 // publishVoyage publishes the voyage and, when its cruise is a hidden
 // standalone wrapper (no series), that cruise too, in one transaction. It
-// locks the cruise before the voyage, the order publishCruise uses.
+// locks the cruise before the voyage, the order publishCruise uses, and
+// starts over when the voyage moved to another cruise in between.
 func (h *PublicationHandler) publishVoyage(ctx context.Context, in *voyageIDParam) (*voyageOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
 	var voyage sqlcdb.Voyage
-	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		if _, err := q.LockVoyageCruiseForPublish(ctx, in.ID); err != nil {
+	err := retryLegMove(ctx, h.runTx, func(q sqlcdb.Querier) error {
+		cruiseID, err := q.LockVoyageCruiseForPublish(ctx, in.ID)
+		if err != nil {
 			return err
 		}
-		var err error
 		if voyage, err = q.PublishVoyage(ctx, in.ID); err != nil {
 			return err
 		}
-		if err := q.PublishStandaloneCruise(ctx, voyage.CruiseID); err != nil {
+		if voyage.CruiseID != cruiseID {
+			return errLegCruiseChanged
+		}
+		if err := q.PublishStandaloneCruise(ctx, cruiseID); err != nil {
 			return &QueryError{Op: "PublishStandaloneCruise", Err: err}
 		}
 		return nil
@@ -194,6 +228,9 @@ func (h *PublicationHandler) publishVoyage(ctx context.Context, in *voyageIDPara
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
+		}
+		if errors.Is(err, errLegCruiseChanged) {
+			return nil, huma.Error409Conflict("voyage moved to another cruise; retry")
 		}
 		slog.Error("publish voyage", "voyage_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to publish voyage")
