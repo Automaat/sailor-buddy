@@ -23,7 +23,7 @@
 		{#if travelNotes}
 			<div>
 				<p class="text-[var(--text-muted)]">Dojazd:</p>
-				<p class="whitespace-pre-wrap">{travelNotes}</p>
+				<p class="whitespace-pre-wrap [overflow-wrap:anywhere]">{travelNotes}</p>
 			</div>
 		{/if}
 	</div>

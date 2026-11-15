@@ -217,7 +217,7 @@
 	{#if cruise.description}
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-3 font-semibold text-[var(--navy)]">Opis</h2>
-			<p class="whitespace-pre-wrap text-sm">{cruise.description}</p>
+			<p class="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{cruise.description}</p>
 		</div>
 	{/if}
 

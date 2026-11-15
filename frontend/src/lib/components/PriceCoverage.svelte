@@ -9,7 +9,7 @@
 </script>
 
 {#if included?.length || notIncluded?.length}
-	<section class="space-y-3 text-sm" aria-label="Co obejmuje cena">
+	<section class="space-y-3 text-sm [overflow-wrap:anywhere]" aria-label="Co obejmuje cena">
 		{#if included?.length}
 			<div>
 				<h3 class="mb-1 font-medium">W cenie</h3>

@@ -138,6 +138,20 @@ describe('cruise page logistics', () => {
 		expect(heading.parentElement?.parentElement).toHaveClass('min-w-0');
 	});
 
+	it('lets long unbroken description, notes and price items wrap', async () => {
+		const long = 'W'.repeat(180);
+		mockGet.mockResolvedValue(
+			cruise({ description: `D${long}`, travel_notes: `T${long}`, included: [`I${long}`] })
+		);
+		await renderPage();
+
+		expect(await screen.findByText(`D${long}`)).toHaveClass('[overflow-wrap:anywhere]');
+		expect(screen.getByText(`T${long}`)).toHaveClass('[overflow-wrap:anywhere]');
+		expect(screen.getByRole('region', { name: 'Co obejmuje cena' })).toHaveClass(
+			'[overflow-wrap:anywhere]'
+		);
+	});
+
 	it('renders as before when no logistics are set', async () => {
 		mockGet.mockResolvedValue(cruise());
 		await renderPage();
