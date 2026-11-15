@@ -520,6 +520,7 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 	},
 
 	{ name: 'getMe', run: () => routes.getMe(), verb: 'get', args: ['/auth/me'] },
+	{ name: 'listMyLegs', run: () => routes.listMyLegs(), verb: 'get', args: ['/auth/me/legs'] },
 	{ name: 'updateMe', run: () => routes.updateMe(body), verb: 'put', args: ['/auth/me', { body }] },
 	{
 		name: 'enroll',
@@ -582,6 +583,21 @@ describe('suggestPorts', () => {
 	it('falls back to an empty array', async () => {
 		api.get.mockResolvedValueOnce(null);
 		await expect(routes.suggestPorts('he')).resolves.toEqual([]);
+	});
+});
+
+describe('listMyLegs', () => {
+	it('returns the legs', async () => {
+		const legs = [
+			{ id: 7, name: 'Etap 1', cruise_id: 3, cruise_name: 'Sycylia', relation: 'crew' }
+		];
+		api.get.mockResolvedValueOnce({ legs });
+		await expect(routes.listMyLegs()).resolves.toEqual(legs);
+	});
+
+	it('falls back to an empty array for a null list', async () => {
+		api.get.mockResolvedValueOnce({ legs: null });
+		await expect(routes.listMyLegs()).resolves.toEqual([]);
 	});
 });
 

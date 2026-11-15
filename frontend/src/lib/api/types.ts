@@ -38,6 +38,8 @@ export type TrainingBody = Schemas['TrainingBody'];
 export type DashboardStats = Schemas['Dashboard'];
 export type YearStats = Schemas['VoyagesByYear'];
 export type SeaTime = Schemas['SeaTime'];
+/** MyLeg is one of the caller's upcoming legs, with how they take part in it. */
+export type MyLeg = Schemas['MyLeg'];
 
 export type UploadResponse = Schemas['UploadURLOutputBody'];
 

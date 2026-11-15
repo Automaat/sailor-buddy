@@ -1339,6 +1339,77 @@ components:
       required:
         - cruise_ids
       type: object
+    MyLeg:
+      additionalProperties: false
+      properties:
+        cruise_id:
+          format: int64
+          type: integer
+        cruise_name:
+          description: The edition's name; the label of a leg without a series
+          type: string
+        disembark_date:
+          type: string
+        edition:
+          description: The edition label within its series, such as 2026
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        relation:
+          description: "The caller's strongest link to the leg: captain, then crew, then sign-up"
+          enum:
+            - captain
+            - crew
+            - sign_up
+          type: string
+        series_id:
+          format: int64
+          type: integer
+        series_name:
+          type: string
+        sign_up_status:
+          description: Status of the caller's sign-up; set only when relation is sign_up
+          enum:
+            - accepted
+            - pending
+            - waitlisted
+          type: string
+        start_port:
+          type: string
+      required:
+        - id
+        - name
+        - cruise_id
+        - cruise_name
+        - relation
+      type: object
+    MyLegs:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/MyLegs.json
+          format: uri
+          readOnly: true
+          type: string
+        legs:
+          description: Sorted by embark date, undated legs last
+          items:
+            $ref: "#/components/schemas/MyLeg"
+          type:
+            - array
+            - "null"
+      required:
+        - legs
+      type: object
     MyPersonLinkRequest:
       additionalProperties: false
       properties:
@@ -3010,6 +3081,26 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Cruises the current user took part in
+      tags:
+        - Auth
+  /auth/me/legs:
+    get:
+      description: Legs that are not cancelled and end today or later in the club's time zone (or have no dates), which the caller's person captains, crews or signed up for (not rejected), or which the account's cruise enrollment was assigned to. Hidden legs are listed only for admins and the captain group.
+      operationId: list-my-legs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyLegs"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: The current user's upcoming legs
       tags:
         - Auth
   /auth/me/person-candidates:
