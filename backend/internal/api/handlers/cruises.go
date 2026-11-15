@@ -8,7 +8,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"slices"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -388,87 +387,6 @@ var errEnrollmentChanged = errors.New("enrollment changed")
 // deleted meanwhile.
 var errLegGone = errors.New("leg gone")
 
-// cruiseEnrollmentTxAttempts bounds how often runCruiseEnrollmentTx starts
-// a change again after the enrollment moved to another leg under it.
-const cruiseEnrollmentTxAttempts = 3
-
-// runCruiseEnrollmentTx runs fn in a transaction and runs it again, in a new
-// transaction, while it fails with errEnrollmentChanged or as a deadlock
-// victim, as when a person merge holds the person and waits for the leg.
-// Rolling back first drops the leg and row locks, so the retry takes them in
-// order again.
-func (h *CruiseHandler) runCruiseEnrollmentTx(ctx context.Context, fn func(sqlcdb.Querier) error) error {
-	var err error
-	for range cruiseEnrollmentTxAttempts {
-		err = h.runTx(ctx, fn)
-		if !errors.Is(err, errEnrollmentChanged) && !isDeadlock(err) {
-			return err
-		}
-	}
-	return err
-}
-
-// lockCruiseEnrollment reads one enrollment of the cruise, locks its leg and
-// the extra legs in ascending id order, then re-reads the enrollment under
-// its row lock, in the same trip-then-enrollment order as trip completion and
-// the trip enrollment accept. Holding the legs serializes the change with
-// every other sign-up change on them, so accepts count places one at a time
-// and crew entries added by acceptance follow the committed sign-ups. It
-// returns the locked enrollment and legs by id. errEnrollmentChanged means the
-// enrollment moved to another leg, or its leg was deleted, before the row
-// lock: run the transaction again. errLegGone means an extra leg does not
-// exist.
-func lockCruiseEnrollment(ctx context.Context, q sqlcdb.Querier, cruiseID, id int64, extra ...int64) (sqlcdb.CruiseEnrollment, map[int64]sqlcdb.LockTripForSignUpRow, error) {
-	before, err := getCruiseEnrollment(ctx, q, cruiseID, id)
-	if err != nil {
-		return before, nil, err
-	}
-	legs := slices.Clone(extra)
-	if before.TripID.Valid {
-		legs = append(legs, before.TripID.Int64)
-	}
-	slices.Sort(legs)
-	legs = slices.Compact(legs)
-	locked, gone, err := lockLegs(ctx, q, legs)
-	if err != nil {
-		return before, nil, err
-	}
-	if gone != 0 && slices.Contains(extra, gone) {
-		return before, nil, errLegGone
-	}
-	if gone != 0 {
-		return before, nil, errEnrollmentChanged
-	}
-	now, err := q.LockCruiseEnrollmentOfCruise(ctx, sqlcdb.LockCruiseEnrollmentOfCruiseParams{ID: id, CruiseID: cruiseID})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return now, nil, errEnrollmentNotFound
-		}
-		return now, nil, &QueryError{Op: "LockCruiseEnrollmentOfCruise", Err: err}
-	}
-	if now.TripID != before.TripID {
-		return now, nil, errEnrollmentChanged
-	}
-	return now, locked, nil
-}
-
-// lockLegs locks the given trips in order. gone is the first one that does
-// not exist, or 0; the legs after it are left unlocked.
-func lockLegs(ctx context.Context, q sqlcdb.Querier, ids []int64) (locked map[int64]sqlcdb.LockTripForSignUpRow, gone int64, err error) {
-	locked = make(map[int64]sqlcdb.LockTripForSignUpRow, len(ids))
-	for _, id := range ids {
-		trip, err := q.LockTripForSignUp(ctx, id)
-		if errors.Is(err, sql.ErrNoRows) {
-			return locked, id, nil
-		}
-		if err != nil {
-			return nil, 0, &QueryError{Op: "LockTripForSignUp", Err: err}
-		}
-		locked[id] = trip
-	}
-	return locked, 0, nil
-}
-
 // cruiseEnrollmentTxError maps a capacity-checked cruise enrollment change
 // error to its HTTP response; ok is false for unexpected errors.
 func cruiseEnrollmentTxError(err error) (resp error, ok bool) {
@@ -509,27 +427,7 @@ func (h *CruiseHandler) updateEnrollmentStatus(ctx context.Context, in *cruiseEn
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	txErr := h.runCruiseEnrollmentTx(ctx, func(q sqlcdb.Querier) error {
-		e, legs, err := lockCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
-		if err != nil {
-			return err
-		}
-		if in.Body.Status == enrollmentAccepted && e.Status != enrollmentAccepted && e.TripID.Valid {
-			leg := legs[e.TripID.Int64]
-			if err := checkPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
-				return err
-			}
-		}
-		if err := q.UpdateCruiseEnrollmentStatus(ctx, sqlcdb.UpdateCruiseEnrollmentStatusParams{
-			Status: in.Body.Status,
-			ID:     e.ID,
-		}); err != nil {
-			return &QueryError{Op: "UpdateCruiseEnrollmentStatus", Err: err}
-		}
-		after := e
-		after.Status = in.Body.Status
-		return syncCruiseEnrollmentCrew(ctx, q, e, after)
-	})
+	txErr := (enrollmentOperations{runTx: h.runTx}).changeCruiseStatus(ctx, in.CruiseID, in.EnrollmentID, in.Body.Status)
 	if txErr != nil {
 		if resp, ok := cruiseEnrollmentTxError(txErr); ok {
 			return nil, resp
@@ -547,35 +445,7 @@ func (h *CruiseHandler) assignEnrollmentToTrip(ctx context.Context, in *cruiseEn
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	txErr := h.runCruiseEnrollmentTx(ctx, func(q sqlcdb.Querier) error {
-		target := in.Body.TripID
-		var extra []int64
-		if target != nil {
-			extra = append(extra, *target)
-		}
-		e, legs, err := lockCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID, extra...)
-		if err != nil {
-			return err
-		}
-		moving := target != nil && (!e.TripID.Valid || e.TripID.Int64 != *target)
-		if moving && e.Status == enrollmentAccepted {
-			leg := legs[*target]
-			if err := checkPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
-				return err
-			}
-		}
-		if err := q.AssignCruiseEnrollmentToTrip(ctx, sqlcdb.AssignCruiseEnrollmentToTripParams{
-			TripID: nullInt64(target),
-			ID:     e.ID,
-		}); err != nil {
-			return err
-		}
-		after, err := getCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
-		if err != nil {
-			return err
-		}
-		return syncCruiseEnrollmentCrew(ctx, q, e, after)
-	})
+	txErr := (enrollmentOperations{runTx: h.runTx}).assignCruiseEnrollment(ctx, in.CruiseID, in.EnrollmentID, in.Body.TripID)
 	if txErr != nil {
 		if isForeignKeyViolation(txErr, "cruise_enrollments_trip_id_fkey") {
 			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
@@ -593,22 +463,7 @@ func (h *CruiseHandler) deleteEnrollment(ctx context.Context, in *cruiseEnrollme
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	txErr := h.runCruiseEnrollmentTx(ctx, func(q sqlcdb.Querier) error {
-		e, _, err := lockCruiseEnrollment(ctx, q, in.CruiseID, in.EnrollmentID)
-		if errors.Is(err, errEnrollmentNotFound) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if err := q.DeleteCruiseEnrollment(ctx, e.ID); err != nil {
-			return &QueryError{Op: "DeleteCruiseEnrollment", Err: err}
-		}
-		if !e.TripID.Valid {
-			return nil
-		}
-		return removeAcceptedCrew(ctx, q, e.TripID.Int64, e.UserID)
-	})
+	txErr := (enrollmentOperations{runTx: h.runTx}).deleteCruiseEnrollment(ctx, in.CruiseID, in.EnrollmentID)
 	if txErr != nil {
 		if resp, ok := cruiseEnrollmentTxError(txErr); ok {
 			return nil, resp

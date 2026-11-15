@@ -254,45 +254,7 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 	if err != nil {
 		return nil, err
 	}
-	key := sqlcdb.GetUserTripEnrollmentParams{TripID: in.ID, UserID: user.UserID}
-	today := h.today()
-	var out dto.EnrollLegResult
-	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		trip, err := q.LockTripForSignUp(ctx, in.ID)
-		if err != nil {
-			return err
-		}
-		existing, found, err := signUpOf(ctx, q, trip.ID, user.UserID)
-		if err != nil {
-			return err
-		}
-		if found {
-			out = dto.EnrollLegResult{TripID: trip.ID, Result: "already_enrolled", Enrollment: existing}
-			return setWaitlistPosition(ctx, q, &out.Enrollment, &out.WaitlistPosition)
-		}
-		if err := checkSignUpOpen(trip, today); err != nil {
-			return err
-		}
-		status, err := initialSignUpStatus(ctx, q, trip.ID, trip.MaxCrew)
-		if err != nil {
-			return err
-		}
-		result := "created"
-		e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
-			TripID: trip.ID,
-			UserID: user.UserID,
-			Status: status,
-		})
-		if errors.Is(err, sql.ErrNoRows) {
-			result = "already_enrolled"
-			e, err = q.GetUserTripEnrollment(ctx, key)
-		}
-		if err != nil {
-			return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
-		}
-		out = dto.EnrollLegResult{TripID: trip.ID, Result: result, Enrollment: dto.TripEnrollmentToDTO(e)}
-		return setWaitlistPosition(ctx, q, &out.Enrollment, &out.WaitlistPosition)
-	})
+	out, txErr := (enrollmentOperations{runTx: h.runTx}).signUp(ctx, in.ID, user.UserID, h.today())
 	if txErr != nil {
 		if errors.Is(txErr, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
@@ -345,30 +307,23 @@ func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDPa
 	if err != nil {
 		return nil, err
 	}
-	_, err = h.q.WithdrawUserTripEnrollment(ctx, sqlcdb.WithdrawUserTripEnrollmentParams{
-		TripID: in.ID,
-		UserID: user.UserID,
-	})
-	if err == nil {
-		return &noContentOutput{}, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	reason, err := withdrawSignUp(ctx, h.q, in.ID, user.UserID)
+	if err != nil {
 		slog.Error("withdraw trip sign-up", "trip_id", in.ID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to withdraw sign-up")
 	}
-	e, found, gerr := signUpOf(ctx, h.q, in.ID, user.UserID)
-	switch {
-	case gerr != nil:
-		slog.Error("get trip sign-up for withdraw", "trip_id", in.ID, "user_id", user.UserID, "err", gerr)
-		return nil, huma.Error500InternalServerError("failed to withdraw sign-up")
-	case !found:
+	switch reason {
+	case withdrawalDone:
+		return &noContentOutput{}, nil
+	case withdrawalMissing:
 		return nil, huma.Error404NotFound("not signed up for this leg")
-	case e.CruiseID != nil:
+	case withdrawalCruise:
 		return nil, errCruiseLevelSignUp()
-	case (e.Status == enrollmentPending || e.Status == enrollmentWaitlisted) && e.PaymentStatus != "unpaid":
+	case withdrawalPaid:
 		return nil, huma.Error409Conflict("a payment is recorded on this sign-up: ask an admin to withdraw it")
+	default:
+		return nil, huma.Error409Conflict("only a pending or waitlisted sign-up can be withdrawn")
 	}
-	return nil, huma.Error409Conflict("only a pending or waitlisted sign-up can be withdrawn")
 }
 
 // noTripSignUp explains why the caller has no trip enrollment to change:
