@@ -108,6 +108,8 @@ test.describe.serial('Phone layout', () => {
 			start_port: 'Bornholm',
 			end_port: 'Visby'
 		});
+		// New editions and legs start hidden; the member flows below need them published.
+		await post(token, `/cruises/${cruise.id}/publish`, { include_legs: true });
 		const longCrew = await post<{ id: number }>(token, '/crew', {
 			full_name: 'Aleksandra Konstancja Brzęczyszczykiewicz-Wolańczyk',
 			email: 'konstanty.brzeczyszczykiewicz@student.agh.edu.pl'
