@@ -96,18 +96,37 @@
 	}
 
 	let publication = $derived(perLoad(data, { busy: false, error: '' }));
+	// Whether the leg takes sign-ups depends on its and the cruise's
+	// publication, so the sign-up control reloads after either changes.
+	async function refreshSignUp(held: typeof publication, tripId: number) {
+		const errors = [...loadErrors];
+		const label = 'zapis na etap';
+		const next = await settle(
+			getTripSignUp(tripId).then((s) => {
+				clearFailure(errors, label);
+				return s;
+			}),
+			signUp,
+			noteFailure(errors, label)
+		);
+		if (held !== publication) return;
+		signUp = next;
+		loadErrors = errors;
+	}
 	async function handlePublish() {
 		const held = publication;
+		const tripId = id;
 		held.busy = true;
 		held.error = '';
 		try {
-			const next = await publishTrip(id);
+			const next = await publishTrip(tripId);
 			if (held !== publication) return;
 			trip = next;
 			// The API publishes a hidden cruise without a series along with its leg.
 			if (cruise && isHidden(cruise) && cruise.series_id == null) {
 				cruise = { ...cruise, published_at: next.published_at };
 			}
+			await refreshSignUp(held, tripId);
 		} catch (err) {
 			held.error = `Nie udało się opublikować etapu: ${errorMessage(err)}`;
 		} finally {
@@ -116,12 +135,14 @@
 	}
 	async function handleUnpublish() {
 		const held = publication;
+		const tripId = id;
 		held.busy = true;
 		held.error = '';
 		try {
-			const next = await unpublishTrip(id);
+			const next = await unpublishTrip(tripId);
 			if (held !== publication) return;
 			trip = next;
+			await refreshSignUp(held, tripId);
 		} catch (err) {
 			held.error = `Nie udało się ukryć etapu: ${errorMessage(err)}`;
 		} finally {

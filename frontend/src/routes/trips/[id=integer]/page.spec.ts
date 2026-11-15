@@ -732,6 +732,32 @@ describe('trip page publication', () => {
 		expect(screen.getByRole('button', { name: 'Opublikuj' })).toBeEnabled();
 	});
 
+	it.each([
+		['publishing opens', 'Opublikuj', false, true],
+		['hiding closes', 'Ukryj', true, false]
+	] as const)('reloads the sign-up: %s it', async (_name, action, before, after) => {
+		const published = action === 'Ukryj' ? { published_at: at } : {};
+		serve(
+			makeTrip({ id: 50, name: 'Jacht A', ...published }),
+			makeCruise({ id: 1, published_at: at })
+		);
+		vi.mocked(publishTrip).mockResolvedValue(
+			makeTrip({ id: 50, name: 'Jacht A', published_at: at })
+		);
+		vi.mocked(unpublishTrip).mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A' }));
+		vi.mocked(getTripSignUp)
+			.mockResolvedValueOnce({ trip_id: 50, open: before, accepted_count: 0 })
+			.mockResolvedValueOnce({ trip_id: 50, open: after, accepted_count: 0 });
+		await renderPage();
+		const mine = screen.getByTestId('my-sign-up');
+		expect(within(mine).queryByText('Zapisy zamknięte') === null).toBe(before);
+
+		await fireEvent.click(screen.getByRole('button', { name: action }));
+
+		await waitFor(() => expect(within(mine).queryByText('Zapisy zamknięte') === null).toBe(after));
+		expect(getTripSignUp).toHaveBeenLastCalledWith(50);
+	});
+
 	it('shows the captain group the badge but no publish controls', async () => {
 		authState.isAdmin = false;
 		authState.user = { id: 3, role: 'member', is_captain: true };

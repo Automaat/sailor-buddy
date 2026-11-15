@@ -1,8 +1,13 @@
 <script lang="ts">
 	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
-	import { deleteCruise, publishCruise, unpublishCruise } from '#lib/api/routes.js';
-	import { errorMessage } from '#lib/api/errors.js';
+	import {
+		deleteCruise,
+		listCruiseLegSignUps,
+		publishCruise,
+		unpublishCruise
+	} from '#lib/api/routes.js';
+	import { clearFailure, errorMessage, noteFailure, settle } from '#lib/api/errors.js';
 	import type { LegSignUp } from '#lib/api/types.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import CruiseEnrollmentAdmin from './CruiseEnrollmentAdmin.svelte';
@@ -31,6 +36,7 @@
 	let voyages = $derived(data.voyages);
 	// Sign-ups reset to the loaded value on navigation.
 	let signUps = $derived(data.signUps);
+	let loadErrors = $derived(data.loadErrors);
 	const id = $derived(data.cruise.id);
 	const isAdmin = $derived(auth.isAdmin);
 	const showHidden = $derived(canSeeHidden(auth));
@@ -51,6 +57,23 @@
 		if (id) deleteError = '';
 	});
 	let publication = $derived(perLoad(data, { busy: false, error: '' }));
+	// Whether a leg takes sign-ups depends on its and the cruise's publication,
+	// so the user's sign-up controls reload after either changes.
+	async function refreshSignUps(held: typeof publication, cruiseId: number) {
+		const errors = [...loadErrors];
+		const label = 'twoje zapisy na etapy';
+		const next = await settle(
+			listCruiseLegSignUps(cruiseId).then((r) => {
+				clearFailure(errors, label);
+				return r ?? [];
+			}),
+			signUps,
+			noteFailure(errors, label)
+		);
+		if (held !== publication) return;
+		signUps = next;
+		loadErrors = errors;
+	}
 	async function handlePublish() {
 		const held = publication;
 		const cruiseId = id;
@@ -69,6 +92,7 @@
 				trips = trips.map((t) => (isHidden(t) ? { ...t, published_at: at } : t));
 				voyages = voyages.map((v) => (isHidden(v) ? { ...v, published_at: at } : v));
 			}
+			await refreshSignUps(held, cruiseId);
 		} catch (err) {
 			held.error = `Nie udało się opublikować wydarzenia: ${errorMessage(err)}`;
 		} finally {
@@ -84,6 +108,7 @@
 			const next = await unpublishCruise(cruiseId);
 			if (held !== publication) return;
 			cruise = next;
+			await refreshSignUps(held, cruiseId);
 		} catch (err) {
 			held.error = `Nie udało się ukryć wydarzenia: ${errorMessage(err)}`;
 		} finally {
@@ -111,7 +136,7 @@
 </script>
 
 <div class="mx-auto max-w-5xl">
-	<LoadErrorBanner errors={[...data.loadErrors, ...adminLoadErrors]} />
+	<LoadErrorBanner errors={[...loadErrors, ...adminLoadErrors]} />
 	<div
 		class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3"
 		data-testid="cruise-header"

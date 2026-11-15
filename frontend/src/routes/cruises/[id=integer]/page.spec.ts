@@ -1087,6 +1087,38 @@ describe('cruise page publication', () => {
 		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeEnabled();
 	});
 
+	it.each([
+		['publishing opens', 'Opublikuj', false, true],
+		['hiding closes', 'Ukryj', true, false]
+	] as const)('reloads the sign-ups: %s them', async (_name, action, before, after) => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		if (action === 'Ukryj') mockGet.mockResolvedValue(cruise({ published_at: at }));
+		fn(listCruiseLegSignUps)
+			.mockResolvedValueOnce([{ trip_id: 50, open: before, accepted_count: 0 }])
+			.mockResolvedValueOnce([{ trip_id: 50, open: after, accepted_count: 0 }]);
+		await renderPage();
+		const row = legRow('Jacht A');
+		expect(within(row).queryByText('Zapisy zamknięte') === null).toBe(before);
+
+		await fireEvent.click(within(header()).getByRole('button', { name: action }));
+
+		await waitFor(() => expect(within(row).queryByText('Zapisy zamknięte') === null).toBe(after));
+		expect(fn(listCruiseLegSignUps)).toHaveBeenLastCalledWith(7);
+	});
+
+	it('names the sign-ups when their reload fails after publishing', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(false);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listCruiseLegSignUps)
+			.mockResolvedValueOnce([{ trip_id: 50, open: false, accepted_count: 0 }])
+			.mockRejectedValueOnce(new Error('offline'));
+		await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('twoje zapisy na etapy');
+		expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument();
+	});
+
 	it('shows the captain group the badges but no publish controls', async () => {
 		mockAuth.isAdmin = false;
 		mockAuth.user = { id: 3, role: 'member', is_captain: true, membership: 'czlonek' };
