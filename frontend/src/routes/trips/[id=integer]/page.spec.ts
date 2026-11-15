@@ -864,3 +864,22 @@ describe('trip page publication', () => {
 		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
 	});
 });
+
+describe('trip page long text', () => {
+	it('lets a long unbroken name shrink in the header and the crew list', async () => {
+		const long = 'W'.repeat(120);
+		mockAuth.isAdmin = true;
+		serve(makeTrip({ id: 50, name: long, status: 'planned' }));
+		vi.mocked(listTripCrew).mockResolvedValue([
+			{ id: 1, crew_member_id: 3, full_name: `N${long}`, role: 'Sternik', phone: `P${long}` }
+		] as never);
+		await renderPage();
+
+		const heading = await screen.findByRole('heading', { name: long });
+		expect(heading).toHaveClass('min-w-0');
+		expect(heading.parentElement?.parentElement).toHaveClass('min-w-0');
+		const member = await screen.findByTestId('crew-member');
+		expect(within(member).getByText(`N${long}`, { selector: 'span' })).toHaveClass('min-w-0');
+		expect(within(member).getByTestId('crew-contacts')).toHaveClass('[&_dd]:min-w-0');
+	});
+});

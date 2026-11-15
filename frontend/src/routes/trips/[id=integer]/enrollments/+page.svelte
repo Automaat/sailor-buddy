@@ -180,7 +180,7 @@
 <div class="mx-auto max-w-4xl">
 	<LoadErrorBanner errors={loadErrors} />
 	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
-		<div>
+		<div class="min-w-0">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
 			<p class="mt-1 text-[var(--text-muted)]">
 				{trip.name}

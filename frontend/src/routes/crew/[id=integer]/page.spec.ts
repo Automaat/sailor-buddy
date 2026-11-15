@@ -393,3 +393,15 @@ describe('person page account link', () => {
 		expect(screen.queryByText(/Nie udało się usunąć osoby/)).toBeNull();
 	});
 });
+
+describe('person page long text', () => {
+	it('lets a long unbroken name shrink beside the actions', async () => {
+		const long = 'W'.repeat(120);
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: long }));
+		render(PersonPage);
+
+		const heading = await screen.findByRole('heading', { name: long });
+		expect(heading.parentElement).toHaveClass('min-w-0');
+		expect(heading.parentElement?.parentElement).toHaveClass('flex-wrap');
+	});
+});

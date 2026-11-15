@@ -375,3 +375,15 @@ describe('trip enrollments page sign-up on behalf', () => {
 		expect(await screen.findByText(/Nie udało się wczytać: lista osób\./)).toBeInTheDocument();
 	});
 });
+
+describe('trip enrollments page long text', () => {
+	it('lets a long unbroken leg name shrink beside the back link', async () => {
+		const long = 'W'.repeat(120);
+		fn(getTrip).mockResolvedValue(makeTrip({ id: 50, name: long, max_crew: 8 }));
+		await renderPage();
+
+		const heading = await screen.findByRole('heading', { name: 'Zapisy' });
+		expect(heading.parentElement).toHaveClass('min-w-0');
+		expect(heading.parentElement).toHaveTextContent(long);
+	});
+});

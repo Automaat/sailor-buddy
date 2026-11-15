@@ -89,7 +89,7 @@
 <div class="mx-auto max-w-4xl">
 	<LoadErrorBanner errors={visibleLoadErrors} />
 	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
-		<div>
+		<div class="min-w-0">
 			{#if cruise}
 				<a href="/cruises/{cruise.id}" class="text-xs text-[var(--ocean)] hover:underline">
 					← Część wydarzenia: {cruise.name}
