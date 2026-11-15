@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 func TestQueryError(t *testing.T) {
@@ -58,7 +60,11 @@ func TestNewGeocodeHandler(t *testing.T) {
 
 func TestTripHandler_Complete_MemberForbidden(t *testing.T) {
 	_, api := humatest.New(t)
-	RegisterTripRoutes(api, &mockQuerier{}, nil)
+	RegisterTripRoutes(api, &mockQuerier{
+		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
+			return sqlcdb.Trip{ID: id, Status: sqlcdb.TripStatusPlanned}, nil
+		},
+	}, nil)
 	resp := api.PostCtx(userCtxRole(context.Background(), "member"), "/trips/1/complete", map[string]any{})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("got %d, want 403; body=%s", resp.Code, resp.Body)

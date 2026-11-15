@@ -21,12 +21,17 @@
 	const id = $derived(data.voyage.id);
 	const canManageCrew = $derived(auth.isAdmin);
 	const showHidden = $derived(canSeeHidden(auth));
-	const visibleLoadErrors = $derived(
-		canManageCrew ? [...data.loadErrors, ...data.adminLoadErrors] : data.loadErrors
-	);
 	const isVoyageCaptain = $derived(
 		!!auth.user?.person_id && voyage.captain_person_id === auth.user.person_id
 	);
+	// The voyage captain reads the crew to write its opinions; only admins
+	// change the crew.
+	const canSeeCrew = $derived(canManageCrew || isVoyageCaptain);
+	const visibleLoadErrors = $derived([
+		...data.loadErrors,
+		...(canSeeCrew ? data.crewLoadErrors : []),
+		...(canManageCrew ? data.adminLoadErrors : [])
+	]);
 	const canLog = $derived(auth.isAdmin || isVoyageCaptain);
 	const yacht = $derived(yachts.find((y) => y.id === voyage.yacht_id) ?? null);
 	let deletion = $derived(perLoad(data, { error: '' }));
@@ -231,8 +236,8 @@
 
 	{#key data}
 		<VoyagePorts {id} initialPorts={data.ports} {canLog} />
-		{#if canManageCrew}
-			<VoyageCrew {id} bind:crew allCrewMembers={data.allCrewMembers} />
+		{#if canSeeCrew}
+			<VoyageCrew {id} bind:crew allCrewMembers={data.allCrewMembers} readonly={!canManageCrew} />
 			<VoyageOpinions {id} {crew} initialOpinions={data.opinions} />
 		{/if}
 	{/key}

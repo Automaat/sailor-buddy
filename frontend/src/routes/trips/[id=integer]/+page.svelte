@@ -33,7 +33,7 @@
 	let { data } = $props();
 
 	let cruise = $derived(data.cruise);
-	const adminLoadErrors = $derived(data.adminLoadErrors);
+	const crewLoadErrors = $derived(data.crewLoadErrors);
 	// These change in place after a cancel, a crew role edit or removal, a sign-up, an
 	// enroll-link toggle or a publish, and reset to the loaded value on
 	// navigation.
@@ -59,12 +59,15 @@
 	// Trips are club-managed: only admins create and edit them and manage
 	// their crew, which comes from accepted sign-ups.
 	const canManageCrew = $derived(auth.isAdmin);
-	const showHidden = $derived(canSeeHidden(auth));
-	// Failures of admin-only sections join the banner only for admins. The
-	// check is reactive: on a direct load the role arrives after the load.
-	const visibleLoadErrors = $derived(
-		canManageCrew ? [...loadErrors, ...adminLoadErrors] : loadErrors
+	// The leg's captain reads the crew with contacts but changes nothing.
+	const isLegCaptain = $derived(
+		!!auth.user?.person_id && trip.captain_person_id === auth.user.person_id
 	);
+	const canSeeCrew = $derived(canManageCrew || isLegCaptain);
+	const showHidden = $derived(canSeeHidden(auth));
+	// Crew failures join the banner only for those who see the crew. The
+	// check is reactive: on a direct load the role arrives after the load.
+	const visibleLoadErrors = $derived(canSeeCrew ? [...loadErrors, ...crewLoadErrors] : loadErrors);
 
 	// Form input and the complete dialog belong to one trip: a link to
 	// another clears them.
@@ -293,6 +296,11 @@
 	}
 
 	const status = $derived(legStatus(trip));
+	// Admins complete any planned leg; its captain only once it ended, which
+	// the API checks again.
+	const canComplete = $derived(
+		trip.status === 'planned' && (canManageCrew || (isLegCaptain && status === 'overdue'))
+	);
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -321,9 +329,9 @@
 					· {trip.countries}{/if}
 			</p>
 		</div>
-		{#if canManageCrew}
+		{#if canManageCrew || canComplete}
 			<div class="flex gap-2 max-md:flex-wrap">
-				{#if trip.status === 'planned'}
+				{#if canComplete}
 					<button
 						onclick={() => (showCompleteModal = true)}
 						disabled={completing}
@@ -332,56 +340,58 @@
 						Zrealizuj
 					</button>
 				{/if}
-				{#if isHidden(trip)}
-					<button
-						onclick={handlePublish}
-						disabled={publication.busy}
-						class="rounded-lg border border-[var(--ocean)] px-4 py-2 text-sm text-[var(--ocean)] hover:bg-[var(--ocean-tint)] disabled:opacity-50"
+				{#if canManageCrew}
+					{#if isHidden(trip)}
+						<button
+							onclick={handlePublish}
+							disabled={publication.busy}
+							class="rounded-lg border border-[var(--ocean)] px-4 py-2 text-sm text-[var(--ocean)] hover:bg-[var(--ocean-tint)] disabled:opacity-50"
+						>
+							Opublikuj
+						</button>
+					{:else}
+						<button
+							onclick={handleUnpublish}
+							disabled={publication.busy}
+							class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+						>
+							Ukryj
+						</button>
+					{/if}
+					<a
+						href="/trips/{id}/edit"
+						class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
 					>
-						Opublikuj
-					</button>
-				{:else}
-					<button
-						onclick={handleUnpublish}
-						disabled={publication.busy}
-						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
-					>
-						Ukryj
-					</button>
-				{/if}
-				<a
-					href="/trips/{id}/edit"
-					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
-				>
-				<ActionsMenu>
-					{#snippet children(close)}
-						{#if trip.status === 'planned'}
+					<ActionsMenu>
+						{#snippet children(close)}
+							{#if trip.status === 'planned'}
+								<button
+									type="button"
+									role="menuitem"
+									disabled={completing}
+									onclick={() => {
+										close();
+										void handleCancel();
+									}}
+									class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+								>
+									Odwołaj etap
+								</button>
+							{/if}
 							<button
 								type="button"
 								role="menuitem"
-								disabled={completing}
 								onclick={() => {
 									close();
-									void handleCancel();
+									void handleDelete();
 								}}
-								class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+								class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
 							>
-								Odwołaj etap
+								Usuń
 							</button>
-						{/if}
-						<button
-							type="button"
-							role="menuitem"
-							onclick={() => {
-								close();
-								void handleDelete();
-							}}
-							class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-						>
-							Usuń
-						</button>
-					{/snippet}
-				</ActionsMenu>
+						{/snippet}
+					</ActionsMenu>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -395,7 +405,7 @@
 		</div>
 	{/if}
 
-	{#if canManageCrew && status === 'overdue'}
+	{#if canComplete && status === 'overdue'}
 		<div
 			role="status"
 			class="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-[var(--ocean)]/30 bg-[var(--ocean-tint)] p-4 text-sm text-[var(--navy)]"
@@ -512,13 +522,13 @@
 		</div>
 	{/if}
 
-	{#if canManageCrew}
-		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+	{#if canSeeCrew}
+		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm" data-testid="trip-crew">
 			<div class="mb-3 flex items-center justify-between">
 				<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
 			</div>
 
-			{#if trip.status === 'planned'}
+			{#if canManageCrew && trip.status === 'planned'}
 				<p class="mb-4 text-sm text-[var(--text-muted)]" data-testid="crew-hint">
 					Załoga powstaje z zaakceptowanych zapisów. Aby dodać osobę, zapisz ją na etap i zaakceptuj
 					w
@@ -544,48 +554,91 @@
 			{:else}
 				<div class="space-y-2">
 					{#each crew as member (member.id)}
-						<div
-							class="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-4 py-2 max-md:flex-wrap"
-						>
-							<div class="flex min-w-0 items-center gap-2 max-md:flex-wrap">
-								<span class="font-medium">{member.full_name}</span>
-								{#if trip.status === 'planned'}
-									<form class="flex items-center gap-1" onsubmit={(e) => saveRole(e, member)}>
-										<label class="sr-only" for="crew-role-{member.id}"
-											>Rola: {member.full_name}</label
+						<div class="rounded-lg bg-gray-50 px-4 py-2" data-testid="crew-member">
+							<div class="flex items-center justify-between gap-2 max-md:flex-wrap">
+								<div class="flex min-w-0 items-center gap-2 max-md:flex-wrap">
+									<span class="font-medium">{member.full_name}</span>
+									{#if canManageCrew && trip.status === 'planned'}
+										<form class="flex items-center gap-1" onsubmit={(e) => saveRole(e, member)}>
+											<label class="sr-only" for="crew-role-{member.id}"
+												>Rola: {member.full_name}</label
+											>
+											<input
+												id="crew-role-{member.id}"
+												type="text"
+												maxlength="100"
+												value={roleDraft(member)}
+												oninput={(e) => (roles.drafts[member.id] = e.currentTarget.value)}
+												class="w-36 rounded-lg border px-2 py-1 text-sm"
+											/>
+											<button
+												type="submit"
+												disabled={roles.saving === member.id || !roleChanged(member)}
+												aria-label="Zapisz rolę: {member.full_name}"
+												class="rounded-lg border px-2 py-1 text-xs hover:bg-white disabled:opacity-50"
+											>
+												{roles.saving === member.id ? 'Zapisywanie...' : 'Zapisz'}
+											</button>
+										</form>
+									{:else}
+										<span
+											class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
 										>
-										<input
-											id="crew-role-{member.id}"
-											type="text"
-											maxlength="100"
-											value={roleDraft(member)}
-											oninput={(e) => (roles.drafts[member.id] = e.currentTarget.value)}
-											class="w-36 rounded-lg border px-2 py-1 text-sm"
-										/>
-										<button
-											type="submit"
-											disabled={roles.saving === member.id || !roleChanged(member)}
-											aria-label="Zapisz rolę: {member.full_name}"
-											class="rounded-lg border px-2 py-1 text-xs hover:bg-white disabled:opacity-50"
-										>
-											{roles.saving === member.id ? 'Zapisywanie...' : 'Zapisz'}
-										</button>
-									</form>
-								{:else}
-									<span
-										class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+											{member.role}
+										</span>
+									{/if}
+								</div>
+								{#if canManageCrew && trip.status === 'planned'}
+									<button
+										onclick={() => removeCrew(member.id)}
+										class="text-sm text-red-500 hover:underline"
 									>
-										{member.role}
-									</span>
+										Usuń
+									</button>
 								{/if}
 							</div>
-							{#if trip.status === 'planned'}
-								<button
-									onclick={() => removeCrew(member.id)}
-									class="text-sm text-red-500 hover:underline"
+							{#if member.phone || member.email || member.emergency_contact_name || member.emergency_contact_phone}
+								<dl
+									class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]"
+									data-testid="crew-contacts"
 								>
-									Usuń
-								</button>
+									{#if member.phone}
+										<div class="flex gap-1">
+											<dt>Telefon:</dt>
+											<dd>
+												<a href="tel:{member.phone}" class="text-[var(--ocean)] hover:underline"
+													>{member.phone}</a
+												>
+											</dd>
+										</div>
+									{/if}
+									{#if member.email}
+										<div class="flex gap-1">
+											<dt>E-mail:</dt>
+											<dd>
+												<a
+													href="mailto:{member.email}"
+													class="break-all text-[var(--ocean)] hover:underline">{member.email}</a
+												>
+											</dd>
+										</div>
+									{/if}
+									{#if member.emergency_contact_name || member.emergency_contact_phone}
+										<div class="flex gap-1">
+											<dt>Kontakt awaryjny:</dt>
+											<dd>
+												{member.emergency_contact_name ?? ''}
+												{#if member.emergency_contact_phone}
+													<a
+														href="tel:{member.emergency_contact_phone}"
+														class="text-[var(--ocean)] hover:underline"
+														>{member.emergency_contact_phone}</a
+													>
+												{/if}
+											</dd>
+										</div>
+									{/if}
+								</dl>
 							{/if}
 						</div>
 					{/each}

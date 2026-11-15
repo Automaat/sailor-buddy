@@ -823,10 +823,11 @@ type Querier interface {
 	//  ORDER BY date DESC, id DESC
 	//  LIMIT $5 OFFSET $4
 	ListTrainings(ctx context.Context, arg ListTrainingsParams) ([]Training, error)
-	//ListTripCrewAssignments
+	// Carries the people's phone and emergency contact; the handler drops them
+	// for callers other than admins and the leg's captain.
 	//
 	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-	//         cm.full_name, cm.email
+	//         cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
 	//  FROM crew_assignments ca
 	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
 	//  WHERE ca.trip_id = $1
@@ -1437,7 +1438,7 @@ type Querier interface {
 	//  FROM crew_members cm
 	//  WHERE ca.id = $2 AND ca.trip_id = $3::BIGINT AND cm.id = ca.crew_member_id
 	//  RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-	//            cm.full_name, cm.email
+	//            cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
 	UpdateTripCrewAssignmentRole(ctx context.Context, arg UpdateTripCrewAssignmentRoleParams) (UpdateTripCrewAssignmentRoleRow, error)
 	// Sets the manual payment status of one sign-up of a trip and returns it
 	// with its person, as in ListTripEnrollments. The review status is left

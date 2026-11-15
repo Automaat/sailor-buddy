@@ -163,10 +163,14 @@ held on the `users.role` column:
   `403 admin only`.
 - **Voyage captain** — the account linked to a voyage's captain person
   (`captain_person_id` → `crew_members.user_id`) may also write that
-  voyage's post-cruise log (`PUT /voyages/{id}/log`), its visited ports, and
-  add a yacht to the club list from the voyage
+  voyage's post-cruise log (`PUT /voyages/{id}/log`), its visited ports and
+  its opinions, and add a yacht to the club list from the voyage
   (`POST /voyages/{id}/yachts`). A captain person without an account grants
   no rights. Other mutations stay admin-only.
+- **Leg captain** — the account linked to a trip's captain person reads the
+  leg crew's phone and emergency contact (`GET /trips/{id}/crew`) and
+  completes the leg (`POST /trips/{id}/complete`) once its `disembark_date`
+  is before today in Europe/Warsaw. Captaining another leg grants neither.
 - **Trainings** are the exception: a per-member course/certification log,
   scoped to the caller. Each member manages their own trainings.
 
@@ -319,7 +323,7 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
 | GET | `/api/trips/{id}` | member | Get trip | 200 |
 | PUT | `/api/trips/{id}` | **admin** | Update trip | 204 |
 | DELETE | `/api/trips/{id}` | **admin** | Delete trip | 204 |
-| POST | `/api/trips/{id}/complete` | **admin** | Complete trip → create voyage | 201 (voyage) |
+| POST | `/api/trips/{id}/complete` | **admin** or leg captain | Complete trip → create voyage; the leg captain only after the disembark date | 201 (voyage) |
 | POST | `/api/trips/{id}/cancel` | **admin** | Cancel trip | 200 (trip) |
 
 `POST`/`PUT` body — only `name` is required:
@@ -387,6 +391,13 @@ On create, an omitted (or 0) `max_crew` defaults to the yacht's `berths` when
 `yacht_id` is set and the yacht records berths (`422 yacht not found` for an
 unknown yacht). An explicit `max_crew` is kept.
 
+`complete` is open to admins for any planned leg. The leg's captain may
+complete it only once its `disembark_date` is before today's date in
+Europe/Warsaw; before that, for a leg without a disembark date, and for
+every other member it returns `403` (`404` for a hidden leg the caller
+cannot see). The rule is checked again inside the completion transaction,
+against the locked trip and captain person.
+
 `complete` returns `404` `trip not found or not in planned state` when the trip
 is missing or already completed/cancelled, and `409`
 `trip moved to another cruise; retry`, `trip captain changed; retry` or
@@ -399,7 +410,7 @@ returns `404`
 
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
-| GET | `/api/trips/{tripID}/crew` | member | List trip crew | 200 |
+| GET | `/api/trips/{tripID}/crew` | member | List trip crew; phone and emergency contact for admins and the leg captain only | 200 |
 | PATCH | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Change the role → `CrewAssignment` | 200 |
 | DELETE | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
@@ -408,6 +419,12 @@ accepted sign-ups): there is no route to add someone by hand. To put a
 person on the crew, sign them up (`POST /api/trips/{tripID}/enrollments`,
 also for a person without an account) and accept the sign-up. A completed
 leg's crew is on its voyage, where hand assignment stays.
+
+Each entry carries `id`, `crew_member_id`, `role`, `patent_number`,
+`full_name` and `email`. For admins and the leg's captain it also carries
+the person's `phone`, `emergency_contact_name` and `emergency_contact_phone`;
+other members get the list without them, and a captain of another leg the
+same person sails gets them only on that leg.
 
 Role body: `{ "role": "oficer" }`. The role is trimmed and must be 1–100
 characters (`422` otherwise); only the role changes. `404 crew assignment
@@ -646,9 +663,9 @@ route but not drawn on the map. `anchorage: true` marks an anchorage.
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/voyages/{voyageID}/opinions` | member | List generated opinions | 200 |
-| POST | `/api/voyages/{voyageID}/opinions` | **admin** | Generate opinion document | 201 |
+| POST | `/api/voyages/{voyageID}/opinions` | **admin** or voyage captain | Generate opinion document | 201 |
 | GET | `/api/voyages/{voyageID}/opinions/{id}/download` | member | Download file | 200 (file) |
-| DELETE | `/api/voyages/{voyageID}/opinions/{id}` | **admin** | Delete opinion | 204 |
+| DELETE | `/api/voyages/{voyageID}/opinions/{id}` | **admin** or voyage captain | Delete opinion | 204 |
 
 Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 
@@ -934,4 +951,4 @@ Club routes require a verified Firebase email and an account that is not suspend
 
 `GET /api/auth/me` includes `suspended` and the current token's `email_verified`. Member list entries include `suspended`. Admins suspend or restore an account with `PUT /api/members/{userID}/access` and JSON `{ "suspended": true }` (`false` restores it); successful updates return 204, an unknown account 404, and a non-admin caller 403. Suspending an admin account returns 409 until it is demoted, so the last admin can never be suspended. Promoting a suspended account also returns 409.
 
-Crew list/detail responses omit emergency contacts unless the caller is an admin or captains a leg/voyage containing that person. Opinion lists are filtered to the caller's documents unless they are an admin or the voyage captain; unauthorized opinion downloads return 403. Normal shared club records remain available to every non-suspended user with a verified email. See `docs/security-access.md` for the full matrix.
+Crew list/detail responses omit emergency contacts unless the caller is an admin or captains a leg/voyage containing that person. A leg's crew list (`GET /api/trips/{tripID}/crew`) carries phone and emergency contacts only for admins and that leg's captain. Opinion lists are filtered to the caller's documents unless they are an admin or the voyage captain; unauthorized opinion downloads return 403. Normal shared club records remain available to every non-suspended user with a verified email. See `docs/security-access.md` for the full matrix.

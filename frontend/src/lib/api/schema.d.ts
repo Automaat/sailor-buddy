@@ -841,7 +841,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Complete a trip into a voyage (admin) */
+        /**
+         * Complete a trip into a voyage (admin or leg captain)
+         * @description Admins complete any planned leg. The leg's captain completes it only once its disembark date is before today in Europe/Warsaw; 403 before then, for a leg without a disembark date and for anyone else.
+         */
         post: operations["complete-trip"];
         delete?: never;
         options?: never;
@@ -856,7 +859,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List a trip's crew */
+        /**
+         * List a trip's crew
+         * @description Any member who can see the leg reads names, roles and e-mails. Phone and emergency contact come only to admins and the leg's captain.
+         */
         get: operations["list-trip-crew"];
         put?: never;
         post?: never;
@@ -1204,7 +1210,7 @@ export interface paths {
         /** List a voyage's generated opinions */
         get: operations["list-voyage-opinions"];
         put?: never;
-        /** Generate a crew opinion document (admin) */
+        /** Generate a crew opinion document (admin or voyage captain) */
         post: operations["generate-voyage-opinion"];
         delete?: never;
         options?: never;
@@ -1222,7 +1228,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete an opinion (admin) */
+        /** Delete an opinion (admin or voyage captain) */
         delete: operations["delete-voyage-opinion"];
         options?: never;
         head?: never;
@@ -1535,10 +1541,16 @@ export interface components {
             /** Format: int64 */
             crew_member_id: number;
             email?: string;
+            /** @description Leg crew list only, for admins and the leg's captain */
+            emergency_contact_name?: string;
+            /** @description Leg crew list only, for admins and the leg's captain */
+            emergency_contact_phone?: string;
             full_name: string;
             /** Format: int64 */
             id: number;
             patent_number?: string;
+            /** @description Leg crew list only, for admins and the leg's captain */
+            phone?: string;
             role: string;
             /** Format: int64 */
             trip_id?: number;

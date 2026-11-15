@@ -55,8 +55,9 @@ type opinionFileOutput struct {
 	Body               []byte
 }
 
-// RegisterVoyageOpinionRoutes wires the crew opinion document operations. Reads
-// are open to any member; generating and deleting require an admin.
+// RegisterVoyageOpinionRoutes wires the crew opinion document operations.
+// Listing and downloading show a member only their own opinions; generating
+// and deleting require an admin or the voyage's captain.
 func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploads *os.Root) {
 	h := NewVoyageOpinionHandler(q, uploads)
 	tag := []string{"Voyage opinions"}
@@ -67,7 +68,7 @@ func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploads *os.Roo
 	}, h.list)
 	huma.Register(api, huma.Operation{
 		OperationID: "generate-voyage-opinion", Method: http.MethodPost, Path: "/voyages/{voyageID}/opinions",
-		Summary: "Generate a crew opinion document (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Generate a crew opinion document (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.generate)
 	huma.Register(api, huma.Operation{
 		OperationID: "download-voyage-opinion", Method: http.MethodGet, Path: "/voyages/{voyageID}/opinions/{opinionID}/download",
@@ -75,7 +76,7 @@ func RegisterVoyageOpinionRoutes(api huma.API, q sqlcdb.Querier, uploads *os.Roo
 	}, h.download)
 	huma.Register(api, huma.Operation{
 		OperationID: "delete-voyage-opinion", Method: http.MethodDelete, Path: "/voyages/{voyageID}/opinions/{opinionID}",
-		Summary: "Delete an opinion (admin)", Tags: tag, DefaultStatus: http.StatusNoContent,
+		Summary: "Delete an opinion (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 }
 
@@ -96,19 +97,11 @@ func (h *VoyageOpinionHandler) list(ctx context.Context, in *voyageIDParam) (*op
 }
 
 func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinionInput) (*opinionOutput, error) {
-	if err := requireAdmin(ctx); err != nil {
+	voyage, err := getVoyageForCaptain(ctx, h.q, in.VoyageID)
+	if err != nil {
 		return nil, err
 	}
 	format := opinionFormat(in.Body.Format)
-
-	voyage, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, IncludeHidden: true})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("voyage not found")
-		}
-		slog.Error("get voyage for opinion", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to get voyage")
-	}
 
 	assignment, err := getOpinionCrewAssignment(ctx, h.q, in.VoyageID, in.Body.CrewMemberID)
 	if err != nil {
@@ -166,10 +159,7 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 }
 
 func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*noContentOutput, error) {
-	if err := requireAdmin(ctx); err != nil {
-		return nil, err
-	}
-	if err := h.verifyVoyage(ctx, in.VoyageID); err != nil {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
 	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)

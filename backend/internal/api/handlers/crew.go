@@ -149,6 +149,8 @@ func registerCrewRoutes(api huma.API, h *CrewHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trip-crew", Method: http.MethodGet, Path: "/trips/{tripID}/crew",
 		Summary: "List a trip's crew", Tags: crew,
+		Description: "Any member who can see the leg reads names, roles and e-mails. Phone and emergency " +
+			"contact come only to admins and the leg's captain.",
 	}, h.listTripCrew)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-trip-crew-role", Method: http.MethodPatch, Path: "/trips/{tripID}/crew/{assignmentID}",
@@ -323,7 +325,16 @@ func encodeOtherNames(names []string) (json.RawMessage, error) {
 }
 
 func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (*crewAssignmentListOutput, error) {
-	if err := requireVisibleTrip(ctx, h.q, in.TripID); err != nil {
+	trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.TripID, IncludeHidden: canSeeHidden(ctx)})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("trip not found")
+		}
+		slog.Error("get trip for crew", "trip_id", in.TripID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get trip")
+	}
+	contacts, err := mayReadTripContacts(ctx, h.q, trip)
+	if err != nil {
 		return nil, err
 	}
 	assignments, err := h.q.ListTripCrewAssignments(ctx, types.NullInt64{Int64: in.TripID, Valid: true})
@@ -331,7 +342,23 @@ func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (
 		slog.Error("list trip crew", "trip_id", in.TripID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trip crew")
 	}
-	return &crewAssignmentListOutput{Body: dto.TripCrewFromDB(assignments)}, nil
+	crew := dto.TripCrewFromDB(assignments)
+	if !contacts {
+		for i := range crew {
+			crew[i] = crew[i].WithoutContacts()
+		}
+	}
+	return &crewAssignmentListOutput{Body: crew}, nil
+}
+
+// mayReadTripContacts reports whether the caller reads the phone and
+// emergency contact of a leg's crew: admins and the leg's captain. Captaining
+// another leg the same people sail grants nothing here.
+func mayReadTripContacts(ctx context.Context, q sqlcdb.Querier, trip sqlcdb.Trip) (bool, error) {
+	if u := middleware.GetUser(ctx); u != nil && u.Role == "admin" {
+		return true, nil
+	}
+	return isCaptain(ctx, q, trip.CaptainPersonID)
 }
 
 // crewMemberFKey is violated when the person was deleted, or merged away,

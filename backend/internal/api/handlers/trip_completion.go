@@ -37,9 +37,21 @@ func completeTripTx(ctx context.Context, db *sql.DB, tripID int64, req dto.Compl
 // completeTripTxWith runs completeTripTx with an optional querier wrapper,
 // which tests use to pause the transaction between statements.
 func completeTripTxWith(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+	return completeTripTxAs(ctx, db, wrap, nil, tripID, req)
+}
+
+// tripCompletionAuth decides, inside the completion transaction, whether the
+// caller may complete the locked trip. It reads the trip and its captain
+// person after both are locked, so neither can change between the check and
+// the commit.
+type tripCompletionAuth func(ctx context.Context, q sqlcdb.Querier, trip sqlcdb.Trip) error
+
+// completeTripTxAs runs completeTripTxWith and, when authorize is set, refuses
+// the trip it rejects before any write.
+func completeTripTxAs(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, authorize tripCompletionAuth, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
 	var last error
 	for range completeTripAttempts {
-		voyage, err := completeTripOnce(ctx, db, wrap, tripID, req)
+		voyage, err := completeTripOnce(ctx, db, wrap, authorize, tripID, req)
 		if !errors.Is(err, errTripCruiseChanged) && !errors.Is(err, errTripCaptainChanged) &&
 			!errors.Is(err, errTripYachtChanged) {
 			return voyage, err
@@ -49,7 +61,7 @@ func completeTripTxWith(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querie
 	return sqlcdb.Voyage{}, last
 }
 
-func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
+func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier) sqlcdb.Querier, authorize tripCompletionAuth, tripID int64, req dto.CompleteTripBody) (sqlcdb.Voyage, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return sqlcdb.Voyage{}, &QueryError{Op: "BeginTx", Err: err}
@@ -97,6 +109,11 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 	}
 	if trip.YachtID != yacht {
 		return sqlcdb.Voyage{}, errTripYachtChanged
+	}
+	if authorize != nil {
+		if err := authorize(ctx, qtx, trip); err != nil {
+			return sqlcdb.Voyage{}, err
+		}
 	}
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return sqlcdb.Voyage{}, sql.ErrNoRows

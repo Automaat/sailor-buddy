@@ -122,8 +122,10 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   `membership = czlonek` and a patent number). A leg's or voyage's captain is
   a person (`captain_person_id` → `crew_members`); any person may be chosen.
   The account linked to a voyage's captain person may write its post-cruise
-  log and ports (`requireAdminOrCaptain`). Captain is not a role — keep it
-  off `users.role`.
+  log and ports and generate and delete its opinions (`requireAdminOrCaptain`).
+  A leg's captain sees its crew read-only with contacts (phone, emergency
+  contact) and may complete the leg only after its `disembark_date`
+  (Europe/Warsaw). Captain is not a role — keep it off `users.role`.
 - Hidden drafts: `published_at` on cruises, trips and voyages; NULL is
   hidden and every new row starts hidden. A trip or voyage is visible only
   while it and its cruise are published. Admins and the captain group see
