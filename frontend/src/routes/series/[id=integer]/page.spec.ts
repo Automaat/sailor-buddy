@@ -214,6 +214,17 @@ describe('series detail page', () => {
 		expect(screen.getByText(long, { selector: 'p' })).toHaveClass('[overflow-wrap:anywhere]');
 	});
 
+	it('keeps a long unbroken edition label inside its cell', async () => {
+		const label = 'E' + 'W'.repeat(49);
+		mockEditions.mockResolvedValue([
+			makeEdition({ cruise_id: 7, name: 'Normal edition', edition: label })
+		]);
+		await renderPage();
+
+		const badge = await screen.findByText(label);
+		expect(badge).toHaveClass('max-w-full', '[overflow-wrap:anywhere]');
+	});
+
 	it('keeps the form open with the error when saving fails', async () => {
 		mockAuth.isAdmin = true;
 		mockUpdate.mockRejectedValue(new Error('name taken'));

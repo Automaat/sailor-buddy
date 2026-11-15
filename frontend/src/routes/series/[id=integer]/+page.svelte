@@ -181,7 +181,7 @@
 						<tr class="group relative hover:bg-[var(--ocean-tint)]/50" data-testid="edition-row">
 							<td class="py-3 pr-4 align-middle">
 								<span
-									class="inline-block min-w-16 rounded-md bg-[var(--ocean-tint)] px-2 py-1 text-center font-semibold tabular-nums text-[var(--ocean)]"
+									class="inline-block min-w-16 max-w-full rounded-md bg-[var(--ocean-tint)] px-2 py-1 text-center font-semibold tabular-nums [overflow-wrap:anywhere] text-[var(--ocean)]"
 									>{e.edition ?? '—'}</span
 								>
 							</td>
