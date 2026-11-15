@@ -63,7 +63,7 @@ func RegisterMembersRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 func registerMembersRoutes(api huma.API, h *MembersHandler) {
 	tag := []string{"Members"}
 
-	huma.Register(api, huma.Operation{OperationID: "update-member-access", Method: http.MethodPut, Path: "/members/{userID}/access", Summary: "Approve or suspend an account (admin)", Tags: tag, DefaultStatus: http.StatusNoContent}, h.updateAccess)
+	huma.Register(api, huma.Operation{OperationID: "update-member-access", Method: http.MethodPut, Path: "/members/{userID}/access", Summary: "Suspend or restore an account (admin)", Tags: tag, DefaultStatus: http.StatusNoContent}, h.updateAccess)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-members", Method: http.MethodGet, Path: "/members",
@@ -201,10 +201,10 @@ func (h *MembersHandler) updateAccess(ctx context.Context, in *updateMemberAcces
 		if err != nil {
 			return err
 		}
-		if target.Role == "admin" && (!in.Body.Approved || in.Body.Suspended) {
-			return huma.Error409Conflict("remove the admin role before restricting this account")
+		if target.Role == "admin" && in.Body.Suspended {
+			return huma.Error409Conflict("remove the admin role before suspending this account")
 		}
-		return q.UpdateUserAccess(ctx, sqlcdb.UpdateUserAccessParams{ID: in.UserID, AccessApproved: in.Body.Approved, Suspended: in.Body.Suspended})
+		return q.UpdateUserSuspended(ctx, sqlcdb.UpdateUserSuspendedParams{ID: in.UserID, Suspended: in.Body.Suspended})
 	})
 	if err != nil {
 		if status, ok := errors.AsType[huma.StatusError](err); ok {

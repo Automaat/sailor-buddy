@@ -197,22 +197,16 @@
 		);
 		if (ok) patch(member.id, { membership });
 	}
-	async function setAccess(member: Member, value: string, el: HTMLSelectElement) {
-		const change = { approved: value === 'approved', suspended: value === 'suspended' };
+	async function setSuspended(member: Member, suspended: boolean, el: HTMLSelectElement) {
+		if (member.suspended === suspended) return;
 		const ok = await save(
 			member,
-			() => updateMemberAccess(member.id, change),
-			`Zapisano dostęp: ${member.name}`,
+			() => updateMemberAccess(member.id, { suspended }),
+			`Zapisano dostęp: ${member.name} — ${suspended ? 'Zawieszone' : 'Aktywne'}`,
 			'Nie udało się zmienić dostępu',
-			() => {
-				el.value = stored(member).suspended
-					? 'suspended'
-					: stored(member).approved
-						? 'approved'
-						: 'pending';
-			}
+			() => (el.value = stored(member).suspended ? 'suspended' : 'active')
 		);
-		if (ok) patch(member.id, change);
+		if (ok) patch(member.id, { suspended });
 	}
 	async function handleAdd(e: Event) {
 		e.preventDefault();
@@ -426,16 +420,20 @@
 										><select
 											aria-label="Dostęp: {member.name}"
 											disabled={busy || member.role === 'admin'}
-											value={member.suspended
-												? 'suspended'
-												: member.approved
-													? 'approved'
-													: 'pending'}
-											onchange={(e) => setAccess(member, e.currentTarget.value, e.currentTarget)}
+											value={member.suspended ? 'suspended' : 'active'}
+											title={member.role === 'admin'
+												? 'Odbierz rolę administratora przed zawieszeniem konta'
+												: ''}
+											onchange={(e) =>
+												setSuspended(
+													member,
+													e.currentTarget.value === 'suspended',
+													e.currentTarget
+												)}
 											class="rounded-lg border px-2 py-1 text-xs"
-											><option value="pending">Oczekuje</option><option value="approved"
-												>Zatwierdzone</option
-											><option value="suspended">Zawieszone</option></select
+											><option value="active">Aktywne</option><option value="suspended"
+												>Zawieszone</option
+											></select
 										></td
 									>
 									<td class="p-4">

@@ -5,7 +5,7 @@ under `/api`. The frontend dev server proxies `/api` to the backend on
 `:8080` (see `frontend/vite.config.ts`).
 
 Sailor Buddy is a single-club app: all sailing data (cruises, trips, voyages,
-yachts, crew) is shared across approved club accounts. Emergency contacts and
+yachts, crew) is shared across club accounts with a verified email. Emergency contacts and
 opinions have narrower access. Mutations require **admin** access except for
 the documented own-account, enrollment, training, and assigned-captain flows.
 
@@ -20,9 +20,9 @@ Authorization: Bearer <firebase_id_token>
 The `Auth` middleware verifies the token, then reads the `users` row keyed by
 Firebase UID. It upserts the row (linking by verified email if the UID is
 new) only when the account is new or the token's email or name changed, so
-a known account's request writes nothing. New accounts are pending members;
-administrators approve access separately from club membership. Club data needs
-verified email and approval. Bootstrap the first admin privately using
+a known account's request writes nothing. New accounts are members; club data
+needs a verified email and an account that is not suspended, with no
+administrator approval step. Bootstrap the first admin privately using
 `bootstrap-admin`; HTTP sign-in never grants that role. See
 [the access policy](../docs/security-access.md) and
 [production session controls](../docs/production.md#disable-access-or-revoke-sessions).
@@ -295,6 +295,7 @@ Admins also get `club` with the club-wide `total` and
 | PUT | `/api/members/{userID}/role` | **admin** | Set a member's role, 204 |
 | PUT | `/api/members/{userID}/captain` | **admin** | Add to / remove from the captain group `{ "is_captain": true }`, 204 |
 | PUT | `/api/members/{userID}/membership` | **admin** | Set membership status `{ "membership": "sympatyk" }`, 204 |
+| PUT | `/api/members/{userID}/access` | **admin** | Suspend or restore an account `{ "suspended": true }`, 204 |
 
 Roles: `admin`, `member`. The last `admin` cannot be demoted (`400 cannot
 demote the last admin`). Role body: `{ "role": "admin" }`.
@@ -885,8 +886,8 @@ configuration overrides, reference protection and cleanup rules.
 
 ## Account admission
 
-Club routes require a verified Firebase email and explicit account approval. Suspended accounts receive 403 on authenticated requests. Pending and unverified users retain GET/PUT `/api/auth/me` and the existing token preview/enrollment routes. Group-chat links are omitted from their token previews. Admission errors include `code` and `detail`: `email_unverified`, `approval_pending`, or `account_suspended`.
+Club routes require a verified Firebase email and an account that is not suspended. There is no approval step: a new account with a verified email reads club data at once. Suspended accounts receive 403 on authenticated requests, including the self-service routes and requests with an existing token. Unverified users retain GET/PUT `/api/auth/me` and the existing token preview/enrollment routes. Group-chat links are omitted from their token previews. Admission errors include `code` and `detail`: `email_unverified` or `account_suspended`; suspension is checked first.
 
-`GET /api/auth/me` includes `approved`, `suspended`, and the current token's `email_verified`. Member list entries include approval and suspension status. Admins set account access with `PUT /api/members/{userID}/access` and JSON `{ "approved": true, "suspended": false }`; successful updates return 204. Restricting an admin account returns 409 until it is demoted. Promoting a suspended account also returns 409.
+`GET /api/auth/me` includes `suspended` and the current token's `email_verified`. Member list entries include `suspended`. Admins suspend or restore an account with `PUT /api/members/{userID}/access` and JSON `{ "suspended": true }` (`false` restores it); successful updates return 204, an unknown account 404, and a non-admin caller 403. Suspending an admin account returns 409 until it is demoted, so the last admin can never be suspended. Promoting a suspended account also returns 409.
 
-Crew list/detail responses omit emergency contacts unless the caller is an admin or captains a leg/voyage containing that person. Opinion lists are filtered to the caller's documents unless they are an admin or the voyage captain; unauthorized opinion downloads return 403. Normal shared club records remain available to approved users with verified email. See `docs/security-access.md` for the full matrix.
+Crew list/detail responses omit emergency contacts unless the caller is an admin or captains a leg/voyage containing that person. Opinion lists are filtered to the caller's documents unless they are an admin or the voyage captain; unauthorized opinion downloads return 403. Normal shared club records remain available to every non-suspended user with a verified email. See `docs/security-access.md` for the full matrix.

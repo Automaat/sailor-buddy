@@ -12,11 +12,14 @@ const BASE = PUBLIC_API_URL || '/api';
 // blank screen, but a generic error for everything else.
 export class ApiError extends Error {
 	readonly status: number;
+	/** The API's stable reason code, such as `account_suspended`, when it sends one. */
+	readonly code?: string;
 
-	constructor(status: number, message: string) {
+	constructor(status: number, message: string, code?: string) {
 		super(message);
 		this.name = 'ApiError';
 		this.status = status;
+		this.code = code;
 	}
 }
 
@@ -134,7 +137,11 @@ async function fail(res: Response): Promise<never> {
 		throw new ApiError(401, 'Session expired');
 	}
 	const body = await res.json().catch(() => ({}));
-	throw new ApiError(res.status, body.detail || body.title || `Request failed: ${res.status}`);
+	throw new ApiError(
+		res.status,
+		body.detail || body.title || `Request failed: ${res.status}`,
+		typeof body.code === 'string' ? body.code : undefined
+	);
 }
 
 // sendRequest issues one authenticated request against the API, attaching

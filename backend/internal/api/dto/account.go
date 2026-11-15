@@ -10,7 +10,6 @@ import (
 
 // Me is the authenticated user's profile.
 type Me struct {
-	Approved      bool    `json:"approved"`
 	Suspended     bool    `json:"suspended"`
 	EmailVerified bool    `json:"email_verified"`
 	ID            int64   `json:"id"`
@@ -32,7 +31,6 @@ type Me struct {
 // MeFromUser maps a stored user row onto the profile DTO.
 func MeFromUser(u sqlcdb.User) Me {
 	return Me{
-		Approved:     u.AccessApproved || u.Role == "admin",
 		Suspended:    u.Suspended,
 		ID:           u.ID,
 		Email:        u.Email,

@@ -108,7 +108,7 @@ WHERE users.id = $1
 SELECT * FROM users ORDER BY role, name, id;
 
 -- name: UpdateUserRole :exec
-UPDATE users SET role = $1, access_approved = CASE WHEN $1 = 'admin' THEN TRUE ELSE access_approved END, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
+UPDATE users SET role = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 
 -- name: UpdateUserCaptain :exec
 UPDATE users SET is_captain = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
@@ -116,5 +116,5 @@ UPDATE users SET is_captain = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 -- name: UpdateUserMembership :exec
 UPDATE users SET membership = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
 
--- name: UpdateUserAccess :exec
-UPDATE users SET access_approved = $1, suspended = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3;
+-- name: UpdateUserSuspended :exec
+UPDATE users SET suspended = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
