@@ -550,7 +550,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Approve or suspend an account (admin) */
+        /** Suspend or restore an account (admin) */
         put: operations["update-member-access"];
         post?: never;
         delete?: never;
@@ -1393,7 +1393,7 @@ export interface components {
              * @example /api/AccessBody.json
              */
             readonly $schema?: string;
-            approved: boolean;
+            /** @description Whether the account is suspended */
             suspended: boolean;
         };
         AssignTripBody: {
@@ -2091,7 +2091,6 @@ export interface components {
              * @example /api/Me.json
              */
             readonly $schema?: string;
-            approved: boolean;
             avatar_url: string;
             email: string;
             email_verified: boolean;
@@ -2117,7 +2116,6 @@ export interface components {
             suspended: boolean;
         };
         Member: {
-            approved: boolean;
             avatar_url?: string;
             /** Format: date-time */
             created_at: string;

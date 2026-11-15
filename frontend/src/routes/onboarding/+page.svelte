@@ -4,6 +4,7 @@
 	import { errorMessage } from '#lib/api/errors.js';
 	import ProfileFields from '#lib/components/ProfileFields.svelte';
 	import PersonClaim from '#lib/components/PersonClaim.svelte';
+	import { hasClubAccess } from '#lib/access.js';
 	import { profileBody, profileFormFromUser, type ProfileForm } from '#lib/profile.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 
@@ -64,7 +65,7 @@
 				</button>
 			</form>
 			<div class="mt-6">
-				{#if auth.user?.approved && auth.user?.email_verified}<PersonClaim />{/if}
+				{#if auth.user && hasClubAccess(auth.user)}<PersonClaim />{/if}
 			</div>
 		{/if}
 	</div>

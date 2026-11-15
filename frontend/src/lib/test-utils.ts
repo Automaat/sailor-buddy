@@ -17,7 +17,6 @@ export function makeMember(overrides: Partial<Member> = {}): Member {
 	return {
 		id: 1,
 		name: 'Kasia Admin',
-		approved: true,
 		suspended: false,
 		email: 'kasia@example.dev',
 		role: 'admin',
