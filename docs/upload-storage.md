@@ -1,7 +1,7 @@
 # Image upload storage
 
-Image uploads require an approved account and verified email, like other club
-data routes. The API decodes JPEG, PNG and non-animated WebP before storing them.
+Image uploads require a verified email and an account that is not suspended,
+like other club data routes. The API decodes JPEG, PNG and non-animated WebP before storing them.
 The original encoded bytes are retained; image metadata is not stripped.
 
 | Limit | Default | Configuration |

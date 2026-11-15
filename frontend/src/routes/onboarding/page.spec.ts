@@ -64,7 +64,6 @@ beforeEach(() => {
 	cancelRequestMock.mockReset().mockResolvedValue(undefined);
 	h.store.user = {
 		id: 1,
-		approved: true,
 		email_verified: true,
 		suspended: false,
 		name: 'Jan Maria Kowalski',
@@ -162,10 +161,20 @@ describe('onboarding person claim', () => {
 	});
 });
 
-it('keeps pending profile editing available without directory suggestions', async () => {
-	h.store.user = { ...(h.store.user as object), approved: false, email_verified: false };
-	render(OnboardingPage);
-	expect(await screen.findByLabelText('Imię *')).toBeVisible();
-	expect(candidatesMock).not.toHaveBeenCalled();
-	expect(myRequestMock).not.toHaveBeenCalled();
+describe('person claim visibility', () => {
+	it('keeps profile editing available without directory suggestions until the email is verified', async () => {
+		h.store.user = { ...(h.store.user as object), email_verified: false };
+		render(OnboardingPage);
+		expect(await screen.findByLabelText('Imię *')).toBeVisible();
+		expect(screen.queryByLabelText('Szukaj osoby')).toBeNull();
+		expect(candidatesMock).not.toHaveBeenCalled();
+		expect(myRequestMock).not.toHaveBeenCalled();
+	});
+
+	it('offers the person claim as soon as the email is verified', async () => {
+		h.store.user = { ...(h.store.user as object), email_verified: true, suspended: false };
+		render(OnboardingPage);
+		expect(await screen.findByLabelText('Szukaj osoby')).toBeVisible();
+		expect(myRequestMock).toHaveBeenCalled();
+	});
 });

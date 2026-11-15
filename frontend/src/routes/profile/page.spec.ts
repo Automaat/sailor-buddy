@@ -79,7 +79,6 @@ const updateProfileMock = updateProfile as unknown as ReturnType<typeof vi.fn>;
 function seededUser(patentType: string | undefined, patentNumber: string | undefined) {
 	return {
 		id: 1,
-		approved: true,
 		email_verified: true,
 		suspended: false,
 		email: 'jan@example.com',
@@ -222,10 +221,20 @@ describe('profile person claim', () => {
 	});
 });
 
-it('keeps pending profile editing available without directory suggestions', async () => {
-	h.store.user = { ...(h.store.user as object), approved: false, email_verified: false };
-	render(ProfilePage);
-	expect(await screen.findByLabelText('Imię *')).toBeVisible();
-	expect(candidatesMock).not.toHaveBeenCalled();
-	expect(myRequestMock).not.toHaveBeenCalled();
+describe('person claim visibility', () => {
+	it('keeps profile editing available without directory suggestions until the email is verified', async () => {
+		h.store.user = { ...(h.store.user as object), email_verified: false };
+		render(ProfilePage);
+		expect(await screen.findByLabelText('Imię *')).toBeVisible();
+		expect(screen.queryByLabelText('Szukaj osoby')).toBeNull();
+		expect(candidatesMock).not.toHaveBeenCalled();
+		expect(myRequestMock).not.toHaveBeenCalled();
+	});
+
+	it('offers the person claim as soon as the email is verified', async () => {
+		h.store.user = { ...(h.store.user as object), email_verified: true, suspended: false };
+		render(ProfilePage);
+		expect(await screen.findByLabelText('Szukaj osoby')).toBeVisible();
+		expect(myRequestMock).toHaveBeenCalled();
+	});
 });

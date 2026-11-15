@@ -71,7 +71,7 @@ func securityRouter(t *testing.T, conn *sql.DB) (http.Handler, *os.Root) {
 	t.Helper()
 	q := sqlcdb.New(conn)
 	verifier := securityVerifier{}
-	for _, token := range []string{"pending", "approved", "unverified", "suspended", "captain", "subject", "admin"} {
+	for _, token := range []string{"member", "unverified", "suspended", "captain", "subject", "admin"} {
 		verifier[token] = &fbauth.Token{UID: token, Claims: map[string]any{"email": token + "@example.dev", "email_verified": token != "unverified"}}
 	}
 	uploads, err := handlers.OpenUploadRoot(t.TempDir())
@@ -90,7 +90,7 @@ func securityRouter(t *testing.T, conn *sql.DB) (http.Handler, *os.Root) {
 			t.Fatalf("provision %s: %d %s", token, resp.Code, resp.Body)
 		}
 	}
-	if _, err := conn.Exec(`UPDATE users SET access_approved = firebase_uid <> 'pending', suspended = firebase_uid = 'suspended'`); err != nil {
+	if _, err := conn.Exec(`UPDATE users SET suspended = firebase_uid = 'suspended'`); err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.BootstrapAdmin(t.Context(), conn, "admin"); err != nil {
@@ -118,18 +118,20 @@ func TestAdmissionMatrix(t *testing.T) {
 		want                            int
 	}{
 		{"anonymous club read", "", http.MethodGet, "/api/crew", "", 401},
-		{"pending club read", "pending", http.MethodGet, "/api/crew", "", 403},
 		{"unverified club read", "unverified", http.MethodGet, "/api/crew", "", 403},
+		{"suspended club read", "suspended", http.MethodGet, "/api/crew", "", 403},
 		{"suspended profile", "suspended", http.MethodGet, "/api/auth/me", "", 403},
-		{"pending profile", "pending", http.MethodGet, "/api/auth/me", "", 200},
-		{"pending onboarding", "pending", http.MethodPut, "/api/auth/me", `{"first_name":"New","last_name":"Member"}`, 200},
-		{"pending token preview", "pending", http.MethodGet, "/api/enroll/missing", "", 404},
-		{"pending enroll", "pending", http.MethodPost, "/api/enroll/missing", "{}", 404},
-		{"pending enroll legs", "pending", http.MethodPost, "/api/enroll/missing/legs", `{"trip_ids":[1]}`, 404},
-		{"pending trainings", "pending", http.MethodGet, "/api/trainings", "", 403},
-		{"pending candidates", "pending", http.MethodGet, "/api/auth/me/person-candidates", "", 403},
-		{"approved directory", "approved", http.MethodGet, "/api/crew", "", 200},
-		{"approved cannot mutate", "approved", http.MethodPost, "/api/crew", `{"full_name":"Injected"}`, 403},
+		{"unverified profile", "unverified", http.MethodGet, "/api/auth/me", "", 200},
+		{"unverified onboarding", "unverified", http.MethodPut, "/api/auth/me", `{"first_name":"New","last_name":"Member"}`, 200},
+		{"unverified token preview", "unverified", http.MethodGet, "/api/enroll/missing", "", 404},
+		{"unverified enroll", "unverified", http.MethodPost, "/api/enroll/missing", "{}", 404},
+		{"unverified enroll legs", "unverified", http.MethodPost, "/api/enroll/missing/legs", `{"trip_ids":[1]}`, 404},
+		{"unverified trainings", "unverified", http.MethodGet, "/api/trainings", "", 403},
+		{"unverified candidates", "unverified", http.MethodGet, "/api/auth/me/person-candidates", "", 403},
+		{"new verified account directory", "member", http.MethodGet, "/api/crew", "", 200},
+		{"new verified account trainings", "member", http.MethodGet, "/api/trainings", "", 200},
+		{"new verified account candidates", "member", http.MethodGet, "/api/auth/me/person-candidates", "", 200},
+		{"member cannot mutate", "member", http.MethodPost, "/api/crew", `{"full_name":"Injected"}`, 403},
 		{"admin directory", "admin", http.MethodGet, "/api/crew", "", 200},
 	}
 	for _, tt := range cases {
@@ -142,11 +144,38 @@ func TestAdmissionMatrix(t *testing.T) {
 	}
 }
 
+// TestAdmissionDenialCodes pins the reason the UI shows for each denied
+// caller: unverified email or suspension. No approval step exists.
+func TestAdmissionDenialCodes(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	for token, want := range map[string]string{"unverified": "email_unverified", "suspended": "account_suspended"} {
+		rr := securityRequest(h, token, http.MethodGet, "/api/crew", "")
+		var body struct {
+			Code string `json:"code"`
+		}
+		if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+			t.Fatalf("%s: decode %s: %v", token, rr.Body, err)
+		}
+		if rr.Code != 403 || body.Code != want {
+			t.Errorf("%s: status=%d code=%q, want 403 %q", token, rr.Code, body.Code, want)
+		}
+	}
+	var me dto.Me
+	rr := securityRequest(h, "member", http.MethodGet, "/api/auth/me", "")
+	if err := json.Unmarshal(rr.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if !me.EmailVerified || me.Suspended || strings.Contains(rr.Body.String(), `"approved"`) {
+		t.Errorf("profile of a new verified account: %s", rr.Body)
+	}
+}
+
 func TestSensitiveDataAccess(t *testing.T) {
 	conn := securityDatabase(t)
 	h, uploads := securityRouter(t, conn)
 	var captain, subject, outsider, cruise, voyage, opinion int64
-	for uid, dest := range map[string]*int64{"captain": &captain, "subject": &subject, "approved": &outsider} {
+	for uid, dest := range map[string]*int64{"captain": &captain, "subject": &subject, "member": &outsider} {
 		if err := conn.QueryRow(`SELECT cm.id FROM crew_members cm JOIN users u ON u.id=cm.user_id WHERE u.firebase_uid=$1`, uid).Scan(dest); err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +201,7 @@ func TestSensitiveDataAccess(t *testing.T) {
 	if err := conn.QueryRow(`INSERT INTO voyage_opinions(voyage_id,crew_member_id,file_path,file_format) VALUES($1,$2,$3,'pdf') RETURNING id`, voyage, subject, filepath.Join(uploads.Name(), "opinions/test.pdf")).Scan(&opinion); err != nil {
 		t.Fatal(err)
 	}
-	for _, token := range []string{"approved", "subject", "captain", "admin"} {
+	for _, token := range []string{"member", "subject", "captain", "admin"} {
 		t.Run(token, func(t *testing.T) {
 			rr := securityRequest(h, token, "GET", "/api/crew", "")
 			contains := strings.Contains(rr.Body.String(), "PRIVATE-PHONE")
@@ -217,7 +246,7 @@ func TestSensitiveDataAccess(t *testing.T) {
 				t.Fatalf("detail privacy: %d %s", rr.Code, rr.Body)
 			}
 			rr = securityRequest(h, token, "GET", fmt.Sprintf("/api/voyages/%d/opinions", voyage), "")
-			documentAllowed := token != "approved"
+			documentAllowed := token != "member"
 			if rr.Code != 200 || strings.Contains(rr.Body.String(), `"file_format":"pdf"`) != documentAllowed {
 				t.Fatalf("document list: %d %s", rr.Code, rr.Body)
 			}
@@ -231,7 +260,7 @@ func TestSensitiveDataAccess(t *testing.T) {
 			}
 		})
 	}
-	for _, token := range []string{"pending", "unverified", "approved"} {
+	for _, token := range []string{"unverified", "member"} {
 		rr := securityRequest(h, token, "GET", "/api/enroll/share", "")
 		if rr.Code != 200 {
 			t.Fatalf("enroll preview %s: %d %s", token, rr.Code, rr.Body)
@@ -239,69 +268,56 @@ func TestSensitiveDataAccess(t *testing.T) {
 	}
 }
 
-func TestAccountApprovalControls(t *testing.T) {
+// TestAccountSuspensionControls covers the admin-only suspend/restore
+// control. A suspension denies the account's existing token at once, and an
+// admin must be demoted before suspension.
+func TestAccountSuspensionControls(t *testing.T) {
 	conn := securityDatabase(t)
 	h, _ := securityRouter(t, conn)
 	var target, admin int64
-	if err := conn.QueryRow("SELECT id FROM users WHERE firebase_uid='pending'").Scan(&target); err != nil {
+	if err := conn.QueryRow("SELECT id FROM users WHERE firebase_uid='subject'").Scan(&target); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.QueryRow("SELECT id FROM users WHERE firebase_uid='admin'").Scan(&admin); err != nil {
 		t.Fatal(err)
 	}
 	path := fmt.Sprintf("/api/members/%d/access", target)
-	rr := securityRequest(h, "approved", "PUT", path, `{"approved":true,"suspended":false}`)
+	rr := securityRequest(h, "member", "PUT", path, `{"suspended":true}`)
 	if rr.Code != 403 {
-		t.Fatalf("member approval=%d", rr.Code)
+		t.Fatalf("member suspension=%d", rr.Code)
 	}
-	rr = securityRequest(h, "admin", "PUT", path, `{"approved":true,"suspended":false}`)
-	if rr.Code != 204 {
-		t.Fatalf("admin approval=%d %s", rr.Code, rr.Body)
-	}
-	rr = securityRequest(h, "pending", "GET", "/api/crew", "")
+	rr = securityRequest(h, "subject", "GET", "/api/crew", "")
 	if rr.Code != 200 {
-		t.Fatalf("approved caller=%d", rr.Code)
+		t.Fatalf("verified caller before suspension=%d", rr.Code)
 	}
-	rr = securityRequest(h, "admin", "PUT", path, `{"approved":true,"suspended":true}`)
+	rr = securityRequest(h, "admin", "PUT", path, `{"suspended":true}`)
 	if rr.Code != 204 {
 		t.Fatalf("suspension=%d %s", rr.Code, rr.Body)
 	}
-
+	for _, route := range []string{"/api/crew", "/api/auth/me"} {
+		rr = securityRequest(h, "subject", "GET", route, "")
+		if rr.Code != 403 {
+			t.Fatalf("retained token after suspension %s=%d", route, rr.Code)
+		}
+	}
 	rr = securityRequest(h, "admin", "PUT", fmt.Sprintf("/api/members/%d/role", target), `{"role":"admin"}`)
 	if rr.Code != 409 {
 		t.Fatalf("promoted suspended account: %d %s", rr.Code, rr.Body)
 	}
-	rr = securityRequest(h, "pending", "GET", "/api/auth/me", "")
-	if rr.Code != 403 {
-		t.Fatalf("retained token after suspension=%d", rr.Code)
+	rr = securityRequest(h, "admin", "PUT", path, `{"suspended":false}`)
+	if rr.Code != 204 {
+		t.Fatalf("restore=%d %s", rr.Code, rr.Body)
 	}
-	rr = securityRequest(h, "admin", "PUT", fmt.Sprintf("/api/members/%d/access", admin), `{"approved":false,"suspended":true}`)
+	rr = securityRequest(h, "subject", "GET", "/api/crew", "")
+	if rr.Code != 200 {
+		t.Fatalf("restored caller=%d", rr.Code)
+	}
+	rr = securityRequest(h, "admin", "PUT", fmt.Sprintf("/api/members/%d/access", admin), `{"suspended":true}`)
 	if rr.Code != 409 {
-		t.Fatalf("last admin restriction=%d %s", rr.Code, rr.Body)
+		t.Fatalf("last admin suspension=%d %s", rr.Code, rr.Body)
 	}
-}
-
-func TestApprovalMigrationPreservesAdminsOnly(t *testing.T) {
-	conn := securityDatabase(t)
-	if _, err := conn.Exec(`ALTER TABLE users DROP COLUMN access_approved, DROP COLUMN suspended;
- DELETE FROM schema_migrations WHERE version='030_account_access.sql';
- INSERT INTO users(email,name,role) VALUES ('admin@example.dev','Admin','admin'),('member@example.dev','Member','member');`); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Migrate(t.Context(), conn); err != nil {
-		t.Fatal(err)
-	}
-	var approved int
-	if err := conn.QueryRow(`SELECT count(*) FROM users WHERE access_approved AND role='admin' AND NOT suspended`).Scan(&approved); err != nil {
-		t.Fatal(err)
-	}
-	if approved != 1 {
-		t.Fatalf("approved admins=%d", approved)
-	}
-	if err := conn.QueryRow(`SELECT count(*) FROM users WHERE access_approved AND role='member'`).Scan(&approved); err != nil {
-		t.Fatal(err)
-	}
-	if approved != 0 {
-		t.Fatalf("approved members=%d", approved)
+	rr = securityRequest(h, "admin", "PUT", "/api/members/999999/access", `{"suspended":true}`)
+	if rr.Code != 404 {
+		t.Fatalf("unknown account=%d %s", rr.Code, rr.Body)
 	}
 }
