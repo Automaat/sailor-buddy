@@ -86,7 +86,7 @@ describe('trip page status', () => {
 		await renderPage();
 
 		expect(await screen.findByText('Do rozliczenia')).toBeInTheDocument();
-		expect(screen.queryByText('Planowany')).not.toBeInTheDocument();
+		expect(screen.queryByText('Nadchodzący')).not.toBeInTheDocument();
 		expect(screen.getByRole('status')).toHaveTextContent('czeka na rozliczenie');
 		expect(screen.getByText('1–9 sie 2026 · 9 dni')).toBeInTheDocument();
 
@@ -99,7 +99,7 @@ describe('trip page status', () => {
 		serve(makeTrip({ id: 50, embark_date: undefined, disembark_date: undefined }));
 		await renderPage();
 
-		expect(await screen.findByText('Planowany')).toBeInTheDocument();
+		expect(await screen.findByText('Nadchodzący')).toBeInTheDocument();
 		expect(screen.queryByText('Do rozliczenia')).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Zrealizuj teraz' })).not.toBeInTheDocument();
 	});
@@ -117,12 +117,12 @@ describe('trip page status', () => {
 		{
 			name: 'in progress',
 			trip: { embark_date: '2026-11-10', disembark_date: '2026-11-20' },
-			want: 'Planowany'
+			want: 'Nadchodzący'
 		},
 		{
 			name: 'ending today',
 			trip: { embark_date: '2026-11-10', disembark_date: '2026-11-13' },
-			want: 'Planowany'
+			want: 'Nadchodzący'
 		},
 		{
 			name: 'cancelled after it ended',

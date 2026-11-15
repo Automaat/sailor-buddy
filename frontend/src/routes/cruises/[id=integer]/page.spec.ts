@@ -135,7 +135,7 @@ describe('cruise page logistics', () => {
 		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.queryByText('Informacje dla załogi')).not.toBeInTheDocument();
 		expect(screen.queryByTestId('cruise-logistics')).not.toBeInTheDocument();
-		expect(screen.getByText('Planowane etapy (0)')).toBeInTheDocument();
+		expect(screen.getByText('Nadchodzące etapy (0)')).toBeInTheDocument();
 		expect(screen.queryByTestId('admin-sign-ups')).not.toBeInTheDocument();
 	});
 });
@@ -217,7 +217,7 @@ describe('cruise page admin flows', () => {
 		);
 		expect(screen.getAllByText('Jachtowy Sternik Morski · JSM-7')).toHaveLength(2);
 		expect(screen.getByText('Mogę być kukiem')).toBeInTheDocument();
-		expect(screen.getByText('Planowane etapy (2)')).toBeInTheDocument();
+		expect(screen.getByText('Nadchodzące etapy (2)')).toBeInTheDocument();
 		expect(screen.getByText('Anulowany')).toBeInTheDocument();
 		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
 		expect(screen.getByText('120 Mm · 7 dni')).toBeInTheDocument();
@@ -453,7 +453,9 @@ describe('cruise page load errors', () => {
 		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120.4, days: 7 }]);
 		await renderPage();
 
-		expect(await screen.findByText(/Nie udało się wczytać: planowane etapy\./)).toBeInTheDocument();
+		expect(
+			await screen.findByText(/Nie udało się wczytać: nadchodzące etapy\./)
+		).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
 	});
@@ -850,7 +852,7 @@ describe('cruise page past planned legs', () => {
 		expect(within(overdue).getByText('Zrealizuj →')).toBeInTheDocument();
 
 		const ongoing = rowOf('Jacht B');
-		expect(within(ongoing).getByText('Planowany')).toBeInTheDocument();
+		expect(within(ongoing).getByText('Nadchodzący')).toBeInTheDocument();
 		expect(within(ongoing).queryByText('Zrealizuj →')).not.toBeInTheDocument();
 	});
 
@@ -927,7 +929,7 @@ describe('cruise page review regressions', () => {
 		);
 		const alerts = screen.getAllByRole('alert');
 		expect(alerts).toHaveLength(1);
-		expect(alerts[0]).toHaveTextContent('planowane etapy');
+		expect(alerts[0]).toHaveTextContent('nadchodzące etapy');
 		expect(
 			alerts[0].compareDocumentPosition(screen.getByRole('heading', { name: 'Sycylia 2026' })) &
 				Node.DOCUMENT_POSITION_FOLLOWING
