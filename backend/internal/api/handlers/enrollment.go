@@ -6,10 +6,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -275,37 +273,7 @@ var errLinkSwitchedOff = errors.New("enrollment link switched off")
 // the presented token: an admin who switched the link off or regenerated it
 // after the lookup wins.
 func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID int64, token string, userID int64, note types.NullString) (*enrollmentOutput, error) {
-	today := h.today()
-	var e sqlcdb.TripEnrollment
-	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		trip, err := q.LockTripForSignUp(ctx, tripID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTripNotPlanned
-		}
-		if err != nil {
-			return &QueryError{Op: "LockTripForSignUp", Err: err}
-		}
-		if trip.Status != sqlcdb.TripStatusPlanned {
-			return errTripNotPlanned
-		}
-		if !trip.EnrollToken.Valid || trip.EnrollToken.String != token {
-			return errLinkSwitchedOff
-		}
-		if deadlinePassed(trip.SignUpDeadline, today) {
-			return &signUpClosedError{msg: "sign-up closed: the sign-up deadline has passed"}
-		}
-		initial, err := initialSignUpStatus(ctx, q, trip.ID, trip.MaxCrew)
-		if err != nil {
-			return err
-		}
-		e, err = q.CreateTripEnrollment(ctx, sqlcdb.CreateTripEnrollmentParams{
-			TripID: trip.ID,
-			UserID: userID,
-			Note:   note,
-			Status: initial,
-		})
-		return err
-	})
+	e, txErr := (enrollmentOperations{runTx: h.runTx}).enrollByTripToken(ctx, tripID, token, userID, note, h.today())
 	if txErr != nil {
 		if errors.Is(txErr, errTripNotPlanned) {
 			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
@@ -356,71 +324,7 @@ func (h *EnrollmentHandler) enrollLegs(ctx context.Context, in *enrollLegsInput)
 		return nil, huma.Error422UnprocessableEntity("pick at least one leg")
 	}
 
-	// Inserts run in ascending trip order so concurrent requests from one
-	// user take the unique-index locks in the same order and cannot deadlock.
-	insertOrder := slices.Clone(in.Body.TripIDs)
-	slices.Sort(insertOrder)
-	byTrip := make(map[int64]dto.EnrollLegResult, len(insertOrder))
-	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		if _, err := q.LockCruiseEnrollToken(ctx, sqlcdb.LockCruiseEnrollTokenParams{ID: cruise.ID, EnrollToken: tok}); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return errLinkSwitchedOff
-			}
-			return &QueryError{Op: "LockCruiseEnrollToken", Err: err}
-		}
-		trips, err := q.LockCruiseTripStatuses(ctx, cruise.ID)
-		if err != nil {
-			return &QueryError{Op: "LockCruiseTripStatuses", Err: err}
-		}
-		legs := make(map[int64]sqlcdb.LockCruiseTripStatusesRow, len(trips))
-		for i := range trips {
-			legs[trips[i].ID] = trips[i]
-		}
-		today := h.today()
-		for _, id := range in.Body.TripIDs {
-			leg, ok := legs[id]
-			if !ok {
-				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not a leg of this cruise", id)}
-			}
-			if leg.Status != sqlcdb.TripStatusPlanned {
-				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not open for enrollment", id)}
-			}
-			if deadlinePassed(leg.SignUpDeadline, today) {
-				return &invalidLegsError{msg: fmt.Sprintf("trip %d: the sign-up deadline has passed", id)}
-			}
-		}
-
-		for _, id := range insertOrder {
-			initial, err := initialSignUpStatus(ctx, q, id, legs[id].MaxCrew)
-			if err != nil {
-				return err
-			}
-			e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
-				TripID: id,
-				UserID: user.UserID,
-				Note:   nullString(in.Body.Note),
-				Status: initial,
-			})
-			result := "created"
-			if errors.Is(err, sql.ErrNoRows) {
-				result = "already_enrolled"
-				e, err = q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: id, UserID: user.UserID})
-			}
-			if err != nil {
-				return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
-			}
-			r := dto.EnrollLegResult{
-				TripID:     id,
-				Result:     result,
-				Enrollment: dto.TripEnrollmentToDTO(e),
-			}
-			if err := setWaitlistPosition(ctx, q, &r.Enrollment, &r.WaitlistPosition); err != nil {
-				return err
-			}
-			byTrip[id] = r
-		}
-		return nil
-	})
+	byTrip, txErr := (enrollmentOperations{runTx: h.runTx, today: h.today}).enrollByCruiseToken(ctx, cruise.ID, tok, user.UserID, in.Body.TripIDs, in.Body.Note)
 	if txErr != nil {
 		if errors.Is(txErr, errLinkSwitchedOff) {
 			return nil, huma.Error404NotFound("invalid enrollment link")
@@ -507,37 +411,7 @@ func (h *EnrollmentHandler) updateStatus(ctx context.Context, in *tripEnrollment
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	txErr := retryDeadlock(h.runTx)(ctx, func(q sqlcdb.Querier) error {
-		trip, err := q.LockTripForSignUp(ctx, in.TripID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return errEnrollmentNotFound
-			}
-			return &QueryError{Op: "LockTripForSignUp", Err: err}
-		}
-		e, err := q.LockTripEnrollmentOfTrip(ctx, sqlcdb.LockTripEnrollmentOfTripParams{ID: in.ID, TripID: trip.ID})
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return errEnrollmentNotFound
-			}
-			return &QueryError{Op: "LockTripEnrollmentOfTrip", Err: err}
-		}
-		if in.Body.Status == enrollmentAccepted && e.Status != enrollmentAccepted {
-			if err := checkPlaceFree(ctx, q, trip.ID, e.UserID, trip.MaxCrew); err != nil {
-				return err
-			}
-		}
-		if err := q.UpdateTripEnrollmentStatus(ctx, sqlcdb.UpdateTripEnrollmentStatusParams{
-			Status: in.Body.Status,
-			ID:     e.ID,
-		}); err != nil {
-			return &QueryError{Op: "UpdateTripEnrollmentStatus", Err: err}
-		}
-		if in.Body.Status == enrollmentAccepted {
-			return addAcceptedCrew(ctx, q, trip.ID, e.UserID)
-		}
-		return removeAcceptedCrew(ctx, q, trip.ID, e.UserID)
-	})
+	txErr := (enrollmentOperations{runTx: h.runTx}).changeTripStatus(ctx, in.TripID, in.ID, in.Body.Status)
 	if txErr != nil {
 		if errors.Is(txErr, errEnrollmentNotFound) {
 			return nil, huma.Error404NotFound("enrollment not found")
@@ -581,26 +455,7 @@ func (h *EnrollmentHandler) deleteEnrollment(ctx context.Context, in *tripEnroll
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	txErr := h.runTx(ctx, func(q sqlcdb.Querier) error {
-		trip, err := q.LockTripForSignUp(ctx, in.TripID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return &QueryError{Op: "LockTripForSignUp", Err: err}
-		}
-		e, err := q.LockTripEnrollmentOfTrip(ctx, sqlcdb.LockTripEnrollmentOfTripParams{ID: in.ID, TripID: trip.ID})
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return &QueryError{Op: "LockTripEnrollmentOfTrip", Err: err}
-		}
-		if err := q.DeleteTripEnrollment(ctx, e.ID); err != nil {
-			return &QueryError{Op: "DeleteTripEnrollment", Err: err}
-		}
-		return removeAcceptedCrew(ctx, q, trip.ID, e.UserID)
-	})
+	txErr := (enrollmentOperations{runTx: h.runTx}).deleteTripEnrollment(ctx, in.TripID, in.ID)
 	if txErr != nil {
 		slog.Error("delete trip enrollment", "enrollment_id", in.ID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to delete enrollment")
