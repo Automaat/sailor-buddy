@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -129,6 +130,81 @@ func TestCruiseSeries_Editions(t *testing.T) {
 		if (got{r.ID, r.VoyageCount, r.TotalMiles, r.TotalHours}) != w {
 			t.Errorf("edition %d = %+v, want %+v", i, r, w)
 		}
+	}
+}
+
+// TestCruiseSeries_EditionsIgnoreHiddenLegs checks that a member's edition
+// order comes from published legs only: a hidden draft leg dated before every
+// other edition must not move its edition down, while an admin, who sees the
+// draft, gets the order it implies.
+func TestCruiseSeries_EditionsIgnoreHiddenLegs(t *testing.T) {
+	conn := testDB(t)
+	resetSchema(t, conn)
+	if err := Migrate(t.Context(), conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	ctx := context.Background()
+	q := sqlcdb.New(conn)
+
+	series, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "NNE", Kind: "sea"})
+	if err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	inSeries := types.NullInt64{Int64: series.ID, Valid: true}
+	edition := func(name string) int64 {
+		t.Helper()
+		c, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{Name: name, SeriesID: inSeries, Edition: text(name)}))
+		if err != nil {
+			t.Fatalf("create cruise %s: %v", name, err)
+		}
+		if _, err := q.PublishCruise(ctx, c.ID); err != nil {
+			t.Fatalf("publish cruise %s: %v", name, err)
+		}
+		return c.ID
+	}
+	leg := func(table string, cruiseID int64, embark string, published bool) {
+		t.Helper()
+		publishedAt := any(nil)
+		if published {
+			publishedAt = "2026-01-01T00:00:00Z"
+		}
+		if _, err := conn.ExecContext(ctx,
+			"INSERT INTO "+table+" (cruise_id, name, embark_date, published_at) VALUES ($1, 'etap', $2, $3)",
+			cruiseID, embark, publishedAt); err != nil {
+			t.Fatalf("insert %s: %v", table, err)
+		}
+	}
+
+	e2025 := edition("2025")
+	leg("trips", e2025, "2025-06-01", true)
+	e2026 := edition("2026")
+	leg("trips", e2026, "2026-06-01", true)
+	leg("trips", e2026, "2020-01-01", false)
+	leg("voyages", e2026, "2019-01-01", false)
+
+	for _, tc := range []struct {
+		name          string
+		includeHidden bool
+		want          []int64
+	}{
+		{"member", false, []int64{e2026, e2025}},
+		{"admin", true, []int64{e2025, e2026}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, err := q.ListCruiseSeriesEditions(ctx, sqlcdb.ListCruiseSeriesEditionsParams{
+				SeriesID: inSeries, IncludeHidden: tc.includeHidden,
+			})
+			if err != nil {
+				t.Fatalf("list editions: %v", err)
+			}
+			var got []int64
+			for _, r := range rows {
+				got = append(got, r.ID)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("edition order = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

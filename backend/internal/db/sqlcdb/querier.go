@@ -680,7 +680,8 @@ type Querier interface {
 	// with the miles and hours summed over its voyages. An edition without a
 	// dated leg (NULL, or the empty string the leg forms send) is still being
 	// planned, so it sorts before every dated one. Without include_hidden only
-	// published editions are listed and only their visible voyages are summed.
+	// published editions are listed, and only their published legs set the
+	// order and the voyage totals.
 	//
 	//  SELECT
 	//      c.id,
@@ -698,9 +699,13 @@ type Querier interface {
 	//  GROUP BY c.id
 	//  ORDER BY (
 	//      SELECT MIN(NULLIF(l.embark_date, '')) FROM (
-	//          SELECT t.embark_date FROM trips t WHERE t.cruise_id = c.id
+	//          SELECT t.embark_date FROM trips t
+	//          WHERE t.cruise_id = c.id
+	//            AND ($1::BOOLEAN OR t.published_at IS NOT NULL)
 	//          UNION ALL
-	//          SELECT lv.embark_date FROM voyages lv WHERE lv.cruise_id = c.id
+	//          SELECT lv.embark_date FROM voyages lv
+	//          WHERE lv.cruise_id = c.id
+	//            AND ($1::BOOLEAN OR lv.published_at IS NOT NULL)
 	//      ) l
 	//  ) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 	ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSeriesEditionsParams) ([]ListCruiseSeriesEditionsRow, error)

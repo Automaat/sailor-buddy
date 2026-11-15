@@ -698,8 +698,9 @@ Any other `kind` is rejected with 422; `PUT` resets an omitted `kind` to
 `sea`.
 
 `GET /api/series/{id}/editions` returns a bare array of the series' cruises,
-newest first (by the earliest embark date among its trips and voyages,
-with editions that have no dated leg on top, then `edition`), each with
+newest first (by the earliest embark date among its trips and voyages the
+caller may see, with editions that have no dated leg on top, then
+`edition`), each with
 `voyage_count`,
 `total_miles` and `total_hours` summed over its voyages (`hours_total`).
 An edition without voyages reports zeros. Unknown series → 404.
