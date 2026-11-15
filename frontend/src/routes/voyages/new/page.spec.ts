@@ -49,6 +49,15 @@ beforeEach(() => {
 });
 
 describe('new voyage page', () => {
+	it.each([
+		['the Rejsy list without a preselected edition', undefined, 'Rejsy', '/series'],
+		['the edition its link preselects', '?cruise_id=13', 'NNE 2025', '/cruises/13']
+	])('links back to voyages above the title', async (_, query, label, href) => {
+		await renderPage(query ? `http://localhost/voyages/new${query}` : undefined);
+		expect(screen.getByTestId('back-link')).toHaveAttribute('href', href);
+		expect(screen.getByTestId('back-link')).toHaveAccessibleName(label);
+	});
+
 	it('refuses to submit without a cruise', async () => {
 		await renderPage();
 		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), {

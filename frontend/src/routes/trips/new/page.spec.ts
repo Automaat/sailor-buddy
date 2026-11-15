@@ -55,6 +55,15 @@ function submit() {
 }
 
 describe('new trip page', () => {
+	it.each([
+		['the Rejsy list without a preselected edition', undefined, 'Rejsy', '/series'],
+		['the edition its link preselects', '?cruise_id=13', 'NNE 2025', '/cruises/13']
+	])('links back to trips above the title', async (_, query, label, href) => {
+		await renderPage(query ? `http://localhost/trips/new${query}` : undefined);
+		expect(screen.getByTestId('back-link')).toHaveAttribute('href', href);
+		expect(screen.getByTestId('back-link')).toHaveAccessibleName(label);
+	});
+
 	it('creates a standalone trip by default', async () => {
 		await renderPage();
 		expect(screen.getByLabelText('Seria')).toHaveValue('standalone');

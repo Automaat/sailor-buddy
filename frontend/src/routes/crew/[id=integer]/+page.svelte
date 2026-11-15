@@ -4,6 +4,7 @@
 	import type { CrewMember, PersonMerge as PersonMergeResult } from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import { parseOtherNames } from '#lib/people.js';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import NotFound from '#lib/components/NotFound.svelte';
 	import PersonMerge from '#lib/components/PersonMerge.svelte';
 	import PersonAccountLink from '#lib/components/PersonAccountLink.svelte';
@@ -148,6 +149,7 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if person}
 	<div class="mx-auto max-w-2xl">
+		<BackLink href="/crew" label="Osoby" />
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{person.full_name}</h1>

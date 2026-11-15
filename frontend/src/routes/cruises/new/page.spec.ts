@@ -68,6 +68,11 @@ describe('new edition page load', () => {
 });
 
 describe('new edition page', () => {
+	it('links back to its series above the title', async () => {
+		await renderPage();
+		expect(screen.getByRole('link', { name: 'May I Sail' })).toHaveAttribute('href', '/series/3');
+	});
+
 	it('shows the series read-only under the "Nowa edycja" title', async () => {
 		await renderPage();
 		expect(screen.getByRole('heading', { name: 'Nowa edycja' })).toBeInTheDocument();

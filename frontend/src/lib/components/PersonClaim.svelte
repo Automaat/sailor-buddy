@@ -82,10 +82,7 @@
 	}
 </script>
 
-<section
-	class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
-	aria-label="Moja historia w klubie"
->
+<section class="rounded-2xl bg-white p-6 shadow-sm" aria-label="Moja historia w klubie">
 	<h2 class="mb-2 font-semibold text-[var(--navy)]">Moja historia w klubie</h2>
 
 	{#if !loaded}

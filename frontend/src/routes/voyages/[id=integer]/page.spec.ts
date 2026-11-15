@@ -487,6 +487,18 @@ describe('voyage page load', () => {
 	});
 });
 
+describe('voyage page back link', () => {
+	it('links back to its edition above the title', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, cruise_id: 1 }));
+		vi.mocked(getCruise).mockResolvedValue(makeCruise({ id: 1, name: 'Bałtyk 2027' }));
+		await renderPage();
+
+		const back = await screen.findByTestId('back-link');
+		expect(back).toHaveAttribute('href', '/cruises/1');
+		expect(back).toHaveAccessibleName('Część wydarzenia: Bałtyk 2027');
+	});
+});
+
 describe('voyage page publication', () => {
 	const at = '2026-03-01T10:00:00Z';
 	const authState = auth as unknown as { isAdmin: boolean; user: Record<string, unknown> };

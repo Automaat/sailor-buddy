@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { updateCruise } from '#lib/api/routes.js';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import type { Cruise } from '#lib/api/types.js';
 	import { goto } from '$app/navigation';
 	import { cruiseBody } from '#lib/cruise.js';
@@ -58,6 +59,7 @@
 </script>
 
 <div class="mx-auto max-w-3xl">
+	<BackLink href="/cruises/{id}" label={data.cruise.name} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj wydarzenie</h1>
 
 	{#if submit.error}

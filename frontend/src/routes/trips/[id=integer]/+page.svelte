@@ -18,6 +18,7 @@
 	import { goto } from '$app/navigation';
 	import CompleteTripModal from '#lib/components/CompleteTripModal.svelte';
 	import ActionsMenu from '#lib/components/ActionsMenu.svelte';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
@@ -308,9 +309,7 @@
 	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 		<div>
 			{#if cruise}
-				<a href="/cruises/{cruise.id}" class="text-xs text-[var(--ocean)] hover:underline">
-					← Część wydarzenia: {cruise.name}
-				</a>
+				<BackLink href="/cruises/{cruise.id}" label="Część wydarzenia: {cruise.name}" />
 			{/if}
 			<div class="flex items-center gap-3">
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{trip.name}</h1>

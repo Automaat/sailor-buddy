@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createVoyage } from '#lib/api/routes.js';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
+	import { legFormParent } from '#lib/rejsy.js';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -83,6 +85,7 @@
 </script>
 
 <div class="mx-auto max-w-3xl">
+	<BackLink {...legFormParent(data.cruiseId, cruises)} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Wpisz zrealizowany rejs</h1>
 	<LoadErrorBanner errors={loadErrors} />
 

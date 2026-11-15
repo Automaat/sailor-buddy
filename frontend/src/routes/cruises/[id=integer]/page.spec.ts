@@ -54,6 +54,7 @@ import {
 	updateTripSignUpNote,
 	withdrawTripSignUp
 } from '#lib/api/routes.js';
+import { makeSeries } from '#lib/test-utils.js';
 import CruiseDetailPage from './+page.svelte';
 import { load } from './+page.js';
 import type { PageData } from './$types';
@@ -109,6 +110,31 @@ beforeEach(() => {
 	for (const f of [listCruiseTripEnrollments, listCruiseLegSignUps])
 		fn(f).mockReset().mockResolvedValue([]);
 	for (const f of [signUpForTrip, updateTripSignUpNote, withdrawTripSignUp]) fn(f).mockReset();
+});
+
+describe('cruise page back link', () => {
+	it.each([
+		['the Rejsy list for a cruise without a series', undefined, null, 'Rejsy', '/series'],
+		[
+			'its series for an edition',
+			3,
+			makeSeries({ id: 3, name: 'May I Sail' }),
+			'May I Sail',
+			'/series/3'
+		],
+		['its series by id when the series fails to load', 3, null, 'Seria', '/series/3']
+	])('leads to %s', async (_, seriesId, row, label, href) => {
+		mockGet.mockResolvedValue(cruise({ series_id: seriesId }));
+		fn(getSeries).mockImplementation(() =>
+			row ? Promise.resolve(row) : Promise.reject(new Error('down'))
+		);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		await renderPage();
+
+		const back = await screen.findByTestId('back-link');
+		expect(back).toHaveAttribute('href', href);
+		expect(back).toHaveAccessibleName(label);
+	});
 });
 
 describe('cruise page logistics', () => {

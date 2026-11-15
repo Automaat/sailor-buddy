@@ -80,7 +80,7 @@
 	</div>
 {/snippet}
 
-<div>
+<div class="mx-auto max-w-5xl">
 	<h1 class="mb-8 text-3xl font-bold text-[var(--navy)]">Pulpit</h1>
 	<LoadErrorBanner errors={data.loadErrors} />
 

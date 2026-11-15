@@ -75,6 +75,13 @@ function mergeOf(
 }
 
 describe('person page', () => {
+	it('links back to the people list above the name', async () => {
+		getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Anna Nowak' }));
+		render(PersonPage);
+		await screen.findByRole('heading', { level: 1, name: 'Anna Nowak' });
+		expect(screen.getByRole('link', { name: 'Osoby' })).toHaveAttribute('href', '/crew');
+	});
+
 	it('edits other names of a person without an account', async () => {
 		getMock.mockResolvedValueOnce(
 			makePerson({ id: 4, full_name: 'Ewa Maj', other_names: ['Ewa Kos'], pzz_license_type: 'A' })

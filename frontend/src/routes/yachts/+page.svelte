@@ -98,7 +98,7 @@
 </script>
 
 {#if allowed}
-	<div>
+	<div class="mx-auto max-w-5xl">
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">Jachty</h1>
 			{#if auth.isAdmin}
@@ -112,7 +112,7 @@
 		</div>
 
 		{#if showForm && auth.isAdmin}
-			<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+			<form onsubmit={handleAdd} class="mb-6 max-w-3xl rounded-2xl bg-white p-6 shadow-sm">
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 					<div>
 						<label for="name" class="mb-1 block text-sm font-medium">Nazwa *</label>
