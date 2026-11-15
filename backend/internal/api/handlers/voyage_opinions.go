@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -289,6 +290,11 @@ func storeOpinionFile(uploads *os.Root, rel string, fileBytes []byte) (string, e
 		return "", err
 	}
 	if err := uploads.WriteFile(rel, fileBytes, 0o644); err != nil {
+		// A write that fails after creating the file leaves a partial file
+		// under a name no record will ever point to.
+		if rmErr := uploads.Remove(rel); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			return "", errors.Join(err, rmErr)
+		}
 		return "", err
 	}
 	return filepath.Join(uploads.Name(), rel), nil
