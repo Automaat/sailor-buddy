@@ -16,12 +16,11 @@ import (
 )
 
 type VoyageHandler struct {
-	*crudHandlers[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]
 	q sqlcdb.Querier
 }
 
 func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
-	return &VoyageHandler{crudHandlers: newCRUDHandlers(voyageCRUDConfig(q)), q: q}
+	return &VoyageHandler{q: q}
 }
 
 func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput) (*noContentOutput, error) {
@@ -204,106 +203,106 @@ func voyageCursor(r sqlcdb.Voyage) any {
 	return k
 }
 
-func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput] {
-	return crudConfig[pageParams, voyageIDParam, createVoyageInput, updateVoyageInput, voyageIDParam, sqlcdb.Voyage, voyageListOutput, voyageOutput]{
-		listScope: func(ctx context.Context, _ *pageParams) (crudScope, error) {
-			return memberScope(ctx)
-		},
-		getScope: func(ctx context.Context, _ *voyageIDParam) (crudScope, error) {
-			return memberScope(ctx)
-		},
-		createScope: func(ctx context.Context, _ *createVoyageInput) (crudScope, error) {
-			return adminScope(ctx)
-		},
-		updateScope: func(ctx context.Context, _ *updateVoyageInput) (crudScope, error) {
-			return adminScope(ctx)
-		},
-		deleteScope: func(ctx context.Context, _ *voyageIDParam) (crudScope, error) {
-			return adminScope(ctx)
-		},
-		list: func(ctx context.Context, _ crudScope, in *pageParams) ([]sqlcdb.Voyage, error) {
-			return listVoyagePage(ctx, q, in)
-		},
-		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
-			return q.CountVoyages(ctx, canSeeHidden(ctx))
-		},
-		get: func(ctx context.Context, _ crudScope, in *voyageIDParam) (sqlcdb.Voyage, error) {
-			return q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
-		},
-		create: func(ctx context.Context, scope crudScope, in *createVoyageInput) (sqlcdb.Voyage, error) {
-			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
-				return sqlcdb.Voyage{}, err
-			}
-			params := createVoyageParams(scope, in.Body)
-			if err := retainUploadImages(ctx, q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
-				return sqlcdb.Voyage{}, err
-			}
-			var err error
-			params.CaptainPersonID, params.CaptainName, err = captainAssignment(ctx, q, in.Body.CaptainPersonID, in.Body.CaptainName)
-			if err != nil {
-				return sqlcdb.Voyage{}, err
-			}
-			voyage, err := q.CreateVoyage(ctx, params)
-			return voyage, voyageWriteErr(err)
-		},
-		update: func(ctx context.Context, _ crudScope, in *updateVoyageInput) error {
-			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
-				return err
-			}
-			params := updateVoyageParams(in.Body)
-			params.ID = in.ID
-			if _, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: true}); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return huma.Error404NotFound("voyage not found")
-				}
-				return err
-			}
-			var err error
-			params.CaptainPersonID, params.CaptainName, err = captainAssignment(ctx, q, in.Body.CaptainPersonID, in.Body.CaptainName)
-			if err != nil {
-				return err
-			}
-			if err := retainUploadImages(ctx, q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
-				return err
-			}
-			return voyageWriteErr(q.UpdateVoyage(ctx, params))
-		},
-		delete: func(ctx context.Context, _ crudScope, in *voyageIDParam) error {
-			return q.DeleteVoyage(ctx, in.ID)
-		},
-		listOutput: func(in *pageParams, rows []sqlcdb.Voyage, total int64) *voyageListOutput {
-			return &voyageListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.VoyagesFromDB, voyageCursor)}
-		},
-		itemOutput: func(row sqlcdb.Voyage) *voyageOutput {
-			return &voyageOutput{Body: dto.VoyageFromDB(row)}
-		},
-		listLogAttrs: func(scope crudScope, _ *pageParams) []any {
-			return scopeAttrs(scope)
-		},
-		getLogAttrs: func(scope crudScope, in *voyageIDParam) []any {
-			return scopeAttrs(scope, "voyage_id", in.ID)
-		},
-		createLogAttrs: func(scope crudScope, in *createVoyageInput) []any {
-			return scopeAttrs(scope, "name", in.Body.Name)
-		},
-		updateLogAttrs: func(scope crudScope, in *updateVoyageInput) []any {
-			return scopeAttrs(scope, "voyage_id", in.ID)
-		},
-		deleteLogAttrs: func(scope crudScope, in *voyageIDParam) []any {
-			return scopeAttrs(scope, "voyage_id", in.ID)
-		},
-		listLogMsg:      "list voyages",
-		getLogMsg:       "get voyage",
-		createLogMsg:    "create voyage",
-		updateLogMsg:    "update voyage",
-		deleteLogMsg:    "delete voyage",
-		listClientMsg:   "failed to list voyages",
-		getClientMsg:    "failed to get voyage",
-		createClientMsg: "failed to create voyage",
-		updateClientMsg: "failed to update voyage",
-		deleteClientMsg: "failed to delete voyage",
-		notFoundMsg:     "voyage not found",
+func (h *VoyageHandler) list(ctx context.Context, in *pageParams) (*voyageListOutput, error) {
+	scope, _ := memberScope(ctx)
+	rows, err := listVoyagePage(ctx, h.q, in)
+	if se, ok := errors.AsType[huma.StatusError](err); ok {
+		return nil, se
 	}
+	if err != nil {
+		logCRUD("list voyages", scopeAttrs(scope), err)
+		return nil, huma.Error500InternalServerError("failed to list voyages")
+	}
+	total, err := h.q.CountVoyages(ctx, canSeeHidden(ctx))
+	if err != nil {
+		logCRUD("list voyages", scopeAttrs(scope), err)
+		return nil, huma.Error500InternalServerError("failed to list voyages")
+	}
+	return &voyageListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.VoyagesFromDB, voyageCursor)}, nil
+}
+
+func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageOutput, error) {
+	scope, _ := memberScope(ctx)
+	row, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("voyage not found")
+		}
+		logCRUD("get voyage", scopeAttrs(scope, "voyage_id", in.ID), err)
+		return nil, huma.Error500InternalServerError("failed to get voyage")
+	}
+	return &voyageOutput{Body: dto.VoyageFromDB(row)}, nil
+}
+
+func (h *VoyageHandler) create(ctx context.Context, in *createVoyageInput) (*voyageOutput, error) {
+	scope, err := adminScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
+		return nil, voyageMutationError(err, "create voyage", "failed to create voyage", scopeAttrs(scope, "name", in.Body.Name))
+	}
+	params := createVoyageParams(scope, in.Body)
+	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
+		return nil, voyageMutationError(err, "create voyage", "failed to create voyage", scopeAttrs(scope, "name", in.Body.Name))
+	}
+	params.CaptainPersonID, params.CaptainName, err = captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
+	if err != nil {
+		return nil, voyageMutationError(err, "create voyage", "failed to create voyage", scopeAttrs(scope, "name", in.Body.Name))
+	}
+	voyage, err := h.q.CreateVoyage(ctx, params)
+	if err := voyageWriteErr(err); err != nil {
+		return nil, voyageMutationError(err, "create voyage", "failed to create voyage", scopeAttrs(scope, "name", in.Body.Name))
+	}
+	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
+}
+
+func (h *VoyageHandler) update(ctx context.Context, in *updateVoyageInput) (*noContentOutput, error) {
+	scope, err := adminScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
+		return nil, voyageMutationError(err, "update voyage", "failed to update voyage", scopeAttrs(scope, "voyage_id", in.ID))
+	}
+	params := updateVoyageParams(in.Body)
+	params.ID = in.ID
+	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: true}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("voyage not found")
+		}
+		return nil, voyageMutationError(err, "update voyage", "failed to update voyage", scopeAttrs(scope, "voyage_id", in.ID))
+	}
+	params.CaptainPersonID, params.CaptainName, err = captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
+	if err != nil {
+		return nil, voyageMutationError(err, "update voyage", "failed to update voyage", scopeAttrs(scope, "voyage_id", in.ID))
+	}
+	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
+		return nil, voyageMutationError(err, "update voyage", "failed to update voyage", scopeAttrs(scope, "voyage_id", in.ID))
+	}
+	if err := voyageWriteErr(h.q.UpdateVoyage(ctx, params)); err != nil {
+		return nil, voyageMutationError(err, "update voyage", "failed to update voyage", scopeAttrs(scope, "voyage_id", in.ID))
+	}
+	return &noContentOutput{}, nil
+}
+
+func (h *VoyageHandler) delete(ctx context.Context, in *voyageIDParam) (*noContentOutput, error) {
+	scope, err := adminScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.q.DeleteVoyage(ctx, in.ID); err != nil {
+		return nil, voyageMutationError(err, "delete voyage", "failed to delete voyage", scopeAttrs(scope, "voyage_id", in.ID))
+	}
+	return &noContentOutput{}, nil
+}
+
+func voyageMutationError(err error, logMsg, clientMsg string, attrs []any) error {
+	if se, ok := errors.AsType[huma.StatusError](err); ok {
+		return se
+	}
+	logCRUD(logMsg, attrs, err)
+	return huma.Error500InternalServerError(clientMsg)
 }
 
 func createVoyageParams(scope crudScope, body dto.VoyageBody) sqlcdb.CreateVoyageParams {
