@@ -110,10 +110,10 @@
 		</div>
 		{#if auth.isAdmin}
 			<a
-				href="/cruises/new"
+				href="/trips/new"
 				class="tap-target rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--ocean-dark)]"
 			>
-				+ Nowe wydarzenie
+				+ Nowy rejs
 			</a>
 		{/if}
 	</div>
@@ -182,8 +182,8 @@
 				{mine ? mineEmptyLabels[tab] : emptyLabels[tab]}
 			</p>
 			{#if auth.isAdmin && entries.length === 0}
-				<a href="/cruises/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
-					Utwórz pierwsze wydarzenie
+				<a href="/trips/new" class="mt-2 inline-block text-[var(--ocean)] hover:underline">
+					Zaplanuj pierwszy rejs
 				</a>
 			{/if}
 		</div>

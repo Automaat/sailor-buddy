@@ -128,7 +128,8 @@ func TestAuditRealRoleChangesAndEarlyDenials(t *testing.T) {
 		}
 		return response
 	}
-	cruiseID := create("/api/cruises", `{"name":"Audit Cruise"}`)
+	seriesID := create("/api/series", `{"name":"Audit Series"}`)
+	cruiseID := create("/api/cruises", fmt.Sprintf(`{"name":"Audit Cruise","series_id":%d,"edition":"2026"}`, seriesID))
 	tripID := create("/api/trips", fmt.Sprintf(`{"name":"Audit Trip","cruise_id":%d}`, cruiseID))
 	if response := securityRequest(h, "actor", http.MethodPost, fmt.Sprintf("/api/trips/%d/enroll-token", tripID), ""); response.Code != 200 {
 		t.Fatalf("enable sign-up: %d %s", response.Code, response.Body)

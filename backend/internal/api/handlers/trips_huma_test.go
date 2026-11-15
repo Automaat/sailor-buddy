@@ -23,7 +23,7 @@ func tripTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 		m.getCruiseFn = func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil }
 	}
 	_, api := humatest.New(t)
-	RegisterTripRoutes(api, m, nil)
+	registerTripRoutes(api, &TripHandler{q: m, runTx: directTxRunner(m)})
 	return api
 }
 

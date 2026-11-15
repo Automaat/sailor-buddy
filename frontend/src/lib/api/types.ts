@@ -13,6 +13,7 @@ export type User = Schemas['Me'];
 export type Trip = Schemas['Trip'];
 export type TripStatus = Trip['status'];
 export type TripBody = Schemas['TripBody'];
+export type CreateTripBody = Schemas['CreateTripBody'];
 export type Voyage = Schemas['Voyage'];
 export type VoyageBody = Schemas['VoyageBody'];
 export type CompleteTripPayload = Schemas['CompleteTripBody'];

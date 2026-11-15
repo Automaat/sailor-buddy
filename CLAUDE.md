@@ -99,6 +99,14 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   NOT NULL. The UI has one "Rejsy" list (`/cruises`) of events with
   Nadchodzące/Zrealizowane/Wszystkie tabs; trips and voyages are legs shown
   on the event page. There are no standalone trip/voyage list pages.
+- Seria (`cruise_series`) → Edycja (`cruises` with `series_id`) → Etap
+  (`trips`/`voyages`). Edycje are created only from the series page
+  (`/cruises/new?series_id=`); `POST /cruises` requires `series_id` and
+  `edition`. The Rejsy page creates only etapy (`/trips/new`): a trip may
+  pick a Seria → Edycja or stay standalone, and `POST /trips` without
+  `cruise_id` wraps it in its own cruise without a series. Cruises without a
+  series stay valid; the Rejsy list links one with a single trip and no
+  voyages straight to the trip (`src/lib/rejsy.ts`).
 - Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require verified Firebase email and `users.access_approved`;
   `users.suspended` denies existing-token access. Emergency contacts are
   restricted to admins and assigned captains; opinions to admins, subject,

@@ -138,6 +138,7 @@ describe('rejsy page', () => {
 		serve({
 			cruises: [
 				makeCruise({
+					series_id: 1,
 					id: 5,
 					name: 'Bornholm 2026',
 					embark_date: '2026-08-01',
@@ -160,7 +161,7 @@ describe('rejsy page', () => {
 
 	it('lists cancelled cruises only under all', async () => {
 		serve({
-			cruises: [makeCruise({ id: 4, name: 'Odwołany' })],
+			cruises: [makeCruise({ series_id: 1, id: 4, name: 'Odwołany' })],
 			trips: [makeTrip({ cruise_id: 4, status: 'cancelled' })]
 		});
 		render(RejsyPage);
@@ -172,18 +173,22 @@ describe('rejsy page', () => {
 		expect(mockGoto).toHaveBeenCalledWith('/cruises?tab=all', { replace: true, shallow: true });
 	});
 
-	it('shows the create button for an admin only', async () => {
+	it('shows the trip create button for an admin only, and no cruise create button', async () => {
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
-		expect(screen.getByRole('link', { name: '+ Nowe wydarzenie' })).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Utwórz pierwsze wydarzenie' })).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: '+ Nowy rejs' })).toHaveAttribute('href', '/trips/new');
+		expect(screen.getByRole('link', { name: 'Zaplanuj pierwszy rejs' })).toHaveAttribute(
+			'href',
+			'/trips/new'
+		);
+		expect(document.querySelector('a[href="/cruises/new"]')).toBeNull();
 	});
 
 	it('hides the create button for a non-admin member', async () => {
 		mockAuth.isAdmin = false;
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
-		expect(screen.queryByRole('link', { name: '+ Nowe wydarzenie' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: '+ Nowy rejs' })).not.toBeInTheDocument();
 	});
 
 	it('falls back to the empty state when loading fails', async () => {
@@ -238,9 +243,9 @@ describe('rejsy page', () => {
 
 	describe('my cruises filter', () => {
 		const cruises = [
-			makeCruise({ id: 1, name: 'Mój rejs' }),
-			makeCruise({ id: 2, name: 'Cudzy rejs' }),
-			makeCruise({ id: 3, name: 'Mój stary rejs' })
+			makeCruise({ series_id: 1, id: 1, name: 'Mój rejs' }),
+			makeCruise({ series_id: 1, id: 2, name: 'Cudzy rejs' }),
+			makeCruise({ series_id: 1, id: 3, name: 'Mój stary rejs' })
 		];
 		const trips = [makeTrip({ id: 10, cruise_id: 1 }), makeTrip({ id: 11, cruise_id: 2 })];
 		const voyages = [makeVoyage({ id: 20, cruise_id: 3 })];

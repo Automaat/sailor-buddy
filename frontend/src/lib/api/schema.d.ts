@@ -211,7 +211,10 @@ export interface paths {
         /** List cruises */
         get: operations["list-cruises"];
         put?: never;
-        /** Create a cruise (admin) */
+        /**
+         * Create a cruise edition (admin)
+         * @description A new cruise is an edition of a series: series_id and a non-blank edition label are required (422 otherwise). Cruises without a series come only from standalone trips (POST /trips without cruise_id); PUT keeps both fields optional.
+         */
         post: operations["create-cruise"];
         delete?: never;
         options?: never;
@@ -782,7 +785,10 @@ export interface paths {
         /** List trips */
         get: operations["list-trips"];
         put?: never;
-        /** Create a trip (admin) */
+        /**
+         * Create a trip (admin)
+         * @description Without cruise_id the trip is a standalone etap: one transaction creates a wrapper cruise without a series (name, dates, ports, countries, description, crew limit and prices copied from the trip, kind sea) and the trip in it.
+         */
         post: operations["create-trip"];
         delete?: never;
         options?: never;
@@ -1442,6 +1448,73 @@ export interface components {
             tidal_waters?: number;
             /** Format: int64 */
             year?: number;
+        };
+        CreateTripBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CreateTripBody.json
+             */
+            readonly $schema?: string;
+            /** @description Free-text captain; replaced by the person's name when captain_person_id is set */
+            captain_name?: string;
+            /**
+             * Format: int64
+             * @description Person (crew record) who captains the trip; any person may be chosen
+             */
+            captain_person_id?: number;
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
+            cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
+            /** Format: double */
+            cost_total?: number;
+            countries?: string;
+            /**
+             * Format: int64
+             * @description Club event (cruise) this trip is a leg of; omit for a standalone trip, which gets its own cruise without a series
+             */
+            cruise_id?: number;
+            /**
+             * @description Currency of every price on the trip; PLN when omitted
+             * @enum {string}
+             */
+            currency?: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
+            description?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            image_logo_url?: string;
+            image_photo_url?: string;
+            image_route_url?: string;
+            /** Format: int64 */
+            max_crew?: number;
+            /** @description Trip name */
+            name: string;
+            /**
+             * Format: date
+             * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
+             */
+            sign_up_deadline?: string;
+            start_port?: string;
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
+             */
+            yacht_fund?: number;
+            /** Format: int64 */
+            yacht_id?: number;
         };
         CrewAssignment: {
             /**
@@ -5109,7 +5182,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TripBody"];
+                "application/json": components["schemas"]["CreateTripBody"];
             };
         };
         responses: {

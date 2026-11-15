@@ -49,6 +49,7 @@ func TestImageReferences_AllResourceFieldsSurviveCleanup(t *testing.T) {
 	for _, resource := range []string{"cruises", "trips", "voyages"} {
 		body := map[string]any{"name": "With images"}
 		if resource == "cruises" {
+			body = asDBEdition(t, f.conn, body)
 			body["kind"] = "sea"
 		} else {
 			body["cruise_id"] = parentID
@@ -115,6 +116,7 @@ func TestImageReferences_ConcurrentCleanupAndAttach(t *testing.T) {
 			}
 			_, api := humatest.New(t)
 			RegisterCruiseRoutes(api, sqlcdb.New(f.conn), f.conn)
+			body := asDBEdition(t, f.conn, map[string]any{"name": "Race", "kind": "sea", "image_logo_url": imageURL})
 			ctx, cancel := context.WithTimeout(callerCtx(1, "admin"), 5*time.Second)
 			defer cancel()
 			result := make(chan int, 1)
@@ -125,7 +127,7 @@ func TestImageReferences_ConcurrentCleanupAndAttach(t *testing.T) {
 				}
 			} else {
 				go func() {
-					result <- api.PostCtx(ctx, "/cruises", map[string]any{"name": "Race", "kind": "sea", "image_logo_url": imageURL}).Code
+					result <- api.PostCtx(ctx, "/cruises", body).Code
 				}()
 			}
 			if err := tx.Commit(); err != nil {

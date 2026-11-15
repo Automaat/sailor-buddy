@@ -10,12 +10,13 @@ const authState = vi.hoisted(() => ({
 vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: authState }));
 vi.mock('#lib/api/routes.js', () => ({
 	listCruises: vi.fn(),
+	listSeries: vi.fn(),
 	createTrip: vi.fn(),
 	listMembers: vi.fn(),
 	listCrew: vi.fn()
 }));
 
-import { listCruises, createTrip, listMembers, listCrew } from '#lib/api/routes.js';
+import { listCruises, listSeries, createTrip, listMembers, listCrew } from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import NewTripPage from './+page.svelte';
 import { load } from './+page.js';
@@ -38,32 +39,99 @@ beforeEach(() => {
 	fn(listMembers).mockResolvedValue([]);
 	fn(listCrew).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([
-		makeCruise({ id: 13, name: 'NNE 2025', start_port: 'Turku' })
+		makeCruise({ id: 13, name: 'NNE 2025', start_port: 'Turku', series_id: 2, edition: '2025' }),
+		makeCruise({ id: 20, name: 'Rejs na Hel' })
+	]);
+	fn(listSeries).mockResolvedValue([
+		{ id: 2, name: 'NNE', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
 	]);
 	fn(createTrip).mockResolvedValue(makeTrip({ id: 77 }));
 });
 
-describe('new trip page', () => {
-	it('refuses to submit without a cruise', async () => {
-		await renderPage();
-		await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), {
-			target: { value: 'Etap 1' }
-		});
-		await fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
+async function nameTrip(name = 'Etap 1') {
+	await fireEvent.input(await screen.findByLabelText('Nazwa rejsu *'), { target: { value: name } });
+}
 
-		expect(
-			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
-		).toBeInTheDocument();
+function submit() {
+	return fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
+}
+
+describe('new trip page', () => {
+	it('creates a standalone trip by default', async () => {
+		await renderPage();
+		expect(screen.getByLabelText('Seria')).toHaveValue('standalone');
+		expect(screen.queryByLabelText('Edycja *')).not.toBeInTheDocument();
+		await nameTrip();
+
+		await submit();
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ name: 'Etap 1', cruise_id: undefined });
+		expect(goto).toHaveBeenCalledWith('/trips/77');
+	});
+
+	it('refuses to submit a series without an edition', async () => {
+		await renderPage();
+		await nameTrip();
+		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: '2' } });
+
+		await submit();
+
+		expect(await screen.findByText('Wybierz edycję, do której należy rejs')).toBeInTheDocument();
 		expect(createTrip).not.toHaveBeenCalled();
 	});
 
-	it('preselects and prefills the cruise from the URL and creates the leg in it', async () => {
-		await renderPage('http://localhost/trips/new?cruise_id=13');
-		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
+	it('creates the trip in the edition picked from its series', async () => {
+		await renderPage();
+		await nameTrip();
+		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: '2' } });
+		expect(screen.getByRole('option', { name: '2025 — NNE 2025' })).toBeInTheDocument();
+		expect(screen.queryByRole('option', { name: 'Rejs na Hel' })).not.toBeInTheDocument();
+		await fireEvent.change(screen.getByLabelText('Edycja *'), { target: { value: '13' } });
 		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Turku');
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
+		await submit();
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ cruise_id: 13, name: 'Etap 1' });
+	});
+
+	it('offers cruises without a series under "Bez serii"', async () => {
+		await renderPage();
+		await nameTrip();
+		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: 'none' } });
+		expect(screen.queryByRole('option', { name: '2025 — NNE 2025' })).not.toBeInTheDocument();
+		await fireEvent.change(screen.getByLabelText('Edycja *'), { target: { value: '20' } });
+
+		await submit();
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ cruise_id: 20 });
+	});
+
+	it('drops the picked edition when the series changes back to standalone', async () => {
+		await renderPage();
+		await nameTrip();
+		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: '2' } });
+		await fireEvent.change(screen.getByLabelText('Edycja *'), { target: { value: '13' } });
+		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: 'standalone' } });
+
+		await submit();
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ cruise_id: undefined });
+	});
+
+	it('preselects, locks and prefills the edition from the URL and creates the leg in it', async () => {
+		await renderPage('http://localhost/trips/new?cruise_id=13');
+		await waitFor(() => expect(screen.getByLabelText('Edycja *')).toHaveValue('13'));
+		expect(screen.getByLabelText('Seria')).toHaveValue('2');
+		expect(screen.getByLabelText('Seria')).toBeDisabled();
+		expect(screen.getByLabelText('Edycja *')).toBeDisabled();
+		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Turku');
+		await nameTrip();
+
+		await submit();
 
 		await waitFor(() => expect(createTrip).toHaveBeenCalled());
 		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ cruise_id: 13, name: 'Etap 1' });
@@ -106,13 +174,15 @@ describe('new trip page event switch', () => {
 				cost_per_person: 870
 			})
 		]);
-		await renderPage('http://localhost/trips/new?cruise_id=13');
-		await waitFor(() => expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Turku'));
+		await renderPage();
+		await fireEvent.change(await screen.findByLabelText('Seria'), { target: { value: 'none' } });
+		await fireEvent.change(screen.getByLabelText('Edycja *'), { target: { value: '13' } });
+		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Turku');
 		await fireEvent.input(screen.getByLabelText('Port docelowy'), {
 			target: { value: 'Sztokholm' }
 		});
 
-		await fireEvent.change(screen.getByLabelText('Wydarzenie klubu *'), {
+		await fireEvent.change(screen.getByLabelText('Edycja *'), {
 			target: { value: '14' }
 		});
 
@@ -137,7 +207,8 @@ describe('new trip page load', () => {
 		const data = await runLoad('http://localhost/trips/new?cruise_id=13');
 
 		expect(data.cruiseId).toBe(13);
-		expect(data.cruises.map((c) => c.id)).toEqual([13]);
+		expect(data.cruises.map((c) => c.id)).toEqual([13, 20]);
+		expect(data.series.map((s) => s.id)).toEqual([2]);
 		expect(data.loadErrors).toEqual([]);
 	});
 
@@ -157,6 +228,16 @@ describe('new trip page load', () => {
 		expect(data.cruises).toEqual([]);
 		expect(data.loadErrors).toEqual(['lista wydarzeń']);
 	});
+
+	it('names a failed series list', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listSeries).mockRejectedValue(new Error('down'));
+
+		const data = await runLoad();
+
+		expect(data.series).toEqual([]);
+		expect(data.loadErrors).toEqual(['lista serii']);
+	});
 });
 
 describe('new trip page same-route navigation', () => {
@@ -174,7 +255,7 @@ describe('new trip page same-route navigation', () => {
 
 		await view.rerender({ data: await runLoad('http://localhost/trips/new?cruise_id=14') });
 
-		expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('14');
+		expect(screen.getByLabelText('Edycja *')).toHaveValue('14');
 		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Giżycko');
 		expect(screen.getByLabelText('Nazwa rejsu *')).toHaveValue('');
 		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/cruises/14');
@@ -182,17 +263,14 @@ describe('new trip page same-route navigation', () => {
 
 	it("clears the first draft's error", async () => {
 		const view = await renderPage();
-		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
-		await fireEvent.click(screen.getByRole('button', { name: 'Zaplanuj rejs' }));
-		expect(
-			await screen.findByText('Wybierz wydarzenie, do którego należy rejs')
-		).toBeInTheDocument();
+		await nameTrip();
+		await fireEvent.change(screen.getByLabelText('Seria'), { target: { value: 'none' } });
+		await submit();
+		expect(await screen.findByText('Wybierz edycję, do której należy rejs')).toBeInTheDocument();
 
 		await view.rerender({ data: await runLoad('http://localhost/trips/new?cruise_id=14') });
 
-		expect(
-			screen.queryByText('Wybierz wydarzenie, do którego należy rejs')
-		).not.toBeInTheDocument();
+		expect(screen.queryByText('Wybierz edycję, do której należy rejs')).not.toBeInTheDocument();
 	});
 
 	it('drops a create reply for the draft the page has left', async () => {

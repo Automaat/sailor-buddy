@@ -144,6 +144,95 @@ describe('buildRejsEntries', () => {
 		});
 	});
 
+	it.each([
+		{
+			name: 'a standalone trip links to the trip',
+			cruise: makeCruise({ id: 7 }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 })],
+			voyages: [],
+			want: '/trips/4'
+		},
+		{
+			name: 'an edition with one trip links to the edition',
+			cruise: makeCruise({ id: 7, series_id: 2, edition: '2026' }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 })],
+			voyages: [],
+			want: '/cruises/7'
+		},
+		{
+			name: 'a cruise without series with two trips links to the cruise',
+			cruise: makeCruise({ id: 7 }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 }), makeTrip({ id: 5, cruise_id: 7 })],
+			voyages: [],
+			want: '/cruises/7'
+		},
+		{
+			name: 'a cruise without series with a trip and a voyage links to the cruise',
+			cruise: makeCruise({ id: 7 }),
+			trips: [makeTrip({ id: 4, cruise_id: 7 })],
+			voyages: [makeVoyage({ cruise_id: 7 })],
+			want: '/cruises/7'
+		},
+		{
+			name: 'a cruise without legs links to the cruise',
+			cruise: makeCruise({ id: 7 }),
+			trips: [],
+			voyages: [],
+			want: '/cruises/7'
+		}
+	])('$name', ({ cruise, trips, voyages, want }) => {
+		const [entry] = buildRejsEntries([cruise], trips, voyages);
+		expect(entry.href).toBe(want);
+	});
+
+	it("describes a standalone trip by the trip, not its wrapper cruise's copied fields", () => {
+		const wrapper = makeCruise({
+			id: 7,
+			name: 'Original',
+			embark_date: '2027-06-01',
+			disembark_date: '2027-06-08',
+			start_port: 'Gdynia',
+			end_port: 'Visby',
+			countries: 'PL, SE',
+			max_crew: 8
+		});
+		const edited = makeTrip({
+			id: 4,
+			cruise_id: 7,
+			name: 'Renamed',
+			embark_date: '2026-06-01',
+			disembark_date: '2026-06-08',
+			start_port: 'Gdańsk',
+			end_port: 'Hel',
+			countries: 'PL',
+			max_crew: 5,
+			enroll_token: 'leg'
+		});
+		const [entry] = buildRejsEntries([wrapper], [edited], [], '2026-11-15');
+		expect(entry).toMatchObject({
+			href: '/trips/4',
+			name: 'Renamed',
+			embarkDate: '2026-06-01',
+			disembarkDate: '2026-06-08',
+			startPort: 'Gdańsk',
+			endPort: 'Hel',
+			countries: 'PL',
+			maxCrew: 5,
+			enrollOpen: true,
+			status: 'overdue',
+			ended: true
+		});
+		expect(filterRejsEntries([entry], 'completed')).toHaveLength(1);
+		expect(filterRejsEntries([entry], 'upcoming')).toHaveLength(0);
+	});
+
+	it('falls back to the wrapper cruise for fields the standalone trip lacks', () => {
+		const wrapper = makeCruise({ id: 7, name: 'Wrapper', start_port: 'Gdynia', max_crew: 8 });
+		const trip = makeTrip({ id: 4, cruise_id: 7, name: 'Solo', start_port: undefined });
+		const [entry] = buildRejsEntries([wrapper], [trip], [], '2025-05-01');
+		expect(entry).toMatchObject({ name: 'Solo', startPort: 'Gdynia' });
+	});
+
 	it('ignores legs of other cruises', () => {
 		const [entry] = buildRejsEntries(
 			[makeCruise({ id: 1 })],
@@ -248,7 +337,7 @@ describe('buildRejsEntries', () => {
 
 	it('prefers the cruise date over leg dates', () => {
 		const [entry] = buildRejsEntries(
-			[makeCruise({ id: 1, embark_date: '2026-09-01' })],
+			[makeCruise({ series_id: 1, id: 1, embark_date: '2026-09-01' })],
 			[makeTrip({ cruise_id: 1, embark_date: '2026-07-01' })],
 			[]
 		);
@@ -259,12 +348,12 @@ describe('buildRejsEntries', () => {
 describe('filterRejsEntries', () => {
 	const entries = buildRejsEntries(
 		[
-			makeCruise({ id: 1, name: 'Late', embark_date: '2026-09-01' }),
-			makeCruise({ id: 2, name: 'Soon', embark_date: '2026-05-01' }),
-			makeCruise({ id: 3, name: 'Undated', embark_date: undefined }),
-			makeCruise({ id: 4, name: 'Cancelled', embark_date: '2026-06-01' }),
-			makeCruise({ id: 5, name: 'Old', embark_date: '2020-07-01' }),
-			makeCruise({ id: 6, name: 'Recent', embark_date: '2025-07-01' })
+			makeCruise({ series_id: 1, id: 1, name: 'Late', embark_date: '2026-09-01' }),
+			makeCruise({ series_id: 1, id: 2, name: 'Soon', embark_date: '2026-05-01' }),
+			makeCruise({ series_id: 1, id: 3, name: 'Undated', embark_date: undefined }),
+			makeCruise({ series_id: 1, id: 4, name: 'Cancelled', embark_date: '2026-06-01' }),
+			makeCruise({ series_id: 1, id: 5, name: 'Old', embark_date: '2020-07-01' }),
+			makeCruise({ series_id: 1, id: 6, name: 'Recent', embark_date: '2025-07-01' })
 		],
 		[makeTrip({ id: 40, cruise_id: 4, status: 'cancelled', embark_date: undefined })],
 		[
@@ -292,13 +381,20 @@ describe('filterRejsEntries', () => {
 		const listed = buildRejsEntries(
 			[
 				makeCruise({
+					series_id: 1,
 					id: 1,
 					name: 'Bornholm 2026',
 					embark_date: '2026-08-01',
 					disembark_date: '2026-08-09'
 				}),
-				makeCruise({ id: 2, name: 'Now', embark_date: '2026-11-10', disembark_date: '2026-11-20' }),
-				makeCruise({ id: 3, name: 'Done', embark_date: '2026-06-01' })
+				makeCruise({
+					series_id: 1,
+					id: 2,
+					name: 'Now',
+					embark_date: '2026-11-10',
+					disembark_date: '2026-11-20'
+				}),
+				makeCruise({ series_id: 1, id: 3, name: 'Done', embark_date: '2026-06-01' })
 			],
 			[
 				makeTrip({ id: 10, cruise_id: 1, embark_date: undefined, disembark_date: undefined }),

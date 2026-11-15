@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -17,12 +18,13 @@ import (
 )
 
 type TripHandler struct {
-	q  sqlcdb.Querier
-	db *sql.DB
+	q     sqlcdb.Querier
+	db    *sql.DB
+	runTx txRunner
 }
 
 func NewTripHandler(q sqlcdb.Querier, db *sql.DB) *TripHandler {
-	return &TripHandler{q: q, db: db}
+	return &TripHandler{q: q, db: db, runTx: sqlTxRunner(db)}
 }
 
 // --- huma operation input/output types ---
@@ -32,7 +34,7 @@ type tripIDParam struct {
 }
 
 type createTripInput struct {
-	Body dto.TripBody
+	Body dto.CreateTripBody
 }
 
 type updateTripInput struct {
@@ -67,7 +69,10 @@ type noContentOutput struct{}
 // RegisterTripRoutes wires the club trip operations onto the huma API. Reads
 // are open to any member; mutations require an admin.
 func RegisterTripRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
-	h := NewTripHandler(q, db)
+	registerTripRoutes(api, NewTripHandler(q, db))
+}
+
+func registerTripRoutes(api huma.API, h *TripHandler) {
 	tag := []string{"Trips"}
 
 	huma.Register(api, huma.Operation{
@@ -80,7 +85,11 @@ func RegisterTripRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	}, h.get)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-trip", Method: http.MethodPost, Path: "/trips",
-		Summary: "Create a trip (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Create a trip (admin)",
+		Description: "Without cruise_id the trip is a standalone etap: one transaction creates a wrapper " +
+			"cruise without a series (name, dates, ports, countries, description, crew limit and prices " +
+			"copied from the trip, kind sea) and the trip in it.",
+		Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.create)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-trip", Method: http.MethodPut, Path: "/trips/{tripID}",
@@ -141,50 +150,60 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
-		return nil, err
+	b := &in.Body
+	if b.CruiseID != nil {
+		if err := requireParentCruise(ctx, h.q, *b.CruiseID); err != nil {
+			return nil, err
+		}
 	}
-	captainID, captainName, err := captainAssignment(ctx, h.q, in.Body.CaptainPersonID, in.Body.CaptainName)
+	captainID, captainName, err := captainAssignment(ctx, h.q, b.CaptainPersonID, b.CaptainName)
 	if err != nil {
 		return nil, err
 	}
-	if err := checkSignUpDeadline(&in.Body); err != nil {
+	if err := checkSignUpDeadline(&b.TripFields); err != nil {
 		return nil, err
 	}
-	maxCrew, err := defaultMaxCrew(ctx, h.q, in.Body.YachtID, in.Body.MaxCrew)
+	maxCrew, err := defaultMaxCrew(ctx, h.q, b.YachtID, b.MaxCrew)
 	if err != nil {
 		return nil, err
 	}
 	user := middleware.GetUser(ctx)
-	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
+	if err := retainUploadImages(ctx, h.q, b.ImageLogoUrl, b.ImagePhotoUrl, b.ImageRouteUrl); err != nil {
 		return nil, err
 	}
-	trip, err := h.q.CreateTrip(ctx, sqlcdb.CreateTripParams{
-		CreatedBy:              types.NullInt64{Int64: user.UserID, Valid: true},
-		CruiseID:               in.Body.CruiseID,
-		Name:                   in.Body.Name,
-		EmbarkDate:             nullString(in.Body.EmbarkDate),
-		DisembarkDate:          nullString(in.Body.DisembarkDate),
-		Countries:              nullString(in.Body.Countries),
-		StartPort:              nullString(in.Body.StartPort),
-		EndPort:                nullString(in.Body.EndPort),
+	createdBy := types.NullInt64{Int64: user.UserID, Valid: true}
+	params := sqlcdb.CreateTripParams{
+		CreatedBy:              createdBy,
+		Name:                   b.Name,
+		EmbarkDate:             nullString(b.EmbarkDate),
+		DisembarkDate:          nullString(b.DisembarkDate),
+		Countries:              nullString(b.Countries),
+		StartPort:              nullString(b.StartPort),
+		EndPort:                nullString(b.EndPort),
 		CaptainName:            captainName,
 		CaptainPersonID:        captainID,
-		YachtID:                nullInt64(in.Body.YachtID),
-		CostTotal:              nullFloat64(in.Body.CostTotal),
-		CostPerPerson:          nullFloat64(in.Body.CostPerPerson),
-		Currency:               currencyOrDefault(in.Body.Currency),
-		CostPerPersonNonMember: nullFloat64(in.Body.CostPerPersonNonMember),
-		YachtFund:              nullFloat64(in.Body.YachtFund),
-		Deposit:                nullFloat64(in.Body.Deposit),
+		YachtID:                nullInt64(b.YachtID),
+		CostTotal:              nullFloat64(b.CostTotal),
+		CostPerPerson:          nullFloat64(b.CostPerPerson),
+		Currency:               currencyOrDefault(b.Currency),
+		CostPerPersonNonMember: nullFloat64(b.CostPerPersonNonMember),
+		YachtFund:              nullFloat64(b.YachtFund),
+		Deposit:                nullFloat64(b.Deposit),
 		MaxCrew:                maxCrew,
-		ImageLogoUrl:           nullString(in.Body.ImageLogoUrl),
-		ImagePhotoUrl:          nullString(in.Body.ImagePhotoUrl),
-		ImageRouteUrl:          nullString(in.Body.ImageRouteUrl),
-		Description:            nullString(in.Body.Description),
+		ImageLogoUrl:           nullString(b.ImageLogoUrl),
+		ImagePhotoUrl:          nullString(b.ImagePhotoUrl),
+		ImageRouteUrl:          nullString(b.ImageRouteUrl),
+		Description:            nullString(b.Description),
 		Status:                 sqlcdb.TripStatusPlanned,
-		SignUpDeadline:         nullString(in.Body.SignUpDeadline),
-	})
+		SignUpDeadline:         nullString(b.SignUpDeadline),
+	}
+	var trip sqlcdb.Trip
+	if b.CruiseID != nil {
+		params.CruiseID = *b.CruiseID
+		trip, err = h.q.CreateTrip(ctx, params)
+	} else {
+		trip, err = createStandaloneTrip(ctx, h.runTx, params)
+	}
 	if err != nil {
 		if isForeignKeyViolation(err, "trips_captain_person_id_fkey") {
 			return nil, captainPersonNotFound()
@@ -192,17 +211,65 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		if isForeignKeyViolation(err, "trips_yacht_id_fkey") {
 			return nil, yachtNotFound()
 		}
-		slog.Error("create trip", "name", in.Body.Name, "err", err)
+		slog.Error("create trip", "name", b.Name, "err", err)
 		return nil, huma.Error500InternalServerError("failed to create trip")
 	}
 	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
+}
+
+// createStandaloneTrip creates a trip without a chosen cruise: in one
+// transaction it creates a wrapper cruise without a series from the trip's
+// fields, then the trip in it. A failed trip insert rolls the cruise back.
+func createStandaloneTrip(ctx context.Context, runTx txRunner, trip sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
+	var created sqlcdb.Trip
+	err := runTx(ctx, func(q sqlcdb.Querier) error {
+		cruise, err := q.CreateCruise(ctx, wrapperCruiseParams(trip))
+		if err != nil {
+			return &QueryError{Op: "CreateCruise", Err: err}
+		}
+		trip.CruiseID = cruise.ID
+		created, err = q.CreateTrip(ctx, trip)
+		if err != nil {
+			return &QueryError{Op: "CreateTrip", Err: err}
+		}
+		return nil
+	})
+	return created, err
+}
+
+// cruiseKindSea is the kind of a standalone trip's wrapper cruise.
+const cruiseKindSea = "sea"
+
+// wrapperCruiseParams is the cruise a standalone trip gets: no series, kind
+// sea, and the trip's name, dates, ports, countries, description, crew limit
+// and prices.
+func wrapperCruiseParams(t sqlcdb.CreateTripParams) sqlcdb.CreateCruiseParams {
+	return sqlcdb.CreateCruiseParams{
+		CreatedBy:              t.CreatedBy,
+		Name:                   t.Name,
+		EmbarkDate:             t.EmbarkDate,
+		DisembarkDate:          t.DisembarkDate,
+		Countries:              t.Countries,
+		StartPort:              t.StartPort,
+		EndPort:                t.EndPort,
+		Description:            t.Description,
+		MaxCrew:                t.MaxCrew,
+		CostPerPerson:          t.CostPerPerson,
+		Kind:                   cruiseKindSea,
+		Currency:               t.Currency,
+		CostPerPersonNonMember: t.CostPerPersonNonMember,
+		YachtFund:              t.YachtFund,
+		Deposit:                t.Deposit,
+		Included:               json.RawMessage("[]"),
+		NotIncluded:            json.RawMessage("[]"),
+	}
 }
 
 // checkSignUpDeadline rejects a sign-up deadline after the leg's embark
 // date: sign-ups must close before the leg sails. huma already enforces
 // the YYYY-MM-DD format; a leg without a parseable embark date takes any
 // deadline.
-func checkSignUpDeadline(b *dto.TripBody) error {
+func checkSignUpDeadline(b *dto.TripFields) error {
 	if b.SignUpDeadline == nil || b.EmbarkDate == nil {
 		return nil
 	}
@@ -242,7 +309,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	if err := requireParentCruise(ctx, h.q, in.Body.CruiseID); err != nil {
 		return nil, err
 	}
-	if err := checkSignUpDeadline(&in.Body); err != nil {
+	if err := checkSignUpDeadline(&in.Body.TripFields); err != nil {
 		return nil, err
 	}
 	current, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: true})

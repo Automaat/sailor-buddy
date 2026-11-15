@@ -80,6 +80,7 @@ test.describe.serial('Phone layout', () => {
 		const cruise = await post<{ id: number }>(token, '/cruises', {
 			name: 'Wydarzenie z bardzo długą nazwą na telefon',
 			series_id: series.id,
+			edition: '2027',
 			embark_date: '2027-07-01',
 			disembark_date: '2027-07-14',
 			start_port: 'Gdańsk',
@@ -173,7 +174,7 @@ test.describe.serial('Phone layout', () => {
 			'/',
 			'/cruises',
 			'/cruises?tab=all',
-			'/cruises/new',
+			`/cruises/new?series_id=${ids.series}`,
 			`/cruises/${ids.cruise}`,
 			`/cruises/${ids.cruise}/edit`,
 			'/trips/new',

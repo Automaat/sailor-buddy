@@ -38,7 +38,7 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 				}, nil
 			},
 		}
-		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", full)
+		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", asEdition(full))
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
@@ -122,7 +122,7 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 			},
 		}
 		resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises",
-			map[string]any{"name": "X", "group_chat_url": " HTTP://chat.example.com:8443/g/1 "})
+			asEdition(map[string]any{"name": "X", "group_chat_url": " HTTP://chat.example.com:8443/g/1 "}))
 		if resp.Code != http.StatusCreated {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
@@ -170,7 +170,7 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 				},
 			}
 			resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises",
-				map[string]any{"name": "X", "group_chat_url": link})
+				asEdition(map[string]any{"name": "X", "group_chat_url": link}))
 			if resp.Code != http.StatusCreated {
 				t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 			}
@@ -236,7 +236,7 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 	for _, link := range invalidLinks {
 		t.Run("create rejects "+link, func(t *testing.T) {
 			resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises",
-				map[string]any{"name": "X", "group_chat_url": link})
+				asEdition(map[string]any{"name": "X", "group_chat_url": link}))
 			if resp.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("got %d, want 422; body=%s", resp.Code, resp.Body)
 			}
@@ -256,7 +256,7 @@ func TestCruiseHandler_Logistics(t *testing.T) {
 	for _, age := range []any{-1, 100, 18.5, "18"} {
 		t.Run("rejects invalid min_age", func(t *testing.T) {
 			resp := cruiseTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/cruises",
-				map[string]any{"name": "X", "min_age": age})
+				asEdition(map[string]any{"name": "X", "min_age": age}))
 			if resp.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("min_age %v: got %d, want 422; body=%s", age, resp.Code, resp.Body)
 			}

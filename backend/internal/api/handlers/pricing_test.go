@@ -36,6 +36,8 @@ func TestCruisePricing_CreateStoresAndReturnsPrices(t *testing.T) {
 		},
 	}
 	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{
+		"series_id":                  1,
+		"edition":                    "2025",
 		"name":                       "SSS 2025",
 		"currency":                   "EUR",
 		"cost_per_person":            760,
@@ -76,7 +78,7 @@ func TestCruisePricing_DefaultsToPLNAndEmptyLists(t *testing.T) {
 			return cruiseFromCreate(arg), nil
 		},
 	}
-	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{"name": "WRM"})
+	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", asEdition(map[string]any{"name": "WRM"}))
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
 	}
@@ -170,9 +172,9 @@ func TestCruisePricing_ListItemAtLimitAccepted(t *testing.T) {
 		},
 	}
 	item := strings.Repeat("ą", dto.MaxPriceListItemLen)
-	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{
+	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", asEdition(map[string]any{
 		"name": "X", "included": []string{item},
-	})
+	}))
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
 	}
