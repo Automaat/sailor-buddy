@@ -219,7 +219,7 @@
 				<p class="mt-4 text-lg text-[var(--text-muted)]">Brak jachtów</p>
 			</div>
 		{:else}
-			<div class="grid gap-3">
+			<div class="grid grid-cols-1 gap-3">
 				{#each yachts as yacht (yacht.id)}
 					<div
 						class="flex items-center justify-between gap-3 rounded-2xl bg-white px-6 py-4 shadow-sm"
