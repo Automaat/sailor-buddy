@@ -273,8 +273,8 @@
 			     select would keep a choice still saving on the previous trip. -->
 			{#each enrollments as enrollment (enrollment.id)}
 				<div class="rounded-xl bg-white p-4 shadow-sm">
-					<div class="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
-						<div class="min-w-0 break-words">
+					<div class="flex flex-wrap items-center justify-between gap-2">
+						<div class="min-w-0 grow basis-72 break-words">
 							<span class="font-medium">{enrollment.person_name || 'Nieznany'}</span>
 							<span class="ml-2 text-sm text-[var(--text-muted)]">{enrollment.email ?? ''}</span>
 							{#if enrollment.user_id == null}
@@ -299,7 +299,7 @@
 								</span>
 							{/if}
 						</div>
-						<div class="flex items-center gap-1 max-md:flex-wrap">
+						<div class="flex flex-wrap items-center gap-1">
 							<label class="sr-only" for={`payment-${enrollment.id}`}>
 								Płatność: {enrollment.person_name || 'Nieznany'}
 							</label>

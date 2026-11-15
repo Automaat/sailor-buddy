@@ -136,3 +136,17 @@ export function pagedListServer<T extends { id: number }>(rows: T[]) {
 		}
 	};
 }
+
+// unprefixedSpans lists the children of one-column grids that span several
+// columns at every width: such a span adds implicit columns on phones and
+// squeezes the other fields into a sliver.
+export function unprefixedSpans(container: HTMLElement): string[] {
+	const spans: string[] = [];
+	for (const grid of container.querySelectorAll('.grid.grid-cols-1')) {
+		for (const child of grid.children) {
+			const span = [...child.classList].find((c) => /^col-span-(?!full$)/.test(c));
+			if (span) spans.push(`${child.tagName.toLowerCase()}.${span}`);
+		}
+	}
+	return spans;
+}

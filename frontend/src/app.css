@@ -33,14 +33,17 @@ body {
 }
 
 /*
- * Phones: every button gets a 44px tap target (WCAG 2.5.5). Buttons center
- * their content natively, so the extra height needs no layout change.
- * Links styled as buttons opt in with the tap-target utility.
+ * Phones: every button and select gets a 44px tap target (WCAG 2.5.5).
+ * Both center their content natively, so the extra height needs no layout
+ * change. Links styled as buttons opt in with the tap-target utility.
  */
 @layer base {
 	@media (width < 48rem) {
 		button {
 			min-width: 2.75rem;
+			min-height: 2.75rem;
+		}
+		select {
 			min-height: 2.75rem;
 		}
 	}

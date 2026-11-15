@@ -521,7 +521,11 @@
 		{/if}
 	{/if}
 
-	<div bind:this={mapEl} class="h-64 w-full rounded-lg border" aria-label="Mapa portów"></div>
+	<div
+		bind:this={mapEl}
+		class="port-map h-64 w-full rounded-lg border"
+		aria-label="Mapa portów"
+	></div>
 
 	{#if ports.length === 0}
 		<p class="text-sm text-[var(--text-muted)]">Brak dodanych portów.</p>
@@ -591,3 +595,14 @@
 		</ol>
 	{/if}
 </div>
+
+<style>
+	/* Leaflet's zoom links are 30px; phones need a 44px tap target. */
+	@media (width < 48rem) {
+		.port-map :global(.leaflet-bar a) {
+			width: 2.75rem;
+			height: 2.75rem;
+			line-height: 2.75rem;
+		}
+	}
+</style>
