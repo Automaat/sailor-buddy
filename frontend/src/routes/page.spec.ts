@@ -321,6 +321,25 @@ describe('dashboard upcoming legs', () => {
 		expect(cards[4]).toHaveTextContent('Zapis: lista rezerwowa');
 	});
 
+	it('lets a long unbroken leg or edition name wrap inside its card', async () => {
+		const long = 'X'.repeat(200);
+		mockGet.mockResolvedValue(sailor);
+		mockLegs.mockResolvedValue([
+			leg({ id: 7, name: long, cruise_name: long, relation: 'captain' })
+		]);
+		await renderPage();
+
+		const mine = screen.getByRole('region', { name: 'Twoje etapy' });
+		const card = within(mine).getByRole('link');
+		expect(card.closest('li')).toHaveClass('min-w-0');
+		expect(within(card).getByRole('heading', { name: long })).toHaveClass(
+			'min-w-0',
+			'[overflow-wrap:anywhere]'
+		);
+		expect(within(card).getByText(long, { selector: 'p' })).toHaveClass('[overflow-wrap:anywhere]');
+		expect(within(card).getByText('Kapitan')).toHaveClass('shrink-0', 'whitespace-nowrap');
+	});
+
 	it('shows an empty state linking to the series list', async () => {
 		mockGet.mockResolvedValue(sailor);
 		await renderPage();

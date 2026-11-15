@@ -98,22 +98,28 @@
 					</a>
 				</div>
 			{:else}
-				<ul class="grid gap-4 md:grid-cols-2">
+				<ul class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					{#each legs as leg (leg.id)}
-						<li>
+						<li class="min-w-0">
 							<a
 								href="/trips/{leg.id}"
 								class="block h-full rounded-2xl bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
 							>
 								<div class="flex flex-wrap items-start justify-between gap-2">
-									<h3 class="font-semibold text-[var(--navy)]">{leg.name}</h3>
+									<h3 class="min-w-0 font-semibold [overflow-wrap:anywhere] text-[var(--navy)]">
+										{leg.name}
+									</h3>
 									<span
-										class="rounded-full px-2 py-0.5 text-xs font-medium {myLegRelationBadge(leg)}"
+										class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {myLegRelationBadge(
+											leg
+										)}"
 									>
 										{myLegRelationLabel(leg)}
 									</span>
 								</div>
-								<p class="mt-1 text-sm text-[var(--text-muted)]">{myLegEditionLabel(leg)}</p>
+								<p class="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--text-muted)]">
+									{myLegEditionLabel(leg)}
+								</p>
 								<p class="mt-2 text-sm text-[var(--navy)]">
 									{#if leg.embark_date || leg.disembark_date}
 										{formatDateRangeWithDays(leg.embark_date, leg.disembark_date)}
@@ -122,7 +128,7 @@
 									{/if}
 								</p>
 								{#if leg.start_port || leg.end_port}
-									<p class="mt-1 text-sm text-[var(--text-muted)]">
+									<p class="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--text-muted)]">
 										{leg.start_port ?? '—'} → {leg.end_port ?? '—'}
 									</p>
 								{/if}
