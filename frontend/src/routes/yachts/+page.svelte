@@ -221,8 +221,10 @@
 		{:else}
 			<div class="grid gap-3">
 				{#each yachts as yacht (yacht.id)}
-					<div class="flex items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-sm">
-						<div>
+					<div
+						class="flex items-center justify-between gap-3 rounded-2xl bg-white px-6 py-4 shadow-sm"
+					>
+						<div class="min-w-0 [overflow-wrap:anywhere]">
 							<span class="font-semibold text-[var(--navy)]">{yacht.name}</span>
 							{#if yacht.yacht_type}
 								<span class="ml-2 text-sm text-[var(--text-muted)]">{yacht.yacht_type}</span>
@@ -231,7 +233,7 @@
 								<div class="text-sm text-[var(--text-muted)]">{yachtSpecs(yacht)}</div>
 							{/if}
 						</div>
-						<div class="flex items-center gap-4">
+						<div class="flex shrink-0 items-center gap-4">
 							{#if yacht.registration_no}
 								<span class="text-sm text-[var(--text-muted)]">{yacht.registration_no}</span>
 							{/if}
