@@ -75,6 +75,17 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
+describe('trip page back link', () => {
+	it('links back to its edition above the title', async () => {
+		serve(makeTrip({ id: 50, cruise_id: 1 }), makeCruise({ id: 1, name: 'Bałtyk 2027' }));
+		await renderPage();
+
+		const back = await screen.findByTestId('back-link');
+		expect(back).toHaveAttribute('href', '/cruises/1');
+		expect(back).toHaveAccessibleName('Część wydarzenia: Bałtyk 2027');
+	});
+});
+
 describe('trip page status', () => {
 	it('flags a past planned leg and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;

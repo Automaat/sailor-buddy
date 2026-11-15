@@ -102,9 +102,9 @@
 </script>
 
 <div class="mx-auto max-w-2xl">
-	<h1 class="mb-6 text-2xl font-bold text-[var(--navy)]">Profil</h1>
+	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Profil</h1>
 
-	<div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+	<div class="rounded-2xl bg-white p-6 shadow-sm">
 		<h2 class="mb-4 font-semibold text-[var(--navy)]">Dane konta</h2>
 
 		{#if profileError}
@@ -158,7 +158,7 @@
 	</div>
 
 	{#if hasPasswordProvider}
-		<div class="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+		<div class="mt-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-4 font-semibold text-[var(--navy)]">Zmień hasło</h2>
 
 			{#if pwError}

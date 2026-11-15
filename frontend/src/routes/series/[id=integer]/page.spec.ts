@@ -60,6 +60,12 @@ beforeEach(() => {
 });
 
 describe('series detail page', () => {
+	it('links back to the Rejsy list above the title', async () => {
+		await renderPage();
+		expect(screen.getByTestId('back-link')).toHaveAttribute('href', '/series');
+		expect(screen.getByRole('link', { name: 'Rejsy' })).toBe(screen.getByTestId('back-link'));
+	});
+
 	it('loads the series and its editions by id', async () => {
 		await renderPage();
 		expect(await screen.findByText('May I Sail')).toBeInTheDocument();

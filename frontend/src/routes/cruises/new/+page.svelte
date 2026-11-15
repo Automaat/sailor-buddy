@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createCruise } from '#lib/api/routes.js';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import { cruiseBody } from '#lib/cruise.js';
 	import PriceCoverageFields from '#lib/components/PriceCoverageFields.svelte';
 	import { parseList } from '#lib/pricing.js';
@@ -70,6 +71,7 @@
 </script>
 
 <div class="mx-auto max-w-3xl">
+	<BackLink href={seriesHref} label={series.name} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Nowa edycja</h1>
 
 	{#if draft.error}

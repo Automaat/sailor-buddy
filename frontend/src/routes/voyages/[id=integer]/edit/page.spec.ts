@@ -70,6 +70,11 @@ beforeEach(() => {
 });
 
 describe('voyage edit page', () => {
+	it('links back to the voyage above the title', async () => {
+		await renderPage();
+		expect(screen.getByRole('link', { name: 'Etap 1' })).toHaveAttribute('href', '/voyages/8');
+	});
+
 	it('keeps the cruise link and images on a no-change save', async () => {
 		await renderPage();
 		expect(await screen.findByLabelText('Wydarzenie klubu *')).toHaveValue('13');

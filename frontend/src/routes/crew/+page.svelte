@@ -254,7 +254,7 @@
 	{/if}
 
 	{#if showForm && auth.isAdmin}
-		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+		<form onsubmit={handleAdd} class="mb-6 max-w-3xl rounded-2xl bg-white p-6 shadow-sm">
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 				<div>
 					<label for="name" class="mb-1 block text-sm font-medium">Imię i nazwisko *</label>

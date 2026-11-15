@@ -10,6 +10,7 @@
 	import { errorMessage } from '#lib/api/errors.js';
 	import { perLoad } from '#lib/state.svelte.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import type { TripEnrollment } from '#lib/api/types.js';
 	import {
 		freePlacesLabel,
@@ -179,7 +180,8 @@
 
 <div class="mx-auto max-w-4xl">
 	<LoadErrorBanner errors={loadErrors} />
-	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
+	<BackLink href="/trips/{id}" label={trip.name} />
+	<div class="mb-6">
 		<div class="min-w-0">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
 			<p class="mt-1 text-[var(--text-muted)]">
@@ -190,9 +192,6 @@
 				{/if}
 			</p>
 		</div>
-		<a href="/trips/{id}" class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
-			Wróć do rejsu
-		</a>
 	</div>
 
 	{#if trip.status === 'planned'}
