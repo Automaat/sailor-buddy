@@ -369,7 +369,7 @@ describe('voyage page same-route navigation', () => {
 		expect(screen.getByRole('button', { name: 'Uzupełnij po rejsie' })).toBeInTheDocument();
 	});
 
-	it('drops a log save that answers after a link moved to another voyage', async () => {
+	it.each(['5', '6'])('drops a log save after a new load for voyage %s', async (nextId) => {
 		let answer: () => void = () => {};
 		vi.mocked(updateVoyageLog).mockReturnValue(
 			new Promise<never>((r) => (answer = r as () => void))
@@ -381,12 +381,14 @@ describe('voyage page same-route navigation', () => {
 		});
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz raport' }));
 
-		await view.rerender({ data: await runLoad('6') });
+		await view.rerender({ data: await runLoad(nextId) });
 		answer();
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(screen.getByRole('heading', { name: 'Rejs B' })).toBeInTheDocument();
+		expect(
+			screen.getByRole('heading', { name: nextId === '5' ? 'Rejs A' : 'Rejs B' })
+		).toBeInTheDocument();
 		expect(screen.queryByText('Notatka A')).not.toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('button', { name: 'Uzupełnij po rejsie' }));
 		expect(screen.getByRole('button', { name: 'Zapisz raport' })).toBeEnabled();
