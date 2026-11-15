@@ -146,6 +146,14 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
 		}
+		// The document renders for seconds; the person or the voyage can be
+		// deleted meanwhile.
+		if isForeignKeyViolation(err, "voyage_opinions_crew_member_id_fkey") {
+			return nil, huma.Error404NotFound("crew member not assigned to this voyage")
+		}
+		if isForeignKeyViolation(err, "voyage_opinions_voyage_id_fkey") {
+			return nil, huma.Error404NotFound("voyage not found")
+		}
 		slog.Error("upsert voyage opinion", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to save opinion record")
 	}

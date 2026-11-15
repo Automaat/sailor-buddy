@@ -10,6 +10,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -150,6 +152,29 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 			t.Fatalf("opinion files = %v, want [3_4.pdf]", got)
 		}
 	})
+
+	for _, gone := range []string{"voyage_opinions_crew_member_id_fkey", "voyage_opinions_voyage_id_fkey"} {
+		t.Run("deleted during render "+gone, func(t *testing.T) {
+			dir := t.TempDir()
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				getVoyageCrewByMemberFn: func(context.Context, sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
+					return assignmentRow, nil
+				},
+				upsertVoyageOpinionFn: func(context.Context, sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
+					return sqlcdb.UpsertVoyageOpinionRow{}, &pgconn.PgError{Code: "23503", ConstraintName: gone}
+				},
+			}
+			resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
+				map[string]any{"crew_member_id": 4, "format": "docx"})
+			if resp.Code != http.StatusNotFound {
+				t.Fatalf("got %d, want 404; body=%s", resp.Code, resp.Body)
+			}
+			if got := opinionFiles(t, dir); len(got) != 0 {
+				t.Fatalf("opinion files = %v, want none", got)
+			}
+		})
+	}
 
 	t.Run("member forbidden", func(t *testing.T) {
 		m := &mockQuerier{
