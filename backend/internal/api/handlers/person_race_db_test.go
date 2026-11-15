@@ -330,3 +330,59 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 		})
 	}
 }
+
+// TestMergePeople_PaymentChangeWaitsForMerge records a payment on the
+// duplicate's sign-up once a merge holds its locks but has not yet read the
+// two sign-ups that both people have for the leg. The payment must wait for
+// the merge: run between the merge's payment copy and its delete, it would
+// answer 200 for a payment the merge then throws away. After the merge
+// commits, the payment finds the sign-up gone.
+func TestMergePeople_PaymentChangeWaitsForMerge(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	leg, _ := f.newMergeLeg(t)
+	var duplicateSignUp int64
+	if _, err := f.conn.ExecContext(ctx, `INSERT INTO trip_enrollments (trip_id, crew_member_id, status)
+		VALUES ($1, $2, 'pending')`, leg, f.keptID); err != nil {
+		t.Fatalf("seed kept sign-up: %v", err)
+	}
+	if err := f.conn.QueryRowContext(ctx, `INSERT INTO trip_enrollments (trip_id, crew_member_id, status)
+		VALUES ($1, $2, 'pending') RETURNING id`, leg, f.duplicateID).Scan(&duplicateSignUp); err != nil {
+		t.Fatalf("seed duplicate sign-up: %v", err)
+	}
+
+	merge, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin merge: %v", err)
+	}
+	defer func() { _ = merge.Rollback() }()
+	mq := sqlcdb.New(merge)
+	if _, _, err := lockMergePeople(ctx, mq, f.keptID, f.duplicateID); err != nil {
+		t.Fatalf("lock merge: %v", err)
+	}
+
+	done := make(chan int, 1)
+	api := acceptedCrewAPI(t, f.conn)
+	go func() {
+		done <- api.PutCtx(userCtx(ctx), fmt.Sprintf("/trips/%d/enrollments/%d/payment-status", leg, duplicateSignUp),
+			map[string]any{"payment_status": "paid"}).Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	if _, err := MergePeople(ctx, mq, f.keptID, f.duplicateID); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if err := merge.Commit(); err != nil {
+		t.Fatalf("commit merge: %v", err)
+	}
+	if code := <-done; code != http.StatusNotFound {
+		t.Fatalf("payment on the merged-away sign-up: got %d, want 404", code)
+	}
+	var payment string
+	if err := f.conn.QueryRowContext(ctx, `SELECT payment_status FROM trip_enrollments
+		WHERE trip_id = $1 AND crew_member_id = $2`, leg, f.keptID).Scan(&payment); err != nil {
+		t.Fatalf("kept sign-up: %v", err)
+	}
+	if payment != "unpaid" {
+		t.Errorf("kept sign-up payment = %s, want unpaid", payment)
+	}
+}

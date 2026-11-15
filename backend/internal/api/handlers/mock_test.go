@@ -128,15 +128,16 @@ type mockQuerier struct {
 	countCrewMembersFn func(ctx context.Context, search types.NullString) (int64, error)
 	getCrewMemberFn    func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
 	// person merge
-	lockCrewMembersForMergeFn func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
-	lockUserForUpdateFn       func(ctx context.Context, id int64) (int64, error)
-	lockCrewMergeTripsFn      func(ctx context.Context, arg sqlcdb.LockCrewMergeTripsParams) error
-	lockCrewMergeVoyagesFn    func(ctx context.Context, arg sqlcdb.LockCrewMergeVoyagesParams) error
-	createCrewMemberFn        func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
-	updateCrewMemberFn        func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
-	deleteCrewMemberFn        func(ctx context.Context, id int64) (int64, error)
-	ensureUserPersonFn        func(ctx context.Context, userID int64) error
-	getUserPersonFn           func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
+	lockCrewMembersForMergeFn      func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
+	lockUserForUpdateFn            func(ctx context.Context, id int64) (int64, error)
+	lockCrewMergeTripsFn           func(ctx context.Context, arg sqlcdb.LockCrewMergeTripsParams) error
+	lockCrewMergeVoyagesFn         func(ctx context.Context, arg sqlcdb.LockCrewMergeVoyagesParams) error
+	lockCrewMergeTripEnrollmentsFn func(ctx context.Context, arg sqlcdb.LockCrewMergeTripEnrollmentsParams) error
+	createCrewMemberFn             func(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error)
+	updateCrewMemberFn             func(ctx context.Context, arg sqlcdb.UpdateCrewMemberParams) error
+	deleteCrewMemberFn             func(ctx context.Context, id int64) (int64, error)
+	ensureUserPersonFn             func(ctx context.Context, userID int64) error
+	getUserPersonFn                func(ctx context.Context, userID types.NullInt64) (sqlcdb.CrewMember, error)
 
 	// crew entries added by accepted sign-ups
 	addAcceptedTripCrewAssignmentFn    func(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error
@@ -1039,6 +1040,13 @@ func (m *mockQuerier) LockCrewMergeVoyages(ctx context.Context, arg sqlcdb.LockC
 		panic("unexpected call to LockCrewMergeVoyages")
 	}
 	return m.lockCrewMergeVoyagesFn(ctx, arg)
+}
+
+func (m *mockQuerier) LockCrewMergeTripEnrollments(ctx context.Context, arg sqlcdb.LockCrewMergeTripEnrollmentsParams) error {
+	if m.lockCrewMergeTripEnrollmentsFn == nil {
+		panic("unexpected call to LockCrewMergeTripEnrollments")
+	}
+	return m.lockCrewMergeTripEnrollmentsFn(ctx, arg)
 }
 
 func (m *mockQuerier) AddAcceptedTripCrewAssignment(ctx context.Context, arg sqlcdb.AddAcceptedTripCrewAssignmentParams) error {

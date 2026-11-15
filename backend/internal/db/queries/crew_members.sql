@@ -142,6 +142,16 @@ WHERE t.id IN (
 ORDER BY t.id
 FOR SHARE;
 
+-- name: LockCrewMergeTripEnrollments :exec
+-- Row-locks both people's leg sign-ups, in id order, after their legs. A
+-- payment or note change on one waits for the merge, so the merge reads each
+-- sign-up's latest payment before it keeps one and deletes the other, and a
+-- change to the deleted sign-up then finds it gone instead of being lost.
+SELECT te.id FROM trip_enrollments te
+WHERE te.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
+ORDER BY te.id
+FOR UPDATE;
+
 -- name: LockCrewMergeVoyages :exec
 -- Share-locks every voyage either person is on or captains, for the same
 -- reason.

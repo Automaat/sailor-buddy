@@ -325,11 +325,26 @@ func (o enrollmentOperations) signUpPerson(ctx context.Context, tripID, personID
 		if trip.Status != sqlcdb.TripStatusPlanned {
 			return errTripNotPlanned
 		}
-		if _, err := q.GetCrewMember(ctx, personID); err != nil {
+		person, err := q.GetCrewMember(ctx, personID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return errSignUpPersonNotFound
 			}
 			return &QueryError{Op: "GetCrewMember", Err: err}
+		}
+		// A cruise enrollment of the person's account placed on this leg is
+		// already their sign-up for it, as signUpOf reports to the account.
+		if person.UserID.Valid {
+			_, err := q.GetUserCruiseEnrollmentForTrip(ctx, sqlcdb.GetUserCruiseEnrollmentForTripParams{
+				TripID: types.NullInt64{Int64: trip.ID, Valid: true},
+				UserID: person.UserID.Int64,
+			})
+			switch {
+			case err == nil:
+				return errAlreadySignedUp
+			case !errors.Is(err, sql.ErrNoRows):
+				return &QueryError{Op: "GetUserCruiseEnrollmentForTrip", Err: err}
+			}
 		}
 		status, err := initialSignUpStatus(ctx, q, trip.ID, trip.MaxCrew)
 		if err != nil {

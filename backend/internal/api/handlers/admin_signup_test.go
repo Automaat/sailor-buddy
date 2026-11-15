@@ -272,3 +272,30 @@ func TestAdminSignUp_PersonWithoutAccountAgainstDatabase(t *testing.T) {
 		t.Fatalf("crew after rejecting Ewa = %v, want none", got)
 	}
 }
+
+// TestAdminSignUp_RefusesPersonPlacedByCruiseEnrollment refuses an admin
+// sign-up for an account's person whose cruise enrollment is already placed
+// on the leg, in any status, as the account's own sign-up check does. A
+// pending duplicate would hide that enrollment from the account.
+func TestAdminSignUp_RefusesPersonPlacedByCruiseEnrollment(t *testing.T) {
+	for _, status := range []string{"accepted", "pending"} {
+		t.Run(status, func(t *testing.T) {
+			conn := lockTestDB(t)
+			ctx := context.Background()
+			trip, users := capacityLeg(t, conn, 4, 1)
+			person := ensurePerson(t, conn, users[0])
+			if _, err := conn.ExecContext(ctx, `INSERT INTO cruise_enrollments (cruise_id, user_id, trip_id, status)
+				SELECT cruise_id, $2, id, $3 FROM trips WHERE id = $1`, trip, users[0], status); err != nil {
+				t.Fatalf("seed cruise enrollment: %v", err)
+			}
+			api := personSignUpAPI(t, conn)
+			resp := api.PostCtx(userCtx(ctx), fmt.Sprintf("/trips/%d/enrollments", trip), map[string]any{"crew_member_id": person})
+			if resp.Code != http.StatusConflict {
+				t.Fatalf("admin sign-up over a %s cruise enrollment: got %d, want 409; body=%s", status, resp.Code, resp.Body)
+			}
+			if got := signUpsOn(t, conn, trip); len(got) != 0 {
+				t.Errorf("leg sign-ups = %v, want none", got)
+			}
+		})
+	}
+}

@@ -59,8 +59,9 @@ func TestCrewMerge_Refusals(t *testing.T) {
 				lockCrewMembersForMergeFn: func(context.Context, sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error) {
 					return c.people, nil
 				},
-				lockCrewMergeTripsFn:   func(context.Context, sqlcdb.LockCrewMergeTripsParams) error { return nil },
-				lockCrewMergeVoyagesFn: func(context.Context, sqlcdb.LockCrewMergeVoyagesParams) error { return nil },
+				lockCrewMergeTripsFn:           func(context.Context, sqlcdb.LockCrewMergeTripsParams) error { return nil },
+				lockCrewMergeVoyagesFn:         func(context.Context, sqlcdb.LockCrewMergeVoyagesParams) error { return nil },
+				lockCrewMergeTripEnrollmentsFn: func(context.Context, sqlcdb.LockCrewMergeTripEnrollmentsParams) error { return nil },
 			}
 			api := crewTestAPI(t, m)
 			admin := callerCtx(1, "admin")

@@ -482,6 +482,32 @@ func (q *Queries) LockCrewMembersForMerge(ctx context.Context, arg LockCrewMembe
 	return items, nil
 }
 
+const lockCrewMergeTripEnrollments = `-- name: LockCrewMergeTripEnrollments :exec
+SELECT te.id FROM trip_enrollments te
+WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+ORDER BY te.id
+FOR UPDATE
+`
+
+type LockCrewMergeTripEnrollmentsParams struct {
+	FirstID  int64 `json:"first_id"`
+	SecondID int64 `json:"second_id"`
+}
+
+// Row-locks both people's leg sign-ups, in id order, after their legs. A
+// payment or note change on one waits for the merge, so the merge reads each
+// sign-up's latest payment before it keeps one and deletes the other, and a
+// change to the deleted sign-up then finds it gone instead of being lost.
+//
+//	SELECT te.id FROM trip_enrollments te
+//	WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+//	ORDER BY te.id
+//	FOR UPDATE
+func (q *Queries) LockCrewMergeTripEnrollments(ctx context.Context, arg LockCrewMergeTripEnrollmentsParams) error {
+	_, err := q.db.ExecContext(ctx, lockCrewMergeTripEnrollments, arg.FirstID, arg.SecondID)
+	return err
+}
+
 const lockCrewMergeTrips = `-- name: LockCrewMergeTrips :exec
 SELECT t.id FROM trips t
 WHERE t.id IN (

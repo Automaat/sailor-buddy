@@ -171,6 +171,9 @@ func lockMergeLegs(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 	if err := q.LockCrewMergeVoyages(ctx, sqlcdb.LockCrewMergeVoyagesParams(legs)); err != nil {
 		return &QueryError{Op: "LockCrewMergeVoyages", Err: err}
 	}
+	if err := q.LockCrewMergeTripEnrollments(ctx, sqlcdb.LockCrewMergeTripEnrollmentsParams(legs)); err != nil {
+		return &QueryError{Op: "LockCrewMergeTripEnrollments", Err: err}
+	}
 	return nil
 }
 

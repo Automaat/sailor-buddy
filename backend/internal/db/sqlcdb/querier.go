@@ -1026,6 +1026,16 @@ type Querier interface {
 	//  ORDER BY id
 	//  FOR UPDATE
 	LockCrewMembersForMerge(ctx context.Context, arg LockCrewMembersForMergeParams) ([]CrewMember, error)
+	// Row-locks both people's leg sign-ups, in id order, after their legs. A
+	// payment or note change on one waits for the merge, so the merge reads each
+	// sign-up's latest payment before it keeps one and deletes the other, and a
+	// change to the deleted sign-up then finds it gone instead of being lost.
+	//
+	//  SELECT te.id FROM trip_enrollments te
+	//  WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+	//  ORDER BY te.id
+	//  FOR UPDATE
+	LockCrewMergeTripEnrollments(ctx context.Context, arg LockCrewMergeTripEnrollmentsParams) error
 	// Share-locks every leg either person is on, signed up for or captains, so
 	// completing a leg, or a sign-up change on it, waits for the merge instead
 	// of moving its crew, sign-ups or captain under it. Taken after the people,
