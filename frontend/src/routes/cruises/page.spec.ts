@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/svelte';
-import { makeCruise, makeTrip, makeVoyage } from '#lib/test-utils.js';
+import { makeCruise, makeSeries, makeTrip, makeVoyage } from '#lib/test-utils.js';
 
 const pageState = vi.hoisted(() => ({ url: new URL('http://localhost/cruises') }));
 
@@ -25,6 +25,7 @@ function serve(data: {
 	cruises?: unknown[];
 	trips?: unknown[];
 	voyages?: unknown[];
+	series?: unknown[];
 	mine?: number[];
 }) {
 	apiGet.mockImplementation((path: string) =>
@@ -36,6 +37,7 @@ function serve(data: {
 		if (path === '/cruises') return Promise.resolve(data.cruises ?? []);
 		if (path === '/trips') return Promise.resolve(data.trips ?? []);
 		if (path === '/voyages') return Promise.resolve(data.voyages ?? []);
+		if (path === '/series') return Promise.resolve(data.series ?? []);
 		return Promise.reject(new Error(`unexpected ${path}`));
 	});
 }
@@ -64,26 +66,18 @@ describe('rejsy page', () => {
 		expect(screen.getByText('Wczytywanie...')).toBeInTheDocument();
 	});
 
-	it('loads cruises, trips and voyages', async () => {
+	it('loads cruises, trips, voyages and series', async () => {
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
 		expect(apiList).toHaveBeenCalledWith('/cruises');
 		expect(apiList).toHaveBeenCalledWith('/trips');
 		expect(apiList).toHaveBeenCalledWith('/voyages');
+		expect(apiList).toHaveBeenCalledWith('/series');
 	});
 
 	it('renders an upcoming cruise card with its legs and open enrollment', async () => {
 		serve({
-			cruises: [
-				makeCruise({
-					id: 9,
-					name: 'Regaty Klubowe',
-					start_port: 'Gdynia',
-					end_port: 'Sopot',
-					max_crew: 12,
-					enroll_token: 'abc'
-				})
-			],
+			cruises: [makeCruise({ id: 9, name: 'Regaty Klubowe', enroll_token: 'abc' })],
 			trips: [makeTrip({ id: 1, cruise_id: 9 }), makeTrip({ id: 2, cruise_id: 9 })]
 		});
 		render(RejsyPage);
@@ -92,8 +86,70 @@ describe('rejsy page', () => {
 		expect(card).toHaveAttribute('href', '/cruises/9');
 		expect(card).toHaveTextContent('Planowany');
 		expect(card).toHaveTextContent('etapy: 0/2 zrealizowane');
-		expect(screen.getByText('max 12 os.')).toBeInTheDocument();
 		expect(screen.getByText('Zapisy otwarte')).toBeInTheDocument();
+	});
+
+	it("shows an edition's countries and leg count but not its legs' dates, ports or crew limit", async () => {
+		serve({
+			series: [makeSeries({ id: 2, name: 'Fiordy' })],
+			cruises: [makeCruise({ id: 9, series_id: 2, name: 'Fiordy 2025', countries: 'Norwegia' })],
+			trips: [
+				makeTrip({ id: 1, cruise_id: 9, start_port: 'Bergen', end_port: 'Ålesund', max_crew: 8 }),
+				makeTrip({ id: 2, cruise_id: 9 }),
+				makeTrip({ id: 3, cruise_id: 9 })
+			]
+		});
+		render(RejsyPage);
+
+		const card = (await screen.findByText('Fiordy 2025')).closest('a')!;
+		expect(card).toHaveTextContent(/Norwegia\s+etapy: 0\/3 zrealizowane/);
+		expect(card).not.toHaveTextContent('·');
+		expect(card).not.toHaveTextContent('Bergen');
+		expect(card).not.toHaveTextContent('cze 2025');
+		expect(card).not.toHaveTextContent('max 8 os.');
+	});
+
+	it('describes a standalone trip by its own dates, ports and crew limit', async () => {
+		serve({
+			cruises: [makeCruise({ id: 9, name: 'Wrapper' })],
+			trips: [
+				makeTrip({
+					id: 4,
+					cruise_id: 9,
+					name: 'Rejs na Hel',
+					start_port: 'Gdynia',
+					end_port: 'Hel',
+					countries: 'PL',
+					max_crew: 6
+				})
+			]
+		});
+		render(RejsyPage);
+
+		const card = (await screen.findByText('Rejs na Hel')).closest('a')!;
+		expect(card).toHaveAttribute('href', '/trips/4');
+		expect(card).toHaveTextContent('Gdynia → Hel · PL');
+		expect(card).toHaveTextContent('1–7 cze 2025 · 7 dni · etapy: 0/1 zrealizowane');
+		expect(card).toHaveTextContent('max 6 os.');
+	});
+
+	it('lists upcoming events by their first leg date', async () => {
+		serve({
+			cruises: [
+				makeCruise({ id: 1, series_id: 2, name: 'Później' }),
+				makeCruise({ id: 2, series_id: 2, name: 'Wcześniej' })
+			],
+			trips: [
+				makeTrip({ id: 10, cruise_id: 1, embark_date: '2025-09-01', disembark_date: '2025-09-07' }),
+				makeTrip({ id: 20, cruise_id: 2, embark_date: '2025-08-01', disembark_date: '2025-08-07' }),
+				makeTrip({ id: 21, cruise_id: 1, embark_date: '2025-07-01', disembark_date: '2025-07-07' })
+			]
+		});
+		render(RejsyPage);
+		await screen.findByText('Później');
+
+		const names = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+		expect(names).toEqual(['Później', 'Wcześniej']);
 	});
 
 	it('moves a fully sailed cruise to the completed tab with its totals', async () => {
@@ -136,16 +192,15 @@ describe('rejsy page', () => {
 	it('flags a past cruise with a planned leg for completion and lists it as sailed', async () => {
 		vi.setSystemTime(new Date('2026-11-13T12:00:00Z'));
 		serve({
-			cruises: [
-				makeCruise({
-					series_id: 1,
-					id: 5,
+			cruises: [makeCruise({ id: 5 })],
+			trips: [
+				makeTrip({
+					cruise_id: 5,
 					name: 'Bornholm 2026',
 					embark_date: '2026-08-01',
 					disembark_date: '2026-08-09'
 				})
-			],
-			trips: [makeTrip({ cruise_id: 5, embark_date: undefined, disembark_date: undefined })]
+			]
 		});
 		render(RejsyPage);
 		await screen.findByText('Brak nadchodzących rejsów');
@@ -199,19 +254,33 @@ describe('rejsy page', () => {
 	});
 
 	describe('kind filter', () => {
+		const series = [
+			makeSeries({ id: 1, name: 'Bałtyk', kind: 'sea' }),
+			makeSeries({ id: 2, name: 'Mazury', kind: 'inland' })
+		];
 		const mixed = () =>
 			serve({
+				series,
 				cruises: [
-					makeCruise({ id: 1, name: 'Bałtyk', kind: 'sea' }),
-					makeCruise({ id: 2, name: 'Mazury', kind: 'inland' })
+					makeCruise({ id: 1, series_id: 1, name: 'Bałtyk' }),
+					makeCruise({ id: 2, series_id: 2, name: 'Mazury' })
 				]
 			});
 
-		it('shows the kind on each card', async () => {
+		it("shows each cruise's series kind on its card", async () => {
 			mixed();
 			render(RejsyPage);
 			expect((await screen.findByText('Bałtyk')).closest('a')).toHaveTextContent('Morski');
 			expect(screen.getByText('Mazury').closest('a')).toHaveTextContent('Śródlądowy');
+		});
+
+		it('shows a cruise without a series as a sea cruise', async () => {
+			serve({ series, cruises: [makeCruise({ id: 3, name: 'Bez serii' })] });
+			render(RejsyPage);
+			expect((await screen.findByText('Bez serii')).closest('a')).toHaveTextContent('Morski');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Śródlądowy' }));
+			expect(screen.queryByText('Bez serii')).not.toBeInTheDocument();
 		});
 
 		it.each([
@@ -231,7 +300,7 @@ describe('rejsy page', () => {
 		});
 
 		it('shows a filtered empty state when no cruise has the selected kind', async () => {
-			serve({ cruises: [makeCruise({ id: 1, name: 'Bałtyk', kind: 'sea' })] });
+			serve({ series, cruises: [makeCruise({ id: 1, series_id: 1, name: 'Bałtyk' })] });
 			render(RejsyPage);
 			await screen.findByText('Bałtyk');
 

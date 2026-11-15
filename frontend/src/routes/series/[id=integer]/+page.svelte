@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { formatDateRangeWithDays } from '#lib/dates.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { updateSeries, deleteSeries } from '#lib/api/routes.js';
-	import { cruiseKindLabels } from '#lib/cruise.js';
+	import { cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
+	import SeriesKindSelect from '#lib/components/SeriesKindSelect.svelte';
 	import { goto } from '$app/navigation';
 	import { errorMessage } from '#lib/api/errors.js';
 	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
@@ -21,7 +21,7 @@
 	let saving = $state(false);
 	let error = $state('');
 	let deleteError = $state('');
-	let form = $state({ name: '', description: '' });
+	let form = $state({ name: '', description: '', kind: 'sea' as CruiseKind });
 
 	const totalMiles = $derived(editions.reduce((sum, e) => sum + e.total_miles, 0));
 	const totalHours = $derived(editions.reduce((sum, e) => sum + e.total_hours, 0));
@@ -41,7 +41,7 @@
 	}
 
 	function startEdit() {
-		form = { name: series.name, description: series.description ?? '' };
+		form = { name: series.name, description: series.description ?? '', kind: series.kind };
 		error = '';
 		deleteError = '';
 		editing = true;
@@ -50,15 +50,15 @@
 	async function handleSave(e: Event) {
 		e.preventDefault();
 		const seriesId = id;
-		const { name } = form;
+		const { name, kind } = form;
 		const description = form.description || undefined;
 		saving = true;
 		error = '';
 		try {
-			await updateSeries(seriesId, { name, description });
+			await updateSeries(seriesId, { name, description, kind });
 			// A reply for a series the page has left is dropped.
 			if (seriesId !== id) return;
-			series = { ...series, name, description };
+			series = { ...series, name, description, kind };
 			editing = false;
 		} catch (err) {
 			if (seriesId !== id) return;
@@ -100,6 +100,7 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
+			<SeriesKindSelect bind:kind={form.kind} />
 			<div>
 				<label for="description" class="mb-1 block text-sm font-medium">Opis</label>
 				<textarea
@@ -128,6 +129,7 @@
 		<div class="mb-6 flex items-start justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{series.name}</h1>
+				<p class="mt-1 text-sm text-[var(--text-muted)]">{cruiseKindLabels[series.kind]}</p>
 				{#if series.description}
 					<p class="mt-2 whitespace-pre-wrap text-[var(--text-muted)]">{series.description}</p>
 				{/if}
@@ -170,13 +172,11 @@
 			</p>
 		{:else}
 			<div class="overflow-x-auto">
-				<table class="w-full min-w-[32rem] text-left text-sm">
+				<table class="w-full min-w-[24rem] text-left text-sm">
 					<thead class="text-[var(--text-muted)]">
 						<tr>
 							<th class="py-2">Edycja</th>
 							<th class="py-2">Wydarzenie</th>
-							<th class="py-2">Rodzaj</th>
-							<th class="py-2">Termin</th>
 							<th class="py-2 text-right">Mile</th>
 							<th class="py-2 text-right">Godziny</th>
 						</tr>
@@ -191,12 +191,6 @@
 									>
 									{#if showHidden && isHidden(e)}<HiddenBadge />{/if}</td
 								>
-								<td class="py-2">{cruiseKindLabels[e.kind]}</td>
-								<td class="py-2">
-									{#if e.embark_date}
-										{formatDateRangeWithDays(e.embark_date, e.disembark_date)}
-									{/if}
-								</td>
 								<td class="py-2 text-right">{formatNumber(e.total_miles)}</td>
 								<td class="py-2 text-right">{formatNumber(e.total_hours)}</td>
 							</tr>
@@ -204,7 +198,7 @@
 					</tbody>
 					<tfoot>
 						<tr class="border-t font-semibold" data-testid="series-totals">
-							<td class="py-2" colspan="4">Razem</td>
+							<td class="py-2" colspan="2">Razem</td>
 							<td class="py-2 text-right">{formatNumber(totalMiles)}</td>
 							<td class="py-2 text-right">{formatNumber(totalHours)}</td>
 						</tr>

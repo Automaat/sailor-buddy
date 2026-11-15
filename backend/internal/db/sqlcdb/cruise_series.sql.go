@@ -26,22 +26,28 @@ func (q *Queries) CountCruiseSeries(ctx context.Context) (int64, error) {
 }
 
 const createCruiseSeries = `-- name: CreateCruiseSeries :one
-INSERT INTO cruise_series (created_by, name, description)
-VALUES ($1, $2, $3) RETURNING id, created_by, name, description, created_at, updated_at
+INSERT INTO cruise_series (created_by, name, description, kind)
+VALUES ($1, $2, $3, $4) RETURNING id, created_by, name, description, created_at, updated_at, kind
 `
 
 type CreateCruiseSeriesParams struct {
 	CreatedBy   types.NullInt64  `json:"created_by"`
 	Name        string           `json:"name"`
 	Description types.NullString `json:"description"`
+	Kind        string           `json:"kind"`
 }
 
 // CreateCruiseSeries
 //
-//	INSERT INTO cruise_series (created_by, name, description)
-//	VALUES ($1, $2, $3) RETURNING id, created_by, name, description, created_at, updated_at
+//	INSERT INTO cruise_series (created_by, name, description, kind)
+//	VALUES ($1, $2, $3, $4) RETURNING id, created_by, name, description, created_at, updated_at, kind
 func (q *Queries) CreateCruiseSeries(ctx context.Context, arg CreateCruiseSeriesParams) (CruiseSeries, error) {
-	row := q.db.QueryRowContext(ctx, createCruiseSeries, arg.CreatedBy, arg.Name, arg.Description)
+	row := q.db.QueryRowContext(ctx, createCruiseSeries,
+		arg.CreatedBy,
+		arg.Name,
+		arg.Description,
+		arg.Kind,
+	)
 	var i CruiseSeries
 	err := row.Scan(
 		&i.ID,
@@ -50,6 +56,7 @@ func (q *Queries) CreateCruiseSeries(ctx context.Context, arg CreateCruiseSeries
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -67,12 +74,12 @@ func (q *Queries) DeleteCruiseSeries(ctx context.Context, id int64) error {
 }
 
 const getCruiseSeries = `-- name: GetCruiseSeries :one
-SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series WHERE id = $1
+SELECT id, created_by, name, description, created_at, updated_at, kind FROM cruise_series WHERE id = $1
 `
 
 // GetCruiseSeries
 //
-//	SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series WHERE id = $1
+//	SELECT id, created_by, name, description, created_at, updated_at, kind FROM cruise_series WHERE id = $1
 func (q *Queries) GetCruiseSeries(ctx context.Context, id int64) (CruiseSeries, error) {
 	row := q.db.QueryRowContext(ctx, getCruiseSeries, id)
 	var i CruiseSeries
@@ -83,12 +90,13 @@ func (q *Queries) GetCruiseSeries(ctx context.Context, id int64) (CruiseSeries, 
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
 	)
 	return i, err
 }
 
 const listCruiseSeries = `-- name: ListCruiseSeries :many
-SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series
+SELECT id, created_by, name, description, created_at, updated_at, kind FROM cruise_series
 WHERE $1::BIGINT IS NULL
    OR (name, id) > ($2::TEXT, $1::BIGINT)
 ORDER BY name, id
@@ -104,7 +112,7 @@ type ListCruiseSeriesParams struct {
 
 // A set after_id starts the page after the cursor's (name, id) sort key.
 //
-//	SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series
+//	SELECT id, created_by, name, description, created_at, updated_at, kind FROM cruise_series
 //	WHERE $1::BIGINT IS NULL
 //	   OR (name, id) > ($2::TEXT, $1::BIGINT)
 //	ORDER BY name, id
@@ -130,6 +138,7 @@ func (q *Queries) ListCruiseSeries(ctx context.Context, arg ListCruiseSeriesPara
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -149,9 +158,6 @@ SELECT
     c.id,
     c.name,
     c.edition,
-    c.kind,
-    c.embark_date,
-    c.disembark_date,
     c.published_at,
     COUNT(v.id)::BIGINT AS voyage_count,
     COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
@@ -162,7 +168,13 @@ LEFT JOIN voyages v ON v.cruise_id = c.id
 WHERE c.series_id = $2
   AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
 GROUP BY c.id
-ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
+ORDER BY (
+    SELECT MIN(NULLIF(l.embark_date, '')) FROM (
+        SELECT t.embark_date FROM trips t WHERE t.cruise_id = c.id
+        UNION ALL
+        SELECT lv.embark_date FROM voyages lv WHERE lv.cruise_id = c.id
+    ) l
+) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 `
 
 type ListCruiseSeriesEditionsParams struct {
@@ -171,31 +183,25 @@ type ListCruiseSeriesEditionsParams struct {
 }
 
 type ListCruiseSeriesEditionsRow struct {
-	ID            int64            `json:"id"`
-	Name          string           `json:"name"`
-	Edition       types.NullString `json:"edition"`
-	Kind          string           `json:"kind"`
-	EmbarkDate    types.NullString `json:"embark_date"`
-	DisembarkDate types.NullString `json:"disembark_date"`
-	PublishedAt   types.NullTime   `json:"published_at"`
-	VoyageCount   int64            `json:"voyage_count"`
-	TotalMiles    float64          `json:"total_miles"`
-	TotalHours    float64          `json:"total_hours"`
+	ID          int64            `json:"id"`
+	Name        string           `json:"name"`
+	Edition     types.NullString `json:"edition"`
+	PublishedAt types.NullTime   `json:"published_at"`
+	VoyageCount int64            `json:"voyage_count"`
+	TotalMiles  float64          `json:"total_miles"`
+	TotalHours  float64          `json:"total_hours"`
 }
 
-// Editions of a series newest first, each with the miles and hours summed
-// over its voyages. An edition without an embark date (NULL, or the empty
-// string the cruise forms send) is still being planned, so it sorts before
-// every dated one. Without include_hidden only published editions are
-// listed and only their visible voyages are summed.
+// Editions of a series newest first by their first leg's embark date, each
+// with the miles and hours summed over its voyages. An edition without a
+// dated leg (NULL, or the empty string the leg forms send) is still being
+// planned, so it sorts before every dated one. Without include_hidden only
+// published editions are listed and only their visible voyages are summed.
 //
 //	SELECT
 //	    c.id,
 //	    c.name,
 //	    c.edition,
-//	    c.kind,
-//	    c.embark_date,
-//	    c.disembark_date,
 //	    c.published_at,
 //	    COUNT(v.id)::BIGINT AS voyage_count,
 //	    COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
@@ -206,7 +212,13 @@ type ListCruiseSeriesEditionsRow struct {
 //	WHERE c.series_id = $2
 //	  AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
 //	GROUP BY c.id
-//	ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
+//	ORDER BY (
+//	    SELECT MIN(NULLIF(l.embark_date, '')) FROM (
+//	        SELECT t.embark_date FROM trips t WHERE t.cruise_id = c.id
+//	        UNION ALL
+//	        SELECT lv.embark_date FROM voyages lv WHERE lv.cruise_id = c.id
+//	    ) l
+//	) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSeriesEditionsParams) ([]ListCruiseSeriesEditionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCruiseSeriesEditions, arg.IncludeHidden, arg.SeriesID)
 	if err != nil {
@@ -220,9 +232,6 @@ func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSe
 			&i.ID,
 			&i.Name,
 			&i.Edition,
-			&i.Kind,
-			&i.EmbarkDate,
-			&i.DisembarkDate,
 			&i.PublishedAt,
 			&i.VoyageCount,
 			&i.TotalMiles,
@@ -242,21 +251,27 @@ func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSe
 }
 
 const updateCruiseSeries = `-- name: UpdateCruiseSeries :exec
-UPDATE cruise_series SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-WHERE id = $3
+UPDATE cruise_series SET name = $1, description = $2, kind = $3, updated_at = CURRENT_TIMESTAMP
+WHERE id = $4
 `
 
 type UpdateCruiseSeriesParams struct {
 	Name        string           `json:"name"`
 	Description types.NullString `json:"description"`
+	Kind        string           `json:"kind"`
 	ID          int64            `json:"id"`
 }
 
 // UpdateCruiseSeries
 //
-//	UPDATE cruise_series SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $3
+//	UPDATE cruise_series SET name = $1, description = $2, kind = $3, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $4
 func (q *Queries) UpdateCruiseSeries(ctx context.Context, arg UpdateCruiseSeriesParams) error {
-	_, err := q.db.ExecContext(ctx, updateCruiseSeries, arg.Name, arg.Description, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateCruiseSeries,
+		arg.Name,
+		arg.Description,
+		arg.Kind,
+		arg.ID,
+	)
 	return err
 }

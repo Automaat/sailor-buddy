@@ -1,13 +1,10 @@
 -- name: CreateCruise :one
 INSERT INTO cruises (
-    created_by, name, embark_date, disembark_date, countries, start_port, end_port,
-    description, image_logo_url, image_photo_url, image_route_url,
-    max_crew, cost_per_person, kind, series_id, edition,
-    currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-    group_chat_url, travel_notes, min_age
+    created_by, name, countries, description,
+    image_logo_url, image_photo_url, image_route_url, series_id, edition,
+    included, not_included, travel_notes, min_age
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-    $17, $18, $19, $20, $21, $22, $23, $24, $25
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 ) RETURNING *;
 
 -- name: GetCruise :one
@@ -18,16 +15,13 @@ WHERE id = sqlc.arg(id)
   AND (sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL);
 
 -- name: ListCruises :many
--- A set after_id starts the page after the cursor's sort key. The keyset
--- tuple sorts descending like the ORDER BY: a NULL embark_date last.
--- Without include_hidden only published cruises are listed.
+-- Newest first; a set after_id starts the page after that cruise. The Rejsy
+-- list orders cruises by their legs' dates itself. Without include_hidden
+-- only published cruises are listed.
 SELECT * FROM cruises
 WHERE (sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL)
-  AND (sqlc.narg(after_id)::BIGINT IS NULL
-   OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
-    < (sqlc.narg(after_embark_date)::TEXT IS NOT NULL,
-       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT))
-ORDER BY embark_date DESC NULLS LAST, id DESC
+  AND (sqlc.narg(after_id)::BIGINT IS NULL OR id < sqlc.narg(after_id)::BIGINT)
+ORDER BY id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountCruises :one
@@ -36,16 +30,12 @@ WHERE sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL;
 
 -- name: UpdateCruise :exec
 UPDATE cruises SET
-    name = $1, embark_date = $2, disembark_date = $3, countries = $4,
-    start_port = $5, end_port = $6, description = $7,
-    image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
-    max_crew = $11, cost_per_person = $12, kind = $13,
-    series_id = $14, edition = $15,
-    currency = $16, cost_per_person_non_member = $17, yacht_fund = $18,
-    deposit = $19, included = $20, not_included = $21,
-    group_chat_url = $22, travel_notes = $23, min_age = $24,
+    name = $1, countries = $2, description = $3,
+    image_logo_url = $4, image_photo_url = $5, image_route_url = $6,
+    series_id = $7, edition = $8, included = $9, not_included = $10,
+    travel_notes = $11, min_age = $12,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $25;
+WHERE id = $13;
 
 -- name: DeleteCruise :exec
 DELETE FROM cruises WHERE id = $1;
@@ -69,10 +59,8 @@ WHERE id = $1 AND enroll_token = $2 AND published_at IS NOT NULL
 FOR SHARE;
 
 -- name: GetCruiseByEnrollToken :one
-SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
-       description, image_photo_url, max_crew, cost_per_person,
-       currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-       group_chat_url, travel_notes, min_age
+SELECT id, name, countries, description, image_photo_url,
+       included, not_included, travel_notes, min_age
 FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL;
 
 -- name: ListCruiseTrips :many

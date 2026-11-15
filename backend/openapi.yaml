@@ -364,14 +364,6 @@ components:
           format: uri
           readOnly: true
           type: string
-        cost_per_person:
-          description: Member price per person (czlonek, sympatyk)
-          format: double
-          type: number
-        cost_per_person_non_member:
-          description: Non-member (gosc) price per person
-          format: double
-          type: number
         countries:
           type: string
         created_at:
@@ -380,31 +372,12 @@ components:
         created_by:
           format: int64
           type: integer
-        currency:
-          description: Currency of every price on the cruise
-          enum:
-            - PLN
-            - EUR
-          type: string
-        deposit:
-          description: Refundable deposit (kaucja) per person
-          format: double
-          type: number
         description:
-          type: string
-        disembark_date:
           type: string
         edition:
           description: Edition label within the series, e.g. 2025 or 2026/27
           type: string
-        embark_date:
-          type: string
-        end_port:
-          type: string
         enroll_token:
-          type: string
-        group_chat_url:
-          description: Link to the crew group chat (http or https)
           type: string
         id:
           format: int64
@@ -416,21 +389,12 @@ components:
         image_route_url:
           type: string
         included:
-          description: What the price covers
+          description: What every leg's price covers
           items:
             type: string
           type:
             - array
             - "null"
-        kind:
-          description: "Cruise kind: sea (morski) or inland (śródlądowy)"
-          enum:
-            - sea
-            - inland
-          type: string
-        max_crew:
-          format: int64
-          type: integer
         min_age:
           description: Minimum crew age, shown as information only
           format: int64
@@ -438,7 +402,7 @@ components:
         name:
           type: string
         not_included:
-          description: What the price does not cover
+          description: What no leg's price covers
           items:
             type: string
           type:
@@ -452,23 +416,15 @@ components:
           description: Series this cruise is an edition of
           format: int64
           type: integer
-        start_port:
-          type: string
         travel_notes:
           description: "How to get there: flights, transport, meeting point"
           type: string
         updated_at:
           format: date-time
           type: string
-        yacht_fund:
-          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
-          format: double
-          type: number
       required:
         - id
         - name
-        - kind
-        - currency
         - included
         - not_included
         - created_at
@@ -484,44 +440,13 @@ components:
           format: uri
           readOnly: true
           type: string
-        cost_per_person:
-          description: Member price per person (czlonek, sympatyk)
-          format: double
-          minimum: 0
-          type: number
-        cost_per_person_non_member:
-          description: Non-member (gosc) price per person
-          format: double
-          minimum: 0
-          type: number
         countries:
           type: string
-        currency:
-          description: Currency of every price on the cruise; PLN when omitted
-          enum:
-            - PLN
-            - EUR
-          type: string
-        deposit:
-          description: Refundable deposit (kaucja) per person
-          format: double
-          minimum: 0
-          type: number
         description:
-          type: string
-        disembark_date:
           type: string
         edition:
           description: Edition label within the series, e.g. 2025 or 2026/27
           maxLength: 50
-          type: string
-        embark_date:
-          type: string
-        end_port:
-          type: string
-        group_chat_url:
-          description: Link to the crew group chat; must be an http or https URL, blank clears it
-          maxLength: 2000
           type: string
         image_logo_url:
           type: string
@@ -530,23 +455,13 @@ components:
         image_route_url:
           type: string
         included:
-          description: What the price covers; blank entries are dropped, each at most 200 characters
+          description: What every leg's price covers; blank entries are dropped, each at most 200 characters
           items:
             type: string
           maxItems: 30
           type:
             - array
             - "null"
-        kind:
-          default: sea
-          description: "Cruise kind: sea (morski) or inland (śródlądowy)"
-          enum:
-            - sea
-            - inland
-          type: string
-        max_crew:
-          format: int64
-          type: integer
         min_age:
           description: Minimum crew age, shown as information only; the app does not check it
           format: int64
@@ -558,7 +473,7 @@ components:
           minLength: 1
           type: string
         not_included:
-          description: What the price does not cover; blank entries are dropped, each at most 200 characters
+          description: What no leg's price covers; blank entries are dropped, each at most 200 characters
           items:
             type: string
           maxItems: 30
@@ -569,17 +484,10 @@ components:
           description: Series this cruise is an edition of; omit or null for none
           format: int64
           type: integer
-        start_port:
-          type: string
         travel_notes:
           description: "How to get there: flights, transport, meeting point; blank clears it"
           maxLength: 5000
           type: string
-        yacht_fund:
-          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
-          format: double
-          minimum: 0
-          type: number
       required:
         - name
       type: object
@@ -657,6 +565,12 @@ components:
         id:
           format: int64
           type: integer
+        kind:
+          description: "Kind of every edition: sea (morski) or inland (śródlądowy)"
+          enum:
+            - sea
+            - inland
+          type: string
         name:
           type: string
         updated_at:
@@ -665,6 +579,7 @@ components:
       required:
         - id
         - name
+        - kind
         - created_at
         - updated_at
       type: object
@@ -680,6 +595,13 @@ components:
           type: string
         description:
           type: string
+        kind:
+          default: sea
+          description: "Kind of every edition: sea (morski) or inland (śródlądowy)"
+          enum:
+            - sea
+            - inland
+          type: string
         name:
           description: Series name
           minLength: 1
@@ -693,16 +615,7 @@ components:
         cruise_id:
           format: int64
           type: integer
-        disembark_date:
-          type: string
         edition:
-          type: string
-        embark_date:
-          type: string
-        kind:
-          enum:
-            - sea
-            - inland
           type: string
         name:
           type: string
@@ -722,7 +635,6 @@ components:
       required:
         - cruise_id
         - name
-        - kind
         - voyage_count
         - total_miles
         - total_hours
@@ -762,35 +674,9 @@ components:
     EnrollCruise:
       additionalProperties: false
       properties:
-        cost_per_person:
-          description: Member price per person (czlonek, sympatyk)
-          format: double
-          type: number
-        cost_per_person_non_member:
-          description: Non-member (gosc) price per person
-          format: double
-          type: number
         countries:
           type: string
-        currency:
-          enum:
-            - PLN
-            - EUR
-          type: string
-        deposit:
-          description: Refundable deposit (kaucja) per person
-          format: double
-          type: number
         description:
-          type: string
-        disembark_date:
-          type: string
-        embark_date:
-          type: string
-        end_port:
-          type: string
-        group_chat_url:
-          description: Link to the crew group chat; omitted for anonymous callers
           type: string
         id:
           format: int64
@@ -798,15 +684,12 @@ components:
         image_photo_url:
           type: string
         included:
-          description: What the price covers
+          description: What every leg's price covers
           items:
             type: string
           type:
             - array
             - "null"
-        max_crew:
-          format: int64
-          type: integer
         min_age:
           description: Minimum crew age, shown as information only
           format: int64
@@ -814,25 +697,18 @@ components:
         name:
           type: string
         not_included:
-          description: What the price does not cover
+          description: What no leg's price covers
           items:
             type: string
           type:
             - array
             - "null"
-        start_port:
-          type: string
         travel_notes:
           description: "How to get there: flights, transport, meeting point"
           type: string
-        yacht_fund:
-          description: Estimated yacht fund (kasa jachtowa) per person
-          format: double
-          type: number
       required:
         - id
         - name
-        - currency
         - included
         - not_included
       type: object
@@ -4753,7 +4629,7 @@ paths:
       tags:
         - Trips
     post:
-      description: "Without cruise_id the trip is a standalone etap: one transaction creates a wrapper cruise without a series (name, dates, ports, countries, description, crew limit and prices copied from the trip, kind sea) and the trip in it."
+      description: "Without cruise_id the trip is a standalone etap: one transaction creates a wrapper cruise without a series (name, countries and description copied from the trip) and the trip in it."
       operationId: create-trip
       requestBody:
         content:

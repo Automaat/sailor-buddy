@@ -1,6 +1,6 @@
 -- name: CreateCruiseSeries :one
-INSERT INTO cruise_series (created_by, name, description)
-VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO cruise_series (created_by, name, description, kind)
+VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: GetCruiseSeries :one
 SELECT * FROM cruise_series WHERE id = $1;
@@ -17,25 +17,22 @@ LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 SELECT COUNT(*)::BIGINT FROM cruise_series;
 
 -- name: UpdateCruiseSeries :exec
-UPDATE cruise_series SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-WHERE id = $3;
+UPDATE cruise_series SET name = $1, description = $2, kind = $3, updated_at = CURRENT_TIMESTAMP
+WHERE id = $4;
 
 -- name: DeleteCruiseSeries :exec
 DELETE FROM cruise_series WHERE id = $1;
 
 -- name: ListCruiseSeriesEditions :many
--- Editions of a series newest first, each with the miles and hours summed
--- over its voyages. An edition without an embark date (NULL, or the empty
--- string the cruise forms send) is still being planned, so it sorts before
--- every dated one. Without include_hidden only published editions are
--- listed and only their visible voyages are summed.
+-- Editions of a series newest first by their first leg's embark date, each
+-- with the miles and hours summed over its voyages. An edition without a
+-- dated leg (NULL, or the empty string the leg forms send) is still being
+-- planned, so it sorts before every dated one. Without include_hidden only
+-- published editions are listed and only their visible voyages are summed.
 SELECT
     c.id,
     c.name,
     c.edition,
-    c.kind,
-    c.embark_date,
-    c.disembark_date,
     c.published_at,
     COUNT(v.id)::BIGINT AS voyage_count,
     COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
@@ -46,4 +43,10 @@ LEFT JOIN voyages v ON v.cruise_id = c.id
 WHERE c.series_id = sqlc.arg(series_id)
   AND (sqlc.arg(include_hidden)::BOOLEAN OR c.published_at IS NOT NULL)
 GROUP BY c.id
-ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC;
+ORDER BY (
+    SELECT MIN(NULLIF(l.embark_date, '')) FROM (
+        SELECT t.embark_date FROM trips t WHERE t.cruise_id = c.id
+        UNION ALL
+        SELECT lv.embark_date FROM voyages lv WHERE lv.cruise_id = c.id
+    ) l
+) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC;

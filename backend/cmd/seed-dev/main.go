@@ -291,11 +291,8 @@ func seedClubData(ctx context.Context, database *sql.DB, createdBy int64) error 
 
 	// Future event-level cruise with two child trips (one per yacht).
 	bornholmID, err := upsertCruise(ctx, tx, createdBy,
-		"Bornholm 2026 Flotylla",
-		"2026-08-01", "2026-08-09",
-		"Polska, Dania", "Kolobrzeg", "Nexo",
+		"Bornholm 2026 Flotylla", "Polska, Dania",
 		"Klubowa flotylla na Bornholm. Dwa jachty, otwarte zapisy.",
-		16, 3000,
 	)
 	if err != nil {
 		return err
@@ -315,11 +312,8 @@ func seedClubData(ctx context.Context, database *sql.DB, createdBy int64) error 
 
 	// Past event-level cruise with two completed voyages — shows the roll-up.
 	sztokholmID, err := upsertCruise(ctx, tx, createdBy,
-		"Sztokholm 2024",
-		"2024-07-06", "2024-07-13",
-		"Polska, Szwecja", "Gdansk", "Sztokholm",
+		"Sztokholm 2024", "Polska, Szwecja",
 		"Klubowa flotylla przez Baltyk do archipelagu sztokholmskiego.",
-		16, 3400,
 	)
 	if err != nil {
 		return err
@@ -424,17 +418,13 @@ func seedCrewAssignments(ctx context.Context, tx *sql.Tx, crewIDs []int64, voyag
 }
 
 func upsertCruise(ctx context.Context, tx *sql.Tx, createdBy int64,
-	name, embark, disembark, countries, startPort, endPort, description string,
-	maxCrew int64, costPerPerson float64,
+	name, countries, description string,
 ) (int64, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
 		WITH inserted AS (
-			INSERT INTO cruises (
-				created_by, name, embark_date, disembark_date, countries, start_port, end_port,
-				description, max_crew, cost_per_person
-			)
-			SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+			INSERT INTO cruises (created_by, name, countries, description)
+			SELECT $1, $2, $3, $4
 			WHERE NOT EXISTS (SELECT 1 FROM cruises WHERE name = $2)
 			RETURNING id
 		)
@@ -442,7 +432,7 @@ func upsertCruise(ctx context.Context, tx *sql.Tx, createdBy int64,
 		UNION ALL
 		SELECT id FROM cruises WHERE name = $2
 		LIMIT 1
-	`, createdBy, name, embark, disembark, countries, startPort, endPort, description, maxCrew, costPerPerson).Scan(&id)
+	`, createdBy, name, countries, description).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("seed cruise %s: %w", name, err)
 	}

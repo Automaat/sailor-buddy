@@ -30,8 +30,7 @@ func TestSignUp_AgainstDatabase(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "WSEX", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "WSEX", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)

@@ -82,8 +82,7 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 		t.Fatalf("create user: %v", err)
 	}
 	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "Baltic", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "Baltic", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)

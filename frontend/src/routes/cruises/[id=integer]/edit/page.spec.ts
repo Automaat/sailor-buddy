@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { makeCruise } from '#lib/test-utils.js';
+import { makeCruise, makeSeries } from '#lib/test-utils.js';
 import { ApiError } from '#lib/api/client.js';
 import type { CruiseSeries } from '#lib/api/types.js';
 
@@ -38,7 +38,7 @@ async function save() {
 }
 
 function seriesRow(id: number, name: string): CruiseSeries {
-	return { id, name, created_at: '', updated_at: '' } as CruiseSeries;
+	return makeSeries({ id, name });
 }
 
 beforeEach(() => {
@@ -52,7 +52,7 @@ beforeEach(() => {
 					edition: '2026',
 					included: ['Jacht']
 				})
-			: makeCruise({ id, name: 'Chorwacja 2026', start_port: 'Split' })
+			: makeCruise({ id, name: 'Chorwacja 2026', countries: 'Chorwacja' })
 	);
 	fn(listSeries).mockResolvedValue([seriesRow(3, 'Sycylia'), seriesRow(4, 'Chorwacja')]);
 	fn(updateCruise).mockResolvedValue(undefined);
@@ -81,6 +81,27 @@ describe('cruise edit page', () => {
 			included: ['Jacht']
 		});
 		expect(goto).toHaveBeenCalledWith('/cruises/7');
+	});
+
+	it('sends only edition-wide fields', async () => {
+		await renderPage();
+		for (const label of ['Rodzaj rejsu', 'Data zaokrętowania', 'Port wyjścia', 'Waluta']) {
+			expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+		}
+
+		const [, body] = await save();
+
+		expect(Object.keys(body).sort()).toEqual([
+			'countries',
+			'description',
+			'edition',
+			'included',
+			'min_age',
+			'name',
+			'not_included',
+			'series_id',
+			'travel_notes'
+		]);
 	});
 
 	it('shows the server error when saving fails', async () => {
@@ -149,7 +170,7 @@ describe('cruise edit page same-route navigation', () => {
 		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/cruises/8');
 		const [id, body] = await save();
 		expect(id).toBe(8);
-		expect(body).toMatchObject({ name: 'Chorwacja 2026', start_port: 'Split', included: [] });
+		expect(body).toMatchObject({ name: 'Chorwacja 2026', countries: 'Chorwacja', included: [] });
 	});
 
 	it("clears the first cruise's save error", async () => {

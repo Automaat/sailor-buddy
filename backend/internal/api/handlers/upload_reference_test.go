@@ -42,7 +42,7 @@ func TestImageReferences_AllResourceFieldsSurviveCleanup(t *testing.T) {
 	RegisterTripRoutes(api, q, f.conn)
 	RegisterVoyageRoutes(api, q)
 	var parentID int64
-	if err := f.conn.QueryRow("INSERT INTO cruises(name,kind) VALUES ('Parent','sea') RETURNING id").Scan(&parentID); err != nil {
+	if err := f.conn.QueryRow("INSERT INTO cruises(name) VALUES ('Parent') RETURNING id").Scan(&parentID); err != nil {
 		t.Fatal(err)
 	}
 	var images []string
@@ -50,7 +50,6 @@ func TestImageReferences_AllResourceFieldsSurviveCleanup(t *testing.T) {
 		body := map[string]any{"name": "With images"}
 		if resource == "cruises" {
 			body = asDBEdition(t, f.conn, body)
-			body["kind"] = "sea"
 		} else {
 			body["cruise_id"] = parentID
 		}
@@ -116,7 +115,7 @@ func TestImageReferences_ConcurrentCleanupAndAttach(t *testing.T) {
 			}
 			_, api := humatest.New(t)
 			RegisterCruiseRoutes(api, sqlcdb.New(f.conn), f.conn)
-			body := asDBEdition(t, f.conn, map[string]any{"name": "Race", "kind": "sea", "image_logo_url": imageURL})
+			body := asDBEdition(t, f.conn, map[string]any{"name": "Race", "image_logo_url": imageURL})
 			ctx, cancel := context.WithTimeout(callerCtx(1, "admin"), 5*time.Second)
 			defer cancel()
 			result := make(chan int, 1)

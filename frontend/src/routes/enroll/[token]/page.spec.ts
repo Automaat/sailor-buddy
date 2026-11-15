@@ -346,41 +346,20 @@ describe('enroll page — free places', () => {
 });
 
 describe('enroll page — prices', () => {
-	const nne = cruiseData({
-		cruise: {
-			id: 7,
-			name: 'NNE 2025',
-			currency: 'PLN',
-			cost_per_person: 1000,
-			cost_per_person_non_member: 1250,
-			yacht_fund: 400,
-			included: ['jacht', 'skipper'],
-			not_included: ['dojazd']
-		}
-	});
-
-	it.each([
-		['czlonek', '1000 PLN'],
-		['sympatyk', '1000 PLN'],
-		['gosc', '1250 PLN']
-	] as const)('shows %s their cruise price and what it covers', async (membership, want) => {
-		h.membership = membership;
-		resolveMock.mockResolvedValue(nne);
-		await renderPage();
-		expect(await screen.findByTestId('your-price')).toHaveTextContent(`Twoja cena: ${want}`);
-		expect(screen.getByText('Kasa jachtowa (szacunkowo)').nextElementSibling).toHaveTextContent(
-			'400 PLN'
+	it('shows what the leg price covers for a cruise, without a cruise price', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				cruise: {
+					id: 7,
+					name: 'NNE 2025',
+					included: ['jacht', 'skipper'],
+					not_included: ['dojazd']
+				}
+			})
 		);
-		expect(screen.getByTestId('price-included')).toHaveTextContent('skipper');
-		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
-	});
-
-	it('shows both tiers to a signed-out visitor', async () => {
-		h.authenticated = false;
-		h.membership = undefined;
-		resolveMock.mockResolvedValue(nne);
 		await renderPage();
-		expect(await screen.findByText('Goście')).toBeInTheDocument();
+		expect(await screen.findByTestId('price-included')).toHaveTextContent('skipper');
+		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
 		expect(screen.queryByTestId('your-price')).not.toBeInTheDocument();
 	});
 
@@ -398,34 +377,25 @@ describe('enroll page — prices', () => {
 		expect(screen.getByText('Kaucja (zwrotna)').nextElementSibling).toHaveTextContent('200 EUR');
 	});
 
-	it('shows no price section for an unpriced cruise', async () => {
+	it('shows no price section for a cruise without coverage lists', async () => {
 		await renderPage();
 		expect(await screen.findByText('NNE 2025')).toBeInTheDocument();
 		expect(screen.queryByLabelText('Cena')).not.toBeInTheDocument();
+		expect(screen.queryByLabelText('Co obejmuje cena')).not.toBeInTheDocument();
 	});
 });
 
 describe('enroll page — cruise logistics', () => {
-	it('shows travel notes, minimum age and the group chat link', async () => {
+	it('shows travel notes and minimum age', async () => {
 		resolveMock.mockResolvedValue(
 			cruiseData({
-				cruise: {
-					id: 7,
-					name: 'NNE 2025',
-					travel_notes: 'Tanie loty do Katanii',
-					min_age: 18,
-					group_chat_url: 'https://discord.gg/nne'
-				}
+				cruise: { id: 7, name: 'NNE 2025', travel_notes: 'Tanie loty do Katanii', min_age: 18 }
 			})
 		);
 		await renderPage();
 
 		expect(await screen.findByText('Tanie loty do Katanii')).toBeInTheDocument();
 		expect(screen.getByText('18+')).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Czat grupy' })).toHaveAttribute(
-			'href',
-			'https://discord.gg/nne'
-		);
 	});
 
 	it('shows no logistics when none are set', async () => {
@@ -433,17 +403,6 @@ describe('enroll page — cruise logistics', () => {
 
 		await screen.findByText('Etap 1: Bodø – Tromsø');
 		expect(screen.queryByTestId('cruise-logistics')).not.toBeInTheDocument();
-		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
-	});
-
-	it('does not link a group chat URL that is not http or https', async () => {
-		resolveMock.mockResolvedValue(
-			cruiseData({ cruise: { id: 7, name: 'NNE 2025', group_chat_url: 'javascript:alert(1)' } })
-		);
-		await renderPage();
-
-		await screen.findByText('Etap 1: Bodø – Tromsø');
-		expect(screen.queryByRole('link', { name: 'Czat grupy' })).not.toBeInTheDocument();
 	});
 });
 

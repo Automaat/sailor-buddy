@@ -279,7 +279,7 @@
 		void goto(`/voyages/${voyage.id}`);
 	}
 
-	const status = $derived(legStatus(trip, cruise));
+	const status = $derived(legStatus(trip));
 </script>
 
 <div class="mx-auto max-w-4xl">

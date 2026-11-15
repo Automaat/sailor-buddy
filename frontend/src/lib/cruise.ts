@@ -1,6 +1,7 @@
-import type { Cruise, CruiseBody } from '#lib/api/types.js';
+import type { CruiseBody, CruiseSeries } from '#lib/api/types.js';
 
-export type CruiseKind = Cruise['kind'];
+/** A series' kind; every edition of the series shares it. */
+export type CruiseKind = CruiseSeries['kind'];
 
 export const cruiseKinds: readonly CruiseKind[] = ['sea', 'inland'];
 
@@ -8,16 +9,6 @@ export const cruiseKindLabels: Record<CruiseKind, string> = {
 	sea: 'Morski',
 	inland: 'Śródlądowy'
 };
-
-/** True for an absolute http(s) URL, the only links rendered as clickable. */
-export function isHttpUrl(value: string): boolean {
-	try {
-		const u = new URL(value);
-		return u.protocol === 'http:' || u.protocol === 'https:';
-	} catch {
-		return false;
-	}
-}
 
 type CruiseForm = Omit<CruiseBody, 'series_id' | 'min_age'> & {
 	series_id: number | null;

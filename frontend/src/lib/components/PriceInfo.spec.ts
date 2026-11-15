@@ -37,26 +37,10 @@ describe('PriceInfo', () => {
 		expect(screen.getByText('Goście').nextElementSibling).toHaveTextContent('870 PLN');
 	});
 
-	it('lists what is and is not included', () => {
-		render(PriceInfo, {
-			priced: { currency: 'EUR' },
-			membership: 'czlonek',
-			included: ['jacht', 'skipper'],
-			notIncluded: ['dojazd']
-		});
-		expect(screen.getByText('W cenie')).toBeInTheDocument();
-		expect(screen.getByTestId('price-included').querySelectorAll('li')).toHaveLength(2);
-		expect(screen.getByText('Poza ceną')).toBeInTheDocument();
-		expect(screen.getByTestId('price-not-included')).toHaveTextContent('dojazd');
-		expect(screen.queryByTestId('your-price')).not.toBeInTheDocument();
-	});
-
-	it('renders nothing for an unpriced cruise', () => {
+	it('renders nothing for an unpriced trip', () => {
 		const { container } = render(PriceInfo, {
 			priced: { currency: 'PLN', cost_per_person: 0 },
-			membership: 'gosc',
-			included: [],
-			notIncluded: null
+			membership: 'gosc'
 		});
 		expect(container.querySelector('section')).toBeNull();
 	});

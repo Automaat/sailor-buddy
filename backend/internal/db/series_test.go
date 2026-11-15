@@ -15,19 +15,19 @@ import (
 func text(s string) types.NullString { return types.NullString{String: s, Valid: true} }
 
 // unpriced fills the cruise columns that have no usable Go zero value: the
-// currency CHECK and the NOT NULL price lists.
+// NOT NULL price lists.
 func unpriced(p sqlcdb.CreateCruiseParams) sqlcdb.CreateCruiseParams {
-	p.Currency = "PLN"
 	p.Included = json.RawMessage("[]")
 	p.NotIncluded = json.RawMessage("[]")
 	return p
 }
 
 // TestCruiseSeries_Editions checks the editions query against a real
-// database: newest edition first with undated (planned) editions on top,
-// whether the embark date is NULL or the empty string the forms send,
-// totals summed over each edition's voyages, and editions without voyages
-// reported as zero.
+// database: editions sort newest first by their earliest leg's embark date
+// over trips and voyages together, editions without a dated leg (no legs, or
+// only the empty date the leg forms send) come first by edition label,
+// totals are summed over each edition's voyages, and editions without
+// voyages report zero.
 func TestCruiseSeries_Editions(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
@@ -37,54 +37,73 @@ func TestCruiseSeries_Editions(t *testing.T) {
 	ctx := context.Background()
 	q := sqlcdb.New(conn)
 
-	series, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "May I Sail"})
+	series, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "May I Sail", Kind: "sea"})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	other, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "Other"})
+	other, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "Other", Kind: "sea"})
 	if err != nil {
 		t.Fatalf("create other series: %v", err)
 	}
 	inSeries := types.NullInt64{Int64: series.ID, Valid: true}
 
-	newCruise := func(name, embark, edition string, seriesID types.NullInt64) sqlcdb.Cruise {
+	newCruise := func(name, edition string, seriesID types.NullInt64) sqlcdb.Cruise {
 		t.Helper()
-		embarkDate := types.NullString{}
-		if embark != "" {
-			embarkDate = text(embark)
-		}
 		c, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
-			Name: name, EmbarkDate: embarkDate, Kind: "sea", SeriesID: seriesID, Edition: text(edition),
+			Name: name, SeriesID: seriesID, Edition: text(edition),
 		}))
 		if err != nil {
 			t.Fatalf("create cruise %s: %v", name, err)
 		}
 		return c
 	}
-	older := newCruise("MIS 2024", "2024-05-01", "2024", inSeries)
-	newer := newCruise("MIS 2025", "2025-05-01", "2025", inSeries)
-	planned := newCruise("MIS 2027/28", "", "2027/28", inSeries)
-	formPlanned, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
-		Name: "MIS 2027", EmbarkDate: text(""), Kind: "sea", SeriesID: inSeries, Edition: text("2027"),
-	}))
-	if err != nil {
-		t.Fatalf("create cruise with empty embark date: %v", err)
+	// embark is a leg's embark date; "-" stores NULL.
+	date := func(embark string) any {
+		if embark == "-" {
+			return nil
+		}
+		return embark
 	}
-	empty := newCruise("MIS 2026", "2026-05-01", "2026", inSeries)
-	unrelated := newCruise("Other 2025", "2025-06-01", "2025", types.NullInt64{Int64: other.ID, Valid: true})
-
-	addVoyage := func(cruiseID int64, miles, hours float64) {
+	addTrip := func(cruiseID int64, embark string) {
 		t.Helper()
 		if _, err := conn.ExecContext(ctx,
-			"INSERT INTO voyages (cruise_id, name, miles, hours_total) VALUES ($1, 'leg', $2, $3)",
-			cruiseID, miles, hours); err != nil {
+			"INSERT INTO trips (cruise_id, name, embark_date) VALUES ($1, 'etap', $2)",
+			cruiseID, date(embark)); err != nil {
+			t.Fatalf("insert trip: %v", err)
+		}
+	}
+	addVoyage := func(cruiseID int64, embark string, miles, hours float64) {
+		t.Helper()
+		if _, err := conn.ExecContext(ctx,
+			"INSERT INTO voyages (cruise_id, name, embark_date, miles, hours_total) VALUES ($1, 'leg', $2, $3, $4)",
+			cruiseID, date(embark), miles, hours); err != nil {
 			t.Fatalf("insert voyage: %v", err)
 		}
 	}
-	addVoyage(older.ID, 100, 20)
-	addVoyage(newer.ID, 150.5, 30)
-	addVoyage(newer.ID, 49.5, 10)
-	addVoyage(unrelated.ID, 999, 999)
+
+	older := newCruise("MIS 2024", "2024", inSeries)
+	addTrip(older.ID, "2024-05-01")
+	addVoyage(older.ID, "-", 100, 20)
+
+	// The 2025 edition's voyage starts before its trip; a trip-only or
+	// latest-leg order would put it above the 2026 edition.
+	newer := newCruise("MIS 2025", "2025", inSeries)
+	addTrip(newer.ID, "2026-09-01")
+	addVoyage(newer.ID, "2025-05-01", 150.5, 30)
+	addVoyage(newer.ID, "", 49.5, 10)
+
+	empty := newCruise("MIS 2026", "2026", inSeries)
+	addTrip(empty.ID, "2026-05-01")
+	addTrip(empty.ID, "")
+
+	planned := newCruise("MIS 2027/28", "2027/28", inSeries)
+	formPlanned := newCruise("MIS 2027", "2027", inSeries)
+	addTrip(formPlanned.ID, "")
+	addVoyage(formPlanned.ID, "-", 0, 0)
+
+	unrelated := newCruise("Other 2025", "2025", types.NullInt64{Int64: other.ID, Valid: true})
+	addTrip(unrelated.ID, "2030-01-01")
+	addVoyage(unrelated.ID, "2030-01-01", 999, 999)
 
 	rows, err := q.ListCruiseSeriesEditions(ctx, sqlcdb.ListCruiseSeriesEditionsParams{SeriesID: inSeries, IncludeHidden: true})
 	if err != nil {
@@ -97,7 +116,7 @@ func TestCruiseSeries_Editions(t *testing.T) {
 	}
 	want := []got{
 		{planned.ID, 0, 0, 0},
-		{formPlanned.ID, 0, 0, 0},
+		{formPlanned.ID, 1, 0, 0},
 		{empty.ID, 0, 0, 0},
 		{newer.ID, 2, 200, 40},
 		{older.ID, 1, 100, 20},
@@ -109,6 +128,44 @@ func TestCruiseSeries_Editions(t *testing.T) {
 		r := rows[i]
 		if (got{r.ID, r.VoyageCount, r.TotalMiles, r.TotalHours}) != w {
 			t.Errorf("edition %d = %+v, want %+v", i, r, w)
+		}
+	}
+}
+
+// TestCruiseSeries_Kind checks that a series stores its kind on create and
+// update, and that the CHECK constraint refuses an unknown kind.
+func TestCruiseSeries_Kind(t *testing.T) {
+	conn := testDB(t)
+	resetSchema(t, conn)
+	if err := Migrate(t.Context(), conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	ctx := context.Background()
+	q := sqlcdb.New(conn)
+
+	created, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "Mazury", Kind: "inland"})
+	if err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	if created.Kind != "inland" {
+		t.Fatalf("created kind = %q, want inland", created.Kind)
+	}
+	if err := q.UpdateCruiseSeries(ctx, sqlcdb.UpdateCruiseSeriesParams{ID: created.ID, Name: "Bałtyk", Kind: "sea"}); err != nil {
+		t.Fatalf("update series: %v", err)
+	}
+	got, err := q.GetCruiseSeries(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get series: %v", err)
+	}
+	if got.Kind != "sea" || got.Name != "Bałtyk" {
+		t.Fatalf("after update = %+v, want sea Bałtyk", got)
+	}
+
+	for _, kind := range []string{"", "lake", "SEA"} {
+		_, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "Bad", Kind: kind})
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "23514" || pgErr.ConstraintName != "cruise_series_kind_check" {
+			t.Errorf("kind %q: err = %v, want CHECK violation on cruise_series_kind_check", kind, err)
 		}
 	}
 }
@@ -125,12 +182,12 @@ func TestCruiseSeries_DeleteKeepsCruises(t *testing.T) {
 	ctx := context.Background()
 	q := sqlcdb.New(conn)
 
-	series, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "Navigare Necesse Est"})
+	series, err := q.CreateCruiseSeries(ctx, sqlcdb.CreateCruiseSeriesParams{Name: "Navigare Necesse Est", Kind: "sea"})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
 	cruise, err := q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
-		Name: "NNE 2025", Kind: "sea", SeriesID: types.NullInt64{Int64: series.ID, Valid: true}, Edition: text("2025"),
+		Name: "NNE 2025", SeriesID: types.NullInt64{Int64: series.ID, Valid: true}, Edition: text("2025"),
 	}))
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)
@@ -147,7 +204,7 @@ func TestCruiseSeries_DeleteKeepsCruises(t *testing.T) {
 	}
 
 	_, err = q.CreateCruise(ctx, unpriced(sqlcdb.CreateCruiseParams{
-		Name: "Ghost", Kind: "sea", SeriesID: types.NullInt64{Int64: series.ID, Valid: true},
+		Name: "Ghost", SeriesID: types.NullInt64{Int64: series.ID, Valid: true},
 	}))
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != "23503" || pgErr.ConstraintName != "cruises_series_id_fkey" {

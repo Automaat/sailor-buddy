@@ -26,9 +26,9 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 	mustScan(t, conn.QueryRow(`INSERT INTO voyages (name, year, miles)
 		VALUES ('Rejs 2019', 2019, 120) RETURNING id`), &standaloneVoyage)
 
-	if err := Migrate(t.Context(), conn); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	// Migration 033 drops the wrapper cruise's copied ports and prices, so
+	// check them on the schema just before it.
+	applyMigrationsBetween(t, conn, requireCruiseMigration, editionFieldsMigration)
 
 	var linkedCruise int64
 	mustScan(t, conn.QueryRow(`SELECT cruise_id FROM trips WHERE id = $1`, linkedTrip), &linkedCruise)
@@ -47,6 +47,10 @@ func TestMigrate_WrapsStandaloneTripsAndVoyages(t *testing.T) {
 		FROM trips t JOIN cruises c ON c.id = t.cruise_id WHERE t.id = $1`, standaloneTrip), &member, &nonMember, &fund, &deposit)
 	if member != 760 || nonMember != 800 || fund != 150 || deposit != 100 {
 		t.Errorf("wrapped cruise prices = (%v, %v, %v, %v), want (760, 800, 150, 100)", member, nonMember, fund, deposit)
+	}
+
+	if err := Migrate(t.Context(), conn); err != nil {
+		t.Fatalf("migrate: %v", err)
 	}
 	mustScan(t, conn.QueryRow(`SELECT c.name FROM voyages v
 		JOIN cruises c ON c.id = v.cruise_id WHERE v.id = $1`, standaloneVoyage), &name)
@@ -80,7 +84,18 @@ func applyMigrationsBefore(t *testing.T, conn *sql.DB, stop string) {
 	)`); err != nil {
 		t.Fatalf("create schema_migrations: %v", err)
 	}
+	applyMigrationsBetween(t, conn, "", stop)
+}
+
+// applyMigrationsBetween applies and records every embedded migration from
+// start up to, but not including, stop. The database must already be
+// migrated up to start.
+func applyMigrationsBetween(t *testing.T, conn *sql.DB, start, stop string) {
+	t.Helper()
 	for _, name := range embeddedMigrations(t) {
+		if name < start {
+			continue
+		}
 		if name >= stop {
 			break
 		}

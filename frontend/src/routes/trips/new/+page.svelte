@@ -23,14 +23,9 @@
 		}
 	});
 
-	type Prefillable = 'embark_date' | 'disembark_date' | 'countries' | 'start_port' | 'end_port';
-	const prefillable: Prefillable[] = [
-		'embark_date',
-		'disembark_date',
-		'countries',
-		'start_port',
-		'end_port'
-	];
+	// An edition holds no dates, ports or prices: only its countries carry over to a new leg.
+	type Prefillable = 'countries';
+	const prefillable: Prefillable[] = ['countries'];
 
 	type Draft = {
 		form: {
@@ -50,7 +45,6 @@
 		group: string;
 		price: PriceForm;
 		prefilled: Partial<Record<Prefillable, string>>;
-		prefilledPrice: string;
 		error: string;
 		saving: boolean;
 	};
@@ -74,7 +68,6 @@
 			group: groupOf(cruiseID, list),
 			price: priceFormFrom(),
 			prefilled: {},
-			prefilledPrice: JSON.stringify(priceFormFrom()),
 			error: '',
 			saving: false
 		};
@@ -98,10 +91,6 @@
 			}
 		}
 		target.prefilled = next;
-		if (JSON.stringify(target.price) === target.prefilledPrice) {
-			target.price = priceFormFrom(c);
-			target.prefilledPrice = JSON.stringify(target.price);
-		}
 	}
 
 	/** Starts over when a link moves the page to another event's planning (?cruise_id=): SvelteKit reuses this component across them. */

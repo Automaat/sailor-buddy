@@ -1,15 +1,7 @@
 <script lang="ts">
 	import { currencies, type PriceForm } from '#lib/pricing.js';
 
-	let {
-		price = $bindable(),
-		included = $bindable(),
-		notIncluded = $bindable()
-	}: {
-		price: PriceForm;
-		included?: string;
-		notIncluded?: string;
-	} = $props();
+	let { price = $bindable() }: { price: PriceForm } = $props();
 </script>
 
 <fieldset class="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
@@ -71,28 +63,4 @@
 			class="w-full rounded-lg border px-3 py-2"
 		/>
 	</div>
-	{#if included !== undefined}
-		<div>
-			<label for="included" class="mb-1 block text-sm font-medium"
-				>W cenie (jedna pozycja w wierszu)</label
-			>
-			<textarea
-				id="included"
-				bind:value={included}
-				rows="4"
-				class="w-full rounded-lg border px-3 py-2"></textarea>
-		</div>
-	{/if}
-	{#if notIncluded !== undefined}
-		<div>
-			<label for="not_included" class="mb-1 block text-sm font-medium"
-				>Poza ceną (jedna pozycja w wierszu)</label
-			>
-			<textarea
-				id="not_included"
-				bind:value={notIncluded}
-				rows="4"
-				class="w-full rounded-lg border px-3 py-2"></textarea>
-		</div>
-	{/if}
 </fieldset>

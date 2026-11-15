@@ -12,22 +12,15 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
-func validFloat(f float64) types.NullFloat64 { return types.NullFloat64{Float64: f, Valid: true} }
-
 func floatEq(got types.NullFloat64, want float64) bool { return got.Valid && got.Float64 == want }
 
 // cruiseFromCreate echoes the stored params back as the created row, the way
 // the database's RETURNING * would.
 func cruiseFromCreate(arg sqlcdb.CreateCruiseParams) sqlcdb.Cruise {
-	return sqlcdb.Cruise{
-		ID: 1, Name: arg.Name, Kind: arg.Kind, CostPerPerson: arg.CostPerPerson,
-		Currency: arg.Currency, CostPerPersonNonMember: arg.CostPerPersonNonMember,
-		YachtFund: arg.YachtFund, Deposit: arg.Deposit,
-		Included: arg.Included, NotIncluded: arg.NotIncluded,
-	}
+	return sqlcdb.Cruise{ID: 1, Name: arg.Name, Included: arg.Included, NotIncluded: arg.NotIncluded}
 }
 
-func TestCruisePricing_CreateStoresAndReturnsPrices(t *testing.T) {
+func TestCruisePricing_CreateStoresAndReturnsPriceLists(t *testing.T) {
 	var got sqlcdb.CreateCruiseParams
 	m := &mockQuerier{
 		createCruiseFn: func(_ context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
@@ -35,24 +28,13 @@ func TestCruisePricing_CreateStoresAndReturnsPrices(t *testing.T) {
 			return cruiseFromCreate(arg), nil
 		},
 	}
-	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", map[string]any{
-		"series_id":                  1,
-		"edition":                    "2025",
-		"name":                       "SSS 2025",
-		"currency":                   "EUR",
-		"cost_per_person":            760,
-		"cost_per_person_non_member": 800,
-		"yacht_fund":                 150,
-		"deposit":                    100,
-		"included":                   []string{" jacht ", "", "skipper"},
-		"not_included":               []string{"dojazd"},
-	})
+	resp := cruiseTestAPI(t, m).PostCtx(userCtx(context.Background()), "/cruises", asEdition(map[string]any{
+		"name":         "SSS 2025",
+		"included":     []string{" jacht ", "", "skipper"},
+		"not_included": []string{"dojazd"},
+	}))
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
-	}
-	if got.Currency != "EUR" || !floatEq(got.CostPerPerson, 760) || !floatEq(got.CostPerPersonNonMember, 800) ||
-		!floatEq(got.YachtFund, 150) || !floatEq(got.Deposit, 100) {
-		t.Fatalf("params = %+v", got)
 	}
 	if string(got.Included) != `["jacht","skipper"]` || string(got.NotIncluded) != `["dojazd"]` {
 		t.Fatalf("lists = %s / %s, want trimmed and blank-free", got.Included, got.NotIncluded)
@@ -61,16 +43,12 @@ func TestCruisePricing_CreateStoresAndReturnsPrices(t *testing.T) {
 	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Currency != "EUR" || body.CostPerPersonNonMember == nil || *body.CostPerPersonNonMember != 800 ||
-		body.YachtFund == nil || *body.YachtFund != 150 || body.Deposit == nil || *body.Deposit != 100 {
-		t.Fatalf("response = %+v", body)
-	}
 	if strings.Join(body.Included, "|") != "jacht|skipper" || strings.Join(body.NotIncluded, "|") != "dojazd" {
 		t.Fatalf("response lists = %v / %v", body.Included, body.NotIncluded)
 	}
 }
 
-func TestCruisePricing_DefaultsToPLNAndEmptyLists(t *testing.T) {
+func TestCruisePricing_DefaultsToEmptyLists(t *testing.T) {
 	var got sqlcdb.CreateCruiseParams
 	m := &mockQuerier{
 		createCruiseFn: func(_ context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
@@ -82,8 +60,8 @@ func TestCruisePricing_DefaultsToPLNAndEmptyLists(t *testing.T) {
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
 	}
-	if got.Currency != "PLN" || string(got.Included) != "[]" || string(got.NotIncluded) != "[]" {
-		t.Fatalf("params = currency %q, lists %s / %s", got.Currency, got.Included, got.NotIncluded)
+	if string(got.Included) != "[]" || string(got.NotIncluded) != "[]" {
+		t.Fatalf("params = lists %s / %s", got.Included, got.NotIncluded)
 	}
 	if !strings.Contains(resp.Body.String(), `"included":[]`) || !strings.Contains(resp.Body.String(), `"not_included":[]`) {
 		t.Fatalf("lists should serialize as []: %s", resp.Body)
@@ -93,21 +71,21 @@ func TestCruisePricing_DefaultsToPLNAndEmptyLists(t *testing.T) {
 func TestCruisePricing_GetLegacyRowHasEmptyLists(t *testing.T) {
 	m := &mockQuerier{
 		getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) {
-			return sqlcdb.Cruise{ID: id, Name: "Old", Currency: "PLN", CostPerPerson: validFloat(870)}, nil
+			return sqlcdb.Cruise{ID: id, Name: "Old"}, nil
 		},
 	}
 	resp := cruiseTestAPI(t, m).GetCtx(userCtx(context.Background()), "/cruises/1")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
 	}
-	for _, want := range []string{`"currency":"PLN"`, `"cost_per_person":870`, `"included":[]`, `"not_included":[]`} {
+	for _, want := range []string{`"included":[]`, `"not_included":[]`} {
 		if !strings.Contains(resp.Body.String(), want) {
 			t.Fatalf("body missing %s: %s", want, resp.Body)
 		}
 	}
 }
 
-func TestCruisePricing_UpdatePassesPrices(t *testing.T) {
+func TestCruisePricing_UpdatePassesPriceLists(t *testing.T) {
 	var got sqlcdb.UpdateCruiseParams
 	m := &mockQuerier{
 		updateCruiseFn: func(_ context.Context, arg sqlcdb.UpdateCruiseParams) error {
@@ -116,16 +94,13 @@ func TestCruisePricing_UpdatePassesPrices(t *testing.T) {
 		},
 	}
 	resp := cruiseTestAPI(t, m).PutCtx(userCtx(context.Background()), "/cruises/3", map[string]any{
-		"name":                       "NNE",
-		"cost_per_person":            1000,
-		"cost_per_person_non_member": 1250,
-		"included":                   []string{"wyżywienie"},
+		"name":     "NNE",
+		"included": []string{"wyżywienie"},
 	})
 	if resp.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204; body=%s", resp.Code, resp.Body)
 	}
-	if got.ID != 3 || got.Currency != "PLN" || !floatEq(got.CostPerPersonNonMember, 1250) ||
-		got.YachtFund.Valid || got.Deposit.Valid || string(got.Included) != `["wyżywienie"]` || string(got.NotIncluded) != "[]" {
+	if got.ID != 3 || string(got.Included) != `["wyżywienie"]` || string(got.NotIncluded) != "[]" {
 		t.Fatalf("params = %+v", got)
 	}
 }
@@ -135,12 +110,6 @@ func TestCruisePricing_Rejects(t *testing.T) {
 		name string
 		body map[string]any
 	}{
-		{"unknown currency", map[string]any{"currency": "USD"}},
-		{"lowercase currency", map[string]any{"currency": "pln"}},
-		{"negative member price", map[string]any{"cost_per_person": -1}},
-		{"negative non-member price", map[string]any{"cost_per_person_non_member": -0.01}},
-		{"negative yacht fund", map[string]any{"yacht_fund": -150}},
-		{"negative deposit", map[string]any{"deposit": -1}},
 		{"overlong included entry", map[string]any{"included": []string{strings.Repeat("ą", dto.MaxPriceListItemLen+1)}}},
 		{"overlong not included entry", map[string]any{"not_included": []string{strings.Repeat("x", dto.MaxPriceListItemLen+1)}}},
 		{"too many included entries", map[string]any{"included": make([]string, 31)}},

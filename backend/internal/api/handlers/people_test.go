@@ -219,8 +219,7 @@ func TestDashboardSeaTime_AccountPerson(t *testing.T) {
 		t.Fatalf("account person: %v", err)
 	}
 	cruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "Bałtyk", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "Bałtyk", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)

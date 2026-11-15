@@ -69,14 +69,14 @@ describe('priceLines', () => {
 });
 
 describe('hasPriceInfo', () => {
-	it('is false for an unpriced cruise with empty lists', () => {
-		expect(hasPriceInfo({ currency: 'PLN', cost_per_person: 0 }, [], null)).toBe(false);
+	it('is false for an unpriced trip', () => {
+		expect(hasPriceInfo({ currency: 'PLN', cost_per_person: 0 })).toBe(false);
+		expect(hasPriceInfo({})).toBe(false);
 	});
 
-	it('is true with a price or a list entry', () => {
+	it('is true with any amount', () => {
 		expect(hasPriceInfo({ deposit: 100 })).toBe(true);
-		expect(hasPriceInfo({}, ['jacht'])).toBe(true);
-		expect(hasPriceInfo({}, null, ['dojazd'])).toBe(true);
+		expect(hasPriceInfo({ cost_per_person: 760 })).toBe(true);
 	});
 });
 

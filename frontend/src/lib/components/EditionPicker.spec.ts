@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import { makeCruise } from '#lib/test-utils.js';
+import { makeCruise, makeSeries } from '#lib/test-utils.js';
 import EditionPicker, { groupOf } from './EditionPicker.svelte';
 
-const series = [
-	{ id: 2, name: 'NNE', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }
-];
+const series = [makeSeries({ id: 2, name: 'NNE' })];
 const cruises = [
 	makeCruise({ id: 13, name: 'NNE 2025', series_id: 2, edition: '2025' }),
 	makeCruise({ id: 20, name: 'Rejs na Hel' })

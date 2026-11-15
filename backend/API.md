@@ -205,9 +205,8 @@ returns an account's person.
 Every trip and voyage is a leg of a club event: `cruise_id` is required on
 voyage bodies and on trip updates (`422 cruise not found` for an unknown id).
 `POST /api/trips` without `cruise_id` creates a standalone etap: one
-transaction creates a wrapper cruise without a series (kind `sea`, with the
-trip's name, dates, ports, countries, description, crew limit and prices)
-and the trip in it. A failed trip insert rolls the wrapper cruise back. A cruise
+transaction creates a wrapper cruise without a series (with the trip's
+name, countries and description) and the trip in it. A failed trip insert rolls the wrapper cruise back. A cruise
 that still has trips or voyages cannot be deleted (`409`). A trip with cruise or
 leg enrollments cannot be moved to another cruise (`409`).
 A trip or voyage create or update, and a voyage log, with a `yacht_id` that
@@ -354,9 +353,24 @@ replaces the whole trip, so omitting it clears the deadline.
 }
 ```
 
-Prices (see Cruise prices below) work as on a cruise, without the
-`included` / `not_included` lists. Completing a trip copies only `cost_total`
-and `cost_per_person` to the voyage.
+Trip prices are shown only; payments are not computed (admins record a
+sign-up's payment status by hand, see Trip enrollment). All amounts are per
+person, optional and `>= 0`, in `currency` (`PLN` or `EUR`, `PLN` when
+omitted):
+
+- `cost_per_person`: member price, for `czlonek` and `sympatyk`.
+- `cost_per_person_non_member`: non-member price, for `gosc`. When only one
+  of the two prices is set, everyone pays it.
+- `yacht_fund`: estimated yacht fund (kasa jachtowa) for food, fuel and
+  marinas.
+- `deposit`: refundable deposit (kaucja).
+
+An unknown currency or a negative amount is rejected with 422. `PUT`
+replaces every price field, so omitting one clears it. What the price
+covers (`included` / `not_included`) is set once on the trip's cruise.
+Trips priced before migration 018 keep `cost_per_person` as the member
+price in PLN. Completing a trip copies only `cost_total` and
+`cost_per_person` to the voyage.
 
 On create, an omitted (or 0) `max_crew` defaults to the yacht's `berths` when
 `yacht_id` is set and the yacht records berths (`422 yacht not found` for an
@@ -406,9 +420,10 @@ an accepted trip enrollment or an accepted cruise enrollment assigned to the
 trip; the enroll page shows free places as `max_crew` minus that count (a
 `max_crew` of 0 or null means no limit) and hides them when the count is
 missing.
-For a cruise, `cruise` also carries `travel_notes` and `min_age`, and
-`group_chat_url` only when the caller is logged in: the preview is public,
-the chat link is for members.
+For a cruise, `cruise` carries the edition-wide fields: `countries`,
+`description`, `image_photo_url`, `included`, `not_included`,
+`travel_notes` and `min_age`. Dates, ports, crew limits and prices are on
+its `trips`.
 A cruise's `trips` are public leg summaries (`EnrollLeg`): name, status,
 dates, ports, captain, `max_crew` and prices. They omit each trip's own
 `enroll_token`, `created_by` and `cost_total`, so the cruise link never
@@ -603,14 +618,18 @@ Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 
 ### Cruises
 
-A **cruise** is a club event that groups child trips and voyages (one per
-yacht). Members sign up per leg (see Leg sign-up); the cruise enroll token
-shares a public preview from which legs are picked. Cruise-level
-enrollments made before that remain listed and managed here.
+A **cruise** is a club event (an edition, edycja) that groups child trips
+and voyages (etapy). It holds only what all its legs share; dates, ports,
+captain, yacht, crew limit and prices belong to each leg, and the
+frontend derives an edition's dates from its legs. Members sign up per leg
+(see Leg sign-up); the cruise enroll token shares a public preview from
+which legs are picked. Cruise-level enrollments made before that remain
+listed and managed here.
 
-Each cruise has a `kind`: `sea` (rejs morski) or `inland` (rejs
-śródlądowy). Create and update default it to `sea` when omitted; any other
-value is rejected with 422.
+The kind (`sea` or `inland`) belongs to the cruise's series (see Cruise
+series); a cruise without a series counts as a sea cruise.
+
+`GET /api/cruises` lists cruises newest first (by `id`).
 
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
@@ -628,50 +647,24 @@ value is rejected with 422.
 | PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip; `409` when an accepted one moves to a full leg | 204 |
 | DELETE | `/api/cruises/{id}/enrollments/{enrollmentID}` | **admin** | Delete enrollment, 204 | 204 |
 
-Cruise body — `name` required, plus `embark_date`, `disembark_date`,
-`countries`, `start_port`, `end_port`, `description`, `image_*_url`,
-`max_crew`, the price fields below, `series_id`, `edition` (see Cruise
-series), and the logistics fields below. `POST /api/cruises` creates an
-edition of a series: it also requires `series_id` and a non-blank `edition`
-(422 otherwise). `PUT` keeps both optional, so cruises without a series stay
-editable.
+Cruise body — `name` required, plus `countries`, `description`,
+`image_*_url`, `included` / `not_included`, `series_id`, `edition` (see
+Cruise series), `travel_notes` and `min_age`. `POST /api/cruises` creates
+an edition of a series: it also requires `series_id` and a non-blank
+`edition` (422 otherwise). `PUT` keeps both optional, so cruises without a
+series stay editable.
 
-Cruise prices are shown only; payments are not computed (admins record a
-sign-up's payment status by hand, see Trip enrollment). All amounts are per
-person, optional and `>= 0`, in `currency` (`PLN` or `EUR`, `PLN` when
-omitted):
-
-- `cost_per_person`: member price, for `czlonek` and `sympatyk`.
-- `cost_per_person_non_member`: non-member price, for `gosc`. When only one
-  of the two prices is set, everyone pays it.
-- `yacht_fund`: estimated yacht fund (kasa jachtowa) for food, fuel and
-  marinas.
-- `deposit`: refundable deposit (kaucja).
-- `included` / `not_included`: string lists of what the price covers, at most
-  30 entries of up to 200 characters each. Entries are trimmed and blank ones
-  dropped. Responses always carry both lists, `[]` when empty.
-
-An unknown currency, a negative amount, more than 30 entries or a longer
-entry is rejected with 422. `PUT` replaces every price field, so omitting
-one clears it. `GET /api/enroll/{token}` returns the same price fields on
-its `trip` and `cruise` summaries; the lists come with the cruise only.
-Cruises and trips priced before migration 018 keep `cost_per_person` as the
-member price in PLN.
-
-Logistics, all optional and returned on every cruise read:
-
-- `group_chat_url` — link to the crew group chat (Discord, WhatsApp, ...).
-  Must be an absolute `http` or `https` URL, up to 2000 characters, whose
-  host a browser accepts (a valid IPv4 address if it ends in a number,
-  valid IDNA labels, no IPv6 zone ID); anything else is rejected with 422.
+- `included` / `not_included`: string lists of what every leg's price
+  covers, at most 30 entries of up to 200 characters each. Entries are
+  trimmed and blank ones dropped. Responses always carry both lists, `[]`
+  when empty; more than 30 entries or a longer entry is rejected with 422.
 - `travel_notes` — how to get there (flights, transport, meeting point),
-  up to 5000 characters.
+  up to 5000 characters. Surrounding whitespace is trimmed and a blank
+  value clears it.
 - `min_age` — minimum crew age, 0–99. Information only: the app stores no
   dates of birth and does not check it.
 
-Surrounding whitespace is trimmed and a blank `group_chat_url` or
-`travel_notes` clears the field. Like the other optional fields, an omitted
-logistics field resets to null on `PUT`.
+Like the other optional fields, an omitted field resets to null on `PUT`.
 Cruise enrollment status values: `pending`, `accepted`, `rejected`,
 `waitlisted`. Assign-to-trip body: `{ "trip_id": 5 }`
 (`null` unassigns).
@@ -698,11 +691,16 @@ cruise. Deleting a series keeps its cruises and clears their `series_id`.
 | DELETE | `/api/series/{id}` | **admin** | Delete series; its cruises stay, unlinked | 204 |
 | GET | `/api/series/{id}/editions` | member | Editions with voyage totals | 200 |
 
-Body — `name` required: `{ "name": "May I Sail", "description": "Since 2018" }`.
+Body — `name` required, `kind` `sea` (rejs morski, the default) or
+`inland` (rejs śródlądowy), shared by every edition of the series:
+`{ "name": "May I Sail", "description": "Since 2018", "kind": "sea" }`.
+Any other `kind` is rejected with 422; `PUT` resets an omitted `kind` to
+`sea`.
 
 `GET /api/series/{id}/editions` returns a bare array of the series' cruises,
-newest first (by `embark_date`, with undated planned editions on top, then
-`edition`), each with `voyage_count`,
+newest first (by the earliest embark date among its trips and voyages,
+with editions that have no dated leg on top, then `edition`), each with
+`voyage_count`,
 `total_miles` and `total_hours` summed over its voyages (`hours_total`).
 An edition without voyages reports zeros. Unknown series → 404.
 
@@ -712,8 +710,6 @@ An edition without voyages reports zeros. Unknown series → 404.
     "cruise_id": 12,
     "name": "May I Sail 2025",
     "edition": "2025",
-    "kind": "sea",
-    "embark_date": "2025-05-01",
     "voyage_count": 2,
     "total_miles": 200,
     "total_hours": 40

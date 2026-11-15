@@ -1,20 +1,15 @@
 <script lang="ts">
-	import { isHttpUrl } from '#lib/cruise.js';
-
 	let {
-		groupChatUrl,
 		travelNotes,
 		minAge,
 		class: className = ''
 	}: {
-		groupChatUrl?: string | null;
 		travelNotes?: string | null;
 		minAge?: number | null;
 		class?: string;
 	} = $props();
 
-	const chatHref = $derived(groupChatUrl && isHttpUrl(groupChatUrl) ? groupChatUrl : null);
-	const hasAny = $derived(!!chatHref || !!travelNotes || minAge != null);
+	const hasAny = $derived(!!travelNotes || minAge != null);
 </script>
 
 {#if hasAny}
@@ -30,18 +25,6 @@
 				<p class="text-[var(--text-muted)]">Dojazd:</p>
 				<p class="whitespace-pre-wrap">{travelNotes}</p>
 			</div>
-		{/if}
-		{#if chatHref}
-			<p>
-				<a
-					href={chatHref}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="font-medium text-[var(--ocean)] hover:underline"
-				>
-					Czat grupy
-				</a>
-			</p>
 		{/if}
 	</div>
 {/if}

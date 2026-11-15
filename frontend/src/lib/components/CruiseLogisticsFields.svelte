@@ -1,22 +1,10 @@
 <script lang="ts">
 	let {
-		groupChatUrl = $bindable(''),
 		travelNotes = $bindable(''),
 		minAge = $bindable<number | null>(null)
-	}: { groupChatUrl?: string; travelNotes?: string; minAge?: number | null } = $props();
+	}: { travelNotes?: string; minAge?: number | null } = $props();
 </script>
 
-<div class="sm:col-span-2">
-	<label for="group_chat_url" class="mb-1 block text-sm font-medium">Link do czatu grupy</label>
-	<input
-		id="group_chat_url"
-		type="url"
-		bind:value={groupChatUrl}
-		maxlength="2000"
-		placeholder="https://discord.gg/..."
-		class="w-full rounded-lg border px-3 py-2"
-	/>
-</div>
 <div>
 	<label for="min_age" class="mb-1 block text-sm font-medium">Minimalny wiek</label>
 	<input

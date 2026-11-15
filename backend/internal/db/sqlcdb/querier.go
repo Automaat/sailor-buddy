@@ -237,20 +237,17 @@ type Querier interface {
 	//CreateCruise
 	//
 	//  INSERT INTO cruises (
-	//      created_by, name, embark_date, disembark_date, countries, start_port, end_port,
-	//      description, image_logo_url, image_photo_url, image_route_url,
-	//      max_crew, cost_per_person, kind, series_id, edition,
-	//      currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-	//      group_chat_url, travel_notes, min_age
+	//      created_by, name, countries, description,
+	//      image_logo_url, image_photo_url, image_route_url, series_id, edition,
+	//      included, not_included, travel_notes, min_age
 	//  ) VALUES (
-	//      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-	//      $17, $18, $19, $20, $21, $22, $23, $24, $25
-	//  ) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+	//      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+	//  ) RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 	CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error)
 	//CreateCruiseSeries
 	//
-	//  INSERT INTO cruise_series (created_by, name, description)
-	//  VALUES ($1, $2, $3) RETURNING id, created_by, name, description, created_at, updated_at
+	//  INSERT INTO cruise_series (created_by, name, description, kind)
+	//  VALUES ($1, $2, $3, $4) RETURNING id, created_by, name, description, created_at, updated_at, kind
 	CreateCruiseSeries(ctx context.Context, arg CreateCruiseSeriesParams) (CruiseSeries, error)
 	//CreatePersonLinkRequest
 	//
@@ -472,16 +469,14 @@ type Querier interface {
 	// include_hidden is true for callers who may read hidden drafts (admins and
 	// the captain group); others get no row for an unpublished cruise.
 	//
-	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+	//  SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 	//  WHERE id = $1
 	//    AND ($2::BOOLEAN OR published_at IS NOT NULL)
 	GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error)
 	//GetCruiseByEnrollToken
 	//
-	//  SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
-	//         description, image_photo_url, max_crew, cost_per_person,
-	//         currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
-	//         group_chat_url, travel_notes, min_age
+	//  SELECT id, name, countries, description, image_photo_url,
+	//         included, not_included, travel_notes, min_age
 	//  FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL
 	GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error)
 	// One enrollment of a cruise. No row when it does not exist or belongs to
@@ -492,7 +487,7 @@ type Querier interface {
 	GetCruiseEnrollmentOfCruise(ctx context.Context, arg GetCruiseEnrollmentOfCruiseParams) (CruiseEnrollment, error)
 	//GetCruiseSeries
 	//
-	//  SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series WHERE id = $1
+	//  SELECT id, created_by, name, description, created_at, updated_at, kind FROM cruise_series WHERE id = $1
 	GetCruiseSeries(ctx context.Context, id int64) (CruiseSeries, error)
 	//GetDashboardStats
 	//
@@ -675,25 +670,22 @@ type Querier interface {
 	ListCruiseEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseEnrollmentsRow, error)
 	// A set after_id starts the page after the cursor's (name, id) sort key.
 	//
-	//  SELECT id, created_by, name, description, created_at, updated_at FROM cruise_series
+	//  SELECT id, created_by, name, description, created_at, updated_at, kind FROM cruise_series
 	//  WHERE $1::BIGINT IS NULL
 	//     OR (name, id) > ($2::TEXT, $1::BIGINT)
 	//  ORDER BY name, id
 	//  LIMIT $4 OFFSET $3
 	ListCruiseSeries(ctx context.Context, arg ListCruiseSeriesParams) ([]CruiseSeries, error)
-	// Editions of a series newest first, each with the miles and hours summed
-	// over its voyages. An edition without an embark date (NULL, or the empty
-	// string the cruise forms send) is still being planned, so it sorts before
-	// every dated one. Without include_hidden only published editions are
-	// listed and only their visible voyages are summed.
+	// Editions of a series newest first by their first leg's embark date, each
+	// with the miles and hours summed over its voyages. An edition without a
+	// dated leg (NULL, or the empty string the leg forms send) is still being
+	// planned, so it sorts before every dated one. Without include_hidden only
+	// published editions are listed and only their visible voyages are summed.
 	//
 	//  SELECT
 	//      c.id,
 	//      c.name,
 	//      c.edition,
-	//      c.kind,
-	//      c.embark_date,
-	//      c.disembark_date,
 	//      c.published_at,
 	//      COUNT(v.id)::BIGINT AS voyage_count,
 	//      COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
@@ -704,7 +696,13 @@ type Querier interface {
 	//  WHERE c.series_id = $2
 	//    AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
 	//  GROUP BY c.id
-	//  ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
+	//  ORDER BY (
+	//      SELECT MIN(NULLIF(l.embark_date, '')) FROM (
+	//          SELECT t.embark_date FROM trips t WHERE t.cruise_id = c.id
+	//          UNION ALL
+	//          SELECT lv.embark_date FROM voyages lv WHERE lv.cruise_id = c.id
+	//      ) l
+	//  ) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 	ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSeriesEditionsParams) ([]ListCruiseSeriesEditionsRow, error)
 	// Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
 	// leg in leg order, then by sign-up time.
@@ -736,18 +734,15 @@ type Querier interface {
 	//        SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 	//  ORDER BY v.year DESC, v.embark_date DESC, v.id DESC
 	ListCruiseVoyages(ctx context.Context, arg ListCruiseVoyagesParams) ([]Voyage, error)
-	// A set after_id starts the page after the cursor's sort key. The keyset
-	// tuple sorts descending like the ORDER BY: a NULL embark_date last.
-	// Without include_hidden only published cruises are listed.
+	// Newest first; a set after_id starts the page after that cruise. The Rejsy
+	// list orders cruises by their legs' dates itself. Without include_hidden
+	// only published cruises are listed.
 	//
-	//  SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+	//  SELECT id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at FROM cruises
 	//  WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
-	//    AND ($2::BIGINT IS NULL
-	//     OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
-	//      < ($3::TEXT IS NOT NULL,
-	//         COALESCE($3::TEXT, ''), $2::BIGINT))
-	//  ORDER BY embark_date DESC NULLS LAST, id DESC
-	//  LIMIT $5 OFFSET $4
+	//    AND ($2::BIGINT IS NULL OR id < $2::BIGINT)
+	//  ORDER BY id DESC
+	//  LIMIT $4 OFFSET $3
 	ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error)
 	//ListImageUploadsForQuota
 	//
@@ -1187,7 +1182,7 @@ type Querier interface {
 	//      published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
 	//      updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 	//  WHERE id = $1
-	//  RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+	//  RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 	PublishCruise(ctx context.Context, id int64) (Cruise, error)
 	//PublishCruiseTrips
 	//
@@ -1287,7 +1282,7 @@ type Querier interface {
 	//      published_at = NULL,
 	//      updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 	//  WHERE id = $1
-	//  RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+	//  RETURNING id, created_by, name, countries, description, image_logo_url, image_photo_url, image_route_url, enroll_token, created_at, updated_at, series_id, edition, included, not_included, travel_notes, min_age, published_at
 	UnpublishCruise(ctx context.Context, id int64) (Cruise, error)
 	//UnpublishTrip
 	//
@@ -1317,16 +1312,12 @@ type Querier interface {
 	//UpdateCruise
 	//
 	//  UPDATE cruises SET
-	//      name = $1, embark_date = $2, disembark_date = $3, countries = $4,
-	//      start_port = $5, end_port = $6, description = $7,
-	//      image_logo_url = $8, image_photo_url = $9, image_route_url = $10,
-	//      max_crew = $11, cost_per_person = $12, kind = $13,
-	//      series_id = $14, edition = $15,
-	//      currency = $16, cost_per_person_non_member = $17, yacht_fund = $18,
-	//      deposit = $19, included = $20, not_included = $21,
-	//      group_chat_url = $22, travel_notes = $23, min_age = $24,
+	//      name = $1, countries = $2, description = $3,
+	//      image_logo_url = $4, image_photo_url = $5, image_route_url = $6,
+	//      series_id = $7, edition = $8, included = $9, not_included = $10,
+	//      travel_notes = $11, min_age = $12,
 	//      updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $25
+	//  WHERE id = $13
 	UpdateCruise(ctx context.Context, arg UpdateCruiseParams) error
 	//UpdateCruiseEnrollmentStatus
 	//
@@ -1334,8 +1325,8 @@ type Querier interface {
 	UpdateCruiseEnrollmentStatus(ctx context.Context, arg UpdateCruiseEnrollmentStatusParams) error
 	//UpdateCruiseSeries
 	//
-	//  UPDATE cruise_series SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-	//  WHERE id = $3
+	//  UPDATE cruise_series SET name = $1, description = $2, kind = $3, updated_at = CURRENT_TIMESTAMP
+	//  WHERE id = $4
 	UpdateCruiseSeries(ctx context.Context, arg UpdateCruiseSeriesParams) error
 	//UpdateMergedCrewMember
 	//

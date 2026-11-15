@@ -75,10 +75,10 @@ func keysetCases() []keysetCase {
 			register: func(api huma.API, q sqlcdb.Querier, conn *sql.DB) { RegisterCruiseRoutes(api, q, conn) },
 			seed: func(t *testing.T, conn *sql.DB, _ int64) {
 				t.Helper()
-				for _, d := range dates {
-					execSeed(t, conn, "INSERT INTO cruises (name, embark_date, published_at) VALUES ('C', $1, now())", d)
+				for range dates {
+					execSeed(t, conn, "INSERT INTO cruises (name, published_at) VALUES ('C', now())")
 				}
-				execSeed(t, conn, "INSERT INTO cruises (name, embark_date) VALUES ('Hidden', $1)", dates[3])
+				execSeed(t, conn, "INSERT INTO cruises (name) VALUES ('Hidden')")
 			},
 		},
 		{
@@ -255,6 +255,68 @@ func TestListPaging_CursorMatchesOffsetOrder(t *testing.T) {
 			}
 			if cursorRequests != offsetRequests || cursorRequests != 4 {
 				t.Fatalf("requests: cursor %d, offset %d; want 4 each for 7 rows", cursorRequests, offsetRequests)
+			}
+		})
+	}
+}
+
+// TestListPaging_CruisesNewestFirst checks the cruise list's order: by id
+// descending, newest cruise first, in a cursor walk as in one page. A member
+// skips the hidden draft between two pages; an admin sees it in place.
+func TestListPaging_CruisesNewestFirst(t *testing.T) {
+	conn := lockTestDB(t)
+	q := sqlcdb.New(conn)
+	user, err := q.CreateUser(context.Background(), sqlcdb.CreateUserParams{Email: "pager@example.com"})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	execSeed(t, conn, "TRUNCATE cruises RESTART IDENTITY CASCADE")
+	insert := func(stmt string) int64 {
+		t.Helper()
+		var id int64
+		if err := conn.QueryRowContext(context.Background(), stmt).Scan(&id); err != nil {
+			t.Fatalf("seed %q: %v", stmt, err)
+		}
+		return id
+	}
+	const published = "INSERT INTO cruises (name, published_at) VALUES ('C', now()) RETURNING id"
+	first, second, third := insert(published), insert(published), insert(published)
+	hidden := insert("INSERT INTO cruises (name) VALUES ('Hidden') RETURNING id")
+	newest := insert(published)
+	_, api := humatest.New(t)
+	RegisterCruiseRoutes(api, q, conn)
+
+	walk := func(ctx context.Context) []int64 {
+		t.Helper()
+		var ids []int64
+		path := "/cruises?limit=2"
+		for requests := 1; ; requests++ {
+			if requests > 10 {
+				t.Fatalf("walk did not end; walked %v", ids)
+			}
+			p := getIDPage(t, api, ctx, path)
+			ids = append(ids, pageIDs(p)...)
+			if !p.HasMore {
+				return ids
+			}
+			path = "/cruises?limit=2&after=" + url.QueryEscape(p.NextCursor)
+		}
+	}
+	tests := []struct {
+		name string
+		ctx  context.Context
+		want []int64
+	}{
+		{"member", memberCtx(user.ID), []int64{newest, third, second, first}},
+		{"admin", callerCtx(user.ID, "admin"), []int64{newest, hidden, third, second, first}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := walk(tt.ctx); !slices.Equal(got, tt.want) {
+				t.Errorf("cursor walk = %v, want %v", got, tt.want)
+			}
+			if got := pageIDs(getIDPage(t, api, tt.ctx, "/cruises?limit=100")); !slices.Equal(got, tt.want) {
+				t.Errorf("single page = %v, want %v", got, tt.want)
 			}
 		})
 	}

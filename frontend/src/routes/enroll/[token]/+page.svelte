@@ -13,6 +13,7 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { patentSummary } from '#lib/profile.js';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
+	import PriceCoverage from '#lib/components/PriceCoverage.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 
 	// loaded comes from +page.ts, which reruns when the URL's token changes,
@@ -177,19 +178,8 @@
 					Wydarzenie klubu
 				</p>
 				<h1 class="mb-1 text-2xl font-bold text-[var(--navy)]">{data.cruise.name}</h1>
-				<p class="mb-4 text-sm text-[var(--text-muted)]">
-					{#if data.cruise.start_port && data.cruise.end_port}
-						{data.cruise.start_port} → {data.cruise.end_port}
-					{/if}
-					{#if data.cruise.countries}
-						· {data.cruise.countries}{/if}
-				</p>
-
-				{#if data.cruise.embark_date}
-					<div class="mb-4 text-sm">
-						<span class="text-[var(--text-muted)]">Daty:</span>
-						{formatDateRangeWithDays(data.cruise.embark_date, data.cruise.disembark_date)}
-					</div>
+				{#if data.cruise.countries}
+					<p class="mb-4 text-sm text-[var(--text-muted)]">{data.cruise.countries}</p>
 				{/if}
 
 				{#if data.cruise.description}
@@ -197,16 +187,10 @@
 				{/if}
 
 				<div class="mb-4">
-					<PriceInfo
-						priced={data.cruise}
-						membership={auth.user?.membership}
-						included={data.cruise.included}
-						notIncluded={data.cruise.not_included}
-					/>
+					<PriceCoverage included={data.cruise.included} notIncluded={data.cruise.not_included} />
 				</div>
 				<CruiseLogistics
 					class="mb-4"
-					groupChatUrl={data.cruise.group_chat_url}
 					travelNotes={data.cruise.travel_notes}
 					minAge={data.cruise.min_age}
 				/>
@@ -292,9 +276,6 @@
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zapisanych:</span>
 						<span class="font-semibold">{data.total_count}</span>
-						{#if data.cruise.max_crew}
-							<span class="text-[var(--text-muted)]">/ {data.cruise.max_crew}</span>
-						{/if}
 					</div>
 					<div class="rounded-lg bg-gray-50 px-3 py-2">
 						<span class="text-[var(--text-muted)]">Zaakceptowanych:</span>

@@ -162,8 +162,7 @@ func TestCompleteTrip_TripMovedToAnotherCruise(t *testing.T) {
 	ctx := context.Background()
 
 	other, err := sqlcdb.New(conn).CreateCruise(ctx, sqlcdb.CreateCruiseParams{
-		Name: "North Sea", Kind: "sea", Currency: "PLN",
-		Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+		Name: "North Sea", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
 	})
 	if err != nil {
 		t.Fatalf("create other cruise: %v", err)

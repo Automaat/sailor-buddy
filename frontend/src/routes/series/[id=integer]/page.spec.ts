@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { CruiseSeries, CruiseSeriesEdition } from '#lib/api/types.js';
+import { makeSeries } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('#lib/api/routes.js', () => ({
@@ -38,19 +39,12 @@ const mockAuth = auth as unknown as { isAdmin: boolean };
 const mockGet = getSeries as unknown as ReturnType<typeof vi.fn>;
 const mockEditions = listSeriesEditions as unknown as ReturnType<typeof vi.fn>;
 
-const series: CruiseSeries = {
-	id: 4,
-	name: 'May I Sail',
-	description: 'Od 2018',
-	created_at: '2026-01-01T00:00:00Z',
-	updated_at: '2026-01-01T00:00:00Z'
-};
+const series = makeSeries({ id: 4, name: 'May I Sail', description: 'Od 2018', kind: 'sea' });
 
 function makeEdition(overrides: Partial<CruiseSeriesEdition> = {}): CruiseSeriesEdition {
 	return {
 		cruise_id: 1,
 		name: 'MIS',
-		kind: 'sea',
 		voyage_count: 0,
 		total_miles: 0,
 		total_hours: 0,
@@ -77,6 +71,15 @@ describe('series detail page', () => {
 		expect(screen.getByText(/Brak edycji/)).toBeInTheDocument();
 	});
 
+	it.each([
+		['sea', 'Morski'],
+		['inland', 'Śródlądowy']
+	] as const)('shows the %s kind of the series under its name', async (kind, label) => {
+		mockGet.mockResolvedValue({ ...series, kind });
+		await renderPage();
+		expect(await screen.findByText(label)).toBeInTheDocument();
+	});
+
 	it('lists editions in API order with per-edition and overall totals', async () => {
 		mockEditions.mockResolvedValue([
 			makeEdition({
@@ -90,7 +93,6 @@ describe('series detail page', () => {
 				cruise_id: 10,
 				name: 'MIS 2024',
 				edition: '2024',
-				kind: 'inland',
 				total_miles: 100.5,
 				total_hours: 20
 			})
@@ -105,7 +107,6 @@ describe('series detail page', () => {
 			'href',
 			'/cruises/20'
 		);
-		expect(within(rows[1]).getByText('Śródlądowy')).toBeInTheDocument();
 		expect(within(rows[1]).getByText('100,5')).toBeInTheDocument();
 
 		const totals = screen.getByTestId('series-totals');
@@ -178,9 +179,33 @@ describe('series detail page', () => {
 		await fireEvent.input(screen.getByLabelText('Opis'), { target: { value: '' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
 
-		expect(mockUpdate).toHaveBeenCalledWith(4, { name: 'MIS', description: undefined });
+		expect(mockUpdate).toHaveBeenCalledWith(4, {
+			name: 'MIS',
+			description: undefined,
+			kind: 'sea'
+		});
 		expect(await screen.findByRole('heading', { name: 'MIS' })).toBeInTheDocument();
 		expect(screen.queryByText('Od 2018')).not.toBeInTheDocument();
+	});
+
+	it("lets an admin change the series' kind", async () => {
+		mockAuth.isAdmin = true;
+		await renderPage();
+		await fireEvent.click(await screen.findByRole('button', { name: 'Edytuj' }));
+
+		expect(screen.getByLabelText('Rodzaj rejsów')).toHaveValue('sea');
+		await fireEvent.change(screen.getByLabelText('Rodzaj rejsów'), {
+			target: { value: 'inland' }
+		});
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz zmiany' }));
+
+		expect(mockUpdate).toHaveBeenCalledWith(4, {
+			name: 'May I Sail',
+			description: 'Od 2018',
+			kind: 'inland'
+		});
+		expect(await screen.findByText('Śródlądowy')).toBeInTheDocument();
+		expect(screen.queryByText('Morski')).not.toBeInTheDocument();
 	});
 
 	it('keeps the form open with the error when saving fails', async () => {

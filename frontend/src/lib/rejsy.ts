@@ -1,4 +1,4 @@
-import type { Cruise, Trip, Voyage } from '#lib/api/types.js';
+import type { Cruise, CruiseSeries, Trip, Voyage } from '#lib/api/types.js';
 import { isHidden } from '#lib/publication.js';
 
 export type RejsStatus = 'upcoming' | 'overdue' | 'completed' | 'cancelled';
@@ -23,11 +23,15 @@ export type RejsEntry = {
 	href: string;
 	name: string;
 	status: RejsStatus;
-	/** True once the cruise's end (its own date, else its latest leg's) is before today. */
+	/** True once the cruise's latest leg ended before today. */
 	ended: boolean;
 	/** True while members cannot see it: the cruise, or a standalone trip's own leg, is a draft. */
 	hidden: boolean;
-	kind?: Cruise['kind'];
+	/** The series' kind; a cruise without a series is a sea cruise. */
+	kind: CruiseSeries['kind'];
+	/** The first leg's embark date: the list's sort key, not shown for an edition. */
+	sortDate?: string;
+	/** Dates, ports and crew limit are shown only for a standalone trip; an edition's legs carry their own. */
 	embarkDate?: string;
 	disembarkDate?: string;
 	startPort?: string;
@@ -77,16 +81,12 @@ export function warsawToday(now: Date = new Date()): string {
 type LegDates = Pick<Trip, 'status' | 'disembark_date'>;
 
 /**
- * True for a planned leg whose disembark date (or the cruise's, when the leg
- * has none) is before today: it sailed but still waits to be completed.
+ * True for a planned leg whose disembark date is before today: it sailed but
+ * still waits to be completed.
  */
-export function isLegOverdue(
-	leg: LegDates,
-	cruise: Pick<Cruise, 'disembark_date'> | null | undefined,
-	today: string
-): boolean {
+export function isLegOverdue(leg: LegDates, today: string): boolean {
 	if (leg.status !== 'planned') return false;
-	const end = (leg.disembark_date || cruise?.disembark_date || '').slice(0, 10);
+	const end = (leg.disembark_date || '').slice(0, 10);
 	return end !== '' && end < today;
 }
 
@@ -105,13 +105,9 @@ export const legStatusBadges: Record<LegStatus, string> = {
 };
 
 /** The status shown for a planned trip leg; derived on read, the stored status stays untouched. */
-export function legStatus(
-	leg: LegDates,
-	cruise: Pick<Cruise, 'disembark_date'> | null | undefined,
-	today: string = warsawToday()
-): LegStatus {
+export function legStatus(leg: LegDates, today: string = warsawToday()): LegStatus {
 	if (leg.status === 'cancelled') return 'cancelled';
-	return isLegOverdue(leg, cruise, today) ? 'overdue' : 'planned';
+	return isLegOverdue(leg, today) ? 'overdue' : 'planned';
 }
 
 /**
@@ -133,8 +129,7 @@ function cruiseStatus(
 /**
  * The trip a cruise stands for: a standalone trip's wrapper cruise (no series,
  * exactly one trip, no voyages). Its entry links to and describes the trip,
- * falling back to the cruise only for fields the trip lacks, since editing
- * the trip leaves the wrapper's copied fields behind.
+ * falling back to the cruise only for fields the trip lacks.
  */
 function standaloneTrip(c: Cruise, legs: Trip[], sailed: Voyage[]): Trip | undefined {
 	return c.series_id == null && legs.length === 1 && sailed.length === 0 ? legs[0] : undefined;
@@ -145,51 +140,44 @@ export function buildRejsEntries(
 	cruises: Cruise[],
 	trips: Trip[],
 	voyages: Voyage[],
+	series: CruiseSeries[],
 	today: string = warsawToday()
 ): RejsEntry[] {
+	const seriesKind = new Map(series.map((s) => [s.id, s.kind]));
 	return cruises.map((c) => {
 		const legs = trips.filter((t) => t.cruise_id === c.id);
 		const sailed = voyages.filter((v) => v.cruise_id === c.id);
 		const solo = standaloneTrip(c, legs, sailed);
-		const info = {
-			name: solo?.name || c.name,
-			embark_date: solo?.embark_date || c.embark_date,
-			disembark_date: solo?.disembark_date || c.disembark_date,
-			start_port: solo?.start_port || c.start_port,
-			end_port: solo?.end_port || c.end_port,
-			countries: solo?.countries || c.countries,
-			max_crew: solo?.max_crew || c.max_crew,
-			enroll_token: solo ? solo.enroll_token : c.enroll_token
-		};
 		const planned = legs.filter((t) => t.status === 'planned').length;
-		const overdue = legs.filter((t) => isLegOverdue(t, c, today)).length;
+		const overdue = legs.filter((t) => isLegOverdue(t, today)).length;
 		const cancelled = legs.length - planned;
-		const legDates = [...legs, ...sailed]
+		const firstLegStart = [...legs, ...sailed]
 			.map((l) => l.embark_date)
 			.filter((d): d is string => !!d)
-			.sort();
+			.sort()
+			.at(0);
 		const lastLegEnd = [...legs, ...sailed]
 			.map((l) => (l.disembark_date || '').slice(0, 10))
 			.filter((d) => d !== '')
 			.sort()
 			.at(-1);
-		const end = (info.disembark_date || '').slice(0, 10) || lastLegEnd;
 		return {
 			key: `cruise-${c.id}`,
 			cruiseId: c.id,
 			href: solo ? `/trips/${solo.id}` : `/cruises/${c.id}`,
-			name: info.name,
+			name: solo?.name || c.name,
 			status: cruiseStatus(planned, overdue, cancelled, sailed.length),
-			ended: !!end && end < today,
+			ended: !!lastLegEnd && lastLegEnd < today,
 			hidden: isHidden(c) || (!!solo && isHidden(solo)),
-			kind: c.kind,
-			embarkDate: info.embark_date || legDates[0],
-			disembarkDate: info.disembark_date || undefined,
-			startPort: info.start_port || undefined,
-			endPort: info.end_port || undefined,
-			countries: info.countries || undefined,
-			maxCrew: info.max_crew || undefined,
-			enrollOpen: !!info.enroll_token,
+			kind: (c.series_id != null && seriesKind.get(c.series_id)) || 'sea',
+			sortDate: firstLegStart,
+			embarkDate: solo?.embark_date || undefined,
+			disembarkDate: solo?.disembark_date || undefined,
+			startPort: solo?.start_port || undefined,
+			endPort: solo?.end_port || undefined,
+			countries: solo?.countries || c.countries || undefined,
+			maxCrew: solo?.max_crew || undefined,
+			enrollOpen: !!(solo ? solo.enroll_token : c.enroll_token),
 			plannedLegs: planned,
 			completedLegs: sailed.length,
 			hoursTotal: sailed.reduce((sum, v) => sum + v.hours_total, 0),
@@ -212,10 +200,10 @@ export function filterRejsEntries(entries: RejsEntry[], tab: RejsTab): RejsEntry
 	const picked = tab === 'all' ? [...entries] : entries.filter((e) => inTab(e, tab));
 	const ascending = tab === 'upcoming';
 	return picked.sort((a, b) => {
-		if (!a.embarkDate && !b.embarkDate) return 0;
-		if (!a.embarkDate) return 1;
-		if (!b.embarkDate) return -1;
-		const cmp = a.embarkDate.localeCompare(b.embarkDate);
+		if (!a.sortDate && !b.sortDate) return 0;
+		if (!a.sortDate) return 1;
+		if (!b.sortDate) return -1;
+		const cmp = a.sortDate.localeCompare(b.sortDate);
 		return ascending ? cmp : -cmp;
 	});
 }

@@ -87,8 +87,8 @@ func registerTripRoutes(api huma.API, h *TripHandler) {
 		OperationID: "create-trip", Method: http.MethodPost, Path: "/trips",
 		Summary: "Create a trip (admin)",
 		Description: "Without cruise_id the trip is a standalone etap: one transaction creates a wrapper " +
-			"cruise without a series (name, dates, ports, countries, description, crew limit and prices " +
-			"copied from the trip, kind sea) and the trip in it.",
+			"cruise without a series (name, countries and description copied from the trip) and the " +
+			"trip in it.",
 		Tags: tag, DefaultStatus: http.StatusCreated,
 	}, h.create)
 	huma.Register(api, huma.Operation{
@@ -237,31 +237,17 @@ func createStandaloneTrip(ctx context.Context, runTx txRunner, trip sqlcdb.Creat
 	return created, err
 }
 
-// cruiseKindSea is the kind of a standalone trip's wrapper cruise.
-const cruiseKindSea = "sea"
-
-// wrapperCruiseParams is the cruise a standalone trip gets: no series, kind
-// sea, and the trip's name, dates, ports, countries, description, crew limit
-// and prices.
+// wrapperCruiseParams is the cruise a standalone trip gets: no series, and
+// the trip's name, countries and description. Dates, ports, crew limit and
+// prices stay on the trip.
 func wrapperCruiseParams(t sqlcdb.CreateTripParams) sqlcdb.CreateCruiseParams {
 	return sqlcdb.CreateCruiseParams{
-		CreatedBy:              t.CreatedBy,
-		Name:                   t.Name,
-		EmbarkDate:             t.EmbarkDate,
-		DisembarkDate:          t.DisembarkDate,
-		Countries:              t.Countries,
-		StartPort:              t.StartPort,
-		EndPort:                t.EndPort,
-		Description:            t.Description,
-		MaxCrew:                t.MaxCrew,
-		CostPerPerson:          t.CostPerPerson,
-		Kind:                   cruiseKindSea,
-		Currency:               t.Currency,
-		CostPerPersonNonMember: t.CostPerPersonNonMember,
-		YachtFund:              t.YachtFund,
-		Deposit:                t.Deposit,
-		Included:               json.RawMessage("[]"),
-		NotIncluded:            json.RawMessage("[]"),
+		CreatedBy:   t.CreatedBy,
+		Name:        t.Name,
+		Countries:   t.Countries,
+		Description: t.Description,
+		Included:    json.RawMessage("[]"),
+		NotIncluded: json.RawMessage("[]"),
 	}
 }
 
