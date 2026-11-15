@@ -33,6 +33,27 @@ body {
 }
 
 /*
+ * User text (names, notes, e-mails, card numbers) can hold a word wider than
+ * the panel: break it instead of widening the page. `break-word`, unlike
+ * `anywhere`, keeps min-content sizes, so text that fits lays out as before.
+ * A flex-wrap item shrinks only when it alone is wider than its row, so
+ * dropping its min-content floor affects nothing else. Flex items in rows
+ * that do not wrap still need their own min-w-0. Buttons and labels keep
+ * whole words even when squeezed.
+ */
+@layer base {
+	main {
+		overflow-wrap: break-word;
+	}
+	main :where(.flex-wrap) > * {
+		min-width: 0;
+	}
+	main :where(button, label, .tap-target) {
+		overflow-wrap: normal;
+	}
+}
+
+/*
  * Phones: every button and select gets a 44px tap target (WCAG 2.5.5).
  * Both center their content natively, so the extra height needs no layout
  * change. Links styled as buttons opt in with the tap-target utility.

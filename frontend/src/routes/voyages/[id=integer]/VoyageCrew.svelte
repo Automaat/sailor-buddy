@@ -116,8 +116,8 @@
 		<div class="space-y-2">
 			{#each crew as member (member.id)}
 				<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-					<div class="flex items-center gap-2">
-						<span class="font-medium">{member.full_name}</span>
+					<div class="flex min-w-0 items-center gap-2">
+						<span class="min-w-0 font-medium">{member.full_name}</span>
 						<span class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]">
 							{member.role}
 						</span>

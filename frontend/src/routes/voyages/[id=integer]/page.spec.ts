@@ -684,3 +684,21 @@ describe('voyage page for the voyage captain', () => {
 		expect(screen.queryByTestId('voyage-opinions')).not.toBeInTheDocument();
 	});
 });
+
+describe('voyage page long text', () => {
+	it('lets a long unbroken name shrink in the header and the crew list', async () => {
+		const long = 'W'.repeat(120);
+		mockAuth.isAdmin = true;
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, name: long }));
+		vi.mocked(listVoyageCrew).mockResolvedValue([
+			{ id: 1, crew_member_id: 3, full_name: `N${long}`, role: 'zalogant' }
+		] as Awaited<ReturnType<typeof listVoyageCrew>>);
+		await renderPage();
+
+		const heading = await screen.findByRole('heading', { name: long });
+		expect(heading.parentElement?.parentElement).toHaveClass('min-w-0');
+		const name = await screen.findByText(`N${long}`, { selector: 'span' });
+		expect(name).toHaveClass('min-w-0');
+		expect(name.parentElement).toHaveClass('min-w-0');
+	});
+});

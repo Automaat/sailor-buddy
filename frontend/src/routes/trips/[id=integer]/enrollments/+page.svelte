@@ -182,7 +182,7 @@
 	<LoadErrorBanner errors={loadErrors} />
 	<BackLink href="/trips/{id}" label={trip.name} />
 	<div class="mb-6">
-		<div>
+		<div class="min-w-0">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">Zapisy</h1>
 			<p class="mt-1 text-[var(--text-muted)]">
 				{trip.name}

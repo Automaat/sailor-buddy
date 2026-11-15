@@ -125,7 +125,7 @@
 					<button
 						type="button"
 						onclick={() => pick(p)}
-						class="w-full px-2 py-2 text-left hover:bg-gray-50"
+						class="w-full px-2 py-2 text-left [overflow-wrap:anywhere] hover:bg-gray-50"
 					>
 						{p.full_name}
 						{#if p.email}<span class="text-[var(--text-muted)]"> · {p.email}</span>{/if}
@@ -138,7 +138,7 @@
 		<fieldset class="text-sm">
 			<legend class="mb-1 font-medium">Którą osobę zachować?</legend>
 			{#each [person, other] as p (p.id)}
-				<label class="mr-4 inline-flex items-center gap-2">
+				<label class="mr-4 inline-flex max-w-full items-center gap-2">
 					<input
 						type="radio"
 						name="merge-kept"
@@ -147,7 +147,9 @@
 						disabled={busy || bothAccounts}
 						onchange={() => setKept(p.id)}
 					/>
-					{p.full_name}{p.has_account ? ' (ma konto)' : ''}
+					<span class="min-w-0 [overflow-wrap:anywhere]"
+						>{p.full_name}{p.has_account ? ' (ma konto)' : ''}</span
+					>
 				</label>
 			{/each}
 		</fieldset>

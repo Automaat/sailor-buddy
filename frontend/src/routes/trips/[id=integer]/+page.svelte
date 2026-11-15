@@ -312,7 +312,7 @@
 				<BackLink href="/cruises/{cruise.id}" label="Część wydarzenia: {cruise.name}" />
 			{/if}
 			<div class="flex items-center gap-3">
-				<h1 class="text-3xl font-bold text-[var(--navy)]">{trip.name}</h1>
+				<h1 class="min-w-0 text-3xl font-bold text-[var(--navy)]">{trip.name}</h1>
 				<span class="rounded-full px-2.5 py-1 text-xs font-medium {legStatusBadges[status]}">
 					{legStatusLabels[status]}
 				</span>
@@ -556,7 +556,7 @@
 						<div class="rounded-lg bg-gray-50 px-4 py-2" data-testid="crew-member">
 							<div class="flex items-center justify-between gap-2 max-md:flex-wrap">
 								<div class="flex min-w-0 items-center gap-2 max-md:flex-wrap">
-									<span class="font-medium">{member.full_name}</span>
+									<span class="min-w-0 font-medium">{member.full_name}</span>
 									{#if canManageCrew && trip.status === 'planned'}
 										<form class="flex items-center gap-1" onsubmit={(e) => saveRole(e, member)}>
 											<label class="sr-only" for="crew-role-{member.id}"
@@ -598,7 +598,7 @@
 							</div>
 							{#if member.phone || member.email || member.emergency_contact_name || member.emergency_contact_phone}
 								<dl
-									class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]"
+									class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)] [&_dd]:min-w-0"
 									data-testid="crew-contacts"
 								>
 									{#if member.phone}

@@ -221,6 +221,19 @@ describe('trip page sign-up', () => {
 		).toBeInTheDocument();
 	});
 
+	it('lets a long unbroken note wrap inside the card', async () => {
+		const long = 'W'.repeat(120);
+		fn(getTripSignUp).mockResolvedValue({
+			trip_id: 50,
+			open: true,
+			accepted_count: 3,
+			enrollment: enrollment({ note: long })
+		});
+		await renderPage();
+		const card = await screen.findByTestId('my-sign-up');
+		expect(within(card).getByTestId('sign-up-note')).toHaveClass('[overflow-wrap:anywhere]');
+	});
+
 	it('edits the note after signing up', async () => {
 		fn(getTripSignUp).mockResolvedValue({
 			trip_id: 50,

@@ -144,7 +144,10 @@
 			{/if}
 		</div>
 		{#if enrollment.note && !editingNote}
-			<p class="max-w-xs text-right text-xs text-[var(--text-muted)]" data-testid="sign-up-note">
+			<p
+				class="max-w-xs text-right text-xs [overflow-wrap:anywhere] text-[var(--text-muted)]"
+				data-testid="sign-up-note"
+			>
 				{enrollment.note}
 			</p>
 		{/if}
