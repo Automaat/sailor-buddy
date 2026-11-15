@@ -13,16 +13,18 @@
 	import type { Cruise, Trip, CruiseEnrollment, TripEnrollment } from '#lib/api/types.js';
 	import { ApiError } from '#lib/api/client.js';
 	import { noteFailure, settle } from '#lib/api/errors.js';
-	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import { numberLegs, statusLabels } from '#lib/enrollment.js';
-	let { cruise, trips }: { cruise: Cruise; trips: Trip[] } = $props();
+	let {
+		cruise,
+		trips,
+		adminLoadErrors = $bindable([])
+	}: { cruise: Cruise; trips: Trip[]; adminLoadErrors?: string[] } = $props();
 	const id = $derived(cruise.id);
 	const isAdmin = $derived(auth.isAdmin);
 	type EnrollStatus = 'accepted' | 'rejected' | 'waitlisted' | 'pending';
 	let enrollToken = $derived(cruise.enroll_token ?? null);
 	let enrollments = $state<CruiseEnrollment[]>([]);
 	let legEnrollments = $state<TripEnrollment[]>([]);
-	let adminLoadErrors = $state<string[]>([]);
 	// togglingFor is the cruise whose enroll-link request is in flight; the
 	// toggle is disabled only on that cruise, not on one a link moved to.
 	let togglingFor = $state<number | null>(null);
@@ -245,7 +247,6 @@
 	</div>
 {/snippet}
 
-<LoadErrorBanner errors={adminLoadErrors} />
 {#if isAdmin}
 	<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm" data-testid="admin-sign-ups">
 		<h2 class="mb-3 font-semibold text-[var(--navy)]">Zapisy na etapy</h2>

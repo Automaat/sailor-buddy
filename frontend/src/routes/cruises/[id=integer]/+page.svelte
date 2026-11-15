@@ -12,6 +12,7 @@
 	import { isHttpUrl } from '#lib/cruise.js';
 	import { freePlacesLabel, numberLegs, signUpDeadlineLabel } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
+	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 
 	// data comes from +page.ts, which reruns when the URL's cruise changes, so
@@ -22,8 +23,7 @@
 	const series = $derived(data.series);
 	const trips = $derived(data.trips);
 	const voyages = $derived(data.voyages);
-	// signUps and enrollToken change in place after a sign-up or a token
-	// toggle, and reset to the loaded value on navigation.
+	// Sign-ups reset to the loaded value on navigation.
 	let signUps = $derived(data.signUps);
 	const id = $derived(data.cruise.id);
 	const isAdmin = $derived(auth.isAdmin);
@@ -34,6 +34,11 @@
 		signUps = signUps.map((s) => (s.trip_id === next.trip_id ? next : s));
 	}
 
+	let adminLoadErrors = $state<string[]>([]);
+	let mounted = true;
+	onDestroy(() => {
+		mounted = false;
+	});
 	let deleteError = $state('');
 	$effect(() => {
 		if (id) deleteError = '';
@@ -48,17 +53,17 @@
 		deleteError = '';
 		try {
 			await deleteCruise(cruiseId);
-			if (cruiseId !== id) return;
+			if (!mounted || cruiseId !== id) return;
 			void goto('/cruises');
 		} catch (err) {
-			if (cruiseId !== id) return;
+			if (!mounted || cruiseId !== id) return;
 			deleteError = err instanceof Error ? err.message : 'Nie udało się usunąć wydarzenia';
 		}
 	}
 </script>
 
 <div class="mx-auto max-w-5xl">
-	<LoadErrorBanner errors={data.loadErrors} />
+	<LoadErrorBanner errors={[...data.loadErrors, ...adminLoadErrors]} />
 	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 		<div>
 			<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
@@ -201,7 +206,7 @@
 		{/if}
 	</div>
 
-	<CruiseEnrollmentAdmin {cruise} {trips} />
+	<CruiseEnrollmentAdmin {cruise} {trips} bind:adminLoadErrors />
 	{#if voyages.length > 0 || isAdmin}
 		<div class="rounded-2xl bg-white p-6 shadow-sm">
 			<div class="mb-3 flex items-center justify-between">
