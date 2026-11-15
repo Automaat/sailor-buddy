@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -268,7 +270,10 @@ func TestCrewAssign_PersonGoneDuringAssign(t *testing.T) {
 // the default second after the insert started waiting, so the insert's only
 // check finds no cycle and the merge loses instead. The insert gets a longer
 // timeout than that gap and the merge a far longer one, so the insert's
-// check always sees the cycle and the merge never checks first.
+// check sees the cycle unless the merge resumes more than five seconds
+// after the insert starts waiting, and the merge never checks first. The
+// conflict message tells the insert's rerun apart from an exhausted
+// deadlock retry, which also answers 409.
 func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 	for _, target := range []string{"trip", "voyage"} {
 		t.Run(target, func(t *testing.T) {
@@ -285,10 +290,12 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 			column := target + "_id"
 			path := fmt.Sprintf("/voyages/%d/crew", targetID)
 			body := map[string]any{"crew_member_id": f.keptID, "role": "zalogant"}
+			conflict := "crew member is already on the crew list"
 			seed := "INSERT INTO crew_assignments (voyage_id, crew_member_id) VALUES ($1, $2)"
 			if target == "trip" {
 				path = fmt.Sprintf("/trips/%d/enrollments", targetID)
 				body = map[string]any{"crew_member_id": f.keptID}
+				conflict = "the person is already signed up for this leg"
 				seed = "INSERT INTO trip_enrollments (trip_id, crew_member_id) VALUES ($1, $2)"
 			}
 			if _, err := f.conn.ExecContext(ctx, seed, targetID, f.duplicateID); err != nil {
@@ -312,10 +319,10 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 				merged <- resp.Code
 			}()
 			waitForLockWaiters(t, f.conn, 1)
-			assigned := make(chan int, 1)
+			assigned := make(chan *httptest.ResponseRecorder, 1)
 			go func() {
 				resp := insertAPI.PostCtx(userCtx(ctx), path, body)
-				assigned <- resp.Code
+				assigned <- resp
 			}()
 			waitForLockWaiters(t, f.conn, 2)
 			if err := holder.Commit(); err != nil {
@@ -324,8 +331,9 @@ func TestCrewAssign_KeptPersonDuringMerge(t *testing.T) {
 			if code := <-merged; code != http.StatusOK {
 				t.Fatalf("merge: got %d, want 200", code)
 			}
-			if code := <-assigned; code != http.StatusConflict {
-				t.Fatalf("POST %s: got %d, want 409", path, code)
+			resp := <-assigned
+			if resp.Code != http.StatusConflict || !strings.Contains(resp.Body.String(), conflict) {
+				t.Fatalf("POST %s: got %d %s, want 409 %q", path, resp.Code, resp.Body, conflict)
 			}
 			if target == "trip" {
 				want := []string{fmt.Sprintf("%d pending", f.keptID)}
