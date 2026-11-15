@@ -250,6 +250,9 @@ existed before migration `032_publication.sql` were published by it.
 
 Publishing keeps an earlier `published_at`. Unpublishing is allowed while the
 record has enrollments. The captain group gets `403` like any non-admin.
+A trip or voyage publish that races a move of the leg to another cruise
+starts over on the new cruise; `409` means the leg kept moving on every
+attempt.
 
 ## Endpoint reference
 

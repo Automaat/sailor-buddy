@@ -610,3 +610,101 @@ func TestMyCruisesHidesHiddenRecords(t *testing.T) {
 		}
 	}
 }
+
+// TestPublishLegMovedAfterCruiseLock moves the leg to a hidden standalone
+// cruise after its publish locked the old cruise, while a cruise publish of
+// the new cruise with include_legs holds that cruise. The leg publish waits
+// for the move with the old cruise locked; once the move commits it must
+// start over on the new cruise instead of waiting for it while holding the
+// leg, so neither side aborts as a deadlock victim (40P01).
+func TestPublishLegMovedAfterCruiseLock(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+
+	for _, leg := range []struct {
+		table, insert string
+	}{
+		{"trips", `INSERT INTO trips(name,cruise_id,currency) VALUES('Leg',$1,'PLN') RETURNING id`},
+		{"voyages", `INSERT INTO voyages(name,cruise_id) VALUES('Voyage',$1) RETURNING id`},
+	} {
+		t.Run(leg.table, func(t *testing.T) {
+			from := insertID(t, conn, `INSERT INTO cruises(name) VALUES('From') RETURNING id`)
+			to := insertID(t, conn, `INSERT INTO cruises(name) VALUES('To') RETURNING id`)
+			id := insertID(t, conn, leg.insert, from)
+
+			move, movePID := beginWithPID(t, conn)
+			if _, err := move.Exec(fmt.Sprintf(`UPDATE %s SET cruise_id = $1 WHERE id = $2`, leg.table), to, id); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan int, 1)
+			go func() {
+				rr := securityRequest(h, "admin", http.MethodPost, fmt.Sprintf("/api/%s/%d/publish", leg.table, id), "")
+				done <- rr.Code
+			}()
+			waitForBlockedBy(t, conn, movePID)
+
+			cruisePublish, cruisePID := beginWithPID(t, conn)
+			if _, err := cruisePublish.Exec(`UPDATE cruises SET published_at = now() WHERE id = $1`, to); err != nil {
+				t.Fatal(err)
+			}
+			if err := move.Commit(); err != nil {
+				t.Fatal(err)
+			}
+			waitForBlockedBy(t, conn, cruisePID)
+
+			if _, err := cruisePublish.Exec(fmt.Sprintf(
+				`UPDATE %s SET published_at = now() WHERE cruise_id = $1 AND published_at IS NULL`, leg.table), to); err != nil {
+				t.Fatalf("publish cruise legs: %v", err)
+			}
+			if err := cruisePublish.Commit(); err != nil {
+				t.Fatalf("commit cruise publish: %v", err)
+			}
+			if code := <-done; code != http.StatusOK {
+				t.Fatalf("publish %s: %d", leg.table, code)
+			}
+
+			var cruiseID int64
+			var published bool
+			if err := conn.QueryRow(fmt.Sprintf(`SELECT cruise_id, published_at IS NOT NULL FROM %s WHERE id = $1`, leg.table), id).
+				Scan(&cruiseID, &published); err != nil {
+				t.Fatal(err)
+			}
+			if cruiseID != to || !published {
+				t.Fatalf("leg cruise=%d published=%v, want %d true", cruiseID, published, to)
+			}
+		})
+	}
+}
+
+// beginWithPID starts a transaction and returns it with its backend PID.
+func beginWithPID(t *testing.T, conn *sql.DB) (tx *sql.Tx, pid int) {
+	t.Helper()
+	tx, err := conn.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+	if err := tx.QueryRow(`SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	return tx, pid
+}
+
+// waitForBlockedBy blocks until a session of this database waits on a lock
+// the backend pid holds.
+func waitForBlockedBy(t *testing.T, conn *sql.DB, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int
+		if err := conn.QueryRow(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND $1 = ANY(pg_blocking_pids(pid))`, pid).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("no session waited on a lock of backend %d", pid)
+}
