@@ -221,9 +221,7 @@
 		{:else}
 			<div class="grid grid-cols-1 gap-3">
 				{#each yachts as yacht (yacht.id)}
-					<div
-						class="flex items-center justify-between gap-3 rounded-2xl bg-white px-6 py-4 shadow-sm"
-					>
+					<div class="flex items-center justify-between rounded-2xl bg-white px-6 py-4 shadow-sm">
 						<div class="min-w-0 [overflow-wrap:anywhere]">
 							<span class="font-semibold text-[var(--navy)]">{yacht.name}</span>
 							{#if yacht.yacht_type}
@@ -233,9 +231,11 @@
 								<div class="text-sm text-[var(--text-muted)]">{yachtSpecs(yacht)}</div>
 							{/if}
 						</div>
-						<div class="flex shrink-0 items-center gap-4">
+						<div class="flex items-center gap-4">
 							{#if yacht.registration_no}
-								<span class="text-sm text-[var(--text-muted)]">{yacht.registration_no}</span>
+								<span class="max-w-48 text-sm text-[var(--text-muted)] [overflow-wrap:anywhere]"
+									>{yacht.registration_no}</span
+								>
 							{/if}
 							{#if auth.isAdmin}
 								<button
