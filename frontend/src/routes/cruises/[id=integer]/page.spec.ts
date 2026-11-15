@@ -135,7 +135,7 @@ describe('cruise page logistics', () => {
 		expect(await screen.findByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.queryByText('Informacje dla załogi')).not.toBeInTheDocument();
 		expect(screen.queryByTestId('cruise-logistics')).not.toBeInTheDocument();
-		expect(screen.getByText('Planowane etapy (0)')).toBeInTheDocument();
+		expect(screen.getByText('Nadchodzące etapy (0)')).toBeInTheDocument();
 		expect(screen.queryByTestId('admin-sign-ups')).not.toBeInTheDocument();
 	});
 });
@@ -217,7 +217,7 @@ describe('cruise page admin flows', () => {
 		);
 		expect(screen.getAllByText('Jachtowy Sternik Morski · JSM-7')).toHaveLength(2);
 		expect(screen.getByText('Mogę być kukiem')).toBeInTheDocument();
-		expect(screen.getByText('Planowane etapy (2)')).toBeInTheDocument();
+		expect(screen.getByText('Nadchodzące etapy (2)')).toBeInTheDocument();
 		expect(screen.getByText('Anulowany')).toBeInTheDocument();
 		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
 		expect(screen.getByText('120 Mm · 7 dni')).toBeInTheDocument();
@@ -453,7 +453,9 @@ describe('cruise page load errors', () => {
 		fn(listCruiseVoyages).mockResolvedValue([{ id: 9, name: 'Rejs 2025', miles: 120.4, days: 7 }]);
 		await renderPage();
 
-		expect(await screen.findByText(/Nie udało się wczytać: planowane etapy\./)).toBeInTheDocument();
+		expect(
+			await screen.findByText(/Nie udało się wczytać: nadchodzące etapy\./)
+		).toBeInTheDocument();
 		expect(screen.getByRole('heading', { name: 'Sycylia 2026' })).toBeInTheDocument();
 		expect(screen.getByText('Zrealizowane etapy (1)')).toBeInTheDocument();
 	});
@@ -762,17 +764,19 @@ describe('cruise page admin sign-ups by leg', () => {
 			{
 				...pending(50),
 				id: 1,
+				crew_member_id: 14,
 				user_id: 4,
-				user_name: 'Ola Nowak',
-				user_email: 'ola@example.com',
+				person_name: 'Ola Nowak',
+				email: 'ola@example.com',
 				note: 'koja dziobowa'
 			},
 			{
 				...pending(51),
 				id: 2,
-				user_id: 5,
-				user_name: '',
-				user_email: 'piotr@example.com',
+				crew_member_id: 15,
+				user_id: undefined,
+				person_name: 'Piotr Bezkonta',
+				email: 'piotr@example.com',
 				status: 'accepted'
 			}
 		]);
@@ -798,7 +802,9 @@ describe('cruise page admin sign-ups by leg', () => {
 		expect(within(a).getByText('Ola Nowak')).toBeInTheDocument();
 		expect(within(a).getByText('koja dziobowa')).toBeInTheDocument();
 		expect(within(a).getByText('Ala Kowalska')).toBeInTheDocument();
-		expect(within(b).getByText('piotr@example.com')).toBeInTheDocument();
+		expect(within(a).queryByText('bez konta')).not.toBeInTheDocument();
+		expect(within(b).getByText('Piotr Bezkonta')).toBeInTheDocument();
+		expect(within(b).getByText('bez konta')).toBeInTheDocument();
 		expect(within(b).getByText('zaakceptowany')).toBeInTheDocument();
 	});
 
@@ -850,7 +856,7 @@ describe('cruise page past planned legs', () => {
 		expect(within(overdue).getByText('Zrealizuj →')).toBeInTheDocument();
 
 		const ongoing = rowOf('Jacht B');
-		expect(within(ongoing).getByText('Planowany')).toBeInTheDocument();
+		expect(within(ongoing).getByText('Nadchodzący')).toBeInTheDocument();
 		expect(within(ongoing).queryByText('Zrealizuj →')).not.toBeInTheDocument();
 	});
 
@@ -927,7 +933,7 @@ describe('cruise page review regressions', () => {
 		);
 		const alerts = screen.getAllByRole('alert');
 		expect(alerts).toHaveLength(1);
-		expect(alerts[0]).toHaveTextContent('planowane etapy');
+		expect(alerts[0]).toHaveTextContent('nadchodzące etapy');
 		expect(
 			alerts[0].compareDocumentPosition(screen.getByRole('heading', { name: 'Sycylia 2026' })) &
 				Node.DOCUMENT_POSITION_FOLLOWING

@@ -264,7 +264,7 @@ test.describe.serial('Single-club persona matrix', () => {
 
 		await page.waitForURL(/\/trips\/\d+/, { timeout: 10_000 });
 		tripId = Number(page.url().split('/').pop());
-		await expect(page.getByText('Planowany')).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText('Nadchodzący')).toBeVisible({ timeout: 10_000 });
 		await expect(page.getByRole('heading', { name: tripName })).toBeVisible();
 	});
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -50,8 +51,34 @@ type voyagePortListOutput struct {
 	Body []dto.VoyagePort
 }
 
-// RegisterVoyagePortRoutes wires the club voyage port operations. Reads are
-// open to any member; mutations require an admin.
+type suggestPortsInput struct {
+	Query string `query:"q" required:"true" minLength:"2" maxLength:"100" doc:"Start or part of a port name; case, accents and small typos are ignored"`
+	Limit int32  `query:"limit" minimum:"1" maximum:"20" default:"8" doc:"Maximum number of suggestions"`
+}
+
+// Resolve applies the geocode query rules: a bare "q" or one with fewer than
+// two visible characters is rejected before the database is asked.
+func (i *suggestPortsInput) Resolve(ctx huma.Context) []error {
+	if isBareQueryParam(ctx.URL().RawQuery, "q") {
+		return []error{&huma.ErrorDetail{Message: "expected a value for q", Location: "query.q"}}
+	}
+	if geocodeBaseCharCount(i.Query) < geocodeMinQueryLen {
+		return []error{&huma.ErrorDetail{
+			Message:  fmt.Sprintf("expected at least %d visible characters", geocodeMinQueryLen),
+			Location: "query.q",
+			Value:    i.Query,
+		}}
+	}
+	return nil
+}
+
+type portSuggestionsOutput struct {
+	Body []dto.PortSuggestion
+}
+
+// RegisterVoyagePortRoutes wires the club voyage port operations and the
+// port name suggestions. Reads are open to any member; mutations require an
+// admin or the voyage captain.
 func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 	h := NewVoyagePortHandler(q, db)
 	tag := []string{"Voyage ports"}
@@ -61,6 +88,11 @@ func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 		Path:    "/voyages/{voyageID}/ports",
 		Summary: "List a voyage's visited ports", Tags: tag,
 	}, h.list)
+	huma.Register(api, huma.Operation{
+		OperationID: "suggest-ports", Method: http.MethodGet,
+		Path:    "/ports/suggest",
+		Summary: "Suggest port names the club already entered", Tags: tag,
+	}, h.suggest)
 	huma.Register(api, huma.Operation{
 		OperationID: "add-voyage-port", Method: http.MethodPost,
 		Path:    "/voyages/{voyageID}/ports",
@@ -88,6 +120,22 @@ func (h *VoyagePortHandler) list(ctx context.Context, in *voyagePortListInput) (
 		return nil, huma.Error500InternalServerError("failed to list voyage ports")
 	}
 	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(ports)}, nil
+}
+
+// suggest lists previously entered port names matching the query. Callers
+// who cannot see hidden voyages get only names from visible ones, so a draft
+// voyage's route does not leak through the suggestions.
+func (h *VoyagePortHandler) suggest(ctx context.Context, in *suggestPortsInput) (*portSuggestionsOutput, error) {
+	rows, err := h.q.SuggestPorts(ctx, sqlcdb.SuggestPortsParams{
+		Query:         trimGeocodeQuery(in.Query),
+		IncludeHidden: canSeeHidden(ctx),
+		RowLimit:      in.Limit,
+	})
+	if err != nil {
+		slog.Error("suggest ports", "err", err)
+		return nil, huma.Error500InternalServerError("failed to suggest ports")
+	}
+	return &portSuggestionsOutput{Body: dto.PortSuggestionsFromDB(rows)}, nil
 }
 
 func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*voyagePortOutput, error) {

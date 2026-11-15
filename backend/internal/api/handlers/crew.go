@@ -62,9 +62,10 @@ type crewListOutput struct {
 	Body dto.Page[dto.CrewMember]
 }
 
-type assignTripCrewInput struct {
-	TripID int64 `path:"tripID" doc:"Trip ID"`
-	Body   dto.CrewAssignmentBody
+type updateTripCrewRoleInput struct {
+	TripID       int64 `path:"tripID" doc:"Trip ID"`
+	AssignmentID int64 `path:"assignmentID" doc:"Assignment ID"`
+	Body         dto.CrewRoleBody
 }
 
 type tripCrewListInput struct {
@@ -130,17 +131,19 @@ func registerCrewRoutes(api huma.API, h *CrewHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "preview-crew-merge", Method: http.MethodGet, Path: "/crew/{crewID}/merge-preview",
 		Summary: "Preview merging a duplicate person into this one (admin)", Tags: crew,
-		Description: "Shows the kept person as it would be after the merge and how many crew assignments " +
-			"and voyage opinions would move. Changes nothing. Fails like the merge itself.",
+		Description: "Shows the kept person as it would be after the merge and how many crew assignments, " +
+			"voyage opinions and leg sign-ups would move. Changes nothing. Fails like the merge itself.",
 	}, h.previewMerge)
 	huma.Register(api, huma.Operation{
 		OperationID: "merge-crew-member", Method: http.MethodPost, Path: "/crew/{crewID}/merge",
 		Summary: "Merge a duplicate person into this one (admin)", Tags: crew,
-		Description: "Moves the duplicate's crew assignments and voyage opinions to this person, adds its " +
-			"names to the other names, fills empty contact fields, moves its account link and deletes it, " +
-			"all in one transaction. Where both are on the same leg or voyage, or both have an opinion for " +
-			"the same voyage, this person's stays. 409 when both are linked to different accounts; " +
-			"422 when both IDs are the same or the merged other names exceed the limit.",
+		Description: "Moves the duplicate's crew assignments, voyage opinions and leg sign-ups to this " +
+			"person, adds its names to the other names, fills empty contact fields, moves its account link " +
+			"and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have " +
+			"an opinion for the same voyage, this person's stays. Where both signed up for the same leg, the " +
+			"sign-up with the stronger status stays (accepted, pending, waitlisted, rejected; this person's " +
+			"on a tie) with the more advanced payment status of the two. 409 when both are linked to " +
+			"different accounts; 422 when both IDs are the same or the merged other names exceed the limit.",
 	}, h.merge)
 
 	huma.Register(api, huma.Operation{
@@ -148,9 +151,12 @@ func registerCrewRoutes(api huma.API, h *CrewHandler) {
 		Summary: "List a trip's crew", Tags: crew,
 	}, h.listTripCrew)
 	huma.Register(api, huma.Operation{
-		OperationID: "assign-trip-crew", Method: http.MethodPost, Path: "/trips/{tripID}/crew",
-		Summary: "Assign a crew member to a trip (admin)", Tags: crew, DefaultStatus: http.StatusCreated,
-	}, h.assignTripCrew)
+		OperationID: "update-trip-crew-role", Method: http.MethodPatch, Path: "/trips/{tripID}/crew/{assignmentID}",
+		Summary: "Change a trip crew member's role (admin)", Tags: crew,
+		Description: "Sets only the role of one crew entry of the trip. The crew of a planned leg comes " +
+			"from accepted sign-ups, each a zalogant at first. 422 when the trimmed role is empty or " +
+			"too long; 404 when the trip has no such entry.",
+	}, h.updateTripCrewRole)
 	huma.Register(api, huma.Operation{
 		OperationID: "remove-trip-crew", Method: http.MethodDelete, Path: "/trips/{tripID}/crew/{assignmentID}",
 		Summary: "Remove a crew assignment from a trip (admin)", Tags: crew, DefaultStatus: http.StatusNoContent,
@@ -360,42 +366,31 @@ func (h *CrewHandler) verifyCrewMember(ctx context.Context, crewMemberID int64) 
 	return nil
 }
 
-func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInput) (*crewAssignmentOutput, error) {
+func (h *CrewHandler) updateTripCrewRole(ctx context.Context, in *updateTripCrewRoleInput) (*crewAssignmentOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if _, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.TripID, IncludeHidden: true}); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, huma.Error404NotFound("trip not found")
-		}
-		slog.Error("verify trip for crew assignment", "trip_id", in.TripID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to verify trip")
+	role := strings.TrimSpace(in.Body.Role)
+	if role == "" {
+		return nil, huma.Error422UnprocessableEntity("role must not be blank")
 	}
-	if err := h.verifyCrewMember(ctx, in.Body.CrewMemberID); err != nil {
-		return nil, err
+	if utf8.RuneCountInString(role) > dto.MaxCrewRoleLen {
+		return nil, huma.Error422UnprocessableEntity(
+			fmt.Sprintf("role must be at most %d characters", dto.MaxCrewRoleLen))
 	}
-	var assignment sqlcdb.CrewAssignment
-	err := onDeadlockRetry(func() error {
-		var err error
-		assignment, err = h.q.CreateTripCrewAssignment(ctx, sqlcdb.CreateTripCrewAssignmentParams{
-			TripID:       types.NullInt64{Int64: in.TripID, Valid: true},
-			CrewMemberID: in.Body.CrewMemberID,
-			Role:         in.Body.Role,
-			PatentNumber: nullString(in.Body.PatentNumber),
-		})
-		return err
+	row, err := h.q.UpdateTripCrewAssignmentRole(ctx, sqlcdb.UpdateTripCrewAssignmentRoleParams{
+		Role:   role,
+		ID:     in.AssignmentID,
+		TripID: in.TripID,
 	})
 	if err != nil {
-		if isForeignKeyViolation(err, "crew_assignments_trip_id_fkey") {
-			return nil, huma.Error409Conflict("trip is no longer open: it was completed or deleted")
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("crew assignment not found")
 		}
-		if resp := assignCrewError(err); resp != nil {
-			return nil, resp
-		}
-		slog.Error("assign trip crew", "trip_id", in.TripID, "crew_member_id", in.Body.CrewMemberID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to assign crew member")
+		slog.Error("update trip crew role", "trip_id", in.TripID, "assignment_id", in.AssignmentID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to update crew role")
 	}
-	return &crewAssignmentOutput{Body: dto.CrewAssignmentFromDB(assignment)}, nil
+	return &crewAssignmentOutput{Body: dto.TripCrewMemberFromDB(sqlcdb.ListTripCrewAssignmentsRow(row))}, nil
 }
 
 func (h *CrewHandler) removeTripCrew(ctx context.Context, in *removeTripCrewInput) (*noContentOutput, error) {

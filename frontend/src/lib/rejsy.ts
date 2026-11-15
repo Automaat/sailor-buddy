@@ -11,7 +11,7 @@ export const rejsTabs: { value: RejsTab; label: string }[] = [
 ];
 
 export const rejsStatusLabels: Record<RejsStatus, string> = {
-	upcoming: 'Planowany',
+	upcoming: 'Nadchodzący',
 	overdue: 'Do rozliczenia',
 	completed: 'Zrealizowany',
 	cancelled: 'Anulowany'
@@ -93,7 +93,7 @@ export function isLegOverdue(leg: LegDates, today: string): boolean {
 export type LegStatus = 'planned' | 'overdue' | 'cancelled';
 
 export const legStatusLabels: Record<LegStatus, string> = {
-	planned: 'Planowany',
+	planned: 'Nadchodzący',
 	overdue: 'Do rozliczenia',
 	cancelled: 'Anulowany'
 };

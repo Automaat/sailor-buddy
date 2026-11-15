@@ -16,8 +16,8 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-// capacityLeg seeds an open leg with max_crew places and n users, and
-// returns the leg and the users' IDs in creation order.
+// capacityLeg seeds an open leg with max_crew places and n users, each with
+// their person, and returns the leg and the users' IDs in creation order.
 func capacityLeg(t *testing.T, conn *sql.DB, maxCrew, n int) (tripID int64, users []int64) {
 	t.Helper()
 	ctx := context.Background()
@@ -45,6 +45,9 @@ func capacityLeg(t *testing.T, conn *sql.DB, maxCrew, n int) (tripID int64, user
 		u, err := q.CreateUser(ctx, sqlcdb.CreateUserParams{Email: fmt.Sprintf("crew%d@example.com", i), Name: ""})
 		if err != nil {
 			t.Fatalf("create user: %v", err)
+		}
+		if err := q.EnsureUserPerson(ctx, u.ID); err != nil {
+			t.Fatalf("ensure person: %v", err)
 		}
 		users[i] = u.ID
 	}
@@ -145,7 +148,8 @@ func TestCapacity_ConcurrentAcceptsAgainstDatabase(t *testing.T) {
 	var ids []int64
 	for _, u := range users {
 		var id int64
-		if err := conn.QueryRow("INSERT INTO trip_enrollments (trip_id, user_id) VALUES ($1, $2) RETURNING id", trip, u).Scan(&id); err != nil {
+		if err := conn.QueryRow(`INSERT INTO trip_enrollments (trip_id, crew_member_id)
+			SELECT $1, id FROM crew_members WHERE user_id = $2 RETURNING id`, trip, u).Scan(&id); err != nil {
 			t.Fatalf("seed enrollment: %v", err)
 		}
 		ids = append(ids, id)
@@ -192,7 +196,8 @@ func TestCapacity_CruiseEnrollmentAgainstDatabase(t *testing.T) {
 	conn := lockTestDB(t)
 	ctx := context.Background()
 	trip, users := capacityLeg(t, conn, 1, 3)
-	if _, err := conn.ExecContext(ctx, "INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'accepted')", trip, users[0]); err != nil {
+	if _, err := conn.ExecContext(ctx, `INSERT INTO trip_enrollments (trip_id, crew_member_id, status)
+		SELECT $1, id, 'accepted' FROM crew_members WHERE user_id = $2`, trip, users[0]); err != nil {
 		t.Fatalf("seed accepted: %v", err)
 	}
 	var cruise, assigned, unassigned int64
@@ -222,8 +227,9 @@ func TestCapacity_CruiseEnrollmentAgainstDatabase(t *testing.T) {
 	}
 	var accepted int64
 	if err := conn.QueryRow(`SELECT COUNT(*) FROM (
-		SELECT user_id FROM trip_enrollments WHERE trip_id = $1 AND status = 'accepted'
-		UNION SELECT user_id FROM cruise_enrollments WHERE trip_id = $1 AND status = 'accepted') u`, trip).Scan(&accepted); err != nil || accepted != 1 {
+		SELECT crew_member_id FROM trip_enrollments WHERE trip_id = $1 AND status = 'accepted'
+		UNION SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+		WHERE ce.trip_id = $1 AND ce.status = 'accepted') u`, trip).Scan(&accepted); err != nil || accepted != 1 {
 		t.Fatalf("accepted on the leg = %d (err %v), want 1", accepted, err)
 	}
 }

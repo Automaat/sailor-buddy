@@ -152,7 +152,7 @@ export interface paths {
         put?: never;
         /**
          * Merge a duplicate person into this one (admin)
-         * @description Moves the duplicate's crew assignments and voyage opinions to this person, adds its names to the other names, fills empty contact fields, moves its account link and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have an opinion for the same voyage, this person's stays. 409 when both are linked to different accounts; 422 when both IDs are the same or the merged other names exceed the limit.
+         * @description Moves the duplicate's crew assignments, voyage opinions and leg sign-ups to this person, adds its names to the other names, fills empty contact fields, moves its account link and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have an opinion for the same voyage, this person's stays. Where both signed up for the same leg, the sign-up with the stronger status stays (accepted, pending, waitlisted, rejected; this person's on a tie) with the more advanced payment status of the two. 409 when both are linked to different accounts; 422 when both IDs are the same or the merged other names exceed the limit.
          */
         post: operations["merge-crew-member"];
         delete?: never;
@@ -170,7 +170,7 @@ export interface paths {
         };
         /**
          * Preview merging a duplicate person into this one (admin)
-         * @description Shows the kept person as it would be after the merge and how many crew assignments and voyage opinions would move. Changes nothing. Fails like the merge itself.
+         * @description Shows the kept person as it would be after the merge and how many crew assignments, voyage opinions and leg sign-ups would move. Changes nothing. Fails like the merge itself.
          */
         get: operations["preview-crew-merge"];
         put?: never;
@@ -382,7 +382,7 @@ export interface paths {
         };
         /**
          * List every leg sign-up of a cruise (admin)
-         * @description Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
+         * @description Trip enrollments of all the cruise's legs with their person, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
          */
         get: operations["list-cruise-trip-enrollments"];
         put?: never;
@@ -684,6 +684,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ports/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Suggest port names the club already entered */
+        get: operations["suggest-ports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series": {
         parameters: {
             query?: never;
@@ -859,8 +876,7 @@ export interface paths {
         /** List a trip's crew */
         get: operations["list-trip-crew"];
         put?: never;
-        /** Assign a crew member to a trip (admin) */
-        post: operations["assign-trip-crew"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -881,7 +897,11 @@ export interface paths {
         delete: operations["remove-trip-crew"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Change a trip crew member's role (admin)
+         * @description Sets only the role of one crew entry of the trip. The crew of a planned leg comes from accepted sign-ups, each a zalogant at first. 422 when the trimmed role is empty or too long; 404 when the trip has no such entry.
+         */
+        patch: operations["update-trip-crew-role"];
         trace?: never;
     };
     "/trips/{tripID}/enroll-token": {
@@ -912,7 +932,11 @@ export interface paths {
         /** List a trip's enrollments */
         get: operations["list-trip-enrollments"];
         put?: never;
-        post?: never;
+        /**
+         * Sign a person up for a leg (admin)
+         * @description Creates a sign-up for any person, including one without an account, as an admin action: it does not need sign-ups switched on, the sign-up deadline or publication. It starts pending, or waitlisted when accepted plus pending sign-ups already hold all of the leg's max_crew places or anyone is waiting, as a self sign-up does. Accepting it puts the person on the crew list. 404 when the trip does not exist; 409 when the leg is not planned or the person already has a sign-up for it; 422 when the person does not exist.
+         */
+        post: operations["create-trip-enrollment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -946,7 +970,7 @@ export interface paths {
         get?: never;
         /**
          * Set a trip enrollment's manual payment status (admin)
-         * @description Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. 404 when the trip has no such enrollment.
+         * @description Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. Returns the sign-up with its person. 404 when the trip has no such enrollment.
          */
         put: operations["update-trip-enrollment-payment-status"];
         post?: never;
@@ -966,7 +990,7 @@ export interface paths {
         get?: never;
         /**
          * Update a trip enrollment's status (admin)
-         * @description Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. Accepting puts the user's person on the leg's crew list as zalogant; any other status removes the entry the acceptance added, while crew added by hand stays. 404 when the enrollment does not exist or belongs to another trip.
+         * @description Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. Accepting puts the sign-up's person on the leg's crew list as zalogant; any other status removes the entry the acceptance added, while crew added by hand stays. 404 when the enrollment does not exist or belongs to another trip.
          */
         put: operations["update-trip-enrollment-status"];
         post?: never;
@@ -1604,6 +1628,16 @@ export interface components {
             pzz_license_number?: string;
             pzz_license_type?: string;
         };
+        CrewRoleBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/CrewRoleBody.json
+             */
+            readonly $schema?: string;
+            /** @description Crew role, such as zalogant; trimmed, must not be blank */
+            role: string;
+        };
         Cruise: {
             /**
              * Format: uri
@@ -1686,6 +1720,11 @@ export interface components {
         CruiseEnrollmentDetail: {
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: int64
+             * @description Person the leg sign-up belongs to. Leg sign-ups only
+             */
+            crew_member_id?: number;
             /** Format: int64 */
             cruise_id?: number;
             /** Format: int64 */
@@ -1703,8 +1742,11 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
             user_email: string;
-            /** Format: int64 */
-            user_id: number;
+            /**
+             * Format: int64
+             * @description Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none
+             */
+            user_id?: number;
             user_name: string;
             user_patent_number?: string;
             user_patent_type?: string;
@@ -1956,6 +1998,11 @@ export interface components {
             readonly $schema?: string;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: int64
+             * @description Person the leg sign-up belongs to. Leg sign-ups only
+             */
+            crew_member_id?: number;
             /** Format: int64 */
             cruise_id?: number;
             /** Format: int64 */
@@ -1971,8 +2018,11 @@ export interface components {
             trip_id?: number;
             /** Format: date-time */
             updated_at: string;
-            /** Format: int64 */
-            user_id: number;
+            /**
+             * Format: int64
+             * @description Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none
+             */
+            user_id?: number;
         };
         EnrollmentStatusBody: {
             /**
@@ -2060,6 +2110,11 @@ export interface components {
             /** Format: double */
             longitude: number;
             name: string;
+            /**
+             * @description Search service that found the place
+             * @enum {string}
+             */
+            source: "nominatim" | "photon";
         };
         LegSignUp: {
             /**
@@ -2483,9 +2538,19 @@ export interface components {
             shared_opinions: number;
             /**
              * Format: int64
+             * @description Duplicate's sign-ups for legs the kept person also signed up for; one sign-up per leg stays
+             */
+            shared_trip_enrollments: number;
+            /**
+             * Format: int64
              * @description Leg crew assignments of the duplicate
              */
             trip_assignments: number;
+            /**
+             * Format: int64
+             * @description Leg sign-ups of the duplicate
+             */
+            trip_enrollments: number;
             /**
              * Format: int64
              * @description Voyage crew assignments of the duplicate
@@ -2511,6 +2576,18 @@ export interface components {
             by_year: components["schemas"]["VoyagesByYear"][] | null;
             total: components["schemas"]["SeaTime"];
             voyages: components["schemas"]["SeaTimeVoyage"][] | null;
+        };
+        PortSuggestion: {
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description How many visited ports carry this name
+             */
+            uses: number;
         };
         PublishCruiseBody: {
             /**
@@ -2777,11 +2854,39 @@ export interface components {
             /** Format: int64 */
             yacht_id?: number;
         };
+        TripEnrollmentCreateBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/TripEnrollmentCreateBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Person to sign up; may have no account
+             */
+            crew_member_id: number;
+            /** @description Optional note on the sign-up */
+            note?: string;
+        };
         TripEnrollmentDetail: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/TripEnrollmentDetail.json
+             */
+            readonly $schema?: string;
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: int64
+             * @description Person the leg sign-up belongs to. Leg sign-ups only
+             */
+            crew_member_id?: number;
             /** Format: int64 */
             cruise_id?: number;
+            /** @description The person's e-mail, or the account's when the person has none; omitted when neither has one */
+            email?: string;
             /** Format: int64 */
             id: number;
             note?: string;
@@ -2790,15 +2895,18 @@ export interface components {
              * @enum {string}
              */
             payment_status?: "unpaid" | "deposit" | "paid";
+            /** @description Full name of the person */
+            person_name: string;
             status: string;
             /** Format: int64 */
             trip_id?: number;
             /** Format: date-time */
             updated_at: string;
-            user_email: string;
-            /** Format: int64 */
-            user_id: number;
-            user_name: string;
+            /**
+             * Format: int64
+             * @description Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none
+             */
+            user_id?: number;
         };
         UpdateProfileBody: {
             /**
@@ -4427,6 +4535,10 @@ export interface operations {
             query: {
                 /** @description Town or place name to search for */
                 q: string;
+                /** @description Latitude of the map centre; nearby places rank higher. Give together with lon */
+                lat?: number;
+                /** @description Longitude of the map centre; nearby places rank higher. Give together with lat */
+                lon?: number;
             };
             header?: never;
             path?: never;
@@ -4727,6 +4839,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonLinkRequest"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "suggest-ports": {
+        parameters: {
+            query: {
+                /** @description Start or part of a port name; case, accents and small typos are ignored */
+                q: string;
+                /** @description Maximum number of suggestions */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortSuggestion"][] | null;
                 };
             };
             /** @description Error */
@@ -5367,42 +5513,6 @@ export interface operations {
             };
         };
     };
-    "assign-trip-crew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Trip ID */
-                tripID: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CrewAssignmentBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CrewAssignment"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
     "remove-trip-crew": {
         parameters: {
             query?: never;
@@ -5423,6 +5533,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-trip-crew-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+                /** @description Assignment ID */
+                assignmentID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewRoleBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewAssignment"];
+                };
             };
             /** @description Error */
             default: {
@@ -5529,6 +5677,42 @@ export interface operations {
             };
         };
     };
+    "create-trip-enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripEnrollmentCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripEnrollmentDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "delete-trip-enrollment": {
         parameters: {
             query?: never;
@@ -5585,7 +5769,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Enrollment"];
+                    "application/json": components["schemas"]["TripEnrollmentDetail"];
                 };
             };
             /** @description Error */

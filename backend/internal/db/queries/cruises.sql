@@ -111,9 +111,10 @@ UPDATE voyages SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMEST
 WHERE cruise_id = $1 AND published_at IS NULL;
 
 -- name: ListUserCruiseIDs :many
--- Cruises the user took part in: an accepted cruise or trip enrollment, a
--- leg captained by the account's person, or a crew-list entry linked to the
--- account, or one without an account that carries its email. Another
+-- Cruises the user took part in: an accepted cruise enrollment, an
+-- accepted trip enrollment of the account's person, a leg captained by the
+-- account's person, or a crew-list entry linked to the account, or one
+-- without an account that carries its email. Another
 -- account's person never matches by email: it keeps the email that account
 -- had when the person was created. Without include_hidden, a hidden cruise
 -- and a cruise reached only through a hidden leg are left out.
@@ -129,8 +130,10 @@ took_part AS (
     SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
     WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
     UNION ALL
-    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
-    WHERE te.user_id = me.me_id AND te.status = 'accepted'
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te
+    JOIN trips t ON t.id = te.trip_id
+    JOIN crew_members cm ON cm.id = te.crew_member_id, me
+    WHERE cm.user_id = me.me_id AND te.status = 'accepted'
     UNION ALL
     SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
     JOIN crew_members cm ON cm.id = t.captain_person_id, me

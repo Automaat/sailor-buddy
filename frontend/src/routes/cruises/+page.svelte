@@ -115,7 +115,7 @@
 		<div>
 			<h1 class="text-3xl font-bold text-[var(--navy)]">Rejsy</h1>
 			<p class="mt-1 text-sm text-[var(--text-muted)]">
-				Wydarzenia klubu: planowane i zrealizowane
+				Wydarzenia klubu: nadchodzące i zrealizowane
 			</p>
 		</div>
 		{#if auth.isAdmin}

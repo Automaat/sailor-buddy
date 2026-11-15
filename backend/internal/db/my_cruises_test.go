@@ -60,7 +60,7 @@ func TestListUserCruiseIDs(t *testing.T) {
 	exec(`INSERT INTO cruise_enrollments (cruise_id, user_id, status) VALUES ($1, $2, 'pending')`, pendingCruise, me)
 
 	acceptedTrip := cruise("accepted trip enrollment")
-	exec(`INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'accepted')`, trip(acceptedTrip, nil), me)
+	exec(`INSERT INTO trip_enrollments (trip_id, crew_member_id, status) VALUES ($1, $2, 'accepted')`, trip(acceptedTrip, nil), mePerson)
 
 	captainedTrip := cruise("captained trip")
 	trip(captainedTrip, mePerson)
@@ -89,6 +89,10 @@ func TestListUserCruiseIDs(t *testing.T) {
 	noAccountCaptain := cruise("captained by a person without an account")
 	voyage(noAccountCaptain, noAccountPerson)
 
+	noAccountSignUp := cruise("accepted sign-up of a person without an account")
+	exec(`INSERT INTO trip_enrollments (trip_id, crew_member_id, status) VALUES ($1, $2, 'accepted')`,
+		trip(noAccountSignUp, nil), noAccountPerson)
+
 	got, err := sqlcdb.New(conn).ListUserCruiseIDs(context.Background(), sqlcdb.ListUserCruiseIDsParams{UserID: me, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -96,7 +100,7 @@ func TestListUserCruiseIDs(t *testing.T) {
 	want := []int64{acceptedCruise, acceptedTrip, captainedTrip, captainedVoyage, linkedCrew, emailCrew}
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
-		t.Fatalf("cruise ids = %v, want %v (pending %d, others %d, stale e-mail %d, no-account captain %d excluded)",
-			got, want, pendingCruise, othersCruise, staleEmailCruise, noAccountCaptain)
+		t.Fatalf("cruise ids = %v, want %v (pending %d, others %d, stale e-mail %d, no-account captain %d, no-account sign-up %d excluded)",
+			got, want, pendingCruise, othersCruise, staleEmailCruise, noAccountCaptain, noAccountSignUp)
 	}
 }

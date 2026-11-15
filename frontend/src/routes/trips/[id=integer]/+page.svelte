@@ -3,9 +3,8 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import {
 		deleteTrip,
-		listTripCrew,
-		assignTripCrew,
 		removeTripCrew,
+		updateTripCrewRole,
 		cancelTrip,
 		completeTrip,
 		generateTripEnrollToken,
@@ -34,9 +33,8 @@
 	let { data } = $props();
 
 	let cruise = $derived(data.cruise);
-	const allCrewMembers = $derived(data.allCrewMembers);
 	const adminLoadErrors = $derived(data.adminLoadErrors);
-	// These change in place after a cancel, a crew edit, a sign-up, an
+	// These change in place after a cancel, a crew role edit or removal, a sign-up, an
 	// enroll-link toggle or a publish, and reset to the loaded value on
 	// navigation.
 	let trip = $derived(data.trip);
@@ -47,22 +45,19 @@
 
 	const id = $derived(data.trip.id);
 
-	let assignCrewId = $state('');
-	let assignRole = $state('');
 	let showCompleteModal = $state(false);
 	let deleteError = $state('');
 	let removeCrewError = $state('');
 	// The *For values name the trip whose request is in flight, so a button
 	// stays busy only on that trip, not on one a link moved to.
-	let assigningFor = $state<number | null>(null);
 	let togglingFor = $state<number | null>(null);
 	let completingFor = $state<number | null>(null);
-	const assigning = $derived(assigningFor === id);
 	const togglingEnroll = $derived(togglingFor === id);
 	const completing = $derived(completingFor === id);
 
 	const places = $derived(signUp ? freePlacesLabel(trip.max_crew, signUp.accepted_count) : null);
-	// Trips are club-managed: only admins create, edit and crew them.
+	// Trips are club-managed: only admins create and edit them and manage
+	// their crew, which comes from accepted sign-ups.
 	const canManageCrew = $derived(auth.isAdmin);
 	const showHidden = $derived(canSeeHidden(auth));
 	// Failures of admin-only sections join the banner only for admins. The
@@ -75,8 +70,6 @@
 	// another clears them.
 	$effect(() => {
 		void id;
-		assignCrewId = '';
-		assignRole = '';
 		showCompleteModal = false;
 		deleteError = '';
 		removeCrewError = '';
@@ -204,25 +197,45 @@
 		}
 	}
 
-	async function assignCrew(e: Event) {
+	type CrewEntry = (typeof crew)[number];
+
+	// Role drafts by crew entry, the entry whose role is saving and the last
+	// failure; they start over on another trip.
+	let roles = $derived(
+		perLoad(data, {
+			drafts: {} as Record<number, string>,
+			saving: null as number | null,
+			error: ''
+		})
+	);
+
+	function roleDraft(member: CrewEntry) {
+		return roles.drafts[member.id] ?? member.role;
+	}
+
+	function roleChanged(member: CrewEntry) {
+		const next = roleDraft(member).trim();
+		return next !== '' && next !== member.role;
+	}
+
+	async function saveRole(e: Event, member: CrewEntry) {
 		e.preventDefault();
-		if (!assignCrewId || !assignRole) return;
+		if (!roleChanged(member)) return;
+		const held = roles;
 		const tripId = id;
-		assigningFor = tripId;
+		const role = roleDraft(member).trim();
+		held.saving = member.id;
+		held.error = '';
 		try {
-			await assignTripCrew(tripId, {
-				crew_member_id: Number(assignCrewId),
-				role: assignRole
-			});
-			const list = (await listTripCrew(tripId)) ?? [];
-			if (leftTrip(tripId)) return;
-			crew = list;
-			assignCrewId = '';
-			assignRole = '';
+			const updated = await updateTripCrewRole(tripId, member.id, role);
+			if (held !== roles) return;
+			crew = crew.map((c) => (c.id === member.id ? { ...c, role: updated.role } : c));
+			delete held.drafts[member.id];
 		} catch (err) {
-			console.error('Failed to assign crew:', err);
+			console.error('Failed to update crew role:', err);
+			if (held === roles) held.error = `Nie udało się zmienić roli: ${errorMessage(err)}`;
 		} finally {
-			if (assigningFor === tripId) assigningFor = null;
+			if (held.saving === member.id) held.saving = null;
 		}
 	}
 
@@ -505,44 +518,24 @@
 				<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
 			</div>
 
-			{#if allCrewMembers.length > 0 && trip.status === 'planned'}
-				<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
-					<div class="min-w-0 max-w-full">
-						<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
-						<select
-							id="assign-crew"
-							bind:value={assignCrewId}
-							class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
-						>
-							<option value="">Wybierz...</option>
-							{#each allCrewMembers as member (member.id)}
-								<option value={member.id}>{member.full_name}</option>
-							{/each}
-						</select>
-					</div>
-					<div>
-						<label for="assign-role" class="block text-xs text-[var(--text-muted)]">Rola</label>
-						<input
-							id="assign-role"
-							type="text"
-							bind:value={assignRole}
-							placeholder="np. Sternik"
-							class="rounded-lg border px-3 py-1.5 text-sm"
-						/>
-					</div>
-					<button
-						type="submit"
-						disabled={!assignCrewId || !assignRole || assigning}
-						class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean)]/90 disabled:opacity-50"
-					>
-						{assigning ? 'Dodawanie...' : 'Dodaj'}
-					</button>
-				</form>
+			{#if trip.status === 'planned'}
+				<p class="mb-4 text-sm text-[var(--text-muted)]" data-testid="crew-hint">
+					Załoga powstaje z zaakceptowanych zapisów. Aby dodać osobę, zapisz ją na etap i zaakceptuj
+					w
+					<a href="/trips/{id}/enrollments" class="text-[var(--ocean)] hover:underline"
+						>Zarządzaj zapisami</a
+					>.
+				</p>
 			{/if}
 
 			{#if removeCrewError}
 				<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
 					{removeCrewError}
+				</div>
+			{/if}
+			{#if roles.error}
+				<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+					{roles.error}
 				</div>
 			{/if}
 
@@ -551,14 +544,40 @@
 			{:else}
 				<div class="space-y-2">
 					{#each crew as member (member.id)}
-						<div class="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2">
-							<div class="flex items-center gap-2">
+						<div
+							class="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-4 py-2 max-md:flex-wrap"
+						>
+							<div class="flex min-w-0 items-center gap-2 max-md:flex-wrap">
 								<span class="font-medium">{member.full_name}</span>
-								<span
-									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
-								>
-									{member.role}
-								</span>
+								{#if trip.status === 'planned'}
+									<form class="flex items-center gap-1" onsubmit={(e) => saveRole(e, member)}>
+										<label class="sr-only" for="crew-role-{member.id}"
+											>Rola: {member.full_name}</label
+										>
+										<input
+											id="crew-role-{member.id}"
+											type="text"
+											maxlength="100"
+											value={roleDraft(member)}
+											oninput={(e) => (roles.drafts[member.id] = e.currentTarget.value)}
+											class="w-36 rounded-lg border px-2 py-1 text-sm"
+										/>
+										<button
+											type="submit"
+											disabled={roles.saving === member.id || !roleChanged(member)}
+											aria-label="Zapisz rolę: {member.full_name}"
+											class="rounded-lg border px-2 py-1 text-xs hover:bg-white disabled:opacity-50"
+										>
+											{roles.saving === member.id ? 'Zapisywanie...' : 'Zapisz'}
+										</button>
+									</form>
+								{:else}
+									<span
+										class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"
+									>
+										{member.role}
+									</span>
+								{/if}
 							</div>
 							{#if trip.status === 'planned'}
 								<button

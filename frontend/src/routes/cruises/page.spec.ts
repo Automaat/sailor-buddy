@@ -84,7 +84,7 @@ describe('rejsy page', () => {
 
 		const card = (await screen.findByText('Regaty Klubowe')).closest('a');
 		expect(card).toHaveAttribute('href', '/cruises/9');
-		expect(card).toHaveTextContent('Planowany');
+		expect(card).toHaveTextContent('Nadchodzący');
 		expect(card).toHaveTextContent('etapy: 0/2 zrealizowane');
 		expect(screen.getByText('Zapisy otwarte')).toBeInTheDocument();
 	});
@@ -210,7 +210,7 @@ describe('rejsy page', () => {
 
 		const card = screen.getByText('Bornholm 2026').closest('a');
 		expect(card).toHaveTextContent('Do rozliczenia');
-		expect(card).not.toHaveTextContent('Planowany');
+		expect(card).not.toHaveTextContent('Nadchodzący');
 		expect(card).toHaveTextContent('1–9 sie 2026 · 9 dni');
 	});
 

@@ -101,7 +101,7 @@ func registerSignUpRoutes(api huma.API, h *EnrollmentHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-cruise-trip-enrollments", Method: http.MethodGet, Path: "/cruises/{cruiseID}/trip-enrollments",
 		Summary: "List every leg sign-up of a cruise (admin)",
-		Description: "Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg " +
+		Description: "Trip enrollments of all the cruise's legs with their person, ordered by leg " +
 			"(embark date, then id) and sign-up time. 404 when the cruise does not exist.",
 		Tags: tag,
 	}, h.listCruiseTripEnrollments)
@@ -186,7 +186,7 @@ func legOpen(t *sqlcdb.Trip, today string) bool {
 func signUpOf(ctx context.Context, q sqlcdb.Querier, tripID, userID int64) (e dto.Enrollment, found bool, err error) {
 	te, err := q.GetUserTripEnrollment(ctx, sqlcdb.GetUserTripEnrollmentParams{TripID: tripID, UserID: userID})
 	if err == nil {
-		return dto.TripEnrollmentToDTO(te), true, nil
+		return dto.UserTripEnrollmentToDTO(te, userID), true, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return dto.Enrollment{}, false, &QueryError{Op: "GetUserTripEnrollment", Err: err}
@@ -275,6 +275,9 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 		if closed, ok := errors.AsType[*signUpClosedError](txErr); ok {
 			return nil, huma.Error422UnprocessableEntity(closed.msg)
 		}
+		if errors.Is(txErr, errPersonChanged) || isDeadlock(txErr) {
+			return nil, huma.Error409Conflict(errPersonChangedMessage)
+		}
 		slog.Error("sign up for trip", "trip_id", in.ID, "user_id", user.UserID, "err", txErr)
 		return nil, huma.Error500InternalServerError("failed to sign up")
 	}
@@ -311,7 +314,7 @@ func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUp
 		slog.Error("update trip sign-up note", "trip_id", in.TripID, "user_id", user.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update note")
 	}
-	return &enrollmentBodyOutput{Body: dto.TripEnrollmentToDTO(e)}, nil
+	return &enrollmentBodyOutput{Body: dto.UserTripEnrollmentToDTO(e, user.UserID)}, nil
 }
 
 // withdrawTripSignUp deletes the caller's pending or waitlisted, unpaid
@@ -401,7 +404,7 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 		return nil, huma.Error500InternalServerError("failed to list sign-ups")
 	}
 	for i := range mine {
-		byTrip[mine[i].TripID] = dto.TripEnrollmentToDTO(mine[i])
+		byTrip[mine[i].TripID] = dto.UserTripEnrollmentToDTO(mine[i], user.UserID)
 	}
 	today := h.today()
 	out := make([]dto.LegSignUp, len(trips))

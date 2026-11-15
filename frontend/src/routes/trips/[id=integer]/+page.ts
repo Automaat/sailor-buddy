@@ -1,10 +1,4 @@
-import {
-	getCruise,
-	getTrip,
-	getTripSignUp,
-	listAssignableCrew,
-	listTripCrew
-} from '#lib/api/routes.js';
+import { getCruise, getTrip, getTripSignUp, listTripCrew } from '#lib/api/routes.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
 import type { PageLoad } from './$types';
@@ -18,20 +12,19 @@ export const load: PageLoad = async ({ params }) => {
 		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];
-	// Crew and the people list feed admin-only sections; the page shows their
-	// failures only to an admin.
+	// The crew feeds an admin-only section; the page shows its failure only
+	// to an admin.
 	const adminLoadErrors: string[] = [];
-	const [crew, allCrewMembers, signUp, cruise] = await Promise.all([
+	const [crew, signUp, cruise] = await Promise.all([
 		settle(
 			listTripCrew(id).then((c) => c ?? []),
 			[],
 			noteFailure(adminLoadErrors, 'załoga')
 		),
-		settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
 		settle(getTripSignUp(id), null, noteFailure(loadErrors, 'zapis na etap')),
 		trip.cruise_id
 			? settle(getCruise(trip.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'))
 			: Promise.resolve(null)
 	]);
-	return { trip, cruise, crew, allCrewMembers, signUp, loadErrors, adminLoadErrors };
+	return { trip, cruise, crew, signUp, loadErrors, adminLoadErrors };
 };

@@ -19,21 +19,22 @@ import (
 )
 
 // signUpStore is an in-memory trips and trip_enrollments pair keyed like
-// the real tables (UNIQUE(trip_id, user_id)).
+// the real tables (UNIQUE(trip_id, crew_member_id)). User u's person has id
+// u, so a sign-up's CrewMemberID is its user's ID.
 type signUpStore struct {
 	trips   map[int64]sqlcdb.Trip
 	rows    []sqlcdb.TripEnrollment
 	legacy  []sqlcdb.CruiseEnrollment
 	nextID  int64
 	inserts int
-	// crewCalls records crew list changes as "add trip/user" or
-	// "remove trip/user", in call order.
+	// crewCalls records crew list changes as "add trip/person" or
+	// "remove trip/person", in call order.
 	crewCalls []string
 }
 
 func (s *signUpStore) find(tripID, userID int64) (int, bool) {
 	for i := range s.rows {
-		if s.rows[i].TripID == tripID && s.rows[i].UserID == userID {
+		if s.rows[i].TripID == tripID && s.rows[i].CrewMemberID == userID {
 			return i, true
 		}
 	}
@@ -59,7 +60,11 @@ func (s *signUpStore) mock() *mockQuerier {
 			return nil
 		},
 		removeAcceptedTripCrewAssignmentFn: func(_ context.Context, arg sqlcdb.RemoveAcceptedTripCrewAssignmentParams) error {
-			s.crewCalls = append(s.crewCalls, fmt.Sprintf("remove %d/%d", arg.TripID, arg.UserID))
+			person := arg.CrewMemberID
+			if !person.Valid {
+				person = arg.UserID
+			}
+			s.crewCalls = append(s.crewCalls, fmt.Sprintf("remove %d/%d", arg.TripID, person.Int64))
 			return nil
 		},
 		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
@@ -83,12 +88,12 @@ func (s *signUpStore) mock() *mockQuerier {
 			return sqlcdb.TripEnrollment{}, sql.ErrNoRows
 		},
 		createTripEnrollmentIfAbsentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error) {
-			if _, ok := s.find(arg.TripID, arg.UserID); ok {
+			if _, ok := s.find(arg.TripID, arg.CrewMemberID); ok {
 				return sqlcdb.TripEnrollment{}, sql.ErrNoRows
 			}
 			s.inserts++
 			s.nextID++
-			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, UserID: arg.UserID, Note: arg.Note, Status: arg.Status, PaymentStatus: "unpaid"}
+			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, CrewMemberID: arg.CrewMemberID, Note: arg.Note, Status: arg.Status, PaymentStatus: "unpaid"}
 			s.rows = append(s.rows, row)
 			return row, nil
 		},
@@ -121,7 +126,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			return s.count(tripID, 0, "accepted"), nil
 		},
 		countOtherAcceptedForTripFn: func(_ context.Context, arg sqlcdb.CountOtherAcceptedForTripParams) (int64, error) {
-			return s.count(arg.TripID, arg.UserID, "accepted"), nil
+			return s.count(arg.TripID, arg.CrewMemberID, "accepted"), nil
 		},
 		countTripPlaceUseFn: func(_ context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error) {
 			var waiting int64
@@ -164,20 +169,21 @@ func (s *signUpStore) mock() *mockQuerier {
 	}
 }
 
-// count returns the distinct users of a trip's sign-ups in one of statuses,
-// skipping exceptUser (0 skips no one). Users are unique per trip, as in
-// UNIQUE(trip_id, user_id); cruise enrollments assigned to the trip count too.
-func (s *signUpStore) count(tripID, exceptUser int64, statuses ...string) int64 {
+// count returns the distinct people of a trip's sign-ups in one of
+// statuses, skipping exceptPerson (0 skips no one). People are unique per
+// trip, as in UNIQUE(trip_id, crew_member_id); cruise enrollments assigned
+// to the trip count too, through their user's person.
+func (s *signUpStore) count(tripID, exceptPerson int64, statuses ...string) int64 {
 	users := map[int64]bool{}
 	for i := range s.rows {
 		r := &s.rows[i]
-		if r.TripID == tripID && r.UserID != exceptUser && slices.Contains(statuses, r.Status) {
-			users[r.UserID] = true
+		if r.TripID == tripID && r.CrewMemberID != exceptPerson && slices.Contains(statuses, r.Status) {
+			users[r.CrewMemberID] = true
 		}
 	}
 	for i := range s.legacy {
 		r := &s.legacy[i]
-		if r.TripID.Valid && r.TripID.Int64 == tripID && r.UserID != exceptUser && slices.Contains(statuses, r.Status) {
+		if r.TripID.Valid && r.TripID.Int64 == tripID && r.UserID != exceptPerson && slices.Contains(statuses, r.Status) {
 			users[r.UserID] = true
 		}
 	}
@@ -215,7 +221,8 @@ func TestSignUpForTrip_CreatesPendingEnrollment(t *testing.T) {
 		t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 	}
 	got := decodeSignUp(t, resp.Body.Bytes())
-	if got.Result != "created" || got.TripID != 5 || got.Enrollment.Status != "pending" || got.Enrollment.UserID != 42 {
+	if got.Result != "created" || got.TripID != 5 || got.Enrollment.Status != "pending" ||
+		got.Enrollment.UserID == nil || *got.Enrollment.UserID != 42 || got.Enrollment.CrewMemberID == nil || *got.Enrollment.CrewMemberID != 42 {
 		t.Fatalf("result = %+v, want created pending enrollment of user 42 on trip 5", got)
 	}
 	if len(s.rows) != 1 || s.rows[0].Note.Valid {
@@ -252,7 +259,7 @@ func TestSignUpForTrip_LostInsertRaceReturnsExisting(t *testing.T) {
 		if calls == 1 {
 			return sqlcdb.TripEnrollment{}, sql.ErrNoRows
 		}
-		return sqlcdb.TripEnrollment{ID: 99, TripID: 5, UserID: 42, Status: "pending"}, nil
+		return sqlcdb.TripEnrollment{ID: 99, TripID: 5, CrewMemberID: 42, Status: "pending"}, nil
 	}
 	m.createTripEnrollmentIfAbsentFn = func(context.Context, sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error) {
 		return sqlcdb.TripEnrollment{}, sql.ErrNoRows
@@ -303,7 +310,7 @@ func TestSignUpForTrip_ExistingSignUpOnClosedLegIsReturned(t *testing.T) {
 	trip := openTrip(5)
 	trip.EnrollToken = types.NullString{}
 	s := newSignUpStore(trip)
-	s.rows = []sqlcdb.TripEnrollment{{ID: 3, TripID: 5, UserID: 42, Status: "accepted"}}
+	s.rows = []sqlcdb.TripEnrollment{{ID: 3, TripID: 5, CrewMemberID: 42, Status: "accepted"}}
 	resp := enrollTestAPI(t, s.mock()).PostCtx(guestCtx(42), "/trips/5/sign-up")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
@@ -369,7 +376,7 @@ func TestSignUpRoutes_RejectRequestsWithoutToken(t *testing.T) {
 func TestGetTripSignUp(t *testing.T) {
 	t.Run("not signed up, open leg", func(t *testing.T) {
 		s := newSignUpStore(openTrip(5))
-		s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 8, Status: "accepted"}}
+		s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, CrewMemberID: 8, Status: "accepted"}}
 		resp := enrollTestAPI(t, s.mock()).GetCtx(guestCtx(42), "/trips/5/sign-up")
 		if resp.Code != http.StatusOK {
 			t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
@@ -386,7 +393,7 @@ func TestGetTripSignUp(t *testing.T) {
 		trip := openTrip(5)
 		trip.EnrollToken = types.NullString{}
 		s := newSignUpStore(trip)
-		s.rows = []sqlcdb.TripEnrollment{{ID: 2, TripID: 5, UserID: 42, Status: "pending"}}
+		s.rows = []sqlcdb.TripEnrollment{{ID: 2, TripID: 5, CrewMemberID: 42, Status: "pending"}}
 		resp := enrollTestAPI(t, s.mock()).GetCtx(guestCtx(42), "/trips/5/sign-up")
 		var got dto.LegSignUp
 		if err := json.Unmarshal(resp.Body.Bytes(), &got); err != nil {
@@ -421,7 +428,7 @@ func TestUpdateTripSignUpNote(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSignUpStore(openTrip(5))
 			if c.signedUp {
-				s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 42, Status: "pending", Note: types.NullString{String: "old", Valid: true}}}
+				s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, CrewMemberID: 42, Status: "pending", Note: types.NullString{String: "old", Valid: true}}}
 			}
 			resp := enrollTestAPI(t, s.mock()).PutCtx(guestCtx(42), "/trips/5/sign-up/note", c.body)
 			if resp.Code != c.want {
@@ -455,7 +462,7 @@ func TestWithdrawTripSignUp(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSignUpStore(openTrip(5))
 			if c.status != "" {
-				s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 42, Status: c.status, PaymentStatus: c.payment}}
+				s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, CrewMemberID: 42, Status: c.status, PaymentStatus: c.payment}}
 			}
 			resp := enrollTestAPI(t, s.mock()).DeleteCtx(guestCtx(42), "/trips/5/sign-up")
 			if resp.Code != c.want {
@@ -468,7 +475,7 @@ func TestWithdrawTripSignUp(t *testing.T) {
 	}
 	t.Run("other users' sign-ups are untouched", func(t *testing.T) {
 		s := newSignUpStore(openTrip(5))
-		s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, UserID: 8, Status: "pending", PaymentStatus: "unpaid"}}
+		s.rows = []sqlcdb.TripEnrollment{{ID: 1, TripID: 5, CrewMemberID: 8, Status: "pending", PaymentStatus: "unpaid"}}
 		resp := enrollTestAPI(t, s.mock()).DeleteCtx(guestCtx(42), "/trips/5/sign-up")
 		if resp.Code != http.StatusNotFound || len(s.rows) != 1 {
 			t.Fatalf("got %d with %d rows, want 404 and the other row kept", resp.Code, len(s.rows))
@@ -500,7 +507,7 @@ func TestListCruiseLegSignUps(t *testing.T) {
 			if arg.UserID != 42 {
 				t.Fatalf("user = %d, want 42", arg.UserID)
 			}
-			return []sqlcdb.TripEnrollment{{ID: 9, TripID: 12, UserID: 42, Status: "waitlisted"}}, nil
+			return []sqlcdb.TripEnrollment{{ID: 9, TripID: 12, CrewMemberID: 42, Status: "waitlisted"}}, nil
 		},
 		getWaitlistPositionFn: func(_ context.Context, id int64) (int64, error) {
 			if id != 9 {
@@ -552,7 +559,7 @@ func TestListCruiseTripEnrollments(t *testing.T) {
 			if cruiseID != 7 {
 				t.Fatalf("cruise = %d, want 7", cruiseID)
 			}
-			return []sqlcdb.ListCruiseTripEnrollmentsRow{{ID: 1, TripID: 11, UserID: 42, Status: "pending", UserName: "Ola"}}, nil
+			return []sqlcdb.ListCruiseTripEnrollmentsRow{{ID: 1, TripID: 11, CrewMemberID: 6, UserID: types.NullInt64{Int64: 42, Valid: true}, Status: "pending", PersonName: "Ola"}}, nil
 		},
 	}
 	api := enrollTestAPI(t, m)
@@ -564,7 +571,7 @@ func TestListCruiseTripEnrollments(t *testing.T) {
 	if err := json.Unmarshal(resp.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(got) != 1 || got[0].TripID == nil || *got[0].TripID != 11 || got[0].UserName != "Ola" {
+	if len(got) != 1 || got[0].TripID == nil || *got[0].TripID != 11 || got[0].PersonName != "Ola" {
 		t.Fatalf("got %+v, want Ola's sign-up on leg 11", got)
 	}
 	if resp := api.GetCtx(guestCtx(42), "/cruises/7/trip-enrollments"); resp.Code != http.StatusForbidden {
