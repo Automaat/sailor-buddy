@@ -110,12 +110,33 @@ func TestCrewMemberFromDB(t *testing.T) {
 	}
 }
 
-func TestCrewMembersFromDB(t *testing.T) {
-	out := CrewMembersFromDB([]sqlcdb.CrewMember{{ID: 1, FullName: "A"}, {ID: 2, FullName: "B"}})
+func TestCrewMembersForCaller(t *testing.T) {
+	person := func(id int64) sqlcdb.CrewMember {
+		return sqlcdb.CrewMember{
+			ID: id, FullName: "A", Phone: nstr("+48 600"), Email: nstr("a@example.dev"),
+			EmergencyContactName: nstr("Ewa"), EmergencyContactPhone: nstr("+48 700"),
+		}
+	}
+	out := CrewMembersForCaller([]sqlcdb.ListCrewMembersRow{
+		{CrewMember: person(1), ContactsVisible: true},
+		{CrewMember: person(2), ContactsVisible: false},
+	})
 	if len(out) != 2 || out[0].ID != 1 || out[1].ID != 2 {
 		t.Fatalf("unexpected slice: %+v", out)
 	}
-	if CrewMembersFromDB(nil) == nil {
+	if out[0].EmergencyContactName == nil || *out[0].EmergencyContactName != "Ewa" ||
+		out[0].EmergencyContactPhone == nil || *out[0].EmergencyContactPhone != "+48 700" {
+		t.Errorf("visible row emergency contact = (%v, %v), want kept", out[0].EmergencyContactName, out[0].EmergencyContactPhone)
+	}
+	if out[1].EmergencyContactName != nil || out[1].EmergencyContactPhone != nil {
+		t.Errorf("hidden row emergency contact = (%v, %v), want dropped", out[1].EmergencyContactName, out[1].EmergencyContactPhone)
+	}
+	for _, c := range out {
+		if c.Phone == nil || c.Email == nil {
+			t.Errorf("person %d phone/e-mail = (%v, %v), want kept for every caller", c.ID, c.Phone, c.Email)
+		}
+	}
+	if CrewMembersForCaller(nil) == nil {
 		t.Fatalf("want non-nil slice for nil input")
 	}
 }

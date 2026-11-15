@@ -332,7 +332,7 @@ func TestCrewMerge_DB(t *testing.T) {
 	found, err := q.ListCrewMembers(ctx, sqlcdb.ListCrewMembersParams{
 		Search: types.NullString{String: "anna kowalska", Valid: true}, RowLimit: 10,
 	})
-	if err != nil || len(found) != 1 || found[0].ID != f.keptID || found[0].FullName != "Anna Nowak-Wiśniewska" {
+	if err != nil || len(found) != 1 || found[0].CrewMember.ID != f.keptID || found[0].CrewMember.FullName != "Anna Nowak-Wiśniewska" {
 		t.Errorf("search by the kept person's old name after a profile save = %+v (err %v)", found, err)
 	}
 }

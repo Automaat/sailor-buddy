@@ -8,11 +8,41 @@ INSERT INTO crew_members (
 -- name: GetCrewMember :one
 SELECT * FROM crew_members WHERE id = $1;
 
+-- name: GetCrewMemberForCaller :one
+-- A person as the people page shows it to the caller. contacts_visible is
+-- true only for an admin or a caller who captains a leg or voyage the person
+-- is assigned to, and the handler drops the emergency contact otherwise. The
+-- captain check runs in the same statement as the person read, so a contact
+-- change and a captain change committed between two reads can never pair the
+-- old contact with the new captain.
+SELECT sqlc.embed(crew_members),
+  (sqlc.arg(is_admin)::BOOLEAN OR EXISTS (
+      SELECT 1 FROM crew_assignments ca
+      LEFT JOIN trips t ON t.id = ca.trip_id
+      LEFT JOIN voyages v ON v.id = ca.voyage_id
+      JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+      WHERE ca.crew_member_id = crew_members.id
+        AND captain.user_id = sqlc.narg(caller_user_id)::BIGINT
+  ))::BOOLEAN AS contacts_visible
+FROM crew_members
+WHERE crew_members.id = sqlc.arg(id);
+
 -- name: ListCrewMembers :many
 -- A NULL search lists everyone; otherwise it matches a case-insensitive
 -- substring of the name, any other name, or the e-mail. A set after_id
 -- starts the page after the cursor's (full_name, id) sort key.
-SELECT * FROM crew_members
+-- contacts_visible follows the rule of GetCrewMemberForCaller, read in the
+-- same statement as the people.
+SELECT sqlc.embed(crew_members),
+  (sqlc.arg(is_admin)::BOOLEAN OR EXISTS (
+      SELECT 1 FROM crew_assignments ca
+      LEFT JOIN trips t ON t.id = ca.trip_id
+      LEFT JOIN voyages v ON v.id = ca.voyage_id
+      JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
+      WHERE ca.crew_member_id = crew_members.id
+        AND captain.user_id = sqlc.narg(caller_user_id)::BIGINT
+  ))::BOOLEAN AS contacts_visible
+FROM crew_members
 WHERE (sqlc.narg(search)::TEXT IS NULL
    OR strpos(lower(full_name), lower(sqlc.narg(search)::TEXT)) > 0
    OR strpos(lower(COALESCE(email, '')), lower(sqlc.narg(search)::TEXT)) > 0
@@ -171,11 +201,3 @@ WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT;
 -- name: MoveVoyageCaptain :execrows
 UPDATE voyages SET captain_person_id = sqlc.arg(kept_id)::BIGINT, updated_at = CURRENT_TIMESTAMP
 WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT;
-
--- name: ListCaptainCrewPersonIDs :many
-SELECT DISTINCT ca.crew_member_id
-FROM crew_assignments ca
-LEFT JOIN trips t ON t.id = ca.trip_id
-LEFT JOIN voyages v ON v.id = ca.voyage_id
-JOIN crew_members captain ON captain.id = COALESCE(t.captain_person_id, v.captain_person_id)
-WHERE captain.user_id = $1;

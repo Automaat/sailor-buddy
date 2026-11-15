@@ -28,7 +28,7 @@ func TestCrewHandler_ListPassesSearch(t *testing.T) {
 	for path, want := range cases {
 		var listed, counted types.NullString
 		m := &mockQuerier{
-			listCrewMembersFn: func(_ context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error) {
+			listCrewMembersFn: func(_ context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.ListCrewMembersRow, error) {
 				listed = arg.Search
 				return nil, nil
 			},
