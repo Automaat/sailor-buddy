@@ -503,23 +503,28 @@ SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.upda
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
 WHERE t.cruise_id = $1 AND te.user_id = $2
+  AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 ORDER BY t.embark_date ASC, t.id ASC
 `
 
 type ListUserCruiseTripEnrollmentsParams struct {
-	CruiseID int64 `json:"cruise_id"`
-	UserID   int64 `json:"user_id"`
+	CruiseID      int64 `json:"cruise_id"`
+	UserID        int64 `json:"user_id"`
+	IncludeHidden bool  `json:"include_hidden"`
 }
 
 // A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+// Without include_hidden, enrollments in hidden legs are left out; the
+// caller has already checked the cruise itself is visible.
 //
 //	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
 //	FROM trip_enrollments te
 //	JOIN trips t ON t.id = te.trip_id
 //	WHERE t.cruise_id = $1 AND te.user_id = $2
+//	  AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 //	ORDER BY t.embark_date ASC, t.id ASC
 func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error) {
-	rows, err := q.db.QueryContext(ctx, listUserCruiseTripEnrollments, arg.CruiseID, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, listUserCruiseTripEnrollments, arg.CruiseID, arg.UserID, arg.IncludeHidden)
 	if err != nil {
 		return nil, err
 	}

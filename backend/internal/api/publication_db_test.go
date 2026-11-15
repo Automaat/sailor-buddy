@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
@@ -437,4 +438,143 @@ func TestPublicationMigrationKeepsExistingRowsPublic(t *testing.T) {
 	if err := conn.QueryRow(`SELECT count(*) FROM cruises WHERE published_at IS NULL`).Scan(&hidden); err != nil || hidden != 1 {
 		t.Fatalf("new cruise hidden rows = %d err=%v, want 1", hidden, err)
 	}
+}
+
+// TestHiddenVoyageStaysWritableByItsCaptain: hiding a voyage does not change
+// who may edit it. Its assigned captain, outside the captain group, still
+// writes the log; another member gets 404 on the hidden voyage and 403 on a
+// published one.
+func TestHiddenVoyageStaysWritableByItsCaptain(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	f := seedVisibility(t, conn)
+	if _, err := conn.Exec(`UPDATE voyages SET captain_person_id =
+		(SELECT cm.id FROM crew_members cm JOIN users u ON u.id = cm.user_id WHERE u.firebase_uid = 'subject')
+		WHERE id = ANY($1)`, []int64{f.voyage, f.hiddenVoyage}); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		token  string
+		voyage int64
+		want   int
+	}{
+		{"subject", f.hiddenVoyage, http.StatusNoContent},
+		{"subject", f.voyage, http.StatusNoContent},
+		{"approved", f.hiddenVoyage, http.StatusNotFound},
+		{"approved", f.voyage, http.StatusForbidden},
+		{"captain", f.hiddenVoyage, http.StatusForbidden},
+		{"admin", f.hiddenVoyage, http.StatusNoContent},
+	}
+	for _, c := range cases {
+		for _, req := range []struct{ method, path, body string }{
+			{http.MethodPut, fmt.Sprintf("/api/voyages/%d/log", c.voyage), `{"miles":12}`},
+			{http.MethodPost, fmt.Sprintf("/api/voyages/%d/ports", c.voyage), `{"name":"Hel"}`},
+		} {
+			want := c.want
+			if req.method == http.MethodPost && want == http.StatusNoContent {
+				want = http.StatusCreated
+			}
+			rr := securityRequest(h, c.token, req.method, req.path, req.body)
+			if rr.Code != want {
+				t.Errorf("%s %s %s: %d %s, want %d", c.token, req.method, req.path, rr.Code, rr.Body, want)
+			}
+		}
+	}
+}
+
+// TestCruiseShareLinkHidesHiddenLegEnrollments: a published cruise's share
+// link lists the caller's leg enrollments only for the legs it offers.
+func TestCruiseShareLinkHidesHiddenLegEnrollments(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	f := seedVisibility(t, conn)
+	if _, err := conn.Exec(`INSERT INTO trip_enrollments(trip_id, user_id)
+		SELECT t, u.id FROM unnest($1::BIGINT[]) t, users u WHERE u.firebase_uid = 'approved'`, []int64{f.trip, f.hiddenTrip}); err != nil {
+		t.Fatal(err)
+	}
+	var info dto.EnrollInfo
+	mustDecode(t, mustGet(t, h, "approved", "/api/enroll/"+f.cruiseToken), &info)
+	var legs []int64
+	for _, e := range info.LegEnrollments {
+		if e.TripID != nil {
+			legs = append(legs, *e.TripID)
+		}
+	}
+	if !slices.Equal(legs, []int64{f.trip}) {
+		t.Fatalf("leg enrollments = %v, want only the published leg %d", legs, f.trip)
+	}
+}
+
+// TestPublishLegLocksCruiseFirst: publishing a leg takes its cruise lock
+// before the leg's, the order cruise publication with include_legs uses, so
+// the two cannot deadlock. While another transaction holds the cruise, the
+// leg publish waits without holding the leg.
+func TestPublishLegLocksCruiseFirst(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	cruise := insertID(t, conn, `INSERT INTO cruises(name) VALUES('Standalone') RETURNING id`)
+	trip := insertID(t, conn, `INSERT INTO trips(name,cruise_id,currency) VALUES('Leg',$1,'PLN') RETURNING id`, cruise)
+	voyage := insertID(t, conn, `INSERT INTO voyages(name,cruise_id) VALUES('Voyage',$1) RETURNING id`, cruise)
+
+	for _, leg := range []struct {
+		table string
+		id    int64
+	}{{"trips", trip}, {"voyages", voyage}} {
+		t.Run(leg.table, func(t *testing.T) {
+			holder, err := conn.BeginTx(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = holder.Rollback() }()
+			if _, err := holder.Exec(`SELECT id FROM cruises WHERE id = $1 FOR NO KEY UPDATE`, cruise); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan int, 1)
+			go func() {
+				rr := securityRequest(h, "admin", http.MethodPost, fmt.Sprintf("/api/%s/%d/publish", leg.table, leg.id), "")
+				done <- rr.Code
+			}()
+			waitForLockWait(t, conn)
+			probe, err := conn.BeginTx(t.Context(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, lockErr := probe.Exec(fmt.Sprintf(`SELECT id FROM %s WHERE id = $1 FOR UPDATE NOWAIT`, leg.table), leg.id)
+			_ = probe.Rollback()
+			if lockErr != nil {
+				t.Errorf("leg locked while its publish waits for the cruise: %v", lockErr)
+			}
+			if err := holder.Commit(); err != nil {
+				t.Fatal(err)
+			}
+			if code := <-done; code != http.StatusOK {
+				t.Fatalf("publish %s: %d", leg.table, code)
+			}
+		})
+	}
+	var hidden int
+	if err := conn.QueryRow(`SELECT
+		(SELECT count(*) FROM cruises WHERE id = $1 AND published_at IS NULL) +
+		(SELECT count(*) FROM trips WHERE id = $2 AND published_at IS NULL) +
+		(SELECT count(*) FROM voyages WHERE id = $3 AND published_at IS NULL)`, cruise, trip, voyage).Scan(&hidden); err != nil || hidden != 0 {
+		t.Fatalf("hidden after publish = %d err=%v", hidden, err)
+	}
+}
+
+// waitForLockWait blocks until a session of this database waits on a lock.
+func waitForLockWait(t *testing.T, conn *sql.DB) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int
+		if err := conn.QueryRow(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("no session waited on the held cruise lock")
 }

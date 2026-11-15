@@ -869,11 +869,14 @@ type Querier interface {
 	//  ORDER BY cruise_id
 	ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error)
 	// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+	// Without include_hidden, enrollments in hidden legs are left out; the
+	// caller has already checked the cruise itself is visible.
 	//
 	//  SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
 	//  FROM trip_enrollments te
 	//  JOIN trips t ON t.id = te.trip_id
 	//  WHERE t.cruise_id = $1 AND te.user_id = $2
+	//    AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 	//  ORDER BY t.embark_date ASC, t.id ASC
 	ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error)
 	// Voyages the user sailed: as the captain through the account's person or
@@ -1059,6 +1062,14 @@ type Querier interface {
 	//  WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
 	//  FOR KEY SHARE OF c
 	LockTripCruise(ctx context.Context, id int64) (int64, error)
+	// Locks the cruise of the trip being published before the trip itself, the
+	// order cruise publication with include_legs uses, so the two cannot
+	// deadlock. No row when the trip or its cruise is gone.
+	//
+	//  SELECT c.id FROM cruises c
+	//  WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+	//  FOR NO KEY UPDATE OF c
+	LockTripCruiseForPublish(ctx context.Context, id int64) (int64, error)
 	// Row-locks one enrollment of a trip for a status change. No row when the
 	// enrollment does not exist or belongs to another trip.
 	//
@@ -1107,6 +1118,14 @@ type Querier interface {
 	//  SELECT id FROM crew_members WHERE user_id = $1
 	//  FOR KEY SHARE
 	LockUserPerson(ctx context.Context, userID types.NullInt64) (int64, error)
+	// Locks the cruise of the voyage being published before the voyage itself,
+	// the order cruise publication with include_legs uses, so the two cannot
+	// deadlock. No row when the voyage or its cruise is gone.
+	//
+	//  SELECT c.id FROM cruises c
+	//  WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
+	//  FOR NO KEY UPDATE OF c
+	LockVoyageCruiseForPublish(ctx context.Context, id int64) (int64, error)
 	// On a leg or voyage both people are on, the kept person's assignment stays.
 	// It takes the duplicate's patent number when it has none, and counts as
 	// added by an accepted sign-up only when both entries did, so a hand-added

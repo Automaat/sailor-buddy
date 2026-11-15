@@ -107,6 +107,14 @@ WHERE (cp.user_id = sqlc.arg(user_id)::BIGINT
       SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC;
 
+-- name: LockVoyageCruiseForPublish :one
+-- Locks the cruise of the voyage being published before the voyage itself,
+-- the order cruise publication with include_legs uses, so the two cannot
+-- deadlock. No row when the voyage or its cruise is gone.
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
+FOR NO KEY UPDATE OF c;
+
 -- name: PublishVoyage :one
 -- Publishes the voyage, keeping an earlier published_at.
 UPDATE voyages SET

@@ -512,6 +512,26 @@ func (q *Queries) LockTripCruise(ctx context.Context, id int64) (int64, error) {
 	return id_2, err
 }
 
+const lockTripCruiseForPublish = `-- name: LockTripCruiseForPublish :one
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+FOR NO KEY UPDATE OF c
+`
+
+// Locks the cruise of the trip being published before the trip itself, the
+// order cruise publication with include_legs uses, so the two cannot
+// deadlock. No row when the trip or its cruise is gone.
+//
+//	SELECT c.id FROM cruises c
+//	WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+//	FOR NO KEY UPDATE OF c
+func (q *Queries) LockTripCruiseForPublish(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockTripCruiseForPublish, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const lockTripYacht = `-- name: LockTripYacht :one
 SELECT y.id FROM yachts y
 WHERE y.id = (SELECT t.yacht_id FROM trips t WHERE t.id = $1)

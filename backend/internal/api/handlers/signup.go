@@ -379,8 +379,9 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 		return nil, huma.Error500InternalServerError("failed to count accepted crew")
 	}
 	mine, err := h.q.ListUserCruiseTripEnrollments(ctx, sqlcdb.ListUserCruiseTripEnrollmentsParams{
-		CruiseID: in.CruiseID,
-		UserID:   user.UserID,
+		CruiseID:      in.CruiseID,
+		UserID:        user.UserID,
+		IncludeHidden: canSeeHidden(ctx),
 	})
 	if err != nil {
 		slog.Error("list user cruise sign-ups", "cruise_id", in.CruiseID, "user_id", user.UserID, "err", err)

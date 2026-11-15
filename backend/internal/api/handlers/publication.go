@@ -125,13 +125,17 @@ func (h *PublicationHandler) unpublishCruise(ctx context.Context, in *cruiseIDPa
 }
 
 // publishTrip publishes the trip and, when its cruise is a hidden standalone
-// wrapper (no series), that cruise too, in one transaction.
+// wrapper (no series), that cruise too, in one transaction. It locks the
+// cruise before the trip, the order publishCruise uses.
 func (h *PublicationHandler) publishTrip(ctx context.Context, in *tripIDParam) (*tripOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
 	var trip sqlcdb.Trip
 	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if _, err := q.LockTripCruiseForPublish(ctx, in.ID); err != nil {
+			return err
+		}
 		var err error
 		if trip, err = q.PublishTrip(ctx, in.ID); err != nil {
 			return err
@@ -167,13 +171,17 @@ func (h *PublicationHandler) unpublishTrip(ctx context.Context, in *tripIDParam)
 }
 
 // publishVoyage publishes the voyage and, when its cruise is a hidden
-// standalone wrapper (no series), that cruise too, in one transaction.
+// standalone wrapper (no series), that cruise too, in one transaction. It
+// locks the cruise before the voyage, the order publishCruise uses.
 func (h *PublicationHandler) publishVoyage(ctx context.Context, in *voyageIDParam) (*voyageOutput, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
 	var voyage sqlcdb.Voyage
 	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if _, err := q.LockVoyageCruiseForPublish(ctx, in.ID); err != nil {
+			return err
+		}
 		var err error
 		if voyage, err = q.PublishVoyage(ctx, in.ID); err != nil {
 			return err

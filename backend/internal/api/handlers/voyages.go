@@ -78,9 +78,11 @@ func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (
 }
 
 // getVoyageForCaptain loads a voyage and authorizes the caller as an admin or
-// its assigned captain.
+// its assigned captain. A hidden voyage stays writable by its assigned
+// captain, as publication does not change who may edit a record; any other
+// caller who cannot see it gets 404, not 403.
 func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.Voyage, error) {
-	voyage, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: canSeeHidden(ctx)})
+	voyage, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: true})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
@@ -88,8 +90,19 @@ func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcd
 		slog.Error("get voyage", "voyage_id", id, "err", err)
 		return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
 	}
-	if err := requireAdminOrCaptain(ctx, q, voyage.CaptainPersonID); err != nil {
-		return sqlcdb.Voyage{}, err
+	if authErr := requireAdminOrCaptain(ctx, q, voyage.CaptainPersonID); authErr != nil {
+		status, ok := errors.AsType[huma.StatusError](authErr)
+		if canSeeHidden(ctx) || !ok || status.GetStatus() != http.StatusForbidden {
+			return sqlcdb.Voyage{}, authErr
+		}
+		if _, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
+			}
+			slog.Error("get voyage", "voyage_id", id, "err", err)
+			return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
+		}
+		return sqlcdb.Voyage{}, authErr
 	}
 	return voyage, nil
 }

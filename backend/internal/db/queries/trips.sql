@@ -105,6 +105,14 @@ FROM trips t
 WHERE t.enroll_token = $1 AND t.published_at IS NOT NULL AND EXISTS (
     SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL);
 
+-- name: LockTripCruiseForPublish :one
+-- Locks the cruise of the trip being published before the trip itself, the
+-- order cruise publication with include_legs uses, so the two cannot
+-- deadlock. No row when the trip or its cruise is gone.
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT t.cruise_id FROM trips t WHERE t.id = $1)
+FOR NO KEY UPDATE OF c;
+
 -- name: PublishTrip :one
 -- Publishes the trip, keeping an earlier published_at.
 UPDATE trips SET

@@ -528,6 +528,26 @@ func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voy
 	return items, nil
 }
 
+const lockVoyageCruiseForPublish = `-- name: LockVoyageCruiseForPublish :one
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
+FOR NO KEY UPDATE OF c
+`
+
+// Locks the cruise of the voyage being published before the voyage itself,
+// the order cruise publication with include_legs uses, so the two cannot
+// deadlock. No row when the voyage or its cruise is gone.
+//
+//	SELECT c.id FROM cruises c
+//	WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
+//	FOR NO KEY UPDATE OF c
+func (q *Queries) LockVoyageCruiseForPublish(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockVoyageCruiseForPublish, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const publishVoyage = `-- name: PublishVoyage :one
 UPDATE voyages SET
     published_at = COALESCE(published_at, CURRENT_TIMESTAMP),

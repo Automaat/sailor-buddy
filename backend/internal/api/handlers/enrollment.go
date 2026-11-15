@@ -220,6 +220,8 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 			info.Enrolled = true
 			info.Enrollment = new(dto.CruiseEnrollmentToDTO(e))
 		}
+		// Hidden legs are not offered here, so the caller's enrollments in
+		// them stay out too.
 		legs, lerr := h.q.ListUserCruiseTripEnrollments(ctx, sqlcdb.ListUserCruiseTripEnrollmentsParams{
 			CruiseID: cruise.ID,
 			UserID:   user.UserID,

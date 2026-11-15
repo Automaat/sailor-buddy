@@ -115,10 +115,13 @@ RETURNING *;
 
 -- name: ListUserCruiseTripEnrollments :many
 -- A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+-- Without include_hidden, enrollments in hidden legs are left out; the
+-- caller has already checked the cruise itself is visible.
 SELECT te.*
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
-WHERE t.cruise_id = $1 AND te.user_id = $2
+WHERE t.cruise_id = sqlc.arg(cruise_id) AND te.user_id = sqlc.arg(user_id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR t.published_at IS NOT NULL)
 ORDER BY t.embark_date ASC, t.id ASC;
 
 -- name: LockCruiseTripStatuses :many
