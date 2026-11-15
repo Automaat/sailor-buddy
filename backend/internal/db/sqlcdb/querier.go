@@ -823,16 +823,28 @@ type Querier interface {
 	//  ORDER BY date DESC, id DESC
 	//  LIMIT $5 OFFSET $4
 	ListTrainings(ctx context.Context, arg ListTrainingsParams) ([]Training, error)
-	// Carries the people's phone and emergency contact; the handler drops them
-	// for callers other than admins and the leg's captain.
+	// A leg's crew with the people's phone and emergency contact.
+	// contacts_visible is true only for an admin or the caller who captains this
+	// leg, and the handler drops the contacts otherwise. The captain check runs
+	// in the same statement as the crew read, so a captain change committed
+	// meanwhile can never pair the former captain with a newer member's contacts.
 	//
 	//  SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-	//         cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
+	//         cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone,
+	//         access.contacts_visible
 	//  FROM crew_assignments ca
 	//  JOIN crew_members cm ON cm.id = ca.crew_member_id
-	//  WHERE ca.trip_id = $1
+	//  CROSS JOIN (
+	//      SELECT ($1::BOOLEAN OR EXISTS (
+	//          SELECT 1 FROM trips t
+	//          JOIN crew_members cap ON cap.id = t.captain_person_id
+	//          WHERE t.id = $2::BIGINT
+	//            AND cap.user_id = $3::BIGINT
+	//      ))::BOOLEAN AS contacts_visible
+	//  ) access
+	//  WHERE ca.trip_id = $2::BIGINT
 	//  ORDER BY cm.full_name
-	ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]ListTripCrewAssignmentsRow, error)
+	ListTripCrewAssignments(ctx context.Context, arg ListTripCrewAssignmentsParams) ([]ListTripCrewAssignmentsRow, error)
 	// A trip's sign-ups with their person. user_id and account_email are the
 	// person's account, NULL for a person without one.
 	//

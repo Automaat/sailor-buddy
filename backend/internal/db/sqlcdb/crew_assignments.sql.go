@@ -434,12 +434,27 @@ func (q *Queries) GetVoyageCrewAssignmentByMember(ctx context.Context, arg GetVo
 
 const listTripCrewAssignments = `-- name: ListTripCrewAssignments :many
 SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
+       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone,
+       access.contacts_visible
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
-WHERE ca.trip_id = $1
+CROSS JOIN (
+    SELECT ($1::BOOLEAN OR EXISTS (
+        SELECT 1 FROM trips t
+        JOIN crew_members cap ON cap.id = t.captain_person_id
+        WHERE t.id = $2::BIGINT
+          AND cap.user_id = $3::BIGINT
+    ))::BOOLEAN AS contacts_visible
+) access
+WHERE ca.trip_id = $2::BIGINT
 ORDER BY cm.full_name
 `
+
+type ListTripCrewAssignmentsParams struct {
+	IsAdmin      bool            `json:"is_admin"`
+	TripID       int64           `json:"trip_id"`
+	CallerUserID types.NullInt64 `json:"caller_user_id"`
+}
 
 type ListTripCrewAssignmentsRow struct {
 	ID                    int64            `json:"id"`
@@ -454,19 +469,32 @@ type ListTripCrewAssignmentsRow struct {
 	Phone                 types.NullString `json:"phone"`
 	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
 	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
+	ContactsVisible       bool             `json:"contacts_visible"`
 }
 
-// Carries the people's phone and emergency contact; the handler drops them
-// for callers other than admins and the leg's captain.
+// A leg's crew with the people's phone and emergency contact.
+// contacts_visible is true only for an admin or the caller who captains this
+// leg, and the handler drops the contacts otherwise. The captain check runs
+// in the same statement as the crew read, so a captain change committed
+// meanwhile can never pair the former captain with a newer member's contacts.
 //
 //	SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-//	       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
+//	       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone,
+//	       access.contacts_visible
 //	FROM crew_assignments ca
 //	JOIN crew_members cm ON cm.id = ca.crew_member_id
-//	WHERE ca.trip_id = $1
+//	CROSS JOIN (
+//	    SELECT ($1::BOOLEAN OR EXISTS (
+//	        SELECT 1 FROM trips t
+//	        JOIN crew_members cap ON cap.id = t.captain_person_id
+//	        WHERE t.id = $2::BIGINT
+//	          AND cap.user_id = $3::BIGINT
+//	    ))::BOOLEAN AS contacts_visible
+//	) access
+//	WHERE ca.trip_id = $2::BIGINT
 //	ORDER BY cm.full_name
-func (q *Queries) ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]ListTripCrewAssignmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTripCrewAssignments, tripID)
+func (q *Queries) ListTripCrewAssignments(ctx context.Context, arg ListTripCrewAssignmentsParams) ([]ListTripCrewAssignmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTripCrewAssignments, arg.IsAdmin, arg.TripID, arg.CallerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -487,6 +515,7 @@ func (q *Queries) ListTripCrewAssignments(ctx context.Context, tripID types.Null
 			&i.Phone,
 			&i.EmergencyContactName,
 			&i.EmergencyContactPhone,
+			&i.ContactsVisible,
 		); err != nil {
 			return nil, err
 		}

@@ -137,8 +137,10 @@ func TestTripComplete_CaptainRefused(t *testing.T) {
 	}
 }
 
-// TestTripCrew_Contacts checks the phone and emergency contact reach only
-// admins and the leg's own captain; the rest of the list stays open.
+// TestTripCrew_Contacts checks the handler asks the crew query as the
+// caller (admin flag and account) and keeps the phone and emergency contact
+// only on rows the query marks visible; the rest of the list stays open.
+// TestTripCrew_ContactsDB checks the query's captain rule.
 func TestTripCrew_Contacts(t *testing.T) {
 	row := sqlcdb.ListTripCrewAssignmentsRow{
 		ID: 1, TripID: legPerson(9), CrewMemberID: 2, Role: "zalogant", FullName: "Jan Nowak",
@@ -148,44 +150,48 @@ func TestTripCrew_Contacts(t *testing.T) {
 		EmergencyContactPhone: types.NullString{String: "+48 600 300 400", Valid: true},
 	}
 	tests := []struct {
-		name     string
-		ctx      context.Context
-		captain  types.NullInt64
-		contacts bool
+		name      string
+		ctx       context.Context
+		visible   bool
+		wantAdmin bool
+		wantUser  int64
 	}{
-		{name: "admin", ctx: callerCtx(1, "admin"), captain: legPerson(recordCaptainPersonID), contacts: true},
-		{name: "admin of a leg without captain", ctx: callerCtx(1, "admin"), contacts: true},
-		{name: "leg captain", ctx: callerCtx(recordCaptainID, "member"), captain: legPerson(recordCaptainPersonID), contacts: true},
-		{name: "other member", ctx: callerCtx(8, "member"), captain: legPerson(recordCaptainPersonID), contacts: false},
-		{name: "captain of another leg", ctx: callerCtx(otherCaptainID, "member"), captain: legPerson(recordCaptainPersonID), contacts: false},
-		{name: "captain person without account", ctx: callerCtx(recordCaptainID, "member"), captain: legPerson(unlinkedPersonID), contacts: false},
+		{name: "admin", ctx: callerCtx(1, "admin"), visible: true, wantAdmin: true, wantUser: 1},
+		{name: "member the query allows", ctx: callerCtx(recordCaptainID, "member"), visible: true, wantUser: recordCaptainID},
+		{name: "member the query refuses", ctx: callerCtx(8, "member"), visible: false, wantUser: 8},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var got sqlcdb.ListTripCrewAssignmentsParams
 			m := &mockQuerier{
 				getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
-					return sqlcdb.Trip{ID: id, CaptainPersonID: tt.captain}, nil
+					return sqlcdb.Trip{ID: id, CaptainPersonID: legPerson(recordCaptainPersonID)}, nil
 				},
-				getCrewMemberFn: legPeople,
-				listTripCrewFn: func(context.Context, types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
-					return []sqlcdb.ListTripCrewAssignmentsRow{row}, nil
+				listTripCrewFn: func(_ context.Context, arg sqlcdb.ListTripCrewAssignmentsParams) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
+					got = arg
+					r := row
+					r.ContactsVisible = tt.visible
+					return []sqlcdb.ListTripCrewAssignmentsRow{r}, nil
 				},
 			}
 			resp := crewTestAPI(t, m).GetCtx(tt.ctx, "/trips/9/crew")
 			if resp.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
 			}
+			if got.TripID != 9 || got.IsAdmin != tt.wantAdmin || !got.CallerUserID.Valid || got.CallerUserID.Int64 != tt.wantUser {
+				t.Fatalf("query params = %+v, want trip 9, admin %v, caller %d", got, tt.wantAdmin, tt.wantUser)
+			}
 			var crew []map[string]any
 			if err := json.Unmarshal(resp.Body.Bytes(), &crew); err != nil || len(crew) != 1 {
 				t.Fatalf("decode crew: %v; body=%s", err, resp.Body)
 			}
-			got := crew[0]
-			if got["full_name"] != "Jan Nowak" || got["role"] != "zalogant" || got["email"] != "jan@example.dev" {
-				t.Fatalf("crew entry = %v, want name, role and e-mail for everyone", got)
+			entry := crew[0]
+			if entry["full_name"] != "Jan Nowak" || entry["role"] != "zalogant" || entry["email"] != "jan@example.dev" {
+				t.Fatalf("crew entry = %v, want name, role and e-mail for everyone", entry)
 			}
 			for _, field := range []string{"phone", "emergency_contact_name", "emergency_contact_phone"} {
-				if _, ok := got[field]; ok != tt.contacts {
-					t.Errorf("%s present = %v, want %v", field, ok, tt.contacts)
+				if _, ok := entry[field]; ok != tt.visible {
+					t.Errorf("%s present = %v, want %v", field, ok, tt.visible)
 				}
 			}
 		})

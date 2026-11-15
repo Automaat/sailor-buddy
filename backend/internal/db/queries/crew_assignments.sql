@@ -3,13 +3,25 @@ INSERT INTO crew_assignments (voyage_id, crew_member_id, role, patent_number)
 VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: ListTripCrewAssignments :many
--- Carries the people's phone and emergency contact; the handler drops them
--- for callers other than admins and the leg's captain.
+-- A leg's crew with the people's phone and emergency contact.
+-- contacts_visible is true only for an admin or the caller who captains this
+-- leg, and the handler drops the contacts otherwise. The captain check runs
+-- in the same statement as the crew read, so a captain change committed
+-- meanwhile can never pair the former captain with a newer member's contacts.
 SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
+       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone,
+       access.contacts_visible
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
-WHERE ca.trip_id = $1
+CROSS JOIN (
+    SELECT (sqlc.arg(is_admin)::BOOLEAN OR EXISTS (
+        SELECT 1 FROM trips t
+        JOIN crew_members cap ON cap.id = t.captain_person_id
+        WHERE t.id = sqlc.arg(trip_id)::BIGINT
+          AND cap.user_id = sqlc.narg(caller_user_id)::BIGINT
+    ))::BOOLEAN AS contacts_visible
+) access
+WHERE ca.trip_id = sqlc.arg(trip_id)::BIGINT
 ORDER BY cm.full_name;
 
 -- name: ListVoyageCrewAssignments :many

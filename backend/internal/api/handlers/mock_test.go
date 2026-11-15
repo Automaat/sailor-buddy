@@ -51,7 +51,7 @@ type mockQuerier struct {
 
 	// crew assignments
 	updateTripCrewRoleFn    func(ctx context.Context, arg sqlcdb.UpdateTripCrewAssignmentRoleParams) (sqlcdb.UpdateTripCrewAssignmentRoleRow, error)
-	listTripCrewFn          func(ctx context.Context, tripID types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error)
+	listTripCrewFn          func(ctx context.Context, arg sqlcdb.ListTripCrewAssignmentsParams) ([]sqlcdb.ListTripCrewAssignmentsRow, error)
 	deleteTripCrewFn        func(ctx context.Context, arg sqlcdb.DeleteTripCrewAssignmentParams) error
 	createVoyageCrewFn      func(ctx context.Context, arg sqlcdb.CreateVoyageCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
 	listVoyageCrewFn        func(ctx context.Context, voyageID types.NullInt64) ([]sqlcdb.ListVoyageCrewAssignmentsRow, error)
@@ -355,11 +355,11 @@ func (m *mockQuerier) UpdateTripCrewAssignmentRole(ctx context.Context, arg sqlc
 	return m.updateTripCrewRoleFn(ctx, arg)
 }
 
-func (m *mockQuerier) ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
+func (m *mockQuerier) ListTripCrewAssignments(ctx context.Context, arg sqlcdb.ListTripCrewAssignmentsParams) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
 	if m.listTripCrewFn == nil {
 		panic("unexpected call to ListTripCrewAssignments")
 	}
-	return m.listTripCrewFn(ctx, tripID)
+	return m.listTripCrewFn(ctx, arg)
 }
 
 func (m *mockQuerier) DeleteTripCrewAssignment(ctx context.Context, arg sqlcdb.DeleteTripCrewAssignmentParams) error {

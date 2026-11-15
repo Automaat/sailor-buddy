@@ -120,9 +120,10 @@ func CrewAssignmentFromDB(a sqlcdb.CrewAssignment) CrewAssignment {
 	}
 }
 
-// TripCrewMemberFromDB maps one joined trip-crew row.
+// TripCrewMemberFromDB maps one joined trip-crew row. The phone and
+// emergency contact stay only when the row says the caller may read them.
 func TripCrewMemberFromDB(r sqlcdb.ListTripCrewAssignmentsRow) CrewAssignment {
-	return CrewAssignment{
+	a := CrewAssignment{
 		ID:                    r.ID,
 		TripID:                intPtr(r.TripID),
 		VoyageID:              intPtr(r.VoyageID),
@@ -136,12 +137,9 @@ func TripCrewMemberFromDB(r sqlcdb.ListTripCrewAssignmentsRow) CrewAssignment {
 		EmergencyContactPhone: strPtr(r.EmergencyContactPhone),
 		CreatedAt:             timeVal(r.CreatedAt),
 	}
-}
-
-// WithoutContacts drops the phone and emergency contact, which only admins
-// and the leg's captain read.
-func (a CrewAssignment) WithoutContacts() CrewAssignment {
-	a.Phone, a.EmergencyContactName, a.EmergencyContactPhone = nil, nil, nil
+	if !r.ContactsVisible {
+		a.Phone, a.EmergencyContactName, a.EmergencyContactPhone = nil, nil, nil
+	}
 	return a
 }
 

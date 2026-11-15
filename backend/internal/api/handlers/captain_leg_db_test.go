@@ -237,3 +237,36 @@ func TestTripCrew_ContactsDB(t *testing.T) {
 		})
 	}
 }
+
+// TestTripCrew_ContactsFollowCaptainChange reassigns a leg's captain and
+// checks the former captain no longer reads the crew's contacts while the
+// new one does: the query decides from the captain it reads itself, not from
+// one the handler looked up earlier.
+func TestTripCrew_ContactsFollowCaptainChange(t *testing.T) {
+	d := seedCaptainLegDB(t)
+	id := d.leg(t, d.captainPerson, "2026-11-14", true)
+	if _, err := d.conn.ExecContext(context.Background(),
+		"UPDATE trips SET captain_person_id = $1 WHERE id = $2", d.otherCaptainPerson, id); err != nil {
+		t.Fatalf("reassign captain: %v", err)
+	}
+	api := d.api(t, time.Now())
+	for _, tt := range []struct {
+		name     string
+		caller   context.Context
+		contacts bool
+	}{
+		{name: "former captain", caller: callerCtx(d.captainUser, "member"), contacts: false},
+		{name: "new captain", caller: callerCtx(d.otherCaptainUser, "member"), contacts: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := api.GetCtx(tt.caller, fmt.Sprintf("/trips/%d/crew", id))
+			var crew []dto.CrewAssignment
+			if err := json.Unmarshal(resp.Body.Bytes(), &crew); err != nil || len(crew) != 1 {
+				t.Fatalf("decode crew: %v; body=%s", err, resp.Body)
+			}
+			if got := crew[0].Phone != nil; got != tt.contacts {
+				t.Fatalf("phone present = %v, want %v", got, tt.contacts)
+			}
+		})
+	}
+}
