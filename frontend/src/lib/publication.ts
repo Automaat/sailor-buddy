@@ -1,4 +1,4 @@
-import type { User } from '#lib/api/types.js';
+import { isAdminOrCaptainGroup } from '#lib/access.js';
 import { plural } from '#lib/plural.js';
 
 /**
@@ -6,12 +6,7 @@ import { plural } from '#lib/plural.js';
  * drafts. Members never get them, so the badge stays off for them even if a
  * response lacked published_at.
  */
-export function canSeeHidden(auth: {
-	isAdmin: boolean;
-	user: Pick<User, 'is_captain'> | null | undefined;
-}): boolean {
-	return auth.isAdmin || !!auth.user?.is_captain;
-}
+export const canSeeHidden = isAdminOrCaptainGroup;
 
 type Publishable = { published_at?: string | null };
 

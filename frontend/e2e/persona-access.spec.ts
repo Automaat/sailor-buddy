@@ -87,6 +87,10 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('setup: private bootstrap grants admin; signup stays member', async ({ page }) => {
 		await signInAdmin(page);
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Jachty', exact: true })).toHaveAttribute(
+			'href',
+			'/yachts'
+		);
 		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveAttribute(
 			'href',
 			'/crew'
@@ -114,11 +118,12 @@ test.describe.serial('Single-club persona matrix', () => {
 		expect(await mutationStatus(memberToken, 'GET', '/cruises')).toBe(200);
 	});
 
-	test('member: no people nav, cruises read-only, mutations 403', async ({ page }) => {
+	test('member: no people or yacht nav, cruises read-only, mutations 403', async ({ page }) => {
 		await loginViaUI(page, memberEmail, PASSWORD);
 
 		await expect(page.getByRole('link', { name: 'Członkowie' })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Osoby', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Jachty', exact: true })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Moje kursy', exact: true })).toHaveCount(1);
 
 		await page.goto('/settings');
@@ -135,6 +140,10 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL('/', { timeout: 10_000 });
 		await page.goto('/crew');
 		await page.waitForURL('/', { timeout: 10_000 });
+		// The yacht list is for admins and the captain group only.
+		await page.goto('/yachts');
+		await page.waitForURL('/', { timeout: 10_000 });
+		expect(await mutationStatus(memberToken, 'GET', '/yachts')).toBe(403);
 
 		expect(await mutationStatus(memberToken, 'POST', '/cruises', { name: 'X' })).toBe(403);
 		expect(await mutationStatus(memberToken, 'POST', '/trips', { name: 'X', cruise_id: 1 })).toBe(

@@ -53,6 +53,7 @@ const children = createRawSnippet(() => ({ render: () => '<p>club page</p>' }));
 beforeEach(() => {
 	page.url = new URL('http://localhost/');
 	h.store.user = null;
+	h.store.isAdmin = false;
 	h.store.isAuthenticated = true;
 	h.logout.mockReset().mockResolvedValue(undefined);
 	vi.mocked(getMe).mockReset();
@@ -105,4 +106,20 @@ describe('layout navigation', () => {
 			}
 		}
 	);
+
+	const account = { id: 1, onboarded: true, email_verified: true, suspended: false };
+
+	it.each([
+		['a member', false, { ...account, role: 'member', is_captain: false }, false],
+		['the captain group', false, { ...account, role: 'member', is_captain: true }, true],
+		['an admin', true, { ...account, role: 'admin', is_captain: false }, true]
+	])('Jachty item for %s', (_, isAdmin, user, shown) => {
+		h.store.isAdmin = isAdmin;
+		h.store.user = user;
+		render(Layout, { props: { children } });
+
+		const links = screen.queryAllByRole('link', { name: 'Jachty' });
+		expect(links.length > 0).toBe(shown);
+		expect(screen.getAllByRole('link', { name: 'Rejsy' }).length).toBeGreaterThan(0);
+	});
 });

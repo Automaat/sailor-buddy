@@ -234,6 +234,12 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		args: ['/voyages/{voyageID}/unpublish', { path: { voyageID: 5 } }]
 	},
 	{
+		name: 'listVoyageYachts',
+		run: () => routes.listVoyageYachts(5),
+		verb: 'list',
+		args: ['/voyages/{voyageID}/yachts', { path: { voyageID: 5 } }]
+	},
+	{
 		name: 'listVoyageCrew',
 		run: () => routes.listVoyageCrew(5),
 		verb: 'get',

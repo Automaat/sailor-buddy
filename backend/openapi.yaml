@@ -2744,6 +2744,117 @@ components:
         - name
         - cruise_id
       type: object
+    VoyageDetail:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/VoyageDetail.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        captain_notes:
+          type: string
+        captain_person_id:
+          description: Person (crew record) who captains the voyage
+          format: int64
+          type: integer
+        cost_per_person:
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          format: int64
+          type: integer
+        cruise_id:
+          format: int64
+          type: integer
+        days:
+          format: int64
+          type: integer
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        hours_engine:
+          format: double
+          type: number
+        hours_over_6bf:
+          format: double
+          type: number
+        hours_sail:
+          format: double
+          type: number
+        hours_total:
+          format: double
+          type: number
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        miles:
+          format: double
+          type: number
+        name:
+          type: string
+        published_at:
+          description: When the voyage was published; absent while it is a hidden draft
+          format: date-time
+          type: string
+        start_port:
+          type: string
+        tidal_waters:
+          format: int64
+          type: integer
+        track_url:
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        voyage_card:
+          type: string
+        yacht:
+          $ref: "#/components/schemas/YachtSummary"
+          description: Yacht sailed; absent when yacht_id is unset
+        yacht_id:
+          format: int64
+          type: integer
+        year:
+          format: int64
+          type: integer
+      required:
+        - id
+        - cruise_id
+        - name
+        - hours_total
+        - hours_sail
+        - hours_engine
+        - hours_over_6bf
+        - miles
+        - days
+        - tidal_waters
+        - created_at
+        - updated_at
+      type: object
     VoyageLogBody:
       additionalProperties: false
       properties:
@@ -3041,6 +3152,20 @@ components:
         yacht_type:
           type: string
       required:
+        - name
+      type: object
+    YachtSummary:
+      additionalProperties: false
+      properties:
+        id:
+          format: int64
+          type: integer
+        name:
+          type: string
+        yacht_type:
+          type: string
+      required:
+        - id
         - name
       type: object
 info:
@@ -5744,7 +5869,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Voyage"
+                $ref: "#/components/schemas/VoyageDetail"
           description: OK
         default:
           content:
@@ -6245,6 +6370,61 @@ paths:
       tags:
         - Voyages
   /voyages/{voyageID}/yachts:
+    get:
+      operationId: list-voyage-yachts
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+        - description: Maximum number of items to return
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            description: Maximum number of items to return
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of items to skip
+          explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            description: Number of items to skip
+            format: int32
+            minimum: 0
+            type: integer
+        - description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+          explode: false
+          in: query
+          name: after
+          schema:
+            description: "A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageYacht"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List the club yachts for the voyage log (admin or voyage captain)
+      tags:
+        - Voyages
     post:
       operationId: add-voyage-yacht
       parameters:
@@ -6323,7 +6503,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: List yachts
+      summary: List yachts (admin or captain group)
       tags:
         - Yachts
     post:
@@ -6398,7 +6578,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Get a yacht
+      summary: Get a yacht (admin or captain group)
       tags:
         - Yachts
     put:

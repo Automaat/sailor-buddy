@@ -16,7 +16,8 @@
 	// The cruise changes in place when publishing the voyage publishes it too.
 	let cruise = $derived(data.cruise);
 	let voyage = $derived(data.voyage);
-	let yachts = $derived(data.yachts);
+	// The log replaces the yacht in place; publishing returns the voyage without it.
+	let yacht = $derived(data.voyage.yacht ?? null);
 	let crew = $derived(data.crew);
 	const id = $derived(data.voyage.id);
 	const canManageCrew = $derived(auth.isAdmin);
@@ -33,7 +34,6 @@
 		...(canManageCrew ? data.adminLoadErrors : [])
 	]);
 	const canLog = $derived(auth.isAdmin || isVoyageCaptain);
-	const yacht = $derived(yachts.find((y) => y.id === voyage.yacht_id) ?? null);
 	let deletion = $derived(perLoad(data, { error: '' }));
 	let publication = $derived(perLoad(data, { busy: false, error: '' }));
 	async function handlePublish() {
@@ -225,7 +225,7 @@
 	{/if}
 
 	{#key data}
-		<VoyageLog bind:voyage bind:yachts {canLog} />
+		<VoyageLog bind:voyage bind:yacht {canLog} />
 	{/key}
 	{#if voyage.description}
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
