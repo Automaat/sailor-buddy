@@ -36,8 +36,7 @@
 
 	let deleteError = $state('');
 	$effect(() => {
-		id;
-		deleteError = '';
+		if (id) deleteError = '';
 	});
 	async function handleDelete() {
 		if (trips.length > 0 || voyages.length > 0) {
@@ -45,11 +44,14 @@
 			return;
 		}
 		if (!confirm('Usunąć wydarzenie?')) return;
+		const cruiseId = id;
 		deleteError = '';
 		try {
-			await deleteCruise(id);
+			await deleteCruise(cruiseId);
+			if (cruiseId !== id) return;
 			void goto('/cruises');
 		} catch (err) {
+			if (cruiseId !== id) return;
 			deleteError = err instanceof Error ? err.message : 'Nie udało się usunąć wydarzenia';
 		}
 	}

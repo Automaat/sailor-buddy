@@ -904,3 +904,33 @@ describe('cruise page leg labels', () => {
 		expect(screen.queryByRole('link', { name: '+ Dodaj etap' })).not.toBeInTheDocument();
 	});
 });
+
+describe('cruise deletion during navigation', () => {
+	it.each(['resolve', 'reject'] as const)(
+		'ignores a late %s after leaving the cruise',
+		async (result) => {
+			mockAuth.isAdmin = true;
+			mockGet.mockResolvedValue(cruise());
+			vi.spyOn(window, 'confirm').mockReturnValue(true);
+			let resolve!: () => void;
+			let reject!: (error: Error) => void;
+			fn(deleteCruise).mockReturnValue(
+				new Promise<void>((yes, no) => {
+					resolve = yes;
+					reject = no;
+				})
+			);
+			const page = await renderPage();
+			await fireEvent.click(screen.getByRole('button', { name: 'Usuń' }));
+			expect(deleteCruise).toHaveBeenCalledWith(7);
+			mockGet.mockResolvedValue(cruise({ id: 9, name: 'Next cruise' }));
+			await page.rerender({ data: await runLoad('9') });
+			if (result === 'resolve') resolve();
+			else reject(new Error('old deletion failed'));
+			await new Promise((done) => setTimeout(done, 0));
+			expect(goto).not.toHaveBeenCalled();
+			expect(screen.queryByText('old deletion failed')).not.toBeInTheDocument();
+			expect(screen.getByRole('heading', { name: 'Next cruise' })).toBeInTheDocument();
+		}
+	);
+});
