@@ -211,9 +211,19 @@ export function reorderVoyagePorts(id: number, portIDs: number[]) {
 	});
 }
 
-// geocode searches towns/places by name via the backend Nominatim proxy.
-export function geocode(q: string): Promise<Schemas['GeocodeResult'][]> {
-	return api.get('/geocode', { query: { q } }).then((r) => r ?? []);
+/** A map centre the geocoder ranks nearby towns around. */
+export type GeocodeBias = { lat: number; lon: number };
+
+// geocode searches towns by name via the backend proxy (Nominatim, with a
+// Photon fallback for prefixes and typos).
+export function geocode(q: string, bias?: GeocodeBias): Promise<Schemas['GeocodeResult'][]> {
+	const query = bias ? { q, lat: bias.lat, lon: bias.lon } : { q };
+	return api.get('/geocode', { query }).then((r) => r ?? []);
+}
+
+// suggestPorts lists port names the club already entered that match q.
+export function suggestPorts(q: string): Promise<Schemas['PortSuggestion'][]> {
+	return api.get('/ports/suggest', { query: { q } }).then((r) => r ?? []);
 }
 
 export function listVoyageOpinions(id: number) {

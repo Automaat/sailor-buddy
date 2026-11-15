@@ -47,6 +47,7 @@ type mockQuerier struct {
 	// voyage ports
 	createVoyagePortFn func(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error)
 	listVoyagePortsFn  func(ctx context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error)
+	suggestPortsFn     func(ctx context.Context, arg sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error)
 	deleteVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
 
 	// crew assignments
@@ -338,6 +339,13 @@ func (m *mockQuerier) ListVoyagePorts(ctx context.Context, voyageID int64) ([]sq
 		panic("unexpected call to ListVoyagePorts")
 	}
 	return m.listVoyagePortsFn(ctx, voyageID)
+}
+
+func (m *mockQuerier) SuggestPorts(ctx context.Context, arg sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error) {
+	if m.suggestPortsFn == nil {
+		panic("unexpected call to SuggestPorts")
+	}
+	return m.suggestPortsFn(ctx, arg)
 }
 
 func (m *mockQuerier) DeleteVoyagePort(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error {

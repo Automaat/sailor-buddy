@@ -51,7 +51,7 @@ func TestRegisterGeocodeRoutes(t *testing.T) {
 
 func TestNewGeocodeHandler(t *testing.T) {
 	h := NewGeocodeHandler()
-	if h.baseURL != nominatimBaseURL || h.httpClient == nil {
+	if h.nominatim.baseURL != nominatimBaseURL || h.photon.baseURL != photonBaseURL || h.httpClient == nil {
 		t.Fatalf("unexpected handler: %+v", h)
 	}
 }
