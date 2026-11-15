@@ -19,6 +19,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 
+import { auth } from '#lib/stores/auth.svelte.js';
 import {
 	getCrew,
 	updateCrew,
@@ -80,6 +81,20 @@ describe('person page', () => {
 		render(PersonPage);
 		await screen.findByRole('heading', { level: 1, name: 'Anna Nowak' });
 		expect(screen.getByRole('link', { name: 'Osoby' })).toHaveAttribute('href', '/crew');
+	});
+
+	it('links a member back to the dashboard, since the people list is admin-only', async () => {
+		const store = auth as { isAdmin: boolean };
+		store.isAdmin = false;
+		try {
+			getMock.mockResolvedValue(makePerson({ id: 4, full_name: 'Anna Nowak' }));
+			render(PersonPage);
+			await screen.findByRole('heading', { level: 1, name: 'Anna Nowak' });
+			expect(screen.getByRole('link', { name: 'Pulpit' })).toHaveAttribute('href', '/');
+			expect(screen.queryByRole('link', { name: 'Osoby' })).not.toBeInTheDocument();
+		} finally {
+			store.isAdmin = true;
+		}
 	});
 
 	it('edits other names of a person without an account', async () => {

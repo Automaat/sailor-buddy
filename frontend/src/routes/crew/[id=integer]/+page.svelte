@@ -149,7 +149,11 @@
 	<div class="py-12 text-center text-[var(--text-muted)]">Wczytywanie...</div>
 {:else if person}
 	<div class="mx-auto max-w-2xl">
-		<BackLink href="/crew" label="Osoby" />
+		{#if auth.isAdmin}
+			<BackLink href="/crew" label="Osoby" />
+		{:else}
+			<BackLink href="/" label="Pulpit" />
+		{/if}
 		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
 			<div>
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{person.full_name}</h1>
