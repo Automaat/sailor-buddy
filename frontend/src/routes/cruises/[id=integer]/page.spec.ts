@@ -7,6 +7,8 @@ vi.mock('#lib/api/routes.js', () => ({
 	getCruise: vi.fn(),
 	getSeries: vi.fn(),
 	deleteCruise: vi.fn(),
+	publishCruise: vi.fn(),
+	unpublishCruise: vi.fn(),
 	listCruiseTrips: vi.fn(),
 	listCruiseVoyages: vi.fn(),
 	listCruiseEnrollments: vi.fn(),
@@ -32,6 +34,8 @@ import { auth } from '#lib/stores/auth.svelte.js';
 import {
 	getSeries,
 	deleteCruise,
+	publishCruise,
+	unpublishCruise,
 	generateCruiseEnrollToken,
 	clearCruiseEnrollToken,
 	updateCruiseEnrollmentStatus,
@@ -90,6 +94,8 @@ beforeEach(() => {
 	for (const f of [
 		getSeries,
 		deleteCruise,
+		publishCruise,
+		unpublishCruise,
 		generateCruiseEnrollToken,
 		clearCruiseEnrollToken,
 		updateCruiseEnrollmentStatus,
@@ -293,9 +299,7 @@ describe('cruise page admin flows', () => {
 	it('refuses to delete a cruise that still has legs', async () => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		await renderPage();
-		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest(
-			'div'
-		)!.parentElement!;
+		const header = await screen.findByTestId('cruise-header');
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 
@@ -313,9 +317,7 @@ describe('cruise page admin flows', () => {
 			new Error('cruise still has trips or voyages; delete them first')
 		);
 		await renderPage();
-		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest(
-			'div'
-		)!.parentElement!;
+		const header = await screen.findByTestId('cruise-header');
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 
@@ -328,9 +330,7 @@ describe('cruise page admin flows', () => {
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
 		await renderPage();
-		const header = (await screen.findByRole('heading', { name: 'Sycylia 2026' })).closest(
-			'div'
-		)!.parentElement!;
+		const header = await screen.findByTestId('cruise-header');
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 		await waitFor(() => expect(deleteCruise).toHaveBeenCalledWith(7));
@@ -379,9 +379,7 @@ describe('cruise page same-route navigation', () => {
 		);
 		const view = await renderPage();
 		expect(await screen.findByText(enrollmentRow.user_name as string)).toBeInTheDocument();
-		const header = screen
-			.getByRole('heading', { name: 'Sycylia 2026' })
-			.closest('div')!.parentElement!;
+		const header = screen.getByTestId('cruise-header');
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 		expect(screen.getByText(/Nie można usunąć wydarzenia/)).toBeInTheDocument();
 
@@ -973,5 +971,170 @@ describe('cruise page review regressions', () => {
 		else reject(new Error('old deletion failed'));
 		await new Promise((done) => setTimeout(done, 0));
 		expect(goto).not.toHaveBeenCalled();
+	});
+});
+
+describe('cruise page publication', () => {
+	const at = '2026-03-01T10:00:00Z';
+	const hiddenTrip = { ...tripRow(50, 'Jacht A', 'planned'), cruise_id: 7 };
+	const publishedTrip = { ...tripRow(51, 'Jacht B', 'planned'), cruise_id: 7, published_at: at };
+	const hiddenVoyage = { id: 9, cruise_id: 7, name: 'Rejs 2025', miles: 120, days: 7 };
+
+	beforeEach(() => {
+		mockAuth.isAdmin = true;
+		mockAuth.user = { id: 1, role: 'admin', is_captain: false };
+		mockGet.mockResolvedValue(cruise());
+		fn(listCruiseTrips).mockResolvedValue([hiddenTrip, publishedTrip]);
+		fn(listCruiseVoyages).mockResolvedValue([hiddenVoyage]);
+		fn(publishCruise).mockImplementation(async () => cruise({ published_at: at }));
+		fn(unpublishCruise).mockImplementation(async () => cruise());
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const header = () => screen.getByTestId('cruise-header');
+	const legRow = (name: string) =>
+		screen.getAllByTestId('leg-row').find((r) => within(r).queryByText(name))!;
+	const voyageLink = () => screen.getByRole('link', { name: /Rejs 2025/ });
+
+	it('shows an admin which cruise and legs are hidden', async () => {
+		await renderPage();
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(legRow('Jacht A')).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(legRow('Jacht B')).queryByText('Ukryte')).not.toBeInTheDocument();
+		expect(within(voyageLink()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeInTheDocument();
+		expect(within(header()).queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+
+	it('publishes the hidden legs too when the admin agrees', async () => {
+		const ask = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+
+		expect(ask).toHaveBeenCalledWith('Opublikować też 2 ukryte etapy?');
+		expect(publishCruise).toHaveBeenCalledWith(7, true);
+		await waitFor(() => expect(screen.queryByText('Ukryte')).not.toBeInTheDocument());
+		expect(within(header()).getByRole('button', { name: 'Ukryj' })).toBeInTheDocument();
+	});
+
+	it('publishes only the cruise when the admin declines the legs', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(false);
+		await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+
+		expect(publishCruise).toHaveBeenCalledWith(7, false);
+		await waitFor(() => expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument());
+		expect(within(legRow('Jacht A')).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(voyageLink()).getByText('Ukryte')).toBeInTheDocument();
+	});
+
+	it('asks nothing when every leg is published', async () => {
+		const ask = vi.spyOn(window, 'confirm');
+		fn(listCruiseTrips).mockResolvedValue([publishedTrip]);
+		fn(listCruiseVoyages).mockResolvedValue([]);
+		await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+
+		expect(ask).not.toHaveBeenCalled();
+		expect(publishCruise).toHaveBeenCalledWith(7, false);
+		await waitFor(() => expect(screen.queryByText('Ukryte')).not.toBeInTheDocument());
+	});
+
+	it('hides a published cruise', async () => {
+		mockGet.mockResolvedValue(cruise({ published_at: at }));
+		await renderPage();
+		expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Ukryj' }));
+
+		expect(unpublishCruise).toHaveBeenCalledWith(7);
+		expect(await within(header()).findByText('Ukryte')).toBeInTheDocument();
+		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeInTheDocument();
+	});
+
+	it('keeps the badge and shows the error when publishing fails', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(publishCruise).mockRejectedValue(new ApiError(500, 'failed to publish cruise'));
+		await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się opublikować wydarzenia: failed to publish cruise'
+		);
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(legRow('Jacht A')).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeEnabled();
+	});
+
+	it('drops a publish reply for the cruise the page has left', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(false);
+		let answer!: (c: Cruise) => void;
+		fn(publishCruise).mockReturnValue(new Promise<Cruise>((yes) => (answer = yes)));
+		mockGet.mockImplementation(async (id: number) =>
+			cruise({ id, name: id === 7 ? 'Sycylia 2026' : 'Chorwacja 2026' })
+		);
+		const view = await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+		await view.rerender({ data: await runLoad('8') });
+
+		answer(cruise({ published_at: at }));
+		await new Promise((done) => setTimeout(done, 0));
+		expect(screen.getByRole('heading', { name: 'Chorwacja 2026' })).toBeInTheDocument();
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeEnabled();
+	});
+
+	it.each([
+		['publishing opens', 'Opublikuj', false, true],
+		['hiding closes', 'Ukryj', true, false]
+	] as const)('reloads the sign-ups: %s them', async (_name, action, before, after) => {
+		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		if (action === 'Ukryj') mockGet.mockResolvedValue(cruise({ published_at: at }));
+		fn(listCruiseLegSignUps)
+			.mockResolvedValueOnce([{ trip_id: 50, open: before, accepted_count: 0 }])
+			.mockResolvedValueOnce([{ trip_id: 50, open: after, accepted_count: 0 }]);
+		await renderPage();
+		const row = legRow('Jacht A');
+		expect(within(row).queryByText('Zapisy zamknięte') === null).toBe(before);
+
+		await fireEvent.click(within(header()).getByRole('button', { name: action }));
+
+		await waitFor(() => expect(within(row).queryByText('Zapisy zamknięte') === null).toBe(after));
+		expect(fn(listCruiseLegSignUps)).toHaveBeenLastCalledWith(7);
+	});
+
+	it('names the sign-ups when their reload fails after publishing', async () => {
+		vi.spyOn(window, 'confirm').mockReturnValue(false);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		fn(listCruiseLegSignUps)
+			.mockResolvedValueOnce([{ trip_id: 50, open: false, accepted_count: 0 }])
+			.mockRejectedValueOnce(new Error('offline'));
+		await renderPage();
+		await fireEvent.click(within(header()).getByRole('button', { name: 'Opublikuj' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent('twoje zapisy na etapy');
+		expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument();
+	});
+
+	it('shows the captain group the badges but no publish controls', async () => {
+		mockAuth.isAdmin = false;
+		mockAuth.user = { id: 3, role: 'member', is_captain: true, membership: 'czlonek' };
+		await renderPage();
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(within(legRow('Jacht A')).getByText('Ukryte')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+
+	it('shows a member neither badges nor publish controls', async () => {
+		mockAuth.isAdmin = false;
+		mockAuth.user = { id: 2, role: 'member', is_captain: false, membership: 'czlonek' };
+		await renderPage();
+		expect(screen.queryByText('Ukryte')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
 	});
 });

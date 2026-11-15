@@ -10,7 +10,9 @@
 		completeTrip,
 		generateTripEnrollToken,
 		clearTripEnrollToken,
-		getTripSignUp
+		getTripSignUp,
+		publishTrip,
+		unpublishTrip
 	} from '#lib/api/routes.js';
 	import type { CompleteTripPayload, LegSignUp } from '#lib/api/types.js';
 	import { clearFailure, errorMessage, noteFailure, settle } from '#lib/api/errors.js';
@@ -23,16 +25,20 @@
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
 	import { freePlacesLabel, signUpClosedByDeadline, signUpDeadlineLabel } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels, warsawToday } from '#lib/rejsy.js';
+	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
+	import { canSeeHidden, isHidden, isLegHidden } from '#lib/publication.js';
+	import { perLoad } from '#lib/state.svelte.js';
 
 	// data comes from +page.ts, which reruns when the URL's trip changes, so
 	// navigating between two trips swaps every value derived from it.
 	let { data } = $props();
 
-	const cruise = $derived(data.cruise);
+	let cruise = $derived(data.cruise);
 	const allCrewMembers = $derived(data.allCrewMembers);
 	const adminLoadErrors = $derived(data.adminLoadErrors);
-	// These change in place after a cancel, a crew edit, a sign-up or an
-	// enroll-link toggle, and reset to the loaded value on navigation.
+	// These change in place after a cancel, a crew edit, a sign-up, an
+	// enroll-link toggle or a publish, and reset to the loaded value on
+	// navigation.
 	let trip = $derived(data.trip);
 	let crew = $derived(data.crew);
 	let signUp = $derived(data.signUp);
@@ -58,6 +64,7 @@
 	const places = $derived(signUp ? freePlacesLabel(trip.max_crew, signUp.accepted_count) : null);
 	// Trips are club-managed: only admins create, edit and crew them.
 	const canManageCrew = $derived(auth.isAdmin);
+	const showHidden = $derived(canSeeHidden(auth));
 	// Failures of admin-only sections join the banner only for admins. The
 	// check is reactive: on a direct load the role arrives after the load.
 	const visibleLoadErrors = $derived(
@@ -86,6 +93,61 @@
 	// dropped.
 	function updateSignUp(next: LegSignUp) {
 		if (!leftTrip(next.trip_id)) signUp = next;
+	}
+
+	let publication = $derived(perLoad(data, { busy: false, error: '' }));
+	// Whether the leg takes sign-ups depends on its and the cruise's
+	// publication, so the sign-up control reloads after either changes.
+	async function refreshSignUp(held: typeof publication, tripId: number) {
+		const errors = [...loadErrors];
+		const label = 'zapis na etap';
+		const next = await settle(
+			getTripSignUp(tripId).then((s) => {
+				clearFailure(errors, label);
+				return s;
+			}),
+			signUp,
+			noteFailure(errors, label)
+		);
+		if (held !== publication) return;
+		signUp = next;
+		loadErrors = errors;
+	}
+	async function handlePublish() {
+		const held = publication;
+		const tripId = id;
+		held.busy = true;
+		held.error = '';
+		try {
+			const next = await publishTrip(tripId);
+			if (held !== publication) return;
+			trip = next;
+			// The API publishes a hidden cruise without a series along with its leg.
+			if (cruise && isHidden(cruise) && cruise.series_id == null) {
+				cruise = { ...cruise, published_at: next.published_at };
+			}
+			await refreshSignUp(held, tripId);
+		} catch (err) {
+			held.error = `Nie udało się opublikować etapu: ${errorMessage(err)}`;
+		} finally {
+			held.busy = false;
+		}
+	}
+	async function handleUnpublish() {
+		const held = publication;
+		const tripId = id;
+		held.busy = true;
+		held.error = '';
+		try {
+			const next = await unpublishTrip(tripId);
+			if (held !== publication) return;
+			trip = next;
+			await refreshSignUp(held, tripId);
+		} catch (err) {
+			held.error = `Nie udało się ukryć etapu: ${errorMessage(err)}`;
+		} finally {
+			held.busy = false;
+		}
 	}
 
 	async function handleDelete() {
@@ -234,6 +296,9 @@
 				<span class="rounded-full px-2.5 py-1 text-xs font-medium {legStatusBadges[status]}">
 					{legStatusLabels[status]}
 				</span>
+				{#if showHidden && isLegHidden(trip, cruise)}
+					<HiddenBadge reason={isHidden(trip) ? undefined : 'Ukryte, bo wydarzenie jest ukryte'} />
+				{/if}
 			</div>
 			<p class="mt-1 text-[var(--text-muted)]">
 				{#if trip.start_port && trip.end_port}
@@ -252,6 +317,23 @@
 						class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
 					>
 						Zrealizuj
+					</button>
+				{/if}
+				{#if isHidden(trip)}
+					<button
+						onclick={handlePublish}
+						disabled={publication.busy}
+						class="rounded-lg border border-[var(--ocean)] px-4 py-2 text-sm text-[var(--ocean)] hover:bg-[var(--ocean-tint)] disabled:opacity-50"
+					>
+						Opublikuj
+					</button>
+				{:else}
+					<button
+						onclick={handleUnpublish}
+						disabled={publication.busy}
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+					>
+						Ukryj
 					</button>
 				{/if}
 				<a
@@ -293,6 +375,11 @@
 
 	{#if deleteError}
 		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{deleteError}</div>
+	{/if}
+	{#if publication.error}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+			{publication.error}
+		</div>
 	{/if}
 
 	{#if canManageCrew && status === 'overdue'}

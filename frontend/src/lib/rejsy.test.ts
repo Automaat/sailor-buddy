@@ -127,6 +127,32 @@ describe('legStatus', () => {
 });
 
 describe('buildRejsEntries', () => {
+	it.each([
+		{ name: 'a published cruise', cruise: { published_at: 'x' }, trip: {}, series: 2, want: false },
+		{ name: 'a hidden cruise', cruise: {}, trip: { published_at: 'x' }, series: 2, want: true },
+		{
+			name: 'a hidden leg of an edition',
+			cruise: { published_at: 'x' },
+			trip: {},
+			series: 2,
+			want: false
+		},
+		{
+			name: 'a hidden standalone trip',
+			cruise: { published_at: 'x' },
+			trip: {},
+			series: undefined,
+			want: true
+		}
+	])('flags $name as hidden: $want', ({ cruise, trip, series, want }) => {
+		const [entry] = buildRejsEntries(
+			[makeCruise({ id: 7, series_id: series, ...cruise })],
+			[makeTrip({ id: 4, cruise_id: 7, ...trip })],
+			[]
+		);
+		expect(entry.hidden).toBe(want);
+	});
+
 	it('lists each cruise once with its legs summarized', () => {
 		const entries = buildRejsEntries(
 			[makeCruise({ id: 7, name: 'NNE 2025', enroll_token: 'tok' })],

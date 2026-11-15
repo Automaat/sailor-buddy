@@ -44,6 +44,14 @@ export function completeTrip(id: number, body: Schemas['CompleteTripBody']) {
 	return api.post('/trips/{tripID}/complete', { path: { tripID: id }, body });
 }
 
+export function publishTrip(id: number) {
+	return api.post('/trips/{tripID}/publish', { path: { tripID: id } });
+}
+
+export function unpublishTrip(id: number) {
+	return api.post('/trips/{tripID}/unpublish', { path: { tripID: id } });
+}
+
 export function listTripCrew(id: number) {
 	return api.get('/trips/{tripID}/crew', { path: { tripID: id } });
 }
@@ -140,6 +148,14 @@ export function updateVoyage(id: number, body: Schemas['VoyageBody']) {
 
 export function deleteVoyage(id: number) {
 	return api.del('/voyages/{voyageID}', { path: { voyageID: id } });
+}
+
+export function publishVoyage(id: number) {
+	return api.post('/voyages/{voyageID}/publish', { path: { voyageID: id } });
+}
+
+export function unpublishVoyage(id: number) {
+	return api.post('/voyages/{voyageID}/unpublish', { path: { voyageID: id } });
 }
 
 export function updateVoyageLog(id: number, body: Schemas['VoyageLogBody']) {
@@ -372,6 +388,18 @@ export function updateCruise(id: number, body: Schemas['CruiseBody']) {
 
 export function deleteCruise(id: number) {
 	return api.del('/cruises/{cruiseID}', { path: { cruiseID: id } });
+}
+
+/** includeLegs also publishes the cruise's hidden trips and voyages. */
+export function publishCruise(id: number, includeLegs: boolean) {
+	return api.post('/cruises/{cruiseID}/publish', {
+		path: { cruiseID: id },
+		body: { include_legs: includeLegs }
+	});
+}
+
+export function unpublishCruise(id: number) {
+	return api.post('/cruises/{cruiseID}/unpublish', { path: { cruiseID: id } });
 }
 
 export function listCruiseTrips(id: number) {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import { makeVoyage } from '#lib/test-utils.js';
+import { makeCruise, makeVoyage } from '#lib/test-utils.js';
 import type { Yacht } from '#lib/api/types.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -24,7 +24,9 @@ vi.mock('#lib/api/routes.js', () => ({
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	getCruise: vi.fn(() => Promise.resolve(null)),
-	geocode: vi.fn(() => Promise.resolve([]))
+	geocode: vi.fn(() => Promise.resolve([])),
+	publishVoyage: vi.fn(),
+	unpublishVoyage: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: false, user: { id: 7, role: 'member', person_id: 70 } }
@@ -37,12 +39,15 @@ import {
 	addVoyageYacht,
 	createYacht,
 	deleteVoyage,
+	getCruise,
 	getVoyage,
 	listAssignableCrew,
 	listVoyageCrew,
 	listVoyageOpinions,
 	listVoyagePorts,
 	listYachts,
+	publishVoyage,
+	unpublishVoyage,
 	updateVoyageLog
 } from '#lib/api/routes.js';
 import { ApiError } from '#lib/api/client.js';
@@ -445,5 +450,91 @@ describe('voyage page load', () => {
 		expect(getVoyage).toHaveBeenCalledWith(9);
 		expect(listVoyagePorts).toHaveBeenCalledWith(9);
 		expect(listVoyageCrew).toHaveBeenCalledWith(9);
+	});
+});
+
+describe('voyage page publication', () => {
+	const at = '2026-03-01T10:00:00Z';
+	const authState = auth as unknown as { isAdmin: boolean; user: Record<string, unknown> };
+	const header = () => screen.getByRole('heading', { name: 'Rejs Bałtyk' }).parentElement!;
+	const voyage = (overrides: Parameters<typeof makeVoyage>[0] = {}) =>
+		makeVoyage({ id: 5, cruise_id: 1, ...overrides });
+
+	beforeEach(() => {
+		authState.isAdmin = true;
+		authState.user = { id: 1, role: 'admin', is_captain: false };
+		vi.mocked(getCruise).mockResolvedValue(makeCruise({ id: 1, published_at: at }));
+	});
+
+	it('publishes a hidden voyage and drops the badge', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(voyage());
+		vi.mocked(publishVoyage).mockResolvedValue(voyage({ published_at: at }));
+		await renderPage();
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		expect(publishVoyage).toHaveBeenCalledWith(5);
+		await waitFor(() => expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument());
+		expect(screen.getByRole('button', { name: 'Ukryj' })).toBeInTheDocument();
+	});
+
+	it('clears the badge when publishing also publishes a standalone cruise', async () => {
+		vi.mocked(getCruise).mockResolvedValue(makeCruise({ id: 1 }));
+		vi.mocked(getVoyage).mockResolvedValue(voyage());
+		vi.mocked(publishVoyage).mockResolvedValue(voyage({ published_at: at }));
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		await waitFor(() => expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument());
+	});
+
+	it('hides a published voyage', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(voyage({ published_at: at }));
+		vi.mocked(unpublishVoyage).mockResolvedValue(voyage());
+		await renderPage();
+		expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Ukryj' }));
+
+		expect(unpublishVoyage).toHaveBeenCalledWith(5);
+		expect(await within(header()).findByText('Ukryte')).toBeInTheDocument();
+	});
+
+	it('keeps the badge and shows the error when publishing fails', async () => {
+		const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(getVoyage).mockResolvedValue(voyage());
+		vi.mocked(publishVoyage).mockRejectedValue(new ApiError(500, 'failed to publish voyage'));
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się opublikować rejsu: failed to publish voyage'
+		);
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Opublikuj' })).toBeEnabled();
+		quiet.mockRestore();
+	});
+
+	it('shows the captain group the badge but no publish controls', async () => {
+		authState.isAdmin = false;
+		authState.user = { id: 3, role: 'member', is_captain: true };
+		vi.mocked(getVoyage).mockResolvedValue(voyage());
+		await renderPage();
+
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+
+	it('shows a member neither the badge nor publish controls', async () => {
+		authState.isAdmin = false;
+		authState.user = { id: 7, role: 'member', is_captain: false, person_id: 70 };
+		vi.mocked(getVoyage).mockResolvedValue(voyage());
+		await renderPage();
+
+		expect(screen.queryByText('Ukryte')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
 	});
 });

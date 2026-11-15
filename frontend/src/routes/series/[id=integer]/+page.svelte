@@ -5,6 +5,8 @@
 	import { cruiseKindLabels } from '#lib/cruise.js';
 	import { goto } from '$app/navigation';
 	import { errorMessage } from '#lib/api/errors.js';
+	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
+	import { canSeeHidden, isHidden } from '#lib/publication.js';
 
 	// data comes from +page.ts, which reruns when the URL's series changes.
 	let { data } = $props();
@@ -14,6 +16,7 @@
 	let series = $derived(data.series);
 	const editions = $derived(data.editions);
 	const id = $derived(data.series.id);
+	const showHidden = $derived(canSeeHidden(auth));
 	let editing = $state(false);
 	let saving = $state(false);
 	let error = $state('');
@@ -185,7 +188,8 @@
 								<td class="py-2"
 									><a href="/cruises/{e.cruise_id}" class="text-[var(--ocean)] hover:underline"
 										>{e.name}</a
-									></td
+									>
+									{#if showHidden && isHidden(e)}<HiddenBadge />{/if}</td
 								>
 								<td class="py-2">{cruiseKindLabels[e.kind]}</td>
 								<td class="py-2">

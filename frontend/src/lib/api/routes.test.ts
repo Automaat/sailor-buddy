@@ -63,6 +63,18 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		args: ['/trips/{tripID}/cancel', { path: { tripID: 5 } }]
 	},
 	{
+		name: 'publishTrip',
+		run: () => routes.publishTrip(5),
+		verb: 'post',
+		args: ['/trips/{tripID}/publish', { path: { tripID: 5 } }]
+	},
+	{
+		name: 'unpublishTrip',
+		run: () => routes.unpublishTrip(5),
+		verb: 'post',
+		args: ['/trips/{tripID}/unpublish', { path: { tripID: 5 } }]
+	},
+	{
 		name: 'completeTrip',
 		run: () => routes.completeTrip(5, body),
 		verb: 'post',
@@ -195,6 +207,18 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		run: () => routes.deleteVoyage(5),
 		verb: 'del',
 		args: ['/voyages/{voyageID}', { path: { voyageID: 5 } }]
+	},
+	{
+		name: 'publishVoyage',
+		run: () => routes.publishVoyage(5),
+		verb: 'post',
+		args: ['/voyages/{voyageID}/publish', { path: { voyageID: 5 } }]
+	},
+	{
+		name: 'unpublishVoyage',
+		run: () => routes.unpublishVoyage(5),
+		verb: 'post',
+		args: ['/voyages/{voyageID}/unpublish', { path: { voyageID: 5 } }]
 	},
 	{
 		name: 'listVoyageCrew',
@@ -382,6 +406,24 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		run: () => routes.deleteCruise(5),
 		verb: 'del',
 		args: ['/cruises/{cruiseID}', { path: { cruiseID: 5 } }]
+	},
+	{
+		name: 'publishCruise with legs',
+		run: () => routes.publishCruise(5, true),
+		verb: 'post',
+		args: ['/cruises/{cruiseID}/publish', { path: { cruiseID: 5 }, body: { include_legs: true } }]
+	},
+	{
+		name: 'publishCruise without legs',
+		run: () => routes.publishCruise(5, false),
+		verb: 'post',
+		args: ['/cruises/{cruiseID}/publish', { path: { cruiseID: 5 }, body: { include_legs: false } }]
+	},
+	{
+		name: 'unpublishCruise',
+		run: () => routes.unpublishCruise(5),
+		verb: 'post',
+		args: ['/cruises/{cruiseID}/unpublish', { path: { cruiseID: 5 } }]
 	},
 	{
 		name: 'listCruiseTrips',

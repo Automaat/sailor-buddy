@@ -309,3 +309,47 @@ describe('rejsy page', () => {
 		});
 	});
 });
+
+describe('rejsy page hidden badge', () => {
+	const at = '2026-01-01T00:00:00Z';
+	const authState = auth as unknown as { isAdmin: boolean; user: Record<string, unknown> };
+	const card = async (name: string) => (await screen.findByText(name)).closest('a')!;
+
+	beforeEach(() => {
+		serve({
+			cruises: [
+				makeCruise({ id: 1, name: 'Widoczny', published_at: at }),
+				makeCruise({ id: 2, name: 'Szkic' }),
+				makeCruise({ id: 3, published_at: at })
+			],
+			// A standalone trip lists as its cruise; its own draft flag counts too.
+			trips: [makeTrip({ id: 30, cruise_id: 3, name: 'Samodzielny' })]
+		});
+	});
+
+	afterEach(() => {
+		authState.isAdmin = true;
+		authState.user = { id: 1, role: 'admin' };
+	});
+
+	it.each([
+		['an admin', { isAdmin: true, user: { id: 1, role: 'admin', is_captain: false } }],
+		['the captain group', { isAdmin: false, user: { id: 3, role: 'member', is_captain: true } }]
+	])('marks hidden cruises for %s', async (_who, state) => {
+		Object.assign(authState, state);
+		render(RejsyPage);
+		expect(await card('Szkic')).toHaveTextContent('Ukryte');
+		expect(await card('Samodzielny')).toHaveTextContent('Ukryte');
+		expect(await card('Widoczny')).not.toHaveTextContent('Ukryte');
+	});
+
+	it('shows a member no badge', async () => {
+		Object.assign(authState, {
+			isAdmin: false,
+			user: { id: 2, role: 'member', is_captain: false }
+		});
+		render(RejsyPage);
+		await screen.findByText('Szkic');
+		expect(screen.queryByText('Ukryte')).not.toBeInTheDocument();
+	});
+});

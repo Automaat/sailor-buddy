@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { CruiseSeries, CruiseSeriesEdition } from '#lib/api/types.js';
 
@@ -361,5 +361,40 @@ describe('series page same-route navigation', () => {
 
 		expect(goto).not.toHaveBeenCalled();
 		expect(screen.getByRole('heading', { name: 'Baltic Cup' })).toBeInTheDocument();
+	});
+});
+
+describe('series detail page hidden editions', () => {
+	const authState = auth as unknown as { isAdmin: boolean; user: Record<string, unknown> };
+	const row = (name: string) =>
+		screen.getAllByTestId('edition-row').find((r) => within(r).queryByText(name))!;
+
+	beforeEach(() => {
+		mockEditions.mockResolvedValue([
+			makeEdition({ cruise_id: 1, name: 'MIS 2025', published_at: '2025-01-01T00:00:00Z' }),
+			makeEdition({ cruise_id: 2, name: 'MIS 2026' })
+		]);
+	});
+
+	afterEach(() => {
+		authState.isAdmin = false;
+		authState.user = { id: 2, role: 'member' };
+	});
+
+	it.each([
+		['an admin', { isAdmin: true, user: { id: 1, role: 'admin', is_captain: false } }],
+		['the captain group', { isAdmin: false, user: { id: 3, role: 'member', is_captain: true } }]
+	])('marks hidden editions for %s', async (_who, state) => {
+		Object.assign(authState, state);
+		await renderPage();
+		expect(await within(row('MIS 2026')).findByText('Ukryte')).toBeInTheDocument();
+		expect(within(row('MIS 2025')).queryByText('Ukryte')).not.toBeInTheDocument();
+	});
+
+	it('shows a member no badge', async () => {
+		authState.user = { id: 2, role: 'member', is_captain: false };
+		await renderPage();
+		expect(await screen.findByText('MIS 2026')).toBeInTheDocument();
+		expect(screen.queryByText('Ukryte')).not.toBeInTheDocument();
 	});
 });
