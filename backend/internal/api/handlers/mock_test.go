@@ -38,17 +38,18 @@ type mockQuerier struct {
 	getVoyageFn        func(ctx context.Context, id int64) (sqlcdb.Voyage, error)
 	createVoyageFn     func(ctx context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error)
 	updateVoyageFn     func(ctx context.Context, arg sqlcdb.UpdateVoyageParams) error
-	updateVoyageLogFn  func(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) error
+	updateVoyageLogFn  func(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) (int64, error)
 	deleteVoyageFn     func(ctx context.Context, id int64) error
 	getDashboardFn     func(ctx context.Context) (sqlcdb.GetDashboardStatsRow, error)
 	getVoyagesByYearFn func(ctx context.Context) ([]sqlcdb.GetVoyagesByYearRow, error)
 	listUserSeaTimeFn  func(ctx context.Context, userID int64) ([]sqlcdb.ListUserSeaTimeVoyagesRow, error)
 
 	// voyage ports
-	createVoyagePortFn func(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error)
+	addVoyagePortFn    func(ctx context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error)
 	listVoyagePortsFn  func(ctx context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error)
 	suggestPortsFn     func(ctx context.Context, arg sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error)
-	deleteVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
+	deleteVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) (bool, error)
+	setPortPositionFn  func(ctx context.Context, arg sqlcdb.SetVoyagePortPositionParams) (int64, error)
 
 	// crew assignments
 	updateTripCrewRoleFn    func(ctx context.Context, arg sqlcdb.UpdateTripCrewAssignmentRoleParams) (sqlcdb.UpdateTripCrewAssignmentRoleRow, error)
@@ -94,10 +95,10 @@ type mockQuerier struct {
 	getUserCruiseEnrollForTripFn   func(ctx context.Context, arg sqlcdb.GetUserCruiseEnrollmentForTripParams) (sqlcdb.CruiseEnrollment, error)
 
 	// voyage opinions
-	upsertVoyageOpinionFn      func(ctx context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error)
+	upsertVoyageOpinionFn      func(ctx context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error)
 	listVoyageVoyageOpinionsFn func(ctx context.Context, voyageID int64) ([]sqlcdb.ListVoyageVoyageOpinionsRow, error)
 	getVoyageOpinionFn         func(ctx context.Context, id int64) (sqlcdb.VoyageOpinion, error)
-	deleteVoyageOpinionFn      func(ctx context.Context, id int64) error
+	deleteVoyageOpinionFn      func(ctx context.Context, arg sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error)
 
 	// cruise series
 	listCruiseSeriesFn         func(ctx context.Context, arg sqlcdb.ListCruiseSeriesParams) ([]sqlcdb.CruiseSeries, error)
@@ -109,12 +110,13 @@ type mockQuerier struct {
 	listCruiseSeriesEditionsFn func(ctx context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error)
 
 	// yachts
-	listYachtsFn  func(ctx context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error)
-	countYachtsFn func(ctx context.Context) (int64, error)
-	getYachtFn    func(ctx context.Context, id int64) (sqlcdb.Yacht, error)
-	createYachtFn func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
-	updateYachtFn func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
-	deleteYachtFn func(ctx context.Context, id int64) error
+	listYachtsFn     func(ctx context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error)
+	countYachtsFn    func(ctx context.Context) (int64, error)
+	getYachtFn       func(ctx context.Context, id int64) (sqlcdb.Yacht, error)
+	createYachtFn    func(ctx context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error)
+	addVoyageYachtFn func(ctx context.Context, arg sqlcdb.AddVoyageYachtParams) (sqlcdb.Yacht, error)
+	updateYachtFn    func(ctx context.Context, arg sqlcdb.UpdateYachtParams) error
+	deleteYachtFn    func(ctx context.Context, id int64) error
 
 	// trainings
 	listTrainingsFn  func(ctx context.Context, arg sqlcdb.ListTrainingsParams) ([]sqlcdb.Training, error)
@@ -328,11 +330,11 @@ func (m *mockQuerier) GetVoyagesByYear(ctx context.Context, _ bool) ([]sqlcdb.Ge
 
 // --- voyage ports ---
 
-func (m *mockQuerier) CreateVoyagePort(ctx context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
-	if m.createVoyagePortFn == nil {
-		panic("unexpected call to CreateVoyagePort")
+func (m *mockQuerier) AddVoyagePort(ctx context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
+	if m.addVoyagePortFn == nil {
+		panic("unexpected call to AddVoyagePort")
 	}
-	return m.createVoyagePortFn(ctx, arg)
+	return m.addVoyagePortFn(ctx, arg)
 }
 
 func (m *mockQuerier) ListVoyagePorts(ctx context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error) {
@@ -349,7 +351,14 @@ func (m *mockQuerier) SuggestPorts(ctx context.Context, arg sqlcdb.SuggestPortsP
 	return m.suggestPortsFn(ctx, arg)
 }
 
-func (m *mockQuerier) DeleteVoyagePort(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error {
+func (m *mockQuerier) SetVoyagePortPosition(ctx context.Context, arg sqlcdb.SetVoyagePortPositionParams) (int64, error) {
+	if m.setPortPositionFn == nil {
+		panic("unexpected call to SetVoyagePortPosition")
+	}
+	return m.setPortPositionFn(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteVoyagePort(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) (bool, error) {
 	if m.deleteVoyagePortFn == nil {
 		panic("unexpected call to DeleteVoyagePort")
 	}
@@ -525,7 +534,7 @@ func (m *mockQuerier) GetUserCruiseEnrollment(ctx context.Context, arg sqlcdb.Ge
 
 // --- voyage opinions ---
 
-func (m *mockQuerier) UpsertVoyageOpinion(ctx context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
+func (m *mockQuerier) UpsertVoyageOpinion(ctx context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
 	if m.upsertVoyageOpinionFn == nil {
 		panic("unexpected call to UpsertVoyageOpinion")
 	}
@@ -546,11 +555,11 @@ func (m *mockQuerier) GetVoyageOpinion(ctx context.Context, id int64) (sqlcdb.Vo
 	return m.getVoyageOpinionFn(ctx, id)
 }
 
-func (m *mockQuerier) DeleteVoyageOpinion(ctx context.Context, id int64) error {
+func (m *mockQuerier) DeleteVoyageOpinion(ctx context.Context, arg sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
 	if m.deleteVoyageOpinionFn == nil {
 		panic("unexpected call to DeleteVoyageOpinion")
 	}
-	return m.deleteVoyageOpinionFn(ctx, id)
+	return m.deleteVoyageOpinionFn(ctx, arg)
 }
 
 // --- yachts ---
@@ -581,6 +590,13 @@ func (m *mockQuerier) CreateYacht(ctx context.Context, arg sqlcdb.CreateYachtPar
 		panic("unexpected call to CreateYacht")
 	}
 	return m.createYachtFn(ctx, arg)
+}
+
+func (m *mockQuerier) AddVoyageYacht(ctx context.Context, arg sqlcdb.AddVoyageYachtParams) (sqlcdb.Yacht, error) {
+	if m.addVoyageYachtFn == nil {
+		panic("unexpected call to AddVoyageYacht")
+	}
+	return m.addVoyageYachtFn(ctx, arg)
 }
 
 func (m *mockQuerier) UpdateYacht(ctx context.Context, arg sqlcdb.UpdateYachtParams) error {
@@ -872,7 +888,7 @@ func (m *mockQuerier) UpdateUserSuspended(ctx context.Context, arg sqlcdb.Update
 	return m.updateUserSuspendedFn(ctx, arg)
 }
 
-func (m *mockQuerier) UpdateVoyageLog(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
+func (m *mockQuerier) UpdateVoyageLog(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) (int64, error) {
 	if m.updateVoyageLogFn == nil {
 		panic("unexpected call to UpdateVoyageLog")
 	}

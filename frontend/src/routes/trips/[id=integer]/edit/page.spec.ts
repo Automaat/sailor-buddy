@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { makeCruise, makeTrip } from '#lib/test-utils.js';
+import { makeCruise, makeTrip, unprefixedSpans } from '#lib/test-utils.js';
 import { ApiError } from '#lib/api/client.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
@@ -148,6 +148,14 @@ describe('trip edit page', () => {
 		await fireEvent.click(await screen.findByRole('button', { name: 'Zapisz zmiany' }));
 
 		expect(await screen.findByText('cruise not found')).toBeInTheDocument();
+	});
+});
+
+describe('trip edit page phone layout', () => {
+	it('keeps every field in the single phone column', async () => {
+		const { container } = await renderPage();
+		await screen.findByLabelText('Wydarzenie klubu *');
+		expect(unprefixedSpans(container)).toEqual([]);
 	});
 });
 

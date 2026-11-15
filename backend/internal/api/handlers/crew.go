@@ -286,7 +286,14 @@ func (h *CrewHandler) delete(ctx context.Context, in *crewIDParam) (*noContentOu
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	n, err := h.q.DeleteUnlinkedCrewMember(ctx, in.ID)
+	// The delete locks the person before the opinions and voyages that point
+	// to it, while writes of those rows lock them before the person's key.
+	var n int64
+	err := onDeadlockRetry(func() error {
+		var delErr error
+		n, delErr = h.q.DeleteUnlinkedCrewMember(ctx, in.ID)
+		return delErr
+	})
 	if err != nil {
 		slog.Error("delete crew member", "crew_member_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete crew member")

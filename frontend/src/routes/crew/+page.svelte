@@ -134,6 +134,12 @@
 		}
 	}
 
+	// The admin table needs about 850px; narrower panels (phones, tablets
+	// beside the sidebar) show each row as a card with labelled controls.
+	const cardWide = '@max-4xl:col-span-full @max-4xl:p-0';
+	const cardCell = 'p-4 @max-4xl:p-0';
+	const cardLabel = 'mb-1 block text-xs text-[var(--text-muted)] @4xl:hidden';
+
 	const roleLabels: Record<Role, string> = { admin: 'Administrator', member: 'Użytkownik' };
 
 	async function setRole(member: Member, role: Role, el: HTMLSelectElement) {
@@ -334,7 +340,7 @@
 			bind:value={query}
 			placeholder="Szukaj po nazwisku, innym nazwisku lub e-mailu"
 			aria-label="Szukaj osób"
-			class="min-w-0 flex-1 rounded-lg border px-3 py-2"
+			class="min-w-0 flex-[1_1_16rem] rounded-lg border px-3 py-2"
 		/>
 		<div class="flex gap-1" role="group" aria-label="Konto">
 			{#each accountFilters as f (f.value)}
@@ -376,9 +382,9 @@
 	{:else if visible.length === 0}
 		<p class="py-12 text-center text-[var(--text-muted)]">Nikt nie pasuje do wyszukiwania</p>
 	{:else}
-		<div class="overflow-x-auto rounded-2xl bg-white shadow-sm">
-			<table class="w-full text-sm">
-				<thead>
+		<div class="@container overflow-x-auto rounded-2xl bg-white shadow-sm">
+			<table class="w-full text-sm @max-4xl:block">
+				<thead class="@max-4xl:hidden">
 					<tr class="border-b text-left text-[var(--text-muted)]">
 						<th class="p-4">Imię i nazwisko</th>
 						<th class="p-4">E-mail</th>
@@ -388,11 +394,14 @@
 							<th class="p-4">Kadra kapitańska</th>{/if}
 					</tr>
 				</thead>
-				<tbody>
+				<tbody class="@max-4xl:block">
 					{#each visible as person (person.id)}
 						{@const member = person.user_id ? accounts.get(person.user_id) : undefined}
-						<tr class="border-b border-gray-50" data-testid="person">
-							<td class="p-4 font-medium text-[var(--navy)]">
+						<tr
+							class="border-b border-gray-50 @max-4xl:grid @max-4xl:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] @max-4xl:gap-x-4 @max-4xl:gap-y-3 @max-4xl:p-4"
+							data-testid="person"
+						>
+							<td class="{cardWide} p-4 font-medium text-[var(--navy)]">
 								<a href="/crew/{person.id}" class="hover:underline"
 									><span>{person.full_name}</span></a
 								>
@@ -409,15 +418,17 @@
 										>profil niekompletny</span
 									>{/if}
 							</td>
-							<td class="p-4 text-[var(--text-muted)]">{person.email || member?.email || '—'}</td>
+							<td class="{cardWide} p-4 [overflow-wrap:anywhere] text-[var(--text-muted)]">
+								{person.email || member?.email || '—'}
+							</td>
 							{#if auth.isAdmin}
 								{#if member}
 									{@const isLastAdmin = member.role === 'admin' && adminCount <= 1}
 									{@const blocker = captainBlocker(member)}
 									{@const busy = saving.has(member.id)}
 
-									<td class="p-4"
-										><select
+									<td class={cardCell}
+										><span class={cardLabel}>Dostęp do konta</span><select
 											aria-label="Dostęp: {member.name}"
 											disabled={busy || member.role === 'admin'}
 											value={member.suspended ? 'suspended' : 'active'}
@@ -430,13 +441,14 @@
 													e.currentTarget.value === 'suspended',
 													e.currentTarget
 												)}
-											class="rounded-lg border px-2 py-1 text-xs"
+											class="rounded-lg border px-2 py-1 text-xs @max-4xl:w-full"
 											><option value="active">Aktywne</option><option value="suspended"
 												>Zawieszone</option
 											></select
 										></td
 									>
-									<td class="p-4">
+									<td class={cardCell}>
+										<span class={cardLabel}>Rola</span>
 										<select
 											aria-label="Rola: {member.name}"
 											value={member.role}
@@ -444,7 +456,7 @@
 											title={isLastAdmin ? 'Klub musi mieć co najmniej jednego administratora' : ''}
 											onchange={(e) =>
 												setRole(member, e.currentTarget.value as Role, e.currentTarget)}
-											class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40 {member.role ===
+											class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40 @max-4xl:w-full {member.role ===
 											'admin'
 												? 'bg-[var(--ocean-tint)] text-[var(--ocean)]'
 												: ''}"
@@ -454,7 +466,8 @@
 											{/each}
 										</select>
 									</td>
-									<td class="p-4">
+									<td class={cardCell}>
+										<span class={cardLabel}>Członkostwo</span>
 										<select
 											aria-label="Członkostwo: {member.name}"
 											value={member.membership}
@@ -465,16 +478,20 @@
 													e.currentTarget.value as Member['membership'],
 													e.currentTarget
 												)}
-											class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+											class="rounded-lg border px-2 py-1 text-xs disabled:opacity-40 @max-4xl:w-full"
 										>
 											{#each Object.entries(membershipLabels) as [value, label] (value)}
 												<option {value}>{label}</option>
 											{/each}
 										</select>
 									</td>
-									<td class="p-4">
+									<td class={cardCell}>
+										<span class={cardLabel}>Kadra kapitańska</span>
 										{#if member.patent_number || member.is_captain}
-											<label class="flex items-center gap-2 text-xs" title={blocker}>
+											<label
+												class="flex items-center gap-2 text-xs @max-4xl:min-h-11"
+												title={blocker}
+											>
 												<input
 													type="checkbox"
 													aria-label="Kapitan: {member.name}"
@@ -496,7 +513,7 @@
 										{/if}
 									</td>
 								{:else}
-									<td colspan="4" class="p-4 text-[var(--text-muted)]"
+									<td colspan="4" class="{cardWide} p-4 text-[var(--text-muted)]"
 										>{person.has_account
 											? loading
 												? 'Wczytywanie konta...'

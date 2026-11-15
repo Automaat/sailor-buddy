@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,12 +15,12 @@ import (
 )
 
 type VoyagePortHandler struct {
-	q  sqlcdb.Querier
-	db *sql.DB
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
 func NewVoyagePortHandler(q sqlcdb.Querier, db *sql.DB) *VoyagePortHandler {
-	return &VoyagePortHandler{q: q, db: db}
+	return &VoyagePortHandler{q: q, runTx: sqlTxRunner(db)}
 }
 
 // --- huma operation input/output types ---
@@ -80,7 +81,10 @@ type portSuggestionsOutput struct {
 // port name suggestions. Reads are open to any member; mutations require an
 // admin or the voyage captain.
 func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
-	h := NewVoyagePortHandler(q, db)
+	registerVoyagePortRoutes(api, NewVoyagePortHandler(q, db))
+}
+
+func registerVoyagePortRoutes(api huma.API, h *VoyagePortHandler) {
 	tag := []string{"Voyage ports"}
 
 	huma.Register(api, huma.Operation{
@@ -142,14 +146,20 @@ func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*v
 	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
-	port, err := h.q.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
-		VoyageID:  in.VoyageID,
-		Name:      in.Body.Name,
-		Latitude:  nullFloat64(in.Body.Latitude),
-		Longitude: nullFloat64(in.Body.Longitude),
-		Anchorage: in.Body.Anchorage,
-		Position:  valOrZeroInt(in.Body.Position),
+	callerID, admin := captainCaller(ctx)
+	port, err := h.q.AddVoyagePort(ctx, sqlcdb.AddVoyagePortParams{
+		VoyageID:      in.VoyageID,
+		Name:          in.Body.Name,
+		Latitude:      nullFloat64(in.Body.Latitude),
+		Longitude:     nullFloat64(in.Body.Longitude),
+		Anchorage:     in.Body.Anchorage,
+		Position:      valOrZeroInt(in.Body.Position),
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
+	}
 	if err != nil {
 		slog.Error("add voyage port", "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to add voyage port")
@@ -161,50 +171,68 @@ func (h *VoyagePortHandler) remove(ctx context.Context, in *removeVoyagePortInpu
 	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
-	if err := h.q.DeleteVoyagePort(ctx, sqlcdb.DeleteVoyagePortParams{
-		ID:       in.PortID,
-		VoyageID: in.VoyageID,
-	}); err != nil {
+	callerID, admin := captainCaller(ctx)
+	allowed, err := h.q.DeleteVoyagePort(ctx, sqlcdb.DeleteVoyagePortParams{
+		ID:            in.PortID,
+		VoyageID:      in.VoyageID,
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
+	})
+	if err != nil {
 		slog.Error("remove voyage port", "port_id", in.PortID, "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to remove voyage port")
+	}
+	if !allowed {
+		return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
 	}
 	return &noContentOutput{}, nil
 }
 
+// errPortWriteRefused stops a reorder whose position write changed no row.
+var errPortWriteRefused = errors.New("port position write changed no row")
+
+// reorder renumbers the voyage's ports in one transaction, so a mid-list
+// failure cannot leave them half-renumbered. Each position write checks the
+// caller's captain rights; one that changes no row rolls the reorder back,
+// as either those rights or the voyage's ports changed after the check.
 func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsInput) (*voyagePortListOutput, error) {
 	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
-	current, err := h.q.ListVoyagePorts(ctx, in.VoyageID)
-	if err != nil {
-		slog.Error("list voyage ports for reorder", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
-	}
-	if !portIDsMatch(current, in.Body.PortIDs) {
-		return nil, huma.Error422UnprocessableEntity("port_ids must list each port of the voyage exactly once")
-	}
-	// All position writes share one transaction so a mid-list failure cannot
-	// leave the ports in a half-renumbered state.
-	tx, err := h.db.BeginTx(ctx, nil)
-	if err != nil {
-		slog.Error("reorder voyage ports begin", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
-	}
-	defer func() { _ = tx.Rollback() }()
-	qtx := sqlcdb.New(tx)
-	for i, portID := range in.Body.PortIDs {
-		if err := qtx.SetVoyagePortPosition(ctx, sqlcdb.SetVoyagePortPositionParams{
-			ID:       portID,
-			VoyageID: in.VoyageID,
-			Position: int64(i),
-		}); err != nil {
-			slog.Error("reorder voyage port", "port_id", portID, "voyage_id", in.VoyageID, "err", err)
-			return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
+	callerID, admin := captainCaller(ctx)
+	mismatch := huma.Error422UnprocessableEntity("port_ids must list each port of the voyage exactly once")
+	var current []sqlcdb.VoyagePort
+	err := h.runTx(ctx, func(q sqlcdb.Querier) error {
+		var err error
+		current, err = q.ListVoyagePorts(ctx, in.VoyageID)
+		if err != nil {
+			return &QueryError{Op: "ListVoyagePorts", Err: err}
 		}
+		if !portIDsMatch(current, in.Body.PortIDs) {
+			return mismatch
+		}
+		for i, portID := range in.Body.PortIDs {
+			n, err := q.SetVoyagePortPosition(ctx, sqlcdb.SetVoyagePortPositionParams{
+				ID:            portID,
+				VoyageID:      in.VoyageID,
+				Position:      int64(i),
+				CallerIsAdmin: admin,
+				CallerID:      callerID,
+			})
+			if err != nil {
+				return &QueryError{Op: "SetVoyagePortPosition", Err: err}
+			}
+			if n == 0 {
+				return errPortWriteRefused
+			}
+		}
+		return nil
+	})
+	if errors.Is(err, errPortWriteRefused) {
+		return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, mismatch)
 	}
-	if err := tx.Commit(); err != nil {
-		slog.Error("reorder voyage ports commit", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
+	if err != nil {
+		return nil, voyageMutationError(err, "reorder voyage ports", "failed to reorder voyage ports", []any{"voyage_id", in.VoyageID})
 	}
 	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(reorderPorts(current, in.Body.PortIDs))}, nil
 }

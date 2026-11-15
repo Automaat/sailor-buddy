@@ -59,7 +59,7 @@ func requireAdminOrCaptainGroup(ctx context.Context) error {
 func requireAdminOrCaptain(ctx context.Context, q sqlcdb.Querier, captainPersonID types.NullInt64) error {
 	u := middleware.GetUser(ctx)
 	if u == nil {
-		return huma.Error403Forbidden("admin or captain only")
+		return errAdminOrCaptainOnly()
 	}
 	if u.Role == "admin" {
 		return nil
@@ -69,7 +69,7 @@ func requireAdminOrCaptain(ctx context.Context, q sqlcdb.Querier, captainPersonI
 		return err
 	}
 	if !ok {
-		return huma.Error403Forbidden("admin or captain only")
+		return errAdminOrCaptainOnly()
 	}
 	return nil
 }

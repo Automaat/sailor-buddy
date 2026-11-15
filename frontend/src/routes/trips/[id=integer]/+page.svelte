@@ -306,8 +306,8 @@
 
 <div class="mx-auto max-w-4xl">
 	<LoadErrorBanner errors={visibleLoadErrors} />
-	<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
-		<div>
+	<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+		<div class="min-w-0 grow basis-72">
 			{#if cruise}
 				<BackLink href="/cruises/{cruise.id}" label="Część wydarzenia: {cruise.name}" />
 			{/if}
@@ -329,7 +329,7 @@
 			</p>
 		</div>
 		{#if canManageCrew || canComplete}
-			<div class="flex gap-2 max-md:flex-wrap">
+			<div class="flex flex-wrap gap-2">
 				{#if canComplete}
 					<button
 						onclick={() => (showCompleteModal = true)}

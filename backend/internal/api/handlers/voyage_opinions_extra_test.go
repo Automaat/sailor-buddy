@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/docgen"
@@ -47,9 +50,12 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 			getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
 				return sqlcdb.Yacht{ID: id, Name: "Bavaria"}, nil
 			},
-			upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
+			upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
 				stored = arg.FilePath
-				return sqlcdb.VoyageOpinion{ID: 7, VoyageID: arg.VoyageID, FileFormat: arg.FileFormat}, nil
+				return sqlcdb.UpsertVoyageOpinionRow{
+					ID: 7, VoyageID: arg.VoyageID, FileFormat: arg.FileFormat,
+					ReplacedPath: filepath.Join(dir, "opinions", "3_4.pdf"),
+				}, nil
 			},
 		}
 		resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
@@ -58,15 +64,15 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
 		}
 		// The record keeps the upload directory joined with the file name,
-		// the format older rows use too.
-		if want := filepath.Join(dir, "opinions", "3_4.docx"); stored != want {
-			t.Fatalf("stored path = %q, want %q", stored, want)
+		// the format older rows use too; each generation gets a new name.
+		if ok, _ := filepath.Match(filepath.Join(dir, "opinions", "3_4_*.docx"), stored); !ok {
+			t.Fatalf("stored path = %q, want %s", stored, filepath.Join(dir, "opinions", "3_4_*.docx"))
 		}
 		if info, err := os.Stat(stored); err != nil || info.Size() == 0 {
 			t.Fatalf("stored file: %v", err)
 		}
 		if _, err := os.Stat(filepath.Join(dir, "opinions", "3_4.pdf")); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("old pdf kept: err=%v", err)
+			t.Fatalf("replaced pdf kept: err=%v", err)
 		}
 	})
 
@@ -125,21 +131,50 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 	})
 
 	t.Run("upsert db error", func(t *testing.T) {
+		dir := t.TempDir()
+		writeUpload(t, dir, "opinions/3_4.pdf", "old pdf")
 		m := &mockQuerier{
 			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			getVoyageCrewByMemberFn: func(context.Context, sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
 				return assignmentRow, nil
 			},
-			upsertVoyageOpinionFn: func(context.Context, sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
-				return sqlcdb.VoyageOpinion{}, errors.New("fail")
+			upsertVoyageOpinionFn: func(context.Context, sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
+				return sqlcdb.UpsertVoyageOpinionRow{}, errors.New("fail")
 			},
 		}
-		resp := opinionTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
+		resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
 			map[string]any{"crew_member_id": 4, "format": "docx"})
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("got %d, want 500", resp.Code)
 		}
+		// The failed write leaves the prior opinion's file and no new one.
+		if got := opinionFiles(t, dir); !slices.Equal(got, []string{"3_4.pdf"}) {
+			t.Fatalf("opinion files = %v, want [3_4.pdf]", got)
+		}
 	})
+
+	for _, gone := range []string{"voyage_opinions_crew_member_id_fkey", "voyage_opinions_voyage_id_fkey"} {
+		t.Run("deleted during render "+gone, func(t *testing.T) {
+			dir := t.TempDir()
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				getVoyageCrewByMemberFn: func(context.Context, sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
+					return assignmentRow, nil
+				},
+				upsertVoyageOpinionFn: func(context.Context, sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.UpsertVoyageOpinionRow, error) {
+					return sqlcdb.UpsertVoyageOpinionRow{}, &pgconn.PgError{Code: "23503", ConstraintName: gone}
+				},
+			}
+			resp := opinionTestAPIIn(t, m, dir).PostCtx(userCtx(context.Background()), "/voyages/3/opinions",
+				map[string]any{"crew_member_id": 4, "format": "docx"})
+			if resp.Code != http.StatusNotFound {
+				t.Fatalf("got %d, want 404; body=%s", resp.Code, resp.Body)
+			}
+			if got := opinionFiles(t, dir); len(got) != 0 {
+				t.Fatalf("opinion files = %v, want none", got)
+			}
+		})
+	}
 
 	t.Run("member forbidden", func(t *testing.T) {
 		m := &mockQuerier{
@@ -273,10 +308,9 @@ func TestVoyageOpinion_DeleteRemovesFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &mockQuerier{
 				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
-				getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
-					return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: tc.stored}, nil
+				deleteVoyageOpinionFn: func(context.Context, sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+					return sqlcdb.DeleteVoyageOpinionRow{Ok: true, FilePath: tc.stored}, nil
 				},
-				deleteVoyageOpinionFn: func(context.Context, int64) error { return nil },
 			}
 			resp := opinionTestAPIIn(t, m, dir).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
 			if resp.Code != http.StatusNoContent {
@@ -291,17 +325,36 @@ func TestVoyageOpinion_DeleteRemovesFile(t *testing.T) {
 }
 
 func TestVoyageOpinion_Delete_DBError(t *testing.T) {
+	dir := t.TempDir()
+	writeUpload(t, dir, "opinions/3_4.pdf", "pdf")
 	m := &mockQuerier{
 		getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
-		getVoyageOpinionFn: func(_ context.Context, id int64) (sqlcdb.VoyageOpinion, error) {
-			return sqlcdb.VoyageOpinion{ID: id, VoyageID: 3, FilePath: "/nonexistent/x.pdf"}, nil
+		deleteVoyageOpinionFn: func(context.Context, sqlcdb.DeleteVoyageOpinionParams) (sqlcdb.DeleteVoyageOpinionRow, error) {
+			return sqlcdb.DeleteVoyageOpinionRow{}, errors.New("fail")
 		},
-		deleteVoyageOpinionFn: func(context.Context, int64) error { return errors.New("fail") },
 	}
-	resp := opinionTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
+	resp := opinionTestAPIIn(t, m, dir).DeleteCtx(userCtx(context.Background()), "/voyages/3/opinions/1")
 	if resp.Code != http.StatusInternalServerError {
 		t.Fatalf("got %d, want 500", resp.Code)
 	}
+	// The row stays, so its file stays too.
+	if got := opinionFiles(t, dir); !slices.Equal(got, []string{"3_4.pdf"}) {
+		t.Fatalf("opinion files = %v, want [3_4.pdf]", got)
+	}
+}
+
+// opinionFiles lists the file names in the opinions directory under dir.
+func opinionFiles(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(dir, "opinions"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("read opinions dir: %v", err)
+	}
+	names := []string{}
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
 }
 
 func TestOpinionContentType(t *testing.T) {

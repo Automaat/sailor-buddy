@@ -748,40 +748,53 @@ func (q *Queries) UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) erro
 	return err
 }
 
-const updateVoyageLog = `-- name: UpdateVoyageLog :exec
-UPDATE voyages SET
-    hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
-    miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
-    yacht_id = $10, track_url = $11, voyage_card = $12,
+const updateVoyageLog = `-- name: UpdateVoyageLog :execrows
+UPDATE voyages lv SET
+    hours_total = $1, hours_sail = $2,
+    hours_engine = $3, hours_over_6bf = $4,
+    miles = $5, days = $6, tidal_waters = $7,
+    captain_notes = $8, yacht_id = $9,
+    track_url = $10, voyage_card = $11,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9
+WHERE lv.id = $12
+  AND ($13::BOOLEAN OR lv.captain_person_id IN (
+      SELECT cm.id FROM crew_members cm WHERE cm.user_id = $14::BIGINT))
 `
 
 type UpdateVoyageLogParams struct {
-	HoursTotal   float64          `json:"hours_total"`
-	HoursSail    float64          `json:"hours_sail"`
-	HoursEngine  float64          `json:"hours_engine"`
-	HoursOver6bf float64          `json:"hours_over_6bf"`
-	Miles        float64          `json:"miles"`
-	Days         int64            `json:"days"`
-	TidalWaters  int64            `json:"tidal_waters"`
-	CaptainNotes types.NullString `json:"captain_notes"`
-	ID           int64            `json:"id"`
-	YachtID      types.NullInt64  `json:"yacht_id"`
-	TrackUrl     types.NullString `json:"track_url"`
-	VoyageCard   types.NullString `json:"voyage_card"`
+	HoursTotal    float64          `json:"hours_total"`
+	HoursSail     float64          `json:"hours_sail"`
+	HoursEngine   float64          `json:"hours_engine"`
+	HoursOver6bf  float64          `json:"hours_over_6bf"`
+	Miles         float64          `json:"miles"`
+	Days          int64            `json:"days"`
+	TidalWaters   int64            `json:"tidal_waters"`
+	CaptainNotes  types.NullString `json:"captain_notes"`
+	YachtID       types.NullInt64  `json:"yacht_id"`
+	TrackUrl      types.NullString `json:"track_url"`
+	VoyageCard    types.NullString `json:"voyage_card"`
+	ID            int64            `json:"id"`
+	CallerIsAdmin bool             `json:"caller_is_admin"`
+	CallerID      int64            `json:"caller_id"`
 }
 
-// UpdateVoyageLog
+// Writes for an admin or the account linked to the voyage's captain person,
+// else updates no row. The check reads the row it updates: a captain change
+// committed before the statement refuses it, and one still open makes it
+// wait for that change and recheck the new captain.
 //
-//	UPDATE voyages SET
-//	    hours_total = $1, hours_sail = $2, hours_engine = $3, hours_over_6bf = $4,
-//	    miles = $5, days = $6, tidal_waters = $7, captain_notes = $8,
-//	    yacht_id = $10, track_url = $11, voyage_card = $12,
+//	UPDATE voyages lv SET
+//	    hours_total = $1, hours_sail = $2,
+//	    hours_engine = $3, hours_over_6bf = $4,
+//	    miles = $5, days = $6, tidal_waters = $7,
+//	    captain_notes = $8, yacht_id = $9,
+//	    track_url = $10, voyage_card = $11,
 //	    updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $9
-func (q *Queries) UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) error {
-	_, err := q.db.ExecContext(ctx, updateVoyageLog,
+//	WHERE lv.id = $12
+//	  AND ($13::BOOLEAN OR lv.captain_person_id IN (
+//	      SELECT cm.id FROM crew_members cm WHERE cm.user_id = $14::BIGINT))
+func (q *Queries) UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateVoyageLog,
 		arg.HoursTotal,
 		arg.HoursSail,
 		arg.HoursEngine,
@@ -790,10 +803,15 @@ func (q *Queries) UpdateVoyageLog(ctx context.Context, arg UpdateVoyageLogParams
 		arg.Days,
 		arg.TidalWaters,
 		arg.CaptainNotes,
-		arg.ID,
 		arg.YachtID,
 		arg.TrackUrl,
 		arg.VoyageCard,
+		arg.ID,
+		arg.CallerIsAdmin,
+		arg.CallerID,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

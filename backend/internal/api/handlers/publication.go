@@ -53,7 +53,7 @@ type publishCruiseInput struct {
 // RegisterPublicationRoutes wires the admin-only publish and unpublish
 // operations of cruises, trips and voyages onto the API.
 func RegisterPublicationRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
-	h := &PublicationHandler{q: q, runTx: sqlTxRunner(db)}
+	h := &PublicationHandler{q: q, runTx: retryDeadlock(sqlTxRunner(db))}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "publish-cruise", Method: http.MethodPost, Path: "/cruises/{cruiseID}/publish",

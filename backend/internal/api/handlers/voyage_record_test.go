@@ -48,9 +48,9 @@ func TestVoyageLog_RecordFields(t *testing.T) {
 			m := &mockQuerier{
 				getVoyageFn:     captainVoyage,
 				getCrewMemberFn: recordCaptain,
-				updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
+				updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) (int64, error) {
 					got = &arg
-					return nil
+					return 1, nil
 				},
 			}
 			resp := voyageTestAPI(t, m).PutCtx(tt.ctx, "/voyages/5/log", map[string]any{
@@ -84,9 +84,9 @@ func TestVoyageLog_ClearsEmptyRecordFields(t *testing.T) {
 	m := &mockQuerier{
 		getVoyageFn:     captainVoyage,
 		getCrewMemberFn: recordCaptain,
-		updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
+		updateVoyageLogFn: func(_ context.Context, arg sqlcdb.UpdateVoyageLogParams) (int64, error) {
 			got = &arg
-			return nil
+			return 1, nil
 		},
 	}
 	resp := voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/5/log", map[string]any{
@@ -122,9 +122,9 @@ func TestVoyageTrackURL_Validation(t *testing.T) {
 			m := &mockQuerier{
 				getVoyageFn:     captainVoyage,
 				getCrewMemberFn: recordCaptain,
-				updateVoyageLogFn: func(context.Context, sqlcdb.UpdateVoyageLogParams) error {
+				updateVoyageLogFn: func(context.Context, sqlcdb.UpdateVoyageLogParams) (int64, error) {
 					written = true
-					return nil
+					return 1, nil
 				},
 				getCruiseFn: func(_ context.Context, id int64) (sqlcdb.Cruise, error) {
 					return sqlcdb.Cruise{ID: id}, nil
@@ -188,8 +188,8 @@ func TestVoyageLog_UnknownYacht(t *testing.T) {
 	m := &mockQuerier{
 		getVoyageFn:     captainVoyage,
 		getCrewMemberFn: recordCaptain,
-		updateVoyageLogFn: func(context.Context, sqlcdb.UpdateVoyageLogParams) error {
-			return &pgconn.PgError{Code: "23503", ConstraintName: "voyages_yacht_id_fkey"}
+		updateVoyageLogFn: func(context.Context, sqlcdb.UpdateVoyageLogParams) (int64, error) {
+			return 0, &pgconn.PgError{Code: "23503", ConstraintName: "voyages_yacht_id_fkey"}
 		},
 	}
 	resp := voyageTestAPI(t, m).PutCtx(callerCtx(recordCaptainID, "member"), "/voyages/5/log", map[string]any{"yacht_id": 999})
@@ -212,7 +212,7 @@ func TestVoyageAddYacht_Authorization(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got *sqlcdb.CreateYachtParams
+			var got *sqlcdb.AddVoyageYachtParams
 			m := &mockQuerier{
 				getVoyageFn: func(ctx context.Context, id int64) (sqlcdb.Voyage, error) {
 					if tt.voyage != nil {
@@ -221,7 +221,7 @@ func TestVoyageAddYacht_Authorization(t *testing.T) {
 					return captainVoyage(ctx, id)
 				},
 				getCrewMemberFn: recordCaptain,
-				createYachtFn: func(_ context.Context, arg sqlcdb.CreateYachtParams) (sqlcdb.Yacht, error) {
+				addVoyageYachtFn: func(_ context.Context, arg sqlcdb.AddVoyageYachtParams) (sqlcdb.Yacht, error) {
 					got = &arg
 					return sqlcdb.Yacht{ID: 11, Name: arg.Name, YachtType: arg.YachtType, RegistrationNo: arg.RegistrationNo}, nil
 				},
@@ -256,11 +256,11 @@ func TestVoyageAddYacht_Authorization(t *testing.T) {
 }
 
 func TestVoyagePorts_AddNameOnlyAnchorage(t *testing.T) {
-	var got *sqlcdb.CreateVoyagePortParams
+	var got *sqlcdb.AddVoyagePortParams
 	m := &mockQuerier{
 		getVoyageFn:     captainVoyage,
 		getCrewMemberFn: recordCaptain,
-		createVoyagePortFn: func(_ context.Context, arg sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
+		addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
 			got = &arg
 			return sqlcdb.VoyagePort{
 				ID: 9, VoyageID: arg.VoyageID, Name: arg.Name, Latitude: arg.Latitude,
@@ -301,7 +301,7 @@ func TestVoyagePorts_RejectsHalfCoordinates(t *testing.T) {
 		m := &mockQuerier{
 			getVoyageFn:     captainVoyage,
 			getCrewMemberFn: recordCaptain,
-			createVoyagePortFn: func(context.Context, sqlcdb.CreateVoyagePortParams) (sqlcdb.VoyagePort, error) {
+			addVoyagePortFn: func(context.Context, sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
 				created = true
 				return sqlcdb.VoyagePort{}, nil
 			},

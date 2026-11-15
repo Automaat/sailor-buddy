@@ -197,7 +197,7 @@
 					class="w-full rounded-lg border px-3 py-2"
 				/>
 			</div>
-			<div class="col-span-2">
+			<div class="sm:col-span-2">
 				<label for="sign_up_deadline" class="mb-1 block text-sm font-medium"
 					>Zapisy do (włącznie)</label
 				>

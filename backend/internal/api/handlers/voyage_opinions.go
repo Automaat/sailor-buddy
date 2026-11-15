@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -116,21 +118,51 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 	}
 
 	data := opinionDocData(voyage, assignment, yachtName, yachtType)
-	filePath, err := storeOpinionFile(ctx, h.uploads, in.VoyageID, in.Body.CrewMemberID, format, data)
+	fileBytes, err := renderOpinionFile(ctx, format, data)
+	if err != nil {
+		slog.Error("render opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
+		return nil, huma.Error500InternalServerError("failed to generate opinion document")
+	}
+
+	// Each generation gets its own file, so a refused or failed write never
+	// overwrites the file of the opinion it would replace.
+	rel := filepath.Join(opinionsDir, fmt.Sprintf("%d_%d_%s.%s", in.VoyageID, in.Body.CrewMemberID, rand.Text(), format))
+	stored, err := storeOpinionFile(h.uploads, rel, fileBytes)
 	if err != nil {
 		slog.Error("store opinion file", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "format", format, "err", err)
 		return nil, huma.Error500InternalServerError("failed to generate opinion document")
 	}
-
-	opinion, err := h.q.UpsertVoyageOpinion(ctx, sqlcdb.UpsertVoyageOpinionParams{
-		VoyageID:     in.VoyageID,
-		CrewMemberID: in.Body.CrewMemberID,
-		FilePath:     filePath,
-		FileFormat:   format,
+	callerID, admin := captainCaller(ctx)
+	row, err := h.q.UpsertVoyageOpinion(ctx, sqlcdb.UpsertVoyageOpinionParams{
+		VoyageID:      in.VoyageID,
+		CrewMemberID:  in.Body.CrewMemberID,
+		FilePath:      stored,
+		FileFormat:    format,
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
 	})
 	if err != nil {
+		removeUploadedFiles(h.uploads, stored)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
+		}
+		// The document renders for seconds; the person or the voyage can be
+		// deleted meanwhile.
+		if isForeignKeyViolation(err, "voyage_opinions_crew_member_id_fkey") {
+			return nil, huma.Error404NotFound("crew member not assigned to this voyage")
+		}
+		if isForeignKeyViolation(err, "voyage_opinions_voyage_id_fkey") {
+			return nil, huma.Error404NotFound("voyage not found")
+		}
 		slog.Error("upsert voyage opinion", "voyage_id", in.VoyageID, "crew_member_id", in.Body.CrewMemberID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to save opinion record")
+	}
+	if row.ReplacedPath != "" {
+		removeUploadedFiles(h.uploads, row.ReplacedPath)
+	}
+	opinion := sqlcdb.VoyageOpinion{
+		ID: row.ID, VoyageID: row.VoyageID, CrewMemberID: row.CrewMemberID,
+		FilePath: row.FilePath, FileFormat: row.FileFormat, CreatedAt: row.CreatedAt,
 	}
 	return &opinionOutput{Body: dto.VoyageOpinionFromDB(opinion)}, nil
 }
@@ -158,19 +190,30 @@ func (h *VoyageOpinionHandler) download(ctx context.Context, in *opinionParam) (
 	}, nil
 }
 
+// delete removes the opinion's file only once its row is deleted, so a
+// refused or failed delete keeps the file the row still points to.
 func (h *VoyageOpinionHandler) delete(ctx context.Context, in *opinionParam) (*noContentOutput, error) {
 	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
-	opinion, err := loadVoyageOpinion(ctx, h.q, in.OpinionID, in.VoyageID)
+	callerID, admin := captainCaller(ctx)
+	deleted, err := h.q.DeleteVoyageOpinion(ctx, sqlcdb.DeleteVoyageOpinionParams{
+		ID:            in.OpinionID,
+		VoyageID:      in.VoyageID,
+		CallerIsAdmin: admin,
+		CallerID:      callerID,
+	})
 	if err != nil {
-		return nil, err
-	}
-	removeUploadedFiles(h.uploads, opinion.FilePath)
-	if err := h.q.DeleteVoyageOpinion(ctx, in.OpinionID); err != nil {
 		slog.Error("delete voyage opinion", "opinion_id", in.OpinionID, "voyage_id", in.VoyageID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete opinion")
 	}
+	if !deleted.Ok {
+		return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())
+	}
+	if deleted.FilePath == "" {
+		return nil, huma.Error404NotFound("opinion not found")
+	}
+	removeUploadedFiles(h.uploads, deleted.FilePath)
 	return &noContentOutput{}, nil
 }
 
@@ -244,27 +287,22 @@ func getOpinionCrewAssignment(ctx context.Context, q sqlcdb.Querier, voyageID, c
 	return assignment, nil
 }
 
-// storeOpinionFile renders the opinion document and writes it to the
-// opinions directory under uploads, removing any prior file in a different
-// format. It returns the path to store on the record: the upload directory
-// joined with the file's relative name. ctx bounds the render, so a
-// disconnected client stops its Chromium process.
-func storeOpinionFile(ctx context.Context, uploads *os.Root, voyageID, crewMemberID int64, format string, data docgen.OpinionData) (string, error) {
-	fileBytes, err := renderOpinionFile(ctx, format, data)
-	if err != nil {
+// opinionsDir is the directory under uploads that holds opinion files.
+const opinionsDir = "opinions"
+
+// storeOpinionFile writes an opinion document at rel under uploads. It
+// returns the path to store on the record: the upload directory joined with
+// rel.
+func storeOpinionFile(uploads *os.Root, rel string, fileBytes []byte) (string, error) {
+	if err := uploads.MkdirAll(opinionsDir, 0o755); err != nil {
 		return "", err
 	}
-	const dir = "opinions"
-	if err := uploads.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	for _, oldFmt := range []string{"pdf", "docx"} {
-		if oldFmt != format {
-			_ = uploads.Remove(filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, oldFmt)))
-		}
-	}
-	rel := filepath.Join(dir, fmt.Sprintf("%d_%d.%s", voyageID, crewMemberID, format))
 	if err := uploads.WriteFile(rel, fileBytes, 0o644); err != nil {
+		// A write that fails after creating the file leaves a partial file
+		// under a name no record will ever point to.
+		if rmErr := uploads.Remove(rel); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+			return "", errors.Join(err, rmErr)
+		}
 		return "", err
 	}
 	return filepath.Join(uploads.Name(), rel), nil

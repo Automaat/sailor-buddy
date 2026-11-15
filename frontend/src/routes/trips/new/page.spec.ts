@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { makeCruise, makePerson, makeSeries, makeTrip } from '#lib/test-utils.js';
+import { makeCruise, makePerson, makeSeries, makeTrip, unprefixedSpans } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 const authState = vi.hoisted(() => ({
@@ -143,6 +143,14 @@ describe('new trip page', () => {
 		await waitFor(() => expect(createTrip).toHaveBeenCalled());
 		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({ cruise_id: 13, name: 'Etap 1' });
 		expect(goto).toHaveBeenCalledWith('/trips/77');
+	});
+});
+
+describe('new trip page phone layout', () => {
+	it('keeps every field in the single phone column', async () => {
+		const { container } = await renderPage();
+		await screen.findByLabelText('Nazwa rejsu *');
+		expect(unprefixedSpans(container)).toEqual([]);
 	});
 });
 

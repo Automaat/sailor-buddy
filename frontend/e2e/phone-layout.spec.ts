@@ -13,6 +13,7 @@ import {
 } from './helpers';
 
 const PHONE = { width: 390, height: 844 };
+const TABLET = { width: 768, height: 1024 };
 const DESKTOP = { width: 1440, height: 900 };
 const MIN_TAP = 44;
 
@@ -77,7 +78,7 @@ async function pageWidth(page: Page, path: string): Promise<number> {
 async function smallTapTargets(page: Page): Promise<string[]> {
 	return page.evaluate((min) => {
 		const els = document.querySelectorAll<HTMLElement>(
-			'button, a.tap-target, header a, #mobile-menu a, main a.inline-block, main a[class*="px-"]'
+			'button, select, a.tap-target, header a, #mobile-menu a, main a.inline-block, main a[class*="px-"], .leaflet-bar a'
 		);
 		const small: string[] = [];
 		for (const el of els) {
@@ -89,6 +90,29 @@ async function smallTapTargets(page: Page): Promise<string[]> {
 		}
 		return small;
 	}, MIN_TAP);
+}
+
+// squeezedFields lists form controls narrower than half the form or not
+// below their label: a stray grid column squeezes fields into slivers and
+// runs their labels into each other.
+async function squeezedFields(page: Page): Promise<string[]> {
+	return page.evaluate(() => {
+		const form = document.querySelector<HTMLFormElement>('main form');
+		if (!form) return ['no form'];
+		const half = form.clientWidth / 2;
+		const squeezed: string[] = [];
+		for (const label of form.querySelectorAll<HTMLLabelElement>('label[for]')) {
+			const control = document.getElementById(label.htmlFor);
+			if (!control || ['checkbox', 'radio'].includes(control.getAttribute('type') ?? '')) continue;
+			const c = control.getBoundingClientRect();
+			if (c.width === 0) continue;
+			const l = label.getBoundingClientRect();
+			if (c.width < half || c.top < l.bottom - 1) {
+				squeezed.push(`${label.textContent?.trim()} ${c.width}x${c.height} at ${c.top}`);
+			}
+		}
+		return squeezed;
+	});
 }
 
 test.describe.serial('Phone layout', () => {
@@ -225,6 +249,63 @@ test.describe.serial('Phone layout', () => {
 		for (const path of paths) {
 			expect.soft(await pageWidth(page, path), path).toBeLessThanOrEqual(PHONE.width);
 			expect.soft(await smallTapTargets(page), `${path} tap targets`).toEqual([]);
+		}
+	});
+
+	test('trip forms keep one full-width column', async ({ page }) => {
+		await page.setViewportSize(PHONE);
+		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
+		for (const path of ['/trips/new', `/trips/${ids.trip}/edit`]) {
+			await page.goto(path);
+			await expect(page.getByLabel('Nazwa rejsu *')).toBeVisible();
+			expect.soft(await squeezedFields(page), path).toEqual([]);
+		}
+	});
+
+	test('people list shows every account control without sideways scrolling', async ({ page }) => {
+		await page.setViewportSize(PHONE);
+		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
+		await page.goto('/crew');
+		await expect(page.getByRole('combobox', { name: /^Rola:/ }).first()).toBeVisible();
+
+		const search = await page.getByRole('searchbox', { name: 'Szukaj osób' }).boundingBox();
+		const list = page.getByTestId('person').first().locator('xpath=ancestor::div[1]');
+		const listBox = await list.boundingBox();
+		expect(search!.width).toBeGreaterThanOrEqual(listBox!.width - 1);
+		expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+
+		const controls = page.getByTestId('person').locator('select, input[type="checkbox"]');
+		expect(await controls.count()).toBeGreaterThan(0);
+		for (const box of await controls.evaluateAll((els) =>
+			els.map((el) => {
+				const r = el.getBoundingClientRect();
+				return { label: el.getAttribute('aria-label'), left: r.left, right: r.right };
+			})
+		)) {
+			expect.soft(box.left, `${box.label}`).toBeGreaterThanOrEqual(0);
+			expect.soft(box.right, `${box.label}`).toBeLessThanOrEqual(PHONE.width);
+		}
+	});
+
+	test('detail headers and sign-up rows fit beside the tablet sidebar', async ({ page }) => {
+		await page.setViewportSize(TABLET);
+		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
+		const paths = [
+			`/trips/${ids.trip}`,
+			`/trips/${ids.trip}/enrollments`,
+			`/crew/${ids.crew}`,
+			'/crew',
+			'/trips/new'
+		];
+		for (const path of paths) {
+			expect.soft(await pageWidth(page, path), path).toBeLessThanOrEqual(TABLET.width);
+		}
+		await page.goto(`/trips/${ids.trip}/enrollments`);
+		for (const name of ['Załogant Testowy', 'Członek Mobilny']) {
+			const lines = await page
+				.getByText(name, { exact: true })
+				.evaluate((el) => el.getClientRects().length);
+			expect.soft(lines, `${name} line boxes`).toBe(1);
 		}
 	});
 

@@ -154,8 +154,8 @@
 		{:else}
 			<BackLink href="/" label="Pulpit" />
 		{/if}
-		<div class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3">
-			<div>
+		<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+			<div class="min-w-0 grow basis-72">
 				<h1 class="text-3xl font-bold text-[var(--navy)]">{person.full_name}</h1>
 				<span
 					class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {person.has_account
@@ -164,7 +164,7 @@
 				>
 			</div>
 			{#if auth.isAdmin && !editing && !merging && !linking}
-				<div class="flex gap-2">
+				<div class="flex flex-wrap gap-2">
 					<button
 						onclick={() => person && startEdit(person)}
 						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"

@@ -237,6 +237,15 @@ describe('combined people and accounts', () => {
 		).not.toBeInTheDocument();
 	});
 
+	it('names each account control for the narrow-panel card', async () => {
+		await renderPage();
+		await screen.findByLabelText('Rola: Anna Nowak');
+		const row = within(screen.getAllByTestId('person')[0]);
+		for (const label of ['Dostęp do konta', 'Rola', 'Członkostwo', 'Kadra kapitańska']) {
+			expect(row.getByText(label)).toBeInTheDocument();
+		}
+	});
+
 	it('finds a person by their account email even when their contact email differs', async () => {
 		await renderPage();
 		await screen.findByLabelText('Rola: Anna Nowak');
