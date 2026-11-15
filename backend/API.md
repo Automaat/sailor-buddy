@@ -652,7 +652,9 @@ up to 5 settlements:
   Nominatim calls are limited to 1/s, Photon calls to 2/s. A request that
   would queue longer than 5 s, or an upstream `429`, answers
   `503 geocoding service busy, try again` without falling back. Other
-  upstream failures answer `502`.
+  upstream failures answer `502`. A failed Photon fallback answers the same
+  way (`503` when throttled, else `502`), never an empty list, and is not
+  cached.
 
 ```json
 [{ "name": "Jastarnia", "label": "Jastarnia, Puck County, Pomeranian Voivodeship, Poland",

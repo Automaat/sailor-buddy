@@ -419,8 +419,9 @@ func (h *GeocodeHandler) search(ctx context.Context, in *geocodeInput) (*geocode
 // A busy answer (a limiter queue past maxWait or an upstream 429) is returned
 // as 503 at once: falling back would only move the load to Photon. A lookup
 // that finished just before this one joined the flight has already filled
-// the cache. When Nominatim found nothing and Photon failed, the empty answer
-// is returned uncached, so the next try can reach Photon again.
+// the cache. When the Photon fallback fails, its error is returned (503 when
+// it is busy, else 502) rather than an empty list the user would read as
+// "no such town"; nothing is cached, so the next try reaches Photon again.
 func (h *GeocodeHandler) lookup(ctx context.Context, key, query string, bias *geocodeBias) ([]dto.GeocodeResult, error) {
 	if cached, ok := h.cache.get(key); ok {
 		return cached, nil
@@ -441,17 +442,11 @@ func (h *GeocodeHandler) lookup(ctx context.Context, key, query string, bias *ge
 		return results, nil
 	}
 	fallback, perr := h.searchPhoton(ctx, query, bias)
-	switch {
-	case perr == nil:
-		h.cache.put(key, fallback)
-		return fallback, nil
-	case err == nil:
-		return []dto.GeocodeResult{}, nil
-	case isGeocodeBusy(perr):
+	if perr != nil {
 		return nil, perr
-	default:
-		return nil, err
 	}
+	h.cache.put(key, fallback)
+	return fallback, nil
 }
 
 func geocodeBusy() error {

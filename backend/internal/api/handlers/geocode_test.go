@@ -364,7 +364,8 @@ func TestGeocode_PhotonFallback(t *testing.T) {
 		{"both fail", http.StatusBadGateway, "boom", http.StatusInternalServerError, "boom", http.StatusBadGateway, nil, "", 1},
 		{"nominatim fails, photon throttled", http.StatusInternalServerError, "boom", http.StatusTooManyRequests, "", http.StatusServiceUnavailable, nil, "", 1},
 		{"both find nothing", http.StatusOK, `[]`, http.StatusOK, `{"features":[]}`, 0, []string{}, "", 1},
-		{"nominatim finds nothing, photon fails", http.StatusOK, `[]`, http.StatusInternalServerError, "boom", 0, []string{}, "", 1},
+		{"nominatim finds nothing, photon fails", http.StatusOK, `[]`, http.StatusInternalServerError, "boom", http.StatusBadGateway, nil, "", 1},
+		{"nominatim finds nothing, photon throttled", http.StatusOK, `[]`, http.StatusTooManyRequests, "", http.StatusServiceUnavailable, nil, "", 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -431,8 +432,12 @@ func TestGeocode_FallbackCaching(t *testing.T) {
 			photon := newStubUpstream(t, tt.photonStatus, tt.photonBody)
 			h := testGeocoder(nominatim, photon)
 			for range 2 {
-				if _, err := h.search(context.Background(), &geocodeInput{Query: "Jastarn"}); err != nil {
+				_, err := h.search(context.Background(), &geocodeInput{Query: "Jastarn"})
+				if tt.photonStatus == http.StatusOK && err != nil {
 					t.Fatalf("search: %v", err)
+				}
+				if tt.photonStatus != http.StatusOK {
+					wantStatus(t, err, http.StatusBadGateway)
 				}
 			}
 			if got := nominatim.hits.Load(); got != tt.wantSecondHits {
