@@ -40,6 +40,13 @@
 	const isAdmin = $derived(auth.isAdmin);
 	const showHidden = $derived(canSeeHidden(auth));
 
+	/**
+	 * Stretched link: its ::after covers the whole `relative` leg tile, so a
+	 * click anywhere opens the leg; controls in the tile sit above it.
+	 */
+	const tileLink =
+		'min-w-0 font-medium [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-lg group-hover:text-[var(--ocean)] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-[var(--ocean)]';
+
 	const legs = $derived(numberLegs(trips));
 	const signUpByTrip = $derived(new Map(signUps.map((s) => [s.trip_id, s])));
 	function updateSignUp(next: LegSignUp) {
@@ -243,16 +250,16 @@
 					{@const price = yourPrice(trip, auth.user?.membership)}
 					{@const places = signUp ? freePlacesLabel(trip.max_crew, signUp.accepted_count) : null}
 					<div
-						class="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-gray-50 px-4 py-3"
+						class="group relative flex flex-wrap items-start justify-between gap-3 rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100"
 						data-testid="leg-row"
 					>
 						<div class="min-w-0">
 							<div class="flex flex-wrap items-center gap-2">
-								<a href="/trips/{trip.id}" class="font-medium hover:underline">{trip.name}</a>
+								<a href="/trips/{trip.id}" class={tileLink}>{trip.name}</a>
 								<span class="rounded-full px-2 py-0.5 text-xs {legStatusBadges[status]}">
 									{legStatusLabels[status]}
 								</span>
-								{#if showHidden && isHidden(trip)}<HiddenBadge />{/if}
+								{#if showHidden && isHidden(trip)}<span class="relative"><HiddenBadge /></span>{/if}
 								{#if isAdmin && status === 'overdue'}
 									<span class="text-xs font-medium text-[var(--ocean)]">Zrealizuj →</span>
 								{/if}
@@ -274,12 +281,14 @@
 							</div>
 						</div>
 						{#if signUp}
-							<LegSignUpControl
-								{signUp}
-								legName={trip.name}
-								cancelled={trip.status === 'cancelled'}
-								onchange={updateSignUp}
-							/>
+							<div class="relative z-10">
+								<LegSignUpControl
+									{signUp}
+									legName={trip.name}
+									cancelled={trip.status === 'cancelled'}
+									onchange={updateSignUp}
+								/>
+							</div>
 						{/if}
 					</div>
 				{/each}
@@ -306,20 +315,18 @@
 			{/if}
 			<div class="space-y-2">
 				{#each voyages as voyage (voyage.id)}
-					<a
-						href="/voyages/{voyage.id}"
-						class="block rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100"
+					<div
+						class="group relative flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-gray-50 px-4 py-3 hover:bg-gray-100"
+						data-testid="voyage-row"
 					>
-						<div class="flex items-center justify-between">
-							<span class="flex flex-wrap items-center gap-2">
-								<span class="font-medium">{voyage.name}</span>
-								{#if showHidden && isHidden(voyage)}<HiddenBadge />{/if}
-							</span>
-							<span class="text-sm text-[var(--text-muted)]">
-								{Math.round(voyage.miles)} Mm · {voyage.days} dni
-							</span>
+						<div class="flex min-w-0 flex-wrap items-center gap-2">
+							<a href="/voyages/{voyage.id}" class={tileLink}>{voyage.name}</a>
+							{#if showHidden && isHidden(voyage)}<span class="relative"><HiddenBadge /></span>{/if}
 						</div>
-					</a>
+						<span class="text-sm text-[var(--text-muted)]">
+							{Math.round(voyage.miles)} Mm · {voyage.days} dni
+						</span>
+					</div>
 				{/each}
 			</div>
 		</div>
