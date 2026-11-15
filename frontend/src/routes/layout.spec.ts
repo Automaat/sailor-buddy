@@ -45,11 +45,13 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 
 import { getMe } from '#lib/api/routes.js';
 import { ApiError } from '#lib/api/client.js';
+import { page } from '$app/state';
 import Layout from './+layout.svelte';
 
 const children = createRawSnippet(() => ({ render: () => '<p>club page</p>' }));
 
 beforeEach(() => {
+	page.url = new URL('http://localhost/');
 	h.store.user = null;
 	h.store.isAdmin = false;
 	h.store.isAuthenticated = true;
@@ -80,6 +82,31 @@ describe('layout account loading', () => {
 });
 
 describe('layout navigation', () => {
+	beforeEach(() => {
+		h.store.user = { id: 1, name: 'Jan', onboarded: true, email_verified: true };
+	});
+
+	it('shows one Rejsy item that opens the series list and no Serie item', () => {
+		render(Layout, { props: { children } });
+
+		const links = screen.getAllByRole('link', { name: 'Rejsy' });
+		expect(links.length).toBeGreaterThan(0);
+		for (const link of links) expect(link).toHaveAttribute('href', '/series');
+		expect(screen.queryByRole('link', { name: 'Serie' })).not.toBeInTheDocument();
+	});
+
+	it.each(['/series', '/series/3', '/cruises/5', '/trips/7', '/voyages/2'])(
+		'marks Rejsy as the current page on %s',
+		(path) => {
+			page.url = new URL(`http://localhost${path}`);
+			render(Layout, { props: { children } });
+
+			for (const link of screen.getAllByRole('link', { name: 'Rejsy' })) {
+				expect(link).toHaveAttribute('aria-current', 'page');
+			}
+		}
+	);
+
 	const account = { id: 1, onboarded: true, email_verified: true, suspended: false };
 
 	it.each([

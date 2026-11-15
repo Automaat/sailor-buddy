@@ -83,3 +83,43 @@ func CruisesFromDB(cs []sqlcdb.Cruise) []Cruise {
 type PublishCruiseBody struct {
 	IncludeLegs bool `json:"include_legs,omitempty" doc:"Also publish the cruise's hidden trips and voyages"`
 }
+
+// StandaloneLeg is one entry of the "Bez serii" group: a trip or voyage of a
+// cruise without a series, or such a cruise that has no leg yet.
+type StandaloneLeg struct {
+	Kind              string     `json:"kind" enum:"trip,voyage,cruise" doc:"What the entry opens: a trip, a voyage, or a cruise with no leg"`
+	ID                int64      `json:"id" doc:"The trip, voyage or cruise ID, per kind"`
+	Name              string     `json:"name"`
+	Cancelled         bool       `json:"cancelled" doc:"True for a cancelled trip"`
+	EmbarkDate        *string    `json:"embark_date,omitempty"`
+	DisembarkDate     *string    `json:"disembark_date,omitempty"`
+	StartPort         *string    `json:"start_port,omitempty"`
+	EndPort           *string    `json:"end_port,omitempty"`
+	PublishedAt       *time.Time `json:"published_at,omitempty" doc:"When the entry was published; absent while it is a hidden draft"`
+	CruiseID          int64      `json:"cruise_id"`
+	CruiseName        string     `json:"cruise_name"`
+	CruisePublishedAt *time.Time `json:"cruise_published_at,omitempty" doc:"When the cruise was published; absent while it is a hidden draft"`
+}
+
+// StandaloneLegsFromDB maps the "Bez serii" rows, returning a non-nil slice.
+func StandaloneLegsFromDB(rows []sqlcdb.ListStandaloneLegsRow) []StandaloneLeg {
+	out := make([]StandaloneLeg, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		out[i] = StandaloneLeg{
+			Kind:              r.Kind,
+			ID:                r.ID,
+			Name:              r.Name,
+			Cancelled:         r.Cancelled,
+			EmbarkDate:        strPtr(r.EmbarkDate),
+			DisembarkDate:     strPtr(r.DisembarkDate),
+			StartPort:         strPtr(r.StartPort),
+			EndPort:           strPtr(r.EndPort),
+			PublishedAt:       timePtr(r.PublishedAt),
+			CruiseID:          r.CruiseID,
+			CruiseName:        r.CruiseName,
+			CruisePublishedAt: timePtr(r.CruisePublishedAt),
+		}
+	}
+	return out
+}

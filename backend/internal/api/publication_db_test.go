@@ -616,34 +616,43 @@ func waitForLockWait(t *testing.T, conn *sql.DB) {
 	t.Fatal("no session waited on the held cruise lock")
 }
 
-// TestMyCruisesHidesHiddenRecords: /auth/me/cruises leaves out a hidden
-// cruise and a cruise reached only through a hidden leg, except for the
-// captain group and admins.
-func TestMyCruisesHidesHiddenRecords(t *testing.T) {
+// TestStandaloneLegsHidesHiddenRecords: /standalone-legs lists the legs of
+// cruises without a series and such cruises without a leg, leaving out a
+// hidden leg, a leg of a hidden cruise and a hidden cruise, except for the
+// captain group and admins. Legs of a series never appear.
+func TestStandaloneLegsHidesHiddenRecords(t *testing.T) {
 	conn := securityDatabase(t)
 	h, _ := securityRouter(t, conn)
-	f := seedVisibility(t, conn)
-	standalone := insertID(t, conn, `INSERT INTO cruises(name,published_at) VALUES('Standalone',now()) RETURNING id`)
-	hiddenLeg := insertID(t, conn, `INSERT INTO voyages(name,cruise_id) VALUES('Draft leg of standalone',$1) RETURNING id`, standalone)
-	for _, persona := range []string{"member", "captain"} {
-		for _, v := range []int64{f.hiddenCruiseVoyage, hiddenLeg} {
-			if _, err := conn.Exec(`INSERT INTO crew_assignments(voyage_id,crew_member_id,role)
-				SELECT $1, cm.id, 'zalogant' FROM crew_members cm JOIN users u ON u.id = cm.user_id
-				WHERE u.firebase_uid = $2 ON CONFLICT DO NOTHING`, v, persona); err != nil {
-				t.Fatal(err)
+	seedVisibility(t, conn)
+	cruise := insertID(t, conn, `INSERT INTO cruises(name,published_at) VALUES('Standalone',now()) RETURNING id`)
+	trip := insertID(t, conn, `INSERT INTO trips(name,cruise_id,currency,embark_date,published_at) VALUES('Leg',$1,'PLN','2026-07-01',now()) RETURNING id`, cruise)
+	hiddenTrip := insertID(t, conn, `INSERT INTO trips(name,cruise_id,currency,embark_date) VALUES('Draft leg',$1,'PLN','') RETURNING id`, cruise)
+	voyage := insertID(t, conn, `INSERT INTO voyages(name,cruise_id,embark_date,published_at) VALUES('Voyage',$1,'2025-06-01',now()) RETURNING id`, cruise)
+	hiddenWrapper := insertID(t, conn, `INSERT INTO cruises(name) VALUES('Draft wrapper') RETURNING id`)
+	wrapperTrip := insertID(t, conn, `INSERT INTO trips(name,cruise_id,currency,embark_date,published_at) VALUES('Leg of draft',$1,'PLN','2026-08-01',now()) RETURNING id`, hiddenWrapper)
+	empty := insertID(t, conn, `INSERT INTO cruises(name,published_at) VALUES('No legs',now()) RETURNING id`)
+	hiddenEmpty := insertID(t, conn, `INSERT INTO cruises(name) VALUES('Draft without legs') RETURNING id`)
+
+	member := []string{
+		fmt.Sprint("cruise ", empty), fmt.Sprint("trip ", trip), fmt.Sprint("voyage ", voyage),
+	}
+	all := []string{
+		fmt.Sprint("cruise ", hiddenEmpty), fmt.Sprint("cruise ", empty), fmt.Sprint("trip ", hiddenTrip),
+		fmt.Sprint("trip ", wrapperTrip), fmt.Sprint("trip ", trip), fmt.Sprint("voyage ", voyage),
+	}
+	want := map[string][]string{"member": member, "captain": all, "admin": all}
+	for persona, entries := range want {
+		var got []dto.StandaloneLeg
+		mustDecode(t, mustGet(t, h, persona, "/api/standalone-legs"), &got)
+		gotEntries := make([]string, len(got))
+		for i, leg := range got {
+			gotEntries[i] = fmt.Sprint(leg.Kind, " ", leg.ID)
+			if leg.Kind == "trip" && leg.ID == wrapperTrip && (leg.CruiseID != hiddenWrapper || leg.CruisePublishedAt != nil) {
+				t.Errorf("%s wrapper leg = %+v, want its hidden cruise %d", persona, leg, hiddenWrapper)
 			}
 		}
-	}
-	want := map[string][]int64{
-		"member":  {f.cruise},
-		"captain": {f.hiddenCruise, standalone},
-	}
-	for persona, ids := range want {
-		var got dto.MyCruises
-		mustDecode(t, mustGet(t, h, persona, "/api/auth/me/cruises"), &got)
-		slices.Sort(ids)
-		if !slices.Equal(got.CruiseIDs, ids) {
-			t.Errorf("%s cruise ids = %v, want %v", persona, got.CruiseIDs, ids)
+		if !slices.Equal(gotEntries, entries) {
+			t.Errorf("%s entries = %v, want %v", persona, gotEntries, entries)
 		}
 	}
 }

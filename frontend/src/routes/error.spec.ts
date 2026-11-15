@@ -20,7 +20,7 @@ describe('root error page', () => {
 			status: 404,
 			message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
 			title: 'Nie znaleziono wydarzenia',
-			backHref: '/cruises',
+			backHref: '/series',
 			backLabel: 'Wszystkie rejsy'
 		};
 		render(ErrorPage);
@@ -31,7 +31,7 @@ describe('root error page', () => {
 		).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Wszystkie rejsy' })).toHaveAttribute(
 			'href',
-			'/cruises'
+			'/series'
 		);
 	});
 

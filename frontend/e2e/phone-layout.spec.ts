@@ -147,6 +147,15 @@ test.describe.serial('Phone layout', () => {
 			email: 'zalogant-z-dlugim-adresem@test.local'
 		});
 		await addLegCrew(token, trip.id, crew.id, 'Sternik');
+		// A standalone leg fills the Rejsy page's "Bez serii" group; its
+		// unbreakable name must wrap inside the card.
+		await post(token, '/trips', {
+			name: 'Samodzielny-rejs-bez-serii-z-bardzo-długą-nazwą-bez-spacji',
+			embark_date: '2027-08-01',
+			disembark_date: '2027-08-08',
+			start_port: 'Świnoujście',
+			end_port: 'Kopenhaga'
+		});
 		await post(token, '/yachts', { name: 'Jacht', yacht_type: 'Slup', length_m: 12 });
 		await post(token, '/trainings', { name: 'Szkolenie', date: '2027-03-01' });
 		const { token: enrollToken } = await post<{ token: string }>(
@@ -194,8 +203,6 @@ test.describe.serial('Phone layout', () => {
 		await loginViaUI(page, SUITE_ADMIN.email, TEST_PASSWORD);
 		const paths = [
 			'/',
-			'/cruises',
-			'/cruises?tab=all',
 			`/cruises/new?series_id=${ids.series}`,
 			`/cruises/${ids.cruise}`,
 			`/cruises/${ids.cruise}/edit`,

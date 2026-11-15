@@ -134,11 +134,12 @@
 		}
 		if (!confirm('Usunąć wydarzenie?')) return;
 		const cruiseId = id;
+		const backHref = cruise.series_id ? `/series/${cruise.series_id}` : '/series';
 		deleteError = '';
 		try {
 			await deleteCruise(cruiseId);
 			if (!mounted || cruiseId !== id) return;
-			void goto('/cruises');
+			void goto(backHref);
 		} catch (err) {
 			if (!mounted || cruiseId !== id) return;
 			deleteError = err instanceof Error ? err.message : 'Nie udało się usunąć wydarzenia';
@@ -152,13 +153,15 @@
 		class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3"
 		data-testid="cruise-header"
 	>
-		<div>
+		<div class="min-w-0">
 			<div class="flex flex-wrap items-center gap-3">
-				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
+				<h1 class="min-w-0 text-3xl font-bold [overflow-wrap:anywhere] text-[var(--navy)]">
+					{cruise.name}
+				</h1>
 				{#if showHidden && isHidden(cruise)}<HiddenBadge />{/if}
 			</div>
 			{#if series}
-				<p class="mt-1 text-sm">
+				<p class="mt-1 text-sm [overflow-wrap:anywhere]">
 					<a href="/series/{series.id}" class="text-[var(--ocean)] hover:underline">{series.name}</a
 					>
 					{#if cruise.edition}
@@ -166,11 +169,11 @@
 				</p>
 			{/if}
 			{#if cruise.countries}
-				<p class="mt-1 text-[var(--text-muted)]">{cruise.countries}</p>
+				<p class="mt-1 [overflow-wrap:anywhere] text-[var(--text-muted)]">{cruise.countries}</p>
 			{/if}
 		</div>
 		{#if isAdmin}
-			<div class="flex gap-2">
+			<div class="flex shrink-0 flex-wrap gap-2">
 				{#if isHidden(cruise)}
 					<button
 						onclick={handlePublish}
@@ -214,7 +217,7 @@
 	{#if cruise.description}
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-3 font-semibold text-[var(--navy)]">Opis</h2>
-			<p class="whitespace-pre-wrap text-sm">{cruise.description}</p>
+			<p class="whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{cruise.description}</p>
 		</div>
 	{/if}
 
@@ -272,7 +275,9 @@
 									<span class="text-xs font-medium text-[var(--ocean)]">Zrealizuj →</span>
 								{/if}
 							</div>
-							<div class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-[var(--text-muted)]">
+							<div
+								class="mt-0.5 flex flex-wrap gap-x-3 text-xs text-[var(--text-muted)] [overflow-wrap:anywhere] [&>*]:min-w-0"
+							>
 								{#if trip.captain_name}<span>kpt. {trip.captain_name}</span>{/if}
 								{#if trip.embark_date}
 									<span>{formatDateRangeWithDays(trip.embark_date, trip.disembark_date)}</span>

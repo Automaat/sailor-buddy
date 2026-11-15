@@ -130,7 +130,7 @@ describe('cruise edit page load', () => {
 			body: {
 				message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
 				title: 'Nie znaleziono wydarzenia',
-				backHref: '/cruises'
+				backHref: '/series'
 			}
 		});
 	});

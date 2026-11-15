@@ -3,7 +3,7 @@
 // a single club: all data is shared and routes are flat (no org prefix).
 import { api } from './client';
 import type { components } from './schema';
-import type { EnrollPageData, MyLeg } from './types';
+import type { EnrollPageData, MyLeg, StandaloneLeg } from './types';
 
 type Schemas = components['schemas'];
 
@@ -392,6 +392,14 @@ export function listSeriesEditions(id: number) {
 	return api.get('/series/{seriesID}/editions', { path: { seriesID: id } });
 }
 
+/**
+ * listStandaloneLegs returns the "Bez serii" entries: legs of cruises without
+ * a series and such cruises without a leg, newest first, undated on top.
+ */
+export async function listStandaloneLegs(): Promise<StandaloneLeg[]> {
+	return (await api.get('/standalone-legs')) ?? [];
+}
+
 // ---- cruises ----------------------------------------------------------------
 
 export function listCruises(): Promise<Schemas['Cruise'][]> {
@@ -502,12 +510,6 @@ export function updateMemberMembership(
 
 export function getMe() {
 	return api.get('/auth/me');
-}
-
-/** listMyCruiseIds returns the cruises the current user took part in. */
-export async function listMyCruiseIds(): Promise<number[]> {
-	const res = await api.get('/auth/me/cruises');
-	return res?.cruise_ids ?? [];
 }
 
 /** listMyLegs returns the caller's upcoming legs, sorted by embark date, undated last. */

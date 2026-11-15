@@ -32,10 +32,6 @@ type meOutput struct {
 	Body dto.Me
 }
 
-type myCruisesOutput struct {
-	Body dto.MyCruises
-}
-
 type myLegsOutput struct {
 	Body dto.MyLegs
 }
@@ -58,10 +54,6 @@ func registerAuthRoutes(api huma.API, h *AuthHandler) {
 		OperationID: "update-me", Method: http.MethodPut, Path: "/auth/me",
 		Summary: "Save the current user's profile and finish onboarding", Tags: []string{"Auth"},
 	}, h.updateMe)
-	huma.Register(api, huma.Operation{
-		OperationID: "list-my-cruises", Method: http.MethodGet, Path: "/auth/me/cruises",
-		Summary: "Cruises the current user took part in", Tags: []string{"Auth"},
-	}, h.myCruises)
 	huma.Register(api, huma.Operation{
 		OperationID: "list-my-legs", Method: http.MethodGet, Path: "/auth/me/legs",
 		Summary: "The current user's upcoming legs",
@@ -90,22 +82,6 @@ func (h *AuthHandler) myLegs(ctx context.Context, _ *struct{}) (*myLegsOutput, e
 		return nil, huma.Error500InternalServerError("failed to list your legs")
 	}
 	return &myLegsOutput{Body: dto.MyLegsFromDB(rows)}, nil
-}
-
-func (h *AuthHandler) myCruises(ctx context.Context, _ *struct{}) (*myCruisesOutput, error) {
-	claims := middleware.GetUser(ctx)
-	if claims == nil {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	ids, err := h.q.ListUserCruiseIDs(ctx, sqlcdb.ListUserCruiseIDsParams{UserID: claims.UserID, IncludeHidden: canSeeHidden(ctx)})
-	if err != nil {
-		slog.Error("list user cruises", "user_id", claims.UserID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to list your cruises")
-	}
-	if ids == nil {
-		ids = []int64{}
-	}
-	return &myCruisesOutput{Body: dto.MyCruises{CruiseIDs: ids}}, nil
 }
 
 func (h *AuthHandler) me(ctx context.Context, _ *struct{}) (*meOutput, error) {

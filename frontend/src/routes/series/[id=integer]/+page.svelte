@@ -121,15 +121,19 @@
 		</form>
 	{:else}
 		<div class="mb-6 flex items-start justify-between max-md:flex-wrap max-md:gap-3">
-			<div>
-				<h1 class="text-3xl font-bold text-[var(--navy)]">{series.name}</h1>
+			<div class="min-w-0">
+				<h1 class="text-3xl font-bold [overflow-wrap:anywhere] text-[var(--navy)]">
+					{series.name}
+				</h1>
 				<p class="mt-1 text-sm text-[var(--text-muted)]">{cruiseKindLabels[series.kind]}</p>
 				{#if series.description}
-					<p class="mt-2 whitespace-pre-wrap text-[var(--text-muted)]">{series.description}</p>
+					<p class="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-[var(--text-muted)]">
+						{series.description}
+					</p>
 				{/if}
 			</div>
 			{#if auth.isAdmin}
-				<div class="flex gap-2">
+				<div class="flex shrink-0 gap-2">
 					<button onclick={startEdit} class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
 						>Edytuj</button
 					>
@@ -177,7 +181,7 @@
 						<tr class="group relative hover:bg-[var(--ocean-tint)]/50" data-testid="edition-row">
 							<td class="py-3 pr-4 align-middle">
 								<span
-									class="inline-block min-w-16 rounded-md bg-[var(--ocean-tint)] px-2 py-1 text-center font-semibold tabular-nums text-[var(--ocean)]"
+									class="inline-block min-w-16 max-w-full rounded-md bg-[var(--ocean-tint)] px-2 py-1 text-center font-semibold tabular-nums [overflow-wrap:anywhere] text-[var(--ocean)]"
 									>{e.edition ?? '—'}</span
 								>
 							</td>

@@ -128,6 +128,40 @@ describe('cruise page logistics', () => {
 		expect(await screen.findByText('0+')).toBeInTheDocument();
 	});
 
+	it('lets a long unbroken edition name wrap in the header', async () => {
+		const long = 'X'.repeat(200);
+		mockGet.mockResolvedValue(cruise({ name: long }));
+		await renderPage();
+
+		const heading = await screen.findByRole('heading', { name: long });
+		expect(heading).toHaveClass('min-w-0', '[overflow-wrap:anywhere]');
+		expect(heading.parentElement?.parentElement).toHaveClass('min-w-0');
+	});
+
+	it('lets a long unbroken captain name wrap in its leg tile', async () => {
+		const long = 'W'.repeat(190);
+		fn(listCruiseTrips).mockResolvedValue([legTrip(50, 'Jacht A', { captain_name: long })]);
+		mockGet.mockResolvedValue(cruise());
+		await renderPage();
+
+		const meta = (await screen.findByText(`kpt. ${long}`)).parentElement!;
+		expect(meta).toHaveClass('[overflow-wrap:anywhere]', '[&>*]:min-w-0');
+	});
+
+	it('lets long unbroken description, notes and price items wrap', async () => {
+		const long = 'W'.repeat(180);
+		mockGet.mockResolvedValue(
+			cruise({ description: `D${long}`, travel_notes: `T${long}`, included: [`I${long}`] })
+		);
+		await renderPage();
+
+		expect(await screen.findByText(`D${long}`)).toHaveClass('[overflow-wrap:anywhere]');
+		expect(screen.getByText(`T${long}`)).toHaveClass('[overflow-wrap:anywhere]');
+		expect(screen.getByRole('region', { name: 'Co obejmuje cena' })).toHaveClass(
+			'[overflow-wrap:anywhere]'
+		);
+	});
+
 	it('renders as before when no logistics are set', async () => {
 		mockGet.mockResolvedValue(cruise());
 		await renderPage();
@@ -312,8 +346,12 @@ describe('cruise page admin flows', () => {
 		expect(goto).not.toHaveBeenCalled();
 	});
 
-	it('deletes the cruise after confirmation', async () => {
+	it.each([
+		['the Rejsy list for a cruise without a series', undefined, '/series'],
+		["its series' page for an edition", 3, '/series/3']
+	])('deletes the cruise after confirmation and opens %s', async (_, seriesId, href) => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
+		mockGet.mockResolvedValue(cruise({ series_id: seriesId }));
 		fn(listCruiseTrips).mockResolvedValue([]);
 		fn(listCruiseVoyages).mockResolvedValue([]);
 		await renderPage();
@@ -321,7 +359,7 @@ describe('cruise page admin flows', () => {
 
 		await fireEvent.click(within(header).getByRole('button', { name: 'Usuń' }));
 		await waitFor(() => expect(deleteCruise).toHaveBeenCalledWith(7));
-		expect(goto).toHaveBeenCalledWith('/cruises');
+		expect(goto).toHaveBeenCalledWith(href);
 	});
 
 	it('keeps the page usable when actions fail', async () => {
@@ -426,7 +464,7 @@ describe('cruise page load errors', () => {
 			body: {
 				message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
 				title: 'Nie znaleziono wydarzenia',
-				backHref: '/cruises'
+				backHref: '/series'
 			}
 		});
 	});
@@ -902,6 +940,20 @@ describe('cruise page admin sign-ups by leg', () => {
 			enrollmentRow,
 			{ ...enrollmentRow, id: 33, user_name: 'Ewa Stara', trip_id: undefined, trip_name: undefined }
 		]);
+	});
+
+	it('keeps the review link visible beside a long leg name', async () => {
+		await renderPage();
+		const a = await screen.findByRole('region', { name: 'Zapisy: Jacht A' });
+
+		expect(within(a).getByRole('heading', { name: 'Jacht A' })).toHaveClass(
+			'min-w-0',
+			'[overflow-wrap:anywhere]'
+		);
+		expect(within(a).getByRole('link', { name: 'Zarządzaj zapisami' })).toHaveClass(
+			'shrink-0',
+			'whitespace-nowrap'
+		);
 	});
 
 	it('groups sign-ups by leg with a link to each review page', async () => {

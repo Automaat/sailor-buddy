@@ -8,7 +8,7 @@ export const load: PageLoad = async ({ params }) => {
 	const trip = await found(getTrip(id), {
 		title: 'Nie znaleziono rejsu',
 		message: 'Ten rejs nie istnieje lub nie masz do niego dostępu.',
-		backHref: '/cruises',
+		backHref: '/series',
 		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];
