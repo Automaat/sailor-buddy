@@ -45,9 +45,6 @@ function makeEdition(overrides: Partial<CruiseSeriesEdition> = {}): CruiseSeries
 	return {
 		cruise_id: 1,
 		name: 'MIS',
-		voyage_count: 0,
-		total_miles: 0,
-		total_hours: 0,
 		...overrides
 	};
 }
@@ -80,38 +77,36 @@ describe('series detail page', () => {
 		expect(await screen.findByText(label)).toBeInTheDocument();
 	});
 
-	it('lists editions in API order with per-edition and overall totals', async () => {
+	it('lists editions in API order with only their label and name', async () => {
 		mockEditions.mockResolvedValue([
-			makeEdition({
-				cruise_id: 20,
-				name: 'MIS 2025',
-				edition: '2025',
-				total_miles: 200,
-				total_hours: 40
-			}),
-			makeEdition({
-				cruise_id: 10,
-				name: 'MIS 2024',
-				edition: '2024',
-				total_miles: 100.5,
-				total_hours: 20
-			})
+			makeEdition({ cruise_id: 20, name: 'MIS 2025', edition: '2025' }),
+			makeEdition({ cruise_id: 10, name: 'MIS 2024', edition: '2024' }),
+			makeEdition({ cruise_id: 5, name: 'MIS bez etykiety' })
 		]);
 		await renderPage();
 		await screen.findByText('May I Sail');
 
+		expect(screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
+			'Edycja',
+			'Nazwa'
+		]);
 		const rows = screen.getAllByTestId('edition-row');
-		expect(rows).toHaveLength(2);
+		expect(rows).toHaveLength(3);
+		for (const row of rows) expect(within(row).getAllByRole('cell')).toHaveLength(2);
 		expect(within(rows[0]).getByText('2025')).toBeInTheDocument();
 		expect(within(rows[0]).getByRole('link', { name: 'MIS 2025' })).toHaveAttribute(
 			'href',
 			'/cruises/20'
 		);
-		expect(within(rows[1]).getByText('100,5')).toBeInTheDocument();
-
-		const totals = screen.getByTestId('series-totals');
-		expect(within(totals).getByText('300,5')).toBeInTheDocument();
-		expect(within(totals).getByText('60')).toBeInTheDocument();
+		expect(within(rows[1]).getByRole('link', { name: 'MIS 2024' })).toHaveAttribute(
+			'href',
+			'/cruises/10'
+		);
+		expect(within(rows[2]).getByText('—')).toBeInTheDocument();
+		expect(screen.queryByText(/Mile|Godziny|Razem/)).not.toBeInTheDocument();
+		// A long name without spaces must wrap instead of widening the table on a phone.
+		expect(screen.getByRole('table')).toHaveClass('table-fixed');
+		expect(within(rows[0]).getByRole('link')).toHaveClass('[overflow-wrap:anywhere]');
 	});
 
 	it('hides edit, delete and new edition for a member', async () => {
@@ -287,7 +282,7 @@ describe('series page same-route navigation', () => {
 	function loadBoth() {
 		mockGet.mockImplementation(async (id: number) => (id === 5 ? other : series));
 		mockEditions.mockImplementation(async (id: number) =>
-			id === 5 ? [makeEdition({ cruise_id: 50, name: 'Baltic Cup 2025', total_miles: 80 })] : []
+			id === 5 ? [makeEdition({ cruise_id: 50, name: 'Baltic Cup 2025' })] : []
 		);
 	}
 

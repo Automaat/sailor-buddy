@@ -73,25 +73,25 @@ func TestCruiseSeries_Editions(t *testing.T) {
 			t.Fatalf("insert trip: %v", err)
 		}
 	}
-	addVoyage := func(cruiseID int64, embark string, miles, hours float64) {
+	addVoyage := func(cruiseID int64, embark string) {
 		t.Helper()
 		if _, err := conn.ExecContext(ctx,
-			"INSERT INTO voyages (cruise_id, name, embark_date, miles, hours_total) VALUES ($1, 'leg', $2, $3, $4)",
-			cruiseID, date(embark), miles, hours); err != nil {
+			"INSERT INTO voyages (cruise_id, name, embark_date) VALUES ($1, 'leg', $2)",
+			cruiseID, date(embark)); err != nil {
 			t.Fatalf("insert voyage: %v", err)
 		}
 	}
 
 	older := newCruise("MIS 2024", "2024", inSeries)
 	addTrip(older.ID, "2024-05-01")
-	addVoyage(older.ID, "-", 100, 20)
+	addVoyage(older.ID, "-")
 
 	// The 2025 edition's voyage starts before its trip; a trip-only or
 	// latest-leg order would put it above the 2026 edition.
 	newer := newCruise("MIS 2025", "2025", inSeries)
 	addTrip(newer.ID, "2026-09-01")
-	addVoyage(newer.ID, "2025-05-01", 150.5, 30)
-	addVoyage(newer.ID, "", 49.5, 10)
+	addVoyage(newer.ID, "2025-05-01")
+	addVoyage(newer.ID, "")
 
 	empty := newCruise("MIS 2026", "2026", inSeries)
 	addTrip(empty.ID, "2026-05-01")
@@ -100,36 +100,23 @@ func TestCruiseSeries_Editions(t *testing.T) {
 	planned := newCruise("MIS 2027/28", "2027/28", inSeries)
 	formPlanned := newCruise("MIS 2027", "2027", inSeries)
 	addTrip(formPlanned.ID, "")
-	addVoyage(formPlanned.ID, "-", 0, 0)
+	addVoyage(formPlanned.ID, "-")
 
 	unrelated := newCruise("Other 2025", "2025", types.NullInt64{Int64: other.ID, Valid: true})
 	addTrip(unrelated.ID, "2030-01-01")
-	addVoyage(unrelated.ID, "2030-01-01", 999, 999)
+	addVoyage(unrelated.ID, "2030-01-01")
 
 	rows, err := q.ListCruiseSeriesEditions(ctx, sqlcdb.ListCruiseSeriesEditionsParams{SeriesID: inSeries, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("list editions: %v", err)
 	}
-	type got struct {
-		id           int64
-		voyages      int64
-		miles, hours float64
+	want := []int64{planned.ID, formPlanned.ID, empty.ID, newer.ID, older.ID}
+	var got []int64
+	for _, r := range rows {
+		got = append(got, r.ID)
 	}
-	want := []got{
-		{planned.ID, 0, 0, 0},
-		{formPlanned.ID, 1, 0, 0},
-		{empty.ID, 0, 0, 0},
-		{newer.ID, 2, 200, 40},
-		{older.ID, 1, 100, 20},
-	}
-	if len(rows) != len(want) {
-		t.Fatalf("got %d editions, want %d: %+v", len(rows), len(want), rows)
-	}
-	for i, w := range want {
-		r := rows[i]
-		if (got{r.ID, r.VoyageCount, r.TotalMiles, r.TotalHours}) != w {
-			t.Errorf("edition %d = %+v, want %+v", i, r, w)
-		}
+	if !slices.Equal(got, want) {
+		t.Errorf("edition order = %v, want %v", got, want)
 	}
 }
 

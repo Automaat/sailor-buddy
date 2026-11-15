@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-// Admission restricts club routes to approved accounts with verified email.
+// Admission restricts club routes to accounts with a verified email that are
+// not suspended. Suspension also blocks the self-service routes.
 func Admission(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := GetUser(r.Context())
@@ -17,15 +18,11 @@ func Admission(next http.Handler) http.Handler {
 			denyAccess(w, "account_suspended", "account suspended")
 			return
 		}
-		if selfService(r) || user.Approved && user.EmailVerified {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if !user.EmailVerified {
+		if !user.EmailVerified && !selfService(r) {
 			denyAccess(w, "email_unverified", "verify your email before accessing club data")
 			return
 		}
-		denyAccess(w, "approval_pending", "administrator approval required")
+		next.ServeHTTP(w, r)
 	})
 }
 

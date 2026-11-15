@@ -19,8 +19,8 @@ func TestAuditRealRoleChangesAndEarlyDenials(t *testing.T) {
 	conn := securityDatabase(t)
 	var output bytes.Buffer
 	verifier := securityVerifier{}
-	for _, name := range []string{"actor", "target", "member", "pending"} {
-		verifier[name] = &fbauth.Token{UID: name, Claims: map[string]any{"email": name + "@example.dev", "email_verified": true}}
+	for _, name := range []string{"actor", "target", "member", "unverified"} {
+		verifier[name] = &fbauth.Token{UID: name, Claims: map[string]any{"email": name + "@example.dev", "email_verified": name != "unverified"}}
 	}
 	h := newRouter(conn, &config.Config{}, verifier, nil, logging.New(&output))
 	for name := range verifier {
@@ -29,9 +29,6 @@ func TestAuditRealRoleChangesAndEarlyDenials(t *testing.T) {
 		}
 	}
 	if err := auth.BootstrapAdmin(t.Context(), conn, "actor"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := conn.Exec(`UPDATE users SET access_approved = true WHERE firebase_uid IN ('target','member')`); err != nil {
 		t.Fatal(err)
 	}
 	ids := map[string]int64{}
@@ -48,7 +45,7 @@ func TestAuditRealRoleChangesAndEarlyDenials(t *testing.T) {
 	}{
 		{"actor", "admin", "success", 204},
 		{"member", "member", "denied", 403},
-		{"pending", "member", "denied", 403},
+		{"unverified", "member", "denied", 403},
 		{"actor", "private-validation-secret", "rejected", 422},
 		{"", "member", "denied", 401},
 	} {

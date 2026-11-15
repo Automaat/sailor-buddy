@@ -10,12 +10,10 @@ components:
           format: uri
           readOnly: true
           type: string
-        approved:
-          type: boolean
         suspended:
+          description: Whether the account is suspended
           type: boolean
       required:
-        - approved
         - suspended
       type: object
     AssignTripBody:
@@ -623,21 +621,9 @@ components:
           description: When the edition was published; absent while it is a hidden draft
           format: date-time
           type: string
-        total_hours:
-          format: double
-          type: number
-        total_miles:
-          format: double
-          type: number
-        voyage_count:
-          format: int64
-          type: integer
       required:
         - cruise_id
         - name
-        - voyage_count
-        - total_miles
-        - total_hours
       type: object
     Dashboard:
       additionalProperties: false
@@ -1176,8 +1162,6 @@ components:
           format: uri
           readOnly: true
           type: string
-        approved:
-          type: boolean
         avatar_url:
           type: string
         email:
@@ -1219,7 +1203,6 @@ components:
         suspended:
           type: boolean
       required:
-        - approved
         - suspended
         - email_verified
         - id
@@ -1236,8 +1219,6 @@ components:
     Member:
       additionalProperties: false
       properties:
-        approved:
-          type: boolean
         avatar_url:
           type: string
         created_at:
@@ -1272,7 +1253,6 @@ components:
         suspended:
           type: boolean
       required:
-        - approved
         - suspended
         - id
         - name
@@ -4097,7 +4077,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Approve or suspend an account (admin)
+      summary: Suspend or restore an account (admin)
       tags:
         - Members
   /members/{userID}/captain:

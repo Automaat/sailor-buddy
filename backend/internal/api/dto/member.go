@@ -8,7 +8,6 @@ import (
 
 // Member is a club member: a registered user account and their role.
 type Member struct {
-	Approved     bool      `json:"approved"`
 	Suspended    bool      `json:"suspended"`
 	ID           int64     `json:"id"`
 	Name         string    `json:"name"`
@@ -44,7 +43,6 @@ type MembershipBody struct {
 // MemberFromUser maps a stored user row onto the member DTO.
 func MemberFromUser(u sqlcdb.User) Member {
 	return Member{
-		Approved:     u.AccessApproved || u.Role == "admin",
 		Suspended:    u.Suspended,
 		ID:           u.ID,
 		Name:         u.Name,
@@ -70,8 +68,8 @@ func MembersFromDB(users []sqlcdb.User) []Member {
 	return out
 }
 
-// AccessBody controls account admission independently of club membership.
+// AccessBody suspends or restores an account independently of club
+// membership. A suspended account loses club access, existing tokens included.
 type AccessBody struct {
-	Approved  bool `json:"approved"`
-	Suspended bool `json:"suspended"`
+	Suspended bool `json:"suspended" doc:"Whether the account is suspended"`
 }

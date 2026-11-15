@@ -108,13 +108,10 @@ test.describe.serial('Single-club persona matrix', () => {
 		expect(memberMe).toMatchObject({ role: 'member', membership: 'gosc', onboarded: false });
 		await completeOnboarding(member.idToken, 'Persona', 'Member');
 		expect(await mutationStatus(member.idToken, 'GET', '/crew')).toBe(403);
+		// A verified email is enough: no admin action precedes club access.
 		await verifyTestUser(member.localId);
-		const admin = await signInTestUser(adminEmail, PASSWORD);
-		await apiRequest(admin.idToken, 'PUT', `/members/${memberMe.id}/access`, {
-			approved: true,
-			suspended: false
-		});
 		memberToken = (await signInTestUser(memberEmail, PASSWORD)).idToken;
+		expect(await mutationStatus(memberToken, 'GET', '/cruises')).toBe(200);
 	});
 
 	test('member: no people nav, cruises read-only, mutations 403', async ({ page }) => {
@@ -152,7 +149,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		const memberRow = page.getByRole('row').filter({ hasText: memberEmail });
 		await expect(memberRow.getByRole('link', { name: 'Persona Member' })).toBeVisible();
 		await expect(memberRow.getByRole('combobox', { name: 'Dostęp: Persona Member' })).toHaveValue(
-			'approved'
+			'active'
 		);
 		await memberRow
 			.getByRole('combobox', { name: 'Członkostwo: Persona Member' })
@@ -343,31 +340,25 @@ test.describe.serial('Single-club persona matrix', () => {
 	});
 });
 
-test('pending account needs verification and admin approval', async ({ page }) => {
-	const email = `pending-${Date.now()}@test.local`;
-	const pending = await createTestUser(email, PASSWORD, 'Pending Member');
-	await completeOnboarding(pending.idToken, 'Pending', 'Member');
+test('new account needs only a verified email; suspension denies its token', async ({ page }) => {
+	const email = `unverified-${Date.now()}@test.local`;
+	const account = await createTestUser(email, PASSWORD, 'Unverified Member');
+	await completeOnboarding(account.idToken, 'Unverified', 'Member');
 	await submitLoginForm(page, email, PASSWORD);
 	await page.waitForURL('/pending');
-	await expect(
-		page.getByText('Twoje konto czeka na zatwierdzenie przez administratora.')
-	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Potwierdź adres e-mail' })).toBeVisible();
+	await expect(page.getByText(/zatwierdz/i)).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Wyślij link weryfikacyjny' })).toBeVisible();
-	await verifyTestUser(pending.localId);
-	await page.getByRole('button', { name: 'Sprawdź dostęp' }).click();
-	await expect(page.getByRole('button', { name: 'Wyślij link weryfikacyjny' })).toHaveCount(0);
-	const me = (await apiRequest(pending.idToken, 'GET', '/auth/me')) as { id: number };
-	const admin = await signInTestUser(adminEmail, PASSWORD);
-	await apiRequest(admin.idToken, 'PUT', `/members/${me.id}/access`, {
-		approved: true,
-		suspended: false
-	});
+	await verifyTestUser(account.localId);
 	await page.getByRole('button', { name: 'Sprawdź dostęp' }).click();
 	await page.waitForURL('/');
+
+	const me = (await apiRequest(account.idToken, 'GET', '/auth/me')) as { id: number };
 	const retained = (await signInTestUser(email, PASSWORD)).idToken;
-	await apiRequest(admin.idToken, 'PUT', `/members/${me.id}/access`, {
-		approved: true,
-		suspended: true
-	});
+	expect(await mutationStatus(retained, 'GET', '/cruises')).toBe(200);
+	const admin = await signInTestUser(adminEmail, PASSWORD);
+	await apiRequest(admin.idToken, 'PUT', `/members/${me.id}/access`, { suspended: true });
 	expect(await mutationStatus(retained, 'GET', '/cruises')).toBe(403);
+	await apiRequest(admin.idToken, 'PUT', `/members/${me.id}/access`, { suspended: false });
+	expect(await mutationStatus(retained, 'GET', '/cruises')).toBe(200);
 });

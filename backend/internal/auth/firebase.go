@@ -14,7 +14,6 @@ import (
 )
 
 type Claims struct {
-	Approved      bool   `json:"approved"`
 	IsCaptain     bool   `json:"is_captain"`
 	Suspended     bool   `json:"suspended"`
 	EmailVerified bool   `json:"email_verified"`

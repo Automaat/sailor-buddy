@@ -161,6 +161,7 @@ type mockQuerier struct {
 	listUserCruiseIDsFn    func(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error)
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
+	updateUserSuspendedFn  func(ctx context.Context, arg sqlcdb.UpdateUserSuspendedParams) error
 	listUsersFn            func(ctx context.Context) ([]sqlcdb.User, error)
 	lockAdminsFn           func(ctx context.Context) ([]int64, error)
 }
@@ -820,7 +821,7 @@ var published = types.NullTime{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 // userCtxRole injects an authenticated caller with the given role.
 func userCtxRole(ctx context.Context, role string) context.Context {
 	return context.WithValue(ctx, middleware.UserCtxKey, &auth.Claims{
-		Approved: true, EmailVerified: true, UserID: 1, Email: "test@example.com", Name: "Test User", Role: role,
+		EmailVerified: true, UserID: 1, Email: "test@example.com", Name: "Test User", Role: role,
 	})
 }
 
@@ -836,6 +837,13 @@ func (m *mockQuerier) UpdateUserMembership(ctx context.Context, arg sqlcdb.Updat
 		panic("unexpected call to UpdateUserMembership")
 	}
 	return m.updateUserMembershipFn(ctx, arg)
+}
+
+func (m *mockQuerier) UpdateUserSuspended(ctx context.Context, arg sqlcdb.UpdateUserSuspendedParams) error {
+	if m.updateUserSuspendedFn == nil {
+		panic("unexpected call to UpdateUserSuspended")
+	}
+	return m.updateUserSuspendedFn(ctx, arg)
 }
 
 func (m *mockQuerier) UpdateVoyageLog(ctx context.Context, arg sqlcdb.UpdateVoyageLogParams) error {
