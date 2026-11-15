@@ -138,6 +138,7 @@ describe('rejsy page', () => {
 		serve({
 			cruises: [
 				makeCruise({
+					series_id: 1,
 					id: 5,
 					name: 'Bornholm 2026',
 					embark_date: '2026-08-01',
@@ -160,7 +161,7 @@ describe('rejsy page', () => {
 
 	it('lists cancelled cruises only under all', async () => {
 		serve({
-			cruises: [makeCruise({ id: 4, name: 'Odwołany' })],
+			cruises: [makeCruise({ series_id: 1, id: 4, name: 'Odwołany' })],
 			trips: [makeTrip({ cruise_id: 4, status: 'cancelled' })]
 		});
 		render(RejsyPage);
@@ -242,9 +243,9 @@ describe('rejsy page', () => {
 
 	describe('my cruises filter', () => {
 		const cruises = [
-			makeCruise({ id: 1, name: 'Mój rejs' }),
-			makeCruise({ id: 2, name: 'Cudzy rejs' }),
-			makeCruise({ id: 3, name: 'Mój stary rejs' })
+			makeCruise({ series_id: 1, id: 1, name: 'Mój rejs' }),
+			makeCruise({ series_id: 1, id: 2, name: 'Cudzy rejs' }),
+			makeCruise({ series_id: 1, id: 3, name: 'Mój stary rejs' })
 		];
 		const trips = [makeTrip({ id: 10, cruise_id: 1 }), makeTrip({ id: 11, cruise_id: 2 })];
 		const voyages = [makeVoyage({ id: 20, cruise_id: 3 })];
