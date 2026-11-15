@@ -434,35 +434,67 @@ func (q *Queries) GetVoyageCrewAssignmentByMember(ctx context.Context, arg GetVo
 
 const listTripCrewAssignments = `-- name: ListTripCrewAssignments :many
 SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-       cm.full_name, cm.email
+       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone,
+       access.contacts_visible
 FROM crew_assignments ca
 JOIN crew_members cm ON cm.id = ca.crew_member_id
-WHERE ca.trip_id = $1
+CROSS JOIN (
+    SELECT ($1::BOOLEAN OR EXISTS (
+        SELECT 1 FROM trips t
+        JOIN crew_members cap ON cap.id = t.captain_person_id
+        WHERE t.id = $2::BIGINT
+          AND cap.user_id = $3::BIGINT
+    ))::BOOLEAN AS contacts_visible
+) access
+WHERE ca.trip_id = $2::BIGINT
 ORDER BY cm.full_name
 `
 
-type ListTripCrewAssignmentsRow struct {
-	ID           int64            `json:"id"`
-	TripID       types.NullInt64  `json:"trip_id"`
-	VoyageID     types.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64            `json:"crew_member_id"`
-	Role         string           `json:"role"`
-	PatentNumber types.NullString `json:"patent_number"`
-	CreatedAt    types.NullTime   `json:"created_at"`
-	FullName     string           `json:"full_name"`
-	Email        types.NullString `json:"email"`
+type ListTripCrewAssignmentsParams struct {
+	IsAdmin      bool            `json:"is_admin"`
+	TripID       int64           `json:"trip_id"`
+	CallerUserID types.NullInt64 `json:"caller_user_id"`
 }
 
-// ListTripCrewAssignments
+type ListTripCrewAssignmentsRow struct {
+	ID                    int64            `json:"id"`
+	TripID                types.NullInt64  `json:"trip_id"`
+	VoyageID              types.NullInt64  `json:"voyage_id"`
+	CrewMemberID          int64            `json:"crew_member_id"`
+	Role                  string           `json:"role"`
+	PatentNumber          types.NullString `json:"patent_number"`
+	CreatedAt             types.NullTime   `json:"created_at"`
+	FullName              string           `json:"full_name"`
+	Email                 types.NullString `json:"email"`
+	Phone                 types.NullString `json:"phone"`
+	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
+	ContactsVisible       bool             `json:"contacts_visible"`
+}
+
+// A leg's crew with the people's phone and emergency contact.
+// contacts_visible is true only for an admin or the caller who captains this
+// leg, and the handler drops the contacts otherwise. The captain check runs
+// in the same statement as the crew read, so a captain change committed
+// meanwhile can never pair the former captain with a newer member's contacts.
 //
 //	SELECT ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-//	       cm.full_name, cm.email
+//	       cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone,
+//	       access.contacts_visible
 //	FROM crew_assignments ca
 //	JOIN crew_members cm ON cm.id = ca.crew_member_id
-//	WHERE ca.trip_id = $1
+//	CROSS JOIN (
+//	    SELECT ($1::BOOLEAN OR EXISTS (
+//	        SELECT 1 FROM trips t
+//	        JOIN crew_members cap ON cap.id = t.captain_person_id
+//	        WHERE t.id = $2::BIGINT
+//	          AND cap.user_id = $3::BIGINT
+//	    ))::BOOLEAN AS contacts_visible
+//	) access
+//	WHERE ca.trip_id = $2::BIGINT
 //	ORDER BY cm.full_name
-func (q *Queries) ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]ListTripCrewAssignmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTripCrewAssignments, tripID)
+func (q *Queries) ListTripCrewAssignments(ctx context.Context, arg ListTripCrewAssignmentsParams) ([]ListTripCrewAssignmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTripCrewAssignments, arg.IsAdmin, arg.TripID, arg.CallerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -480,6 +512,10 @@ func (q *Queries) ListTripCrewAssignments(ctx context.Context, tripID types.Null
 			&i.CreatedAt,
 			&i.FullName,
 			&i.Email,
+			&i.Phone,
+			&i.EmergencyContactName,
+			&i.EmergencyContactPhone,
+			&i.ContactsVisible,
 		); err != nil {
 			return nil, err
 		}
@@ -681,7 +717,7 @@ UPDATE crew_assignments ca SET role = $1
 FROM crew_members cm
 WHERE ca.id = $2 AND ca.trip_id = $3::BIGINT AND cm.id = ca.crew_member_id
 RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-          cm.full_name, cm.email
+          cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
 `
 
 type UpdateTripCrewAssignmentRoleParams struct {
@@ -691,15 +727,18 @@ type UpdateTripCrewAssignmentRoleParams struct {
 }
 
 type UpdateTripCrewAssignmentRoleRow struct {
-	ID           int64            `json:"id"`
-	TripID       types.NullInt64  `json:"trip_id"`
-	VoyageID     types.NullInt64  `json:"voyage_id"`
-	CrewMemberID int64            `json:"crew_member_id"`
-	Role         string           `json:"role"`
-	PatentNumber types.NullString `json:"patent_number"`
-	CreatedAt    types.NullTime   `json:"created_at"`
-	FullName     string           `json:"full_name"`
-	Email        types.NullString `json:"email"`
+	ID                    int64            `json:"id"`
+	TripID                types.NullInt64  `json:"trip_id"`
+	VoyageID              types.NullInt64  `json:"voyage_id"`
+	CrewMemberID          int64            `json:"crew_member_id"`
+	Role                  string           `json:"role"`
+	PatentNumber          types.NullString `json:"patent_number"`
+	CreatedAt             types.NullTime   `json:"created_at"`
+	FullName              string           `json:"full_name"`
+	Email                 types.NullString `json:"email"`
+	Phone                 types.NullString `json:"phone"`
+	EmergencyContactName  types.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone types.NullString `json:"emergency_contact_phone"`
 }
 
 // Sets the role of one crew entry of a trip. No row when the trip has no
@@ -709,7 +748,7 @@ type UpdateTripCrewAssignmentRoleRow struct {
 //	FROM crew_members cm
 //	WHERE ca.id = $2 AND ca.trip_id = $3::BIGINT AND cm.id = ca.crew_member_id
 //	RETURNING ca.id, ca.trip_id, ca.voyage_id, ca.crew_member_id, ca.role, ca.patent_number, ca.created_at,
-//	          cm.full_name, cm.email
+//	          cm.full_name, cm.email, cm.phone, cm.emergency_contact_name, cm.emergency_contact_phone
 func (q *Queries) UpdateTripCrewAssignmentRole(ctx context.Context, arg UpdateTripCrewAssignmentRoleParams) (UpdateTripCrewAssignmentRoleRow, error) {
 	row := q.db.QueryRowContext(ctx, updateTripCrewAssignmentRole, arg.Role, arg.ID, arg.TripID)
 	var i UpdateTripCrewAssignmentRoleRow
@@ -723,6 +762,9 @@ func (q *Queries) UpdateTripCrewAssignmentRole(ctx context.Context, arg UpdateTr
 		&i.CreatedAt,
 		&i.FullName,
 		&i.Email,
+		&i.Phone,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
 	)
 	return i, err
 }

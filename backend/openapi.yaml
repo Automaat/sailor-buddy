@@ -208,12 +208,21 @@ components:
           type: integer
         email:
           type: string
+        emergency_contact_name:
+          description: Leg crew list only, for admins and the leg's captain
+          type: string
+        emergency_contact_phone:
+          description: Leg crew list only, for admins and the leg's captain
+          type: string
         full_name:
           type: string
         id:
           format: int64
           type: integer
         patent_number:
+          type: string
+        phone:
+          description: Leg crew list only, for admins and the leg's captain
           type: string
         role:
           type: string
@@ -4995,6 +5004,7 @@ paths:
         - Trips
   /trips/{tripID}/complete:
     post:
+      description: Admins complete any planned leg. The leg's captain completes it only once its disembark date is before today in Europe/Warsaw; 403 before then, for a leg without a disembark date and for anyone else.
       operationId: complete-trip
       parameters:
         - description: Trip ID
@@ -5024,11 +5034,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Complete a trip into a voyage (admin)
+      summary: Complete a trip into a voyage (admin or leg captain)
       tags:
         - Trips
   /trips/{tripID}/crew:
     get:
+      description: Any member who can see the leg reads names, roles and e-mails. Phone and emergency contact come only to admins and the leg's captain.
       operationId: list-trip-crew
       parameters:
         - description: Trip ID
@@ -5930,7 +5941,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Generate a crew opinion document (admin)
+      summary: Generate a crew opinion document (admin or voyage captain)
       tags:
         - Voyage opinions
   /voyages/{voyageID}/opinions/{opinionID}:
@@ -5962,7 +5973,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Delete an opinion (admin)
+      summary: Delete an opinion (admin or voyage captain)
       tags:
         - Voyage opinions
   /voyages/{voyageID}/opinions/{opinionID}/download:
