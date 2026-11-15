@@ -22,7 +22,7 @@ export const load: PageLoad = async ({ params }) => {
 		settle(
 			listCruiseTrips(id).then((r) => r ?? []),
 			[],
-			noteFailure(loadErrors, 'planowane etapy')
+			noteFailure(loadErrors, 'nadchodzące etapy')
 		),
 		settle(
 			listCruiseVoyages(id).then((r) => r ?? []),

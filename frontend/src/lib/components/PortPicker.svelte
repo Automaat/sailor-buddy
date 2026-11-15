@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { Map as LeafletMap, LayerGroup } from 'leaflet';
+	import type { Map as LeafletMap, LayerGroup, LeafletMouseEvent } from 'leaflet';
 	import 'leaflet/dist/leaflet.css';
 	import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 	import markerIcon from 'leaflet/dist/images/marker-icon.png';
 	import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-	import { geocode } from '#lib/api/routes.js';
-	import type { GeocodeResult, VoyagePortBody } from '#lib/api/types.js';
+	import { ApiError } from '#lib/api/client.js';
+	import { geocode, suggestPorts, type GeocodeBias } from '#lib/api/routes.js';
+	import type { GeocodeResult, PortSuggestion, VoyagePortBody } from '#lib/api/types.js';
 
 	// Both VoyagePort and VoyagePortBody satisfy this, so the picker works for
 	// the completion modal (unsaved bodies) and the voyage page (persisted
@@ -40,11 +41,24 @@
 	// Monotonic id of the latest search; stale responses are discarded.
 	let searchSeq = 0;
 
+	// Club ports matching the typed text, fetched while typing. Only this
+	// local endpoint runs as you type; the external geocoder does not.
+	const SUGGEST_DELAY_MS = 250;
+	let suggestions = $state<PortSuggestion[]>([]);
+	let suggestError = $state('');
+	let suggestSeq = 0;
+	let suggestTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// A point picked by clicking the map, saved under a name the user types.
+	let pin = $state<{ lat: number; lon: number } | null>(null);
+	let pinName = $state('');
+
 	let mapEl: HTMLDivElement;
 	// Leaflet touches `window`, so it is imported only in the browser (onMount).
 	let L: typeof import('leaflet') | undefined;
 	let map: LeafletMap | undefined;
 	let layer: LayerGroup | undefined;
+	let pinLayer: LayerGroup | undefined;
 	let destroyed = false;
 
 	onMount(async () => {
@@ -62,13 +76,57 @@
 			maxZoom: 18
 		}).addTo(map);
 		layer = L.layerGroup().addTo(map);
+		pinLayer = L.layerGroup().addTo(map);
+		map.on('click', onMapClick);
 		renderMarkers();
 	});
 
 	onDestroy(() => {
 		destroyed = true;
+		clearTimeout(suggestTimer);
 		map?.remove();
 	});
+
+	function onMapClick(e: LeafletMouseEvent) {
+		if (readonly || busy || !map) return;
+		const at = map.wrapLatLng(e.latlng);
+		pin = { lat: roundCoord(at.lat), lon: roundCoord(at.lng) };
+		pinName = query.trim();
+	}
+
+	// Five decimals locate a port to about a metre.
+	function roundCoord(v: number): number {
+		return Math.round(v * 1e5) / 1e5;
+	}
+
+	$effect(() => {
+		const at = pin;
+		if (!L || !map || !pinLayer) return;
+		pinLayer.clearLayers();
+		if (at) {
+			L.circleMarker([at.lat, at.lon], { radius: 8, color: '#dc2626', weight: 2 }).addTo(pinLayer);
+		}
+	});
+
+	function clearPin() {
+		pin = null;
+		pinName = '';
+	}
+
+	function addPin() {
+		const name = pinName.trim();
+		if (!pin || !name) return;
+		return add({ name, latitude: pin.lat, longitude: pin.lon });
+	}
+
+	// The map centre, wrapped into [-180, 180] after panning across the
+	// antimeridian, ranks nearby towns first.
+	function mapBias(): GeocodeBias | undefined {
+		if (!map) return undefined;
+		const c = map.wrapLatLng(map.getCenter());
+		if (!Number.isFinite(c.lat) || !Number.isFinite(c.lng)) return undefined;
+		return { lat: Math.round(c.lat * 1e4) / 1e4, lon: Math.round(c.lng * 1e4) / 1e4 };
+	}
 
 	// renderMarkers redraws every port marker plus the route polyline whenever
 	// the ports list changes. $effect re-runs it; the map-ready guard skips the
@@ -118,16 +176,58 @@
 
 	const canSearch = $derived(!busy && !searching && query.trim().length >= 2);
 
-	// Typing only invalidates the previous search. Nominatim's usage policy
-	// forbids search-as-you-type, so a lookup runs on Enter or "Szukaj".
+	// Typing invalidates the previous search and refreshes the club
+	// suggestions after a short pause. Nominatim's usage policy forbids
+	// search-as-you-type, so a geocoder lookup runs on Enter or "Szukaj".
 	function onInput() {
 		searchSeq++;
 		searching = false;
 		searchError = '';
 		results = [];
+		scheduleSuggest();
+	}
+
+	function scheduleSuggest() {
+		clearTimeout(suggestTimer);
+		suggestSeq++;
+		suggestError = '';
+		const q = query.trim();
+		if (q.length < 2) {
+			suggestions = [];
+			return;
+		}
+		suggestTimer = setTimeout(() => void runSuggest(q), SUGGEST_DELAY_MS);
+	}
+
+	async function runSuggest(q: string) {
+		const seq = ++suggestSeq;
+		try {
+			const found = await suggestPorts(q);
+			if (seq !== suggestSeq || destroyed) return;
+			suggestions = found;
+		} catch {
+			if (seq !== suggestSeq || destroyed) return;
+			suggestions = [];
+			suggestError = 'Nie udało się pobrać wcześniej odwiedzonych portów';
+		}
+	}
+
+	function closeDropdown() {
+		clearTimeout(suggestTimer);
+		suggestSeq++;
+		searchSeq++;
+		searching = false;
+		suggestions = [];
+		suggestError = '';
+		results = [];
+		searchError = '';
 	}
 
 	function onKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			closeDropdown();
+			return;
+		}
 		if (e.key !== 'Enter') return;
 		// The picker sits inside the trip-completion form; Enter must search,
 		// not submit it.
@@ -142,14 +242,17 @@
 		searching = true;
 		searchError = '';
 		try {
-			const found = await geocode(q);
+			const found = await geocode(q, mapBias());
 			// Discard a response that a newer search has superseded.
 			if (seq !== searchSeq || destroyed) return;
 			results = found;
 			if (found.length === 0) searchError = 'Brak wyników';
-		} catch {
+		} catch (e) {
 			if (seq !== searchSeq || destroyed) return;
-			searchError = 'Nie udało się wyszukać miejsca';
+			searchError =
+				e instanceof ApiError && e.status === 503
+					? 'Wyszukiwarka jest chwilowo zajęta, spróbuj za chwilę'
+					: 'Nie udało się wyszukać miejsca';
 			results = [];
 		} finally {
 			if (seq === searchSeq) searching = false;
@@ -161,10 +264,9 @@
 		searchError = '';
 		try {
 			await onAdd?.(anchorage ? { ...port, anchorage: true } : port);
-			searchSeq++;
-			searching = false;
+			closeDropdown();
+			clearPin();
 			query = '';
-			results = [];
 			anchorage = false;
 		} catch {
 			searchError = 'Nie udało się dodać portu';
@@ -176,6 +278,18 @@
 	function pick(r: GeocodeResult) {
 		return add({ name: r.name, latitude: r.latitude, longitude: r.longitude });
 	}
+
+	function pickSuggestion(s: PortSuggestion) {
+		if (typeof s.latitude === 'number' && typeof s.longitude === 'number') {
+			return add({ name: s.name, latitude: s.latitude, longitude: s.longitude });
+		}
+		return add({ name: s.name });
+	}
+
+	const photonUsed = $derived(results.some((r) => r.source === 'photon'));
+	const dropdownOpen = $derived(
+		searching || results.length > 0 || !!searchError || suggestions.length > 0 || !!suggestError
+	);
 
 	function addNameOnly() {
 		const name = query.trim();
@@ -289,32 +403,122 @@
 					Szukaj
 				</button>
 			</div>
-			{#if searching || results.length > 0 || searchError}
+			{#if dropdownOpen}
 				<div
-					class="absolute z-[1100] mt-1 w-full overflow-hidden rounded-lg border bg-white shadow-lg"
+					class="absolute z-[1100] mt-1 max-h-96 w-full overflow-y-auto rounded-lg border bg-white shadow-lg"
 				>
+					{#if suggestions.length > 0}
+						<div
+							class="px-3 pt-2 text-xs font-semibold uppercase text-[var(--text-muted)]"
+							id="port-suggestions-heading"
+						>
+							Wcześniej odwiedzone
+						</div>
+						<div role="group" aria-labelledby="port-suggestions-heading">
+							{#each suggestions as sug, i (i)}
+								<button
+									type="button"
+									onclick={() => pickSuggestion(sug)}
+									disabled={busy}
+									class="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
+								>
+									<span class="text-sm font-medium">{sug.name}</span>
+									<span class="text-xs text-[var(--text-muted)]">
+										{#if typeof sug.latitude !== 'number'}bez mapy ·
+										{/if}{sug.uses}×
+									</span>
+								</button>
+							{/each}
+						</div>
+					{:else if suggestError}
+						<div class="px-3 py-2 text-xs text-[var(--text-muted)]">{suggestError}</div>
+					{/if}
 					{#if searching}
-						<div class="px-3 py-2 text-sm text-[var(--text-muted)]">Szukanie...</div>
+						<div class="border-t px-3 py-2 text-sm text-[var(--text-muted)]">Szukanie...</div>
 					{:else if searchError}
-						<div class="px-3 py-2 text-sm text-[var(--text-muted)]">{searchError}</div>
-					{:else}
-						{#each results as r, i (i)}
-							<button
-								type="button"
-								onclick={() => pick(r)}
-								disabled={busy}
-								class="block w-full px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
-							>
-								<span class="block text-sm font-medium">{r.name}</span>
-								{#if r.label && r.label !== r.name}
-									<span class="block text-xs text-[var(--text-muted)]">{r.label}</span>
-								{/if}
-							</button>
-						{/each}
+						<div class="border-t px-3 py-2 text-sm text-[var(--text-muted)]">{searchError}</div>
+					{:else if results.length > 0}
+						<div
+							class="border-t px-3 pt-2 text-xs font-semibold uppercase text-[var(--text-muted)]"
+							id="port-results-heading"
+						>
+							Wyniki wyszukiwania
+						</div>
+						<div role="group" aria-labelledby="port-results-heading">
+							{#each results as r, i (i)}
+								<button
+									type="button"
+									onclick={() => pick(r)}
+									disabled={busy}
+									class="block w-full px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
+								>
+									<span class="block text-sm font-medium">{r.name}</span>
+									{#if r.label && r.label !== r.name}
+										<span class="block text-xs text-[var(--text-muted)]">{r.label}</span>
+									{/if}
+								</button>
+							{/each}
+						</div>
+						<p class="border-t px-3 py-1 text-[10px] text-[var(--text-muted)]">
+							Dane ©
+							<a
+								href="https://www.openstreetmap.org/copyright"
+								target="_blank"
+								rel="noopener noreferrer"
+								class="underline">współtwórcy OpenStreetMap</a
+							>{#if photonUsed}, wyszukiwanie: Photon (komoot){/if}
+						</p>
 					{/if}
 				</div>
 			{/if}
+			<p class="mt-1 text-xs text-[var(--text-muted)]">
+				Nie ma miejsca na liście? Kliknij na mapie, aby wskazać punkt.
+			</p>
 		</div>
+		{#if pin}
+			<div
+				class="space-y-2 rounded-lg border bg-gray-50 p-3 text-sm"
+				role="group"
+				aria-label="Punkt z mapy"
+			>
+				<p>
+					Wybrany punkt: <span class="font-mono">{pin.lat.toFixed(5)}, {pin.lon.toFixed(5)}</span>
+				</p>
+				<div class="flex flex-wrap gap-2">
+					<label for="port-pin-name" class="sr-only">Nazwa punktu z mapy</label>
+					<input
+						id="port-pin-name"
+						type="text"
+						bind:value={pinName}
+						disabled={busy}
+						placeholder="Nazwa portu"
+						class="min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-sm"
+						autocomplete="off"
+						onkeydown={(e) => {
+							if (e.key !== 'Enter') return;
+							e.preventDefault();
+							void addPin();
+						}}
+					/>
+					<button
+						type="button"
+						onclick={addPin}
+						disabled={busy || !pinName.trim()}
+						class="rounded-lg border px-3 py-1.5 text-sm text-[var(--ocean)] hover:bg-white disabled:opacity-40"
+					>
+						Dodaj punkt
+					</button>
+					<button
+						type="button"
+						onclick={clearPin}
+						disabled={busy}
+						class="px-2 py-1.5 text-sm text-[var(--text-muted)] hover:underline"
+					>
+						Anuluj
+					</button>
+				</div>
+			</div>
+		{/if}
 	{/if}
 
 	<div bind:this={mapEl} class="h-64 w-full rounded-lg border" aria-label="Mapa portów"></div>

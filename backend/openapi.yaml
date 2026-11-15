@@ -1142,11 +1142,18 @@ components:
           type: number
         name:
           type: string
+        source:
+          description: Search service that found the place
+          enum:
+            - nominatim
+            - photon
+          type: string
       required:
         - name
         - label
         - latitude
         - longitude
+        - source
       type: object
     LegSignUp:
       additionalProperties: false
@@ -1886,6 +1893,25 @@ components:
         - as_crew
         - by_year
         - voyages
+      type: object
+    PortSuggestion:
+      additionalProperties: false
+      properties:
+        latitude:
+          format: double
+          type: number
+        longitude:
+          format: double
+          type: number
+        name:
+          type: string
+        uses:
+          description: How many visited ports carry this name
+          format: int64
+          type: integer
+      required:
+        - name
+        - uses
       type: object
     PublishCruiseBody:
       additionalProperties: false
@@ -4042,6 +4068,26 @@ paths:
             description: Town or place name to search for
             minLength: 2
             type: string
+        - description: Latitude of the map centre; nearby places rank higher. Give together with lon
+          explode: false
+          in: query
+          name: lat
+          schema:
+            description: Latitude of the map centre; nearby places rank higher. Give together with lon
+            format: double
+            maximum: 90
+            minimum: -90
+            type: number
+        - description: Longitude of the map centre; nearby places rank higher. Give together with lat
+          explode: false
+          in: query
+          name: lon
+          schema:
+            description: Longitude of the map centre; nearby places rank higher. Give together with lat
+            format: double
+            maximum: 180
+            minimum: -180
+            type: number
       responses:
         "200":
           content:
@@ -4303,6 +4349,51 @@ paths:
       summary: Reject a person link request (admin)
       tags:
         - Crew
+  /ports/suggest:
+    get:
+      operationId: suggest-ports
+      parameters:
+        - description: Start or part of a port name; case, accents and small typos are ignored
+          explode: false
+          in: query
+          name: q
+          required: true
+          schema:
+            description: Start or part of a port name; case, accents and small typos are ignored
+            maxLength: 100
+            minLength: 2
+            type: string
+        - description: Maximum number of suggestions
+          explode: false
+          in: query
+          name: limit
+          schema:
+            default: 8
+            description: Maximum number of suggestions
+            format: int32
+            maximum: 20
+            minimum: 1
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/PortSuggestion"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Suggest port names the club already entered
+      tags:
+        - Voyage ports
   /series:
     get:
       operationId: list-series
