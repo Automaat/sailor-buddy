@@ -456,8 +456,8 @@ func geocodeBusy() error {
 }
 
 func isGeocodeBusy(err error) bool {
-	var se huma.StatusError
-	return errors.As(err, &se) && se.GetStatus() == http.StatusServiceUnavailable
+	se, ok := errors.AsType[huma.StatusError](err)
+	return ok && se.GetStatus() == http.StatusServiceUnavailable
 }
 
 // fetch waits for the upstream's limiter, then GETs its base URL with params
