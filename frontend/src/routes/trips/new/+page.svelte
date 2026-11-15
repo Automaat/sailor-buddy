@@ -2,12 +2,14 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { createTrip } from '#lib/api/routes.js';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import type { Cruise } from '#lib/api/types.js';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import EditionPicker, { groupOf, STANDALONE } from '#lib/components/EditionPicker.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom, type PriceForm } from '#lib/pricing.js';
+	import { legFormParent } from '#lib/rejsy.js';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -145,6 +147,7 @@
 </script>
 
 <div class="mx-auto max-w-3xl">
+	<BackLink {...legFormParent(data.cruiseId, cruises)} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Zaplanuj rejs</h1>
 	<LoadErrorBanner errors={loadErrors} />
 

@@ -59,6 +59,14 @@ beforeEach(() => {
 });
 
 describe('cruise edit page', () => {
+	it('links back to the edition above the title', async () => {
+		await renderPage();
+		expect(screen.getByRole('link', { name: 'Sycylia 2026' })).toHaveAttribute(
+			'href',
+			'/cruises/7'
+		);
+	});
+
 	it('fills the form from the loaded cruise and series list', async () => {
 		await renderPage();
 

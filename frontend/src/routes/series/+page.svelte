@@ -47,7 +47,7 @@
 	}
 </script>
 
-<div>
+<div class="mx-auto max-w-5xl">
 	<div class="mb-6 flex flex-wrap items-start justify-between gap-3">
 		<div class="min-w-0">
 			<h1 class="text-3xl font-bold text-[var(--navy)]">Rejsy</h1>
@@ -75,7 +75,7 @@
 	<LoadErrorBanner errors={data.loadErrors} />
 
 	{#if showForm && auth.isAdmin}
-		<form onsubmit={handleAdd} class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+		<form onsubmit={handleAdd} class="mb-6 max-w-3xl rounded-2xl bg-white p-6 shadow-sm">
 			{#if error}
 				<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
 			{/if}
@@ -118,12 +118,12 @@
 	{/if}
 
 	{#if series.length > 0}
-		<ul class="grid gap-3" aria-label="Serie">
+		<ul class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Serie">
 			{#each series as s (s.id)}
 				<li class="min-w-0">
 					<a
 						href="/series/{s.id}"
-						class="block rounded-2xl bg-white px-6 py-4 shadow-sm transition-shadow hover:shadow-md max-sm:px-4"
+						class="block h-full rounded-2xl bg-white px-6 py-4 shadow-sm transition-shadow hover:shadow-md max-sm:px-4"
 					>
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="min-w-0 font-semibold [overflow-wrap:anywhere] text-[var(--navy)]"

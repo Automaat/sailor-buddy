@@ -1,4 +1,4 @@
-import type { StandaloneLeg, Trip } from '#lib/api/types.js';
+import type { Cruise, StandaloneLeg, Trip } from '#lib/api/types.js';
 import { isLegHidden } from '#lib/publication.js';
 
 /** The club's calendar date (YYYY-MM-DD) in Europe/Warsaw, whatever the device time zone. */
@@ -60,6 +60,19 @@ export function standaloneHref(entry: Pick<StandaloneLeg, 'kind' | 'id'>): strin
 	if (entry.kind === 'trip') return `/trips/${entry.id}`;
 	if (entry.kind === 'voyage') return `/voyages/${entry.id}`;
 	return `/cruises/${entry.id}`;
+}
+
+/**
+ * legFormParent is where a new leg's form leads back to: the edition its link
+ * preselected (?cruise_id=), or the Rejsy list.
+ */
+export function legFormParent(
+	cruiseId: number,
+	cruises: Pick<Cruise, 'id' | 'name'>[]
+): { href: string; label: string } {
+	if (!cruiseId) return { href: '/series', label: 'Rejsy' };
+	const cruise = cruises.find((c) => c.id === cruiseId);
+	return { href: `/cruises/${cruiseId}`, label: cruise?.name ?? 'Wydarzenie' };
 }
 
 /** True while members cannot see the entry: it or its cruise is a draft. */

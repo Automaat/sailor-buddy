@@ -3,6 +3,7 @@
 	import { updateVoyage } from '#lib/api/routes.js';
 	import type { Voyage } from '#lib/api/types.js';
 	import { goto } from '$app/navigation';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import CaptainSelect from '#lib/components/CaptainSelect.svelte';
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
@@ -95,6 +96,7 @@
 </script>
 
 <div class="mx-auto max-w-3xl">
+	<BackLink href="/voyages/{id}" label={data.voyage.name} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj rejs</h1>
 	<LoadErrorBanner errors={loadErrors} />
 

@@ -5,6 +5,7 @@
 	import SeriesKindSelect from '#lib/components/SeriesKindSelect.svelte';
 	import { goto } from '$app/navigation';
 	import { errorMessage } from '#lib/api/errors.js';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
 	import { canSeeHidden, isHidden } from '#lib/publication.js';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -79,6 +80,7 @@
 </script>
 
 <div class="mx-auto max-w-5xl">
+	<BackLink href="/series" label="Rejsy" />
 	{#if editing}
 		<form onsubmit={handleSave} class="mb-6 space-y-4 rounded-2xl bg-white p-6 shadow-sm">
 			{#if error}
@@ -127,7 +129,9 @@
 				</h1>
 				<p class="mt-1 text-sm text-[var(--text-muted)]">{cruiseKindLabels[series.kind]}</p>
 				{#if series.description}
-					<p class="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-[var(--text-muted)]">
+					<p
+						class="mt-2 max-w-prose whitespace-pre-wrap [overflow-wrap:anywhere] text-[var(--text-muted)]"
+					>
 						{series.description}
 					</p>
 				{/if}

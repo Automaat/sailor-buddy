@@ -17,6 +17,7 @@
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
 	import { freePlacesLabel, numberLegs, signUpDeadlineLabel } from '#lib/enrollment.js';
 	import { legStatus, legStatusBadges, legStatusLabels } from '#lib/rejsy.js';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
 	import { canSeeHidden, isHidden, publishLegsQuestion } from '#lib/publication.js';
 	import { perLoad } from '#lib/state.svelte.js';
@@ -31,6 +32,11 @@
 	// reset to the loaded value on navigation.
 	let cruise = $derived(data.cruise);
 	const series = $derived(data.series);
+	const parentLink = $derived(
+		data.cruise.series_id
+			? { href: `/series/${data.cruise.series_id}`, label: data.series?.name ?? 'Seria' }
+			: { href: '/series', label: 'Rejsy' }
+	);
 	let trips = $derived(data.trips);
 	let voyages = $derived(data.voyages);
 	// Sign-ups reset to the loaded value on navigation.
@@ -154,18 +160,16 @@
 		data-testid="cruise-header"
 	>
 		<div class="min-w-0">
+			<BackLink {...parentLink} />
 			<div class="flex flex-wrap items-center gap-3">
 				<h1 class="min-w-0 text-3xl font-bold [overflow-wrap:anywhere] text-[var(--navy)]">
 					{cruise.name}
 				</h1>
 				{#if showHidden && isHidden(cruise)}<HiddenBadge />{/if}
 			</div>
-			{#if series}
-				<p class="mt-1 text-sm [overflow-wrap:anywhere]">
-					<a href="/series/{series.id}" class="text-[var(--ocean)] hover:underline">{series.name}</a
-					>
-					{#if cruise.edition}
-						· edycja {cruise.edition}{/if}
+			{#if series && cruise.edition}
+				<p class="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--text-muted)]">
+					Edycja {cruise.edition}
 				</p>
 			{/if}
 			{#if cruise.countries}
