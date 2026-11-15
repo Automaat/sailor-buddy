@@ -282,15 +282,15 @@ func TestSeriesHandler_Editions(t *testing.T) {
 		return sqlcdb.CruiseSeries{ID: id, Name: "May I Sail"}, nil
 	}
 
-	t.Run("lists editions with totals in query order", func(t *testing.T) {
+	t.Run("lists editions in query order", func(t *testing.T) {
 		var gotSeries types.NullInt64
 		m := &mockQuerier{
 			getCruiseSeriesFn: knownSeries,
 			listCruiseSeriesEditionsFn: func(_ context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error) {
 				gotSeries = seriesID
 				return []sqlcdb.ListCruiseSeriesEditionsRow{
-					{ID: 20, Name: "MIS 2025", Edition: types.NullString{String: "2025", Valid: true}, VoyageCount: 2, TotalMiles: 200, TotalHours: 40},
-					{ID: 10, Name: "MIS 2024", Edition: types.NullString{String: "2024", Valid: true}, VoyageCount: 1, TotalMiles: 100.5, TotalHours: 20},
+					{ID: 20, Name: "MIS 2025", Edition: types.NullString{String: "2025", Valid: true}},
+					{ID: 10, Name: "MIS 2024", Edition: types.NullString{String: "2024", Valid: true}},
 				}, nil
 			},
 		}
@@ -309,11 +309,10 @@ func TestSeriesHandler_Editions(t *testing.T) {
 			t.Fatalf("got %d editions, want 2", len(out))
 		}
 		first, second := out[0], out[1]
-		if first.CruiseID != 20 || first.Edition == nil || *first.Edition != "2025" ||
-			first.TotalMiles != 200 || first.TotalHours != 40 || first.VoyageCount != 2 {
+		if first.CruiseID != 20 || first.Edition == nil || *first.Edition != "2025" || first.Name != "MIS 2025" {
 			t.Errorf("first edition = %+v", first)
 		}
-		if second.CruiseID != 10 || second.TotalMiles != 100.5 || second.TotalHours != 20 {
+		if second.CruiseID != 10 || second.Edition == nil || *second.Edition != "2024" {
 			t.Errorf("second edition = %+v", second)
 		}
 	})

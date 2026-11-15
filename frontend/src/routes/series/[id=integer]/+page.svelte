@@ -7,6 +7,7 @@
 	import { errorMessage } from '#lib/api/errors.js';
 	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
 	import { canSeeHidden, isHidden } from '#lib/publication.js';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	// data comes from +page.ts, which reruns when the URL's series changes.
 	let { data } = $props();
@@ -23,9 +24,6 @@
 	let deleteError = $state('');
 	let form = $state({ name: '', description: '', kind: 'sea' as CruiseKind });
 
-	const totalMiles = $derived(editions.reduce((sum, e) => sum + e.total_miles, 0));
-	const totalHours = $derived(editions.reduce((sum, e) => sum + e.total_hours, 0));
-
 	// The edit form, its error and busy state belong to one series; a link to
 	// another series closes them.
 	$effect(() => {
@@ -35,10 +33,6 @@
 		error = '';
 		deleteError = '';
 	});
-
-	function formatNumber(n: number) {
-		return n.toLocaleString('pl-PL', { maximumFractionDigits: 1 });
-	}
 
 	function startEdit() {
 		form = { name: series.name, description: series.description ?? '', kind: series.kind };
@@ -171,40 +165,40 @@
 				{auth.isAdmin ? 'Brak edycji. Dodaj pierwszą przyciskiem „+ Nowa edycja”.' : 'Brak edycji.'}
 			</p>
 		{:else}
-			<div class="overflow-x-auto">
-				<table class="w-full min-w-[24rem] text-left text-sm">
-					<thead class="text-[var(--text-muted)]">
-						<tr>
-							<th class="py-2">Edycja</th>
-							<th class="py-2">Wydarzenie</th>
-							<th class="py-2 text-right">Mile</th>
-							<th class="py-2 text-right">Godziny</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each editions as e (e.cruise_id)}
-							<tr class="border-t" data-testid="edition-row">
-								<td class="py-2 font-medium">{e.edition ?? '—'}</td>
-								<td class="py-2"
-									><a href="/cruises/{e.cruise_id}" class="text-[var(--ocean)] hover:underline"
+			<table class="w-full table-fixed text-left text-sm">
+				<thead>
+					<tr class="border-b text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+						<th scope="col" class="w-28 pb-2 pr-4 font-medium">Edycja</th>
+						<th scope="col" class="pb-2 font-medium">Nazwa</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y">
+					{#each editions as e (e.cruise_id)}
+						<tr class="group relative hover:bg-[var(--ocean-tint)]/50" data-testid="edition-row">
+							<td class="py-3 pr-4 align-middle">
+								<span
+									class="inline-block min-w-16 rounded-md bg-[var(--ocean-tint)] px-2 py-1 text-center font-semibold tabular-nums text-[var(--ocean)]"
+									>{e.edition ?? '—'}</span
+								>
+							</td>
+							<td class="py-3 align-middle">
+								<div class="flex items-center gap-2">
+									<a
+										href="/cruises/{e.cruise_id}"
+										class="min-w-0 flex-1 font-medium text-[var(--navy)] [overflow-wrap:anywhere] after:absolute after:inset-0 group-hover:text-[var(--ocean)]"
 										>{e.name}</a
 									>
-									{#if showHidden && isHidden(e)}<HiddenBadge />{/if}</td
-								>
-								<td class="py-2 text-right">{formatNumber(e.total_miles)}</td>
-								<td class="py-2 text-right">{formatNumber(e.total_hours)}</td>
-							</tr>
-						{/each}
-					</tbody>
-					<tfoot>
-						<tr class="border-t font-semibold" data-testid="series-totals">
-							<td class="py-2" colspan="2">Razem</td>
-							<td class="py-2 text-right">{formatNumber(totalMiles)}</td>
-							<td class="py-2 text-right">{formatNumber(totalHours)}</td>
+									{#if showHidden && isHidden(e)}<span class="relative"><HiddenBadge /></span>{/if}
+									<ChevronRight
+										class="h-4 w-4 shrink-0 text-[var(--text-muted)] group-hover:text-[var(--ocean)]"
+										aria-hidden="true"
+									/>
+								</div>
+							</td>
 						</tr>
-					</tfoot>
-				</table>
-			</div>
+					{/each}
+				</tbody>
+			</table>
 		{/if}
 	</div>
 </div>

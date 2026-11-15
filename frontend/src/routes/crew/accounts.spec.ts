@@ -355,16 +355,34 @@ describe('people account controls: save feedback', () => {
 	});
 });
 
-describe('account approval controls', () => {
-	it('saves approval independently of membership', async () => {
+describe('account suspension controls', () => {
+	it('shows each account as active or suspended', async () => {
+		listMock.mockResolvedValue(roster().map((m) => (m.id === 6 ? { ...m, suspended: true } : m)));
+		await renderPage();
+		const options = within(screen.getByLabelText('Dostęp: Ewa Sternik')).getAllByRole('option');
+		expect(options.map((o) => o.textContent)).toEqual(['Aktywne', 'Zawieszone']);
+		expect(screen.getByLabelText('Dostęp: Ewa Sternik')).toHaveValue('active');
+		expect(screen.getByLabelText('Dostęp: Gość Nowy')).toHaveValue('suspended');
+	});
+	it('suspends an account independently of membership', async () => {
 		await renderPage();
 		await fireEvent.change(screen.getByLabelText('Dostęp: Gość Nowy'), {
-			target: { value: 'pending' }
+			target: { value: 'suspended' }
 		});
-		await waitFor(() =>
-			expect(updateMemberAccess).toHaveBeenCalledWith(6, { approved: false, suspended: false })
+		await waitFor(() => expect(updateMemberAccess).toHaveBeenCalledWith(6, { suspended: true }));
+		expect(await screen.findByRole('status')).toHaveTextContent(
+			'Zapisano dostęp: Gość Nowy — Zawieszone'
 		);
 		expect(membershipMock).not.toHaveBeenCalled();
+	});
+	it('restores a suspended account', async () => {
+		listMock.mockResolvedValue(roster().map((m) => (m.id === 6 ? { ...m, suspended: true } : m)));
+		await renderPage();
+		await fireEvent.change(screen.getByLabelText('Dostęp: Gość Nowy'), {
+			target: { value: 'active' }
+		});
+		await waitFor(() => expect(updateMemberAccess).toHaveBeenCalledWith(6, { suspended: false }));
+		expect(screen.getByLabelText('Dostęp: Gość Nowy')).toHaveValue('active');
 	});
 	it('restores the saved access after a rejected suspension', async () => {
 		vi.mocked(updateMemberAccess).mockRejectedValueOnce(new Error('Access denied'));
@@ -372,9 +390,9 @@ describe('account approval controls', () => {
 		const select = screen.getByLabelText('Dostęp: Gość Nowy');
 		await fireEvent.change(select, { target: { value: 'suspended' } });
 		await screen.findByText('Access denied');
-		expect(select).toHaveValue('approved');
+		expect(select).toHaveValue('active');
 	});
-	it('prevents restricting an admin before demotion', async () => {
+	it('prevents suspending an admin before demotion', async () => {
 		await renderPage();
 		expect(screen.getByLabelText('Dostęp: Kasia Admin')).toBeDisabled();
 	});

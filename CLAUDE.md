@@ -113,8 +113,8 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   the frontend derives an edition's dates from its legs only for sorting and
   tabs and does not show them. `kind` (sea/inland) is on `cruise_series`; a
   cruise without a series is sea.
-- Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require verified Firebase email and `users.access_approved`;
-  `users.suspended` denies existing-token access. Emergency contacts are
+- Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require a verified Firebase email
+  (no approval step); `users.suspended` denies access, existing tokens included. Emergency contacts are
   restricted to admins and assigned captains; opinions to admins, subject,
   and voyage captain. See `docs/security-access.md`. Mutations require admin
   (`requireAdmin`).

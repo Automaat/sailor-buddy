@@ -602,18 +602,14 @@ func TestCruiseSeriesFromDB(t *testing.T) {
 
 func TestCruiseSeriesEditionsFromDB(t *testing.T) {
 	out := CruiseSeriesEditionsFromDB([]sqlcdb.ListCruiseSeriesEditionsRow{
-		{
-			ID: 10, Name: "MIS 2025", Edition: nstr("2025"), PublishedAt: ntime(),
-			VoyageCount: 2, TotalMiles: 200.5, TotalHours: 40,
-		},
+		{ID: 10, Name: "MIS 2025", Edition: nstr("2025"), PublishedAt: ntime()},
 		{ID: 11, Name: "MIS planned"},
 	})
 	if len(out) != 2 {
 		t.Fatalf("got %d editions", len(out))
 	}
 	e := out[0]
-	if e.CruiseID != 10 || e.Name != "MIS 2025" || e.VoyageCount != 2 ||
-		e.TotalMiles != 200.5 || e.TotalHours != 40 {
+	if e.CruiseID != 10 || e.Name != "MIS 2025" {
 		t.Fatalf("unexpected: %+v", e)
 	}
 	if e.Edition == nil || *e.Edition != "2025" || e.PublishedAt == nil || !e.PublishedAt.Equal(testTime) {

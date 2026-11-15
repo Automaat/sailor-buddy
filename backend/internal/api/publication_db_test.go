@@ -14,8 +14,8 @@ import (
 )
 
 // visibilityFixture is a series with a hidden edition and a published one,
-// each with published and hidden legs. The approved member sailed both
-// voyages of the published edition.
+// each with published and hidden legs. The member sailed both voyages of
+// the published edition.
 type visibilityFixture struct {
 	series                                  int64
 	hiddenCruise, hiddenCruiseTrip          int64
@@ -52,7 +52,7 @@ func seedVisibility(t *testing.T, conn *sql.DB) visibilityFixture {
 	f.hiddenVoyage = insertID(t, conn, `INSERT INTO voyages(name,cruise_id,miles,days) VALUES('Draft voyage',$1,40,1) RETURNING id`, f.cruise)
 	for _, v := range []int64{f.voyage, f.hiddenVoyage} {
 		if _, err := conn.Exec(`INSERT INTO crew_assignments(voyage_id,crew_member_id,role)
-			SELECT $1, cm.id, 'zalogant' FROM crew_members cm JOIN users u ON u.id = cm.user_id WHERE u.firebase_uid = 'approved'`, v); err != nil {
+			SELECT $1, cm.id, 'zalogant' FROM crew_members cm JOIN users u ON u.id = cm.user_id WHERE u.firebase_uid = 'member'`, v); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -104,21 +104,21 @@ func TestHiddenRecordVisibility(t *testing.T) {
 	h, _ := securityRouter(t, conn)
 	f := seedVisibility(t, conn)
 
-	t.Run("pending account reads nothing", func(t *testing.T) {
+	t.Run("unverified account reads nothing", func(t *testing.T) {
 		for _, path := range []string{"/api/cruises", fmt.Sprintf("/api/cruises/%d", f.cruise), fmt.Sprintf("/api/trips/%d", f.trip)} {
-			if rr := securityRequest(h, "pending", http.MethodGet, path, ""); rr.Code != http.StatusForbidden {
+			if rr := securityRequest(h, "unverified", http.MethodGet, path, ""); rr.Code != http.StatusForbidden {
 				t.Fatalf("%s: %d %s", path, rr.Code, rr.Body)
 			}
 		}
 		for _, tok := range []string{f.hiddenCruiseToken, f.hiddenTripToken, f.hiddenInPub} {
-			if rr := securityRequest(h, "pending", http.MethodGet, "/api/enroll/"+tok, ""); rr.Code != http.StatusNotFound {
+			if rr := securityRequest(h, "unverified", http.MethodGet, "/api/enroll/"+tok, ""); rr.Code != http.StatusNotFound {
 				t.Fatalf("hidden token %s: %d %s", tok, rr.Code, rr.Body)
 			}
 		}
 	})
 
-	for _, persona := range []string{"approved", "captain", "admin"} {
-		seesHidden := persona != "approved"
+	for _, persona := range []string{"member", "captain", "admin"} {
+		seesHidden := persona != "member"
 		t.Run(persona, func(t *testing.T) {
 			hiddenStatus := http.StatusNotFound
 			if seesHidden {
@@ -192,16 +192,16 @@ func TestHiddenRecordVisibility(t *testing.T) {
 
 			var editions []dto.CruiseSeriesEdition
 			mustDecode(t, mustGet(t, h, persona, fmt.Sprintf("/api/series/%d/editions", f.series)), &editions)
-			wantEditions := map[int64]float64{f.cruise: 100}
+			wantEditions := map[int64]bool{f.cruise: true}
 			if seesHidden {
-				wantEditions = map[int64]float64{f.cruise: 140, f.hiddenCruise: 500}
+				wantEditions = map[int64]bool{f.cruise: true, f.hiddenCruise: true}
 			}
 			if len(editions) != len(wantEditions) {
 				t.Errorf("editions = %+v, want %v", editions, wantEditions)
 			}
 			for _, e := range editions {
-				if miles, ok := wantEditions[e.CruiseID]; !ok || e.TotalMiles != miles || (e.PublishedAt == nil) != (e.CruiseID == f.hiddenCruise) {
-					t.Errorf("edition %+v, want miles %v", e, wantEditions[e.CruiseID])
+				if !wantEditions[e.CruiseID] || (e.PublishedAt == nil) != (e.CruiseID == f.hiddenCruise) {
+					t.Errorf("unexpected edition %+v", e)
 				}
 			}
 
@@ -246,7 +246,7 @@ func TestHiddenRecordVisibility(t *testing.T) {
 
 	t.Run("member sea time counts visible voyages only", func(t *testing.T) {
 		var dash dto.Dashboard
-		mustDecode(t, mustGet(t, h, "approved", "/api/dashboard"), &dash)
+		mustDecode(t, mustGet(t, h, "member", "/api/dashboard"), &dash)
 		if dash.Personal.Total.VoyageCount != 1 || dash.Personal.Total.TotalMiles != 100 {
 			t.Fatalf("personal = %+v, want the published voyage only", dash.Personal.Total)
 		}
@@ -269,7 +269,7 @@ func TestPublication(t *testing.T) {
 	}
 	memberSees := func(path string) bool {
 		t.Helper()
-		rr := securityRequest(h, "approved", http.MethodGet, path, "")
+		rr := securityRequest(h, "member", http.MethodGet, path, "")
 		if rr.Code != http.StatusOK && rr.Code != http.StatusNotFound {
 			t.Fatalf("GET %s: %d %s", path, rr.Code, rr.Body)
 		}
@@ -282,7 +282,7 @@ func TestPublication(t *testing.T) {
 			fmt.Sprintf("/api/trips/%d/publish", f.hiddenTrip), fmt.Sprintf("/api/trips/%d/unpublish", f.trip),
 			fmt.Sprintf("/api/voyages/%d/publish", f.hiddenVoyage), fmt.Sprintf("/api/voyages/%d/unpublish", f.voyage),
 		}
-		for _, token := range []string{"approved", "captain"} {
+		for _, token := range []string{"member", "captain"} {
 			for _, path := range paths {
 				if code, body := post(token, path, ""); code != http.StatusForbidden {
 					t.Errorf("%s POST %s: %d %s", token, path, code, body)
@@ -358,7 +358,7 @@ func TestPublication(t *testing.T) {
 	})
 
 	t.Run("unpublish is allowed with enrollments", func(t *testing.T) {
-		if rr := securityRequest(h, "approved", http.MethodPost, fmt.Sprintf("/api/trips/%d/sign-up", f.trip), ""); rr.Code != http.StatusCreated {
+		if rr := securityRequest(h, "member", http.MethodPost, fmt.Sprintf("/api/trips/%d/sign-up", f.trip), ""); rr.Code != http.StatusCreated {
 			t.Fatalf("sign-up: %d %s", rr.Code, rr.Body)
 		}
 		if code, body := post("admin", fmt.Sprintf("/api/trips/%d/unpublish", f.trip), ""); code != http.StatusOK {
@@ -367,7 +367,7 @@ func TestPublication(t *testing.T) {
 		if memberSees(fmt.Sprintf("/api/trips/%d", f.trip)) {
 			t.Fatal("unpublished trip still visible")
 		}
-		if rr := securityRequest(h, "approved", http.MethodDelete, fmt.Sprintf("/api/trips/%d/sign-up", f.trip), ""); rr.Code != http.StatusNotFound {
+		if rr := securityRequest(h, "member", http.MethodDelete, fmt.Sprintf("/api/trips/%d/sign-up", f.trip), ""); rr.Code != http.StatusNotFound {
 			t.Fatalf("withdraw from hidden leg: %d %s", rr.Code, rr.Body)
 		}
 		if code, body := post("admin", fmt.Sprintf("/api/cruises/%d/unpublish", f.cruise), ""); code != http.StatusOK {
@@ -397,7 +397,7 @@ func TestTripCompletionKeepsPublication(t *testing.T) {
 		if (voyage.PublishedAt != nil) != published {
 			t.Fatalf("trip published=%v gave voyage published_at %v", published, voyage.PublishedAt)
 		}
-		member := securityRequest(h, "approved", http.MethodGet, fmt.Sprintf("/api/voyages/%d", voyage.ID), "")
+		member := securityRequest(h, "member", http.MethodGet, fmt.Sprintf("/api/voyages/%d", voyage.ID), "")
 		if (member.Code == http.StatusOK) != published {
 			t.Fatalf("member sees voyage of published=%v trip: %d", published, member.Code)
 		}
@@ -460,8 +460,8 @@ func TestHiddenVoyageStaysWritableByItsCaptain(t *testing.T) {
 	}{
 		{"subject", f.hiddenVoyage, http.StatusNoContent},
 		{"subject", f.voyage, http.StatusNoContent},
-		{"approved", f.hiddenVoyage, http.StatusNotFound},
-		{"approved", f.voyage, http.StatusForbidden},
+		{"member", f.hiddenVoyage, http.StatusNotFound},
+		{"member", f.voyage, http.StatusForbidden},
 		{"captain", f.hiddenVoyage, http.StatusForbidden},
 		{"admin", f.hiddenVoyage, http.StatusNoContent},
 	}
@@ -489,16 +489,16 @@ func TestCruiseShareLinkHidesHiddenLegEnrollments(t *testing.T) {
 	h, _ := securityRouter(t, conn)
 	f := seedVisibility(t, conn)
 	if _, err := conn.Exec(`INSERT INTO crew_members(user_id, full_name)
-		SELECT id, email FROM users WHERE firebase_uid = 'approved' ON CONFLICT (user_id) DO NOTHING`); err != nil {
+		SELECT id, email FROM users WHERE firebase_uid = 'member' ON CONFLICT (user_id) DO NOTHING`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec(`INSERT INTO trip_enrollments(trip_id, crew_member_id)
 		SELECT t, cm.id FROM unnest($1::BIGINT[]) t, users u JOIN crew_members cm ON cm.user_id = u.id
-		WHERE u.firebase_uid = 'approved'`, []int64{f.trip, f.hiddenTrip}); err != nil {
+		WHERE u.firebase_uid = 'member'`, []int64{f.trip, f.hiddenTrip}); err != nil {
 		t.Fatal(err)
 	}
 	var info dto.EnrollInfo
-	mustDecode(t, mustGet(t, h, "approved", "/api/enroll/"+f.cruiseToken), &info)
+	mustDecode(t, mustGet(t, h, "member", "/api/enroll/"+f.cruiseToken), &info)
 	var legs []int64
 	for _, e := range info.LegEnrollments {
 		if e.TripID != nil {
@@ -593,7 +593,7 @@ func TestMyCruisesHidesHiddenRecords(t *testing.T) {
 	f := seedVisibility(t, conn)
 	standalone := insertID(t, conn, `INSERT INTO cruises(name,published_at) VALUES('Standalone',now()) RETURNING id`)
 	hiddenLeg := insertID(t, conn, `INSERT INTO voyages(name,cruise_id) VALUES('Draft leg of standalone',$1) RETURNING id`, standalone)
-	for _, persona := range []string{"approved", "captain"} {
+	for _, persona := range []string{"member", "captain"} {
 		for _, v := range []int64{f.hiddenCruiseVoyage, hiddenLeg} {
 			if _, err := conn.Exec(`INSERT INTO crew_assignments(voyage_id,crew_member_id,role)
 				SELECT $1, cm.id, 'zalogant' FROM crew_members cm JOIN users u ON u.id = cm.user_id
@@ -603,8 +603,8 @@ func TestMyCruisesHidesHiddenRecords(t *testing.T) {
 		}
 	}
 	want := map[string][]int64{
-		"approved": {f.cruise},
-		"captain":  {f.hiddenCruise, standalone},
+		"member":  {f.cruise},
+		"captain": {f.hiddenCruise, standalone},
 	}
 	for persona, ids := range want {
 		var got dto.MyCruises

@@ -7,7 +7,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 }));
 
 import { auth } from '#lib/stores/auth.svelte.js';
-import { api } from './client';
+import { api, ApiError } from './client';
 
 const getIdToken = auth.getIdToken as unknown as ReturnType<typeof vi.fn>;
 const logout = auth.logout as unknown as ReturnType<typeof vi.fn>;
@@ -76,6 +76,19 @@ describe('request error handling', () => {
 	it('throws the detail field from an error body', async () => {
 		fetchMock.mockResolvedValue(jsonResponse({ detail: 'Brak dostępu' }, { status: 403 }));
 		await expect(api.get('/dashboard')).rejects.toThrow('Brak dostępu');
+	});
+
+	it('keeps the API reason code on the error', async () => {
+		fetchMock.mockResolvedValue(
+			jsonResponse({ code: 'account_suspended', detail: 'account suspended' }, { status: 403 })
+		);
+		const err = await api.get('/auth/me').catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(ApiError);
+		expect(err).toMatchObject({
+			status: 403,
+			code: 'account_suspended',
+			message: 'account suspended'
+		});
 	});
 
 	it('falls back to the title field when detail is absent', async () => {

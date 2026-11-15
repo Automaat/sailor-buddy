@@ -24,26 +24,15 @@ WHERE id = $4;
 DELETE FROM cruise_series WHERE id = $1;
 
 -- name: ListCruiseSeriesEditions :many
--- Editions of a series newest first by their first leg's embark date, each
--- with the miles and hours summed over its voyages. An edition without a
--- dated leg (NULL, or the empty string the leg forms send) is still being
--- planned, so it sorts before every dated one. Without include_hidden only
--- published editions are listed, and only their published legs set the
--- order and the voyage totals.
-SELECT
-    c.id,
-    c.name,
-    c.edition,
-    c.published_at,
-    COUNT(v.id)::BIGINT AS voyage_count,
-    COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
-    COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours
+-- Editions of a series newest first by their first leg's embark date. An
+-- edition without a dated leg (NULL, or the empty string the leg forms send)
+-- is still being planned, so it sorts before every dated one. Without
+-- include_hidden only published editions are listed, and only their
+-- published legs set the order.
+SELECT c.id, c.name, c.edition, c.published_at
 FROM cruises c
-LEFT JOIN voyages v ON v.cruise_id = c.id
-    AND (sqlc.arg(include_hidden)::BOOLEAN OR v.published_at IS NOT NULL)
 WHERE c.series_id = sqlc.arg(series_id)
   AND (sqlc.arg(include_hidden)::BOOLEAN OR c.published_at IS NOT NULL)
-GROUP BY c.id
 ORDER BY (
     SELECT MIN(NULLIF(l.embark_date, '')) FROM (
         SELECT t.embark_date FROM trips t
