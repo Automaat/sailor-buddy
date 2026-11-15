@@ -116,7 +116,7 @@ func (o enrollmentOperations) changeTripStatus(ctx context.Context, tripID, enro
 			return &QueryError{Op: "LockTripEnrollmentOfTrip", Err: err}
 		}
 		if status == enrollmentAccepted && e.Status != enrollmentAccepted {
-			if err := checkPlaceFree(ctx, q, trip.ID, e.UserID, trip.MaxCrew); err != nil {
+			if err := checkPlaceFree(ctx, q, trip.ID, e.CrewMemberID, trip.MaxCrew); err != nil {
 				return err
 			}
 		}
@@ -127,9 +127,9 @@ func (o enrollmentOperations) changeTripStatus(ctx context.Context, tripID, enro
 			return &QueryError{Op: "UpdateTripEnrollmentStatus", Err: err}
 		}
 		if status == enrollmentAccepted {
-			return addAcceptedCrew(ctx, q, trip.ID, e.UserID)
+			return addAcceptedPersonCrew(ctx, q, trip.ID, e.CrewMemberID)
 		}
-		return removeAcceptedCrew(ctx, q, trip.ID, e.UserID)
+		return removeAcceptedPersonCrew(ctx, q, trip.ID, e.CrewMemberID)
 	})
 }
 
@@ -152,7 +152,7 @@ func (o enrollmentOperations) deleteTripEnrollment(ctx context.Context, tripID, 
 		if err := q.DeleteTripEnrollment(ctx, e.ID); err != nil {
 			return &QueryError{Op: "DeleteTripEnrollment", Err: err}
 		}
-		return removeAcceptedCrew(ctx, q, trip.ID, e.UserID)
+		return removeAcceptedPersonCrew(ctx, q, trip.ID, e.CrewMemberID)
 	})
 }
 
@@ -164,7 +164,7 @@ func (o enrollmentOperations) changeCruiseStatus(ctx context.Context, cruiseID, 
 		}
 		if status == enrollmentAccepted && e.Status != enrollmentAccepted && e.TripID.Valid {
 			leg := legs[e.TripID.Int64]
-			if err := checkPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
+			if err := checkUserPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
 				return err
 			}
 		}
@@ -194,7 +194,7 @@ func (o enrollmentOperations) assignCruiseEnrollment(ctx context.Context, cruise
 		moving := target != nil && (!e.TripID.Valid || e.TripID.Int64 != *target)
 		if moving && e.Status == enrollmentAccepted {
 			leg := legs[*target]
-			if err := checkPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
+			if err := checkUserPlaceFree(ctx, q, leg.ID, e.UserID, leg.MaxCrew); err != nil {
 				return err
 			}
 		}
@@ -231,12 +231,28 @@ func (o enrollmentOperations) deleteCruiseEnrollment(ctx context.Context, cruise
 	})
 }
 
-// signUp creates or returns the user's sign-up for a leg. A hidden leg is
-// missing (sql.ErrNoRows) unless seeHidden; checkSignUpOpen then refuses it.
+// checkUserPlaceFree is checkPlaceFree for the person of userID's account,
+// for a cruise enrollment.
+func checkUserPlaceFree(ctx context.Context, q sqlcdb.Querier, tripID, userID int64, maxCrew types.NullInt64) error {
+	if _, ok := crewLimit(maxCrew); !ok {
+		return nil
+	}
+	personID, err := lockUserPerson(ctx, q, userID)
+	if err != nil {
+		return err
+	}
+	return checkPlaceFree(ctx, q, tripID, personID, maxCrew)
+}
+
+// signUp creates or returns the user's sign-up for a leg: one of the
+// account's person. A hidden leg is missing (sql.ErrNoRows) unless
+// seeHidden; checkSignUpOpen then refuses it. The person is locked after
+// the leg, as in acceptance; a person merge that holds the person and waits
+// for the leg deadlocks with it, and the losing side runs again.
 func (o enrollmentOperations) signUp(ctx context.Context, tripID, userID int64, today string, seeHidden bool) (dto.EnrollLegResult, error) {
 	key := sqlcdb.GetUserTripEnrollmentParams{TripID: tripID, UserID: userID}
 	var out dto.EnrollLegResult
-	err := o.runTx(ctx, func(q sqlcdb.Querier) error {
+	err := retryDeadlock(o.runTx)(ctx, func(q sqlcdb.Querier) error {
 		trip, err := q.LockTripForSignUp(ctx, tripID)
 		if err != nil {
 			return err
@@ -259,11 +275,15 @@ func (o enrollmentOperations) signUp(ctx context.Context, tripID, userID int64, 
 		if err != nil {
 			return err
 		}
+		personID, err := lockUserPerson(ctx, q, userID)
+		if err != nil {
+			return err
+		}
 		result := "created"
 		e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
-			TripID: trip.ID,
-			UserID: userID,
-			Status: status,
+			TripID:       trip.ID,
+			CrewMemberID: personID,
+			Status:       status,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			result = "already_enrolled"
@@ -272,15 +292,76 @@ func (o enrollmentOperations) signUp(ctx context.Context, tripID, userID int64, 
 		if err != nil {
 			return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
 		}
-		out = dto.EnrollLegResult{TripID: trip.ID, Result: result, Enrollment: dto.TripEnrollmentToDTO(e)}
+		out = dto.EnrollLegResult{TripID: trip.ID, Result: result, Enrollment: dto.UserTripEnrollmentToDTO(e, userID)}
 		return setWaitlistPosition(ctx, q, &out.Enrollment, &out.WaitlistPosition)
+	})
+	return out, err
+}
+
+// errAlreadySignedUp aborts an admin sign-up when the person already has a
+// sign-up for the leg.
+var errAlreadySignedUp = errors.New("person already signed up for the leg")
+
+// errSignUpPersonNotFound aborts an admin sign-up for a person that does not
+// exist, or was deleted or merged away before the insert.
+var errSignUpPersonNotFound = errors.New("person not found")
+
+// signUpPersonFKey is violated when the person was deleted, or merged away,
+// between the lookup and the sign-up insert.
+const signUpPersonFKey = "trip_enrollments_crew_member_id_fkey"
+
+// signUpPerson is an admin's sign-up of a person, with or without an
+// account, for a planned leg. It ignores whether sign-ups are switched on,
+// the deadline and publication, but starts pending or waitlisted by the
+// same place rule as a self sign-up, under the same leg lock. sql.ErrNoRows
+// means the trip does not exist; errTripNotPlanned that it is cancelled.
+func (o enrollmentOperations) signUpPerson(ctx context.Context, tripID, personID int64, note types.NullString) (sqlcdb.ListTripEnrollmentsRow, error) {
+	var out sqlcdb.ListTripEnrollmentsRow
+	err := retryDeadlock(o.runTx)(ctx, func(q sqlcdb.Querier) error {
+		trip, err := q.LockTripForSignUp(ctx, tripID)
+		if err != nil {
+			return err
+		}
+		if trip.Status != sqlcdb.TripStatusPlanned {
+			return errTripNotPlanned
+		}
+		if _, err := q.GetCrewMember(ctx, personID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return errSignUpPersonNotFound
+			}
+			return &QueryError{Op: "GetCrewMember", Err: err}
+		}
+		status, err := initialSignUpStatus(ctx, q, trip.ID, trip.MaxCrew)
+		if err != nil {
+			return err
+		}
+		e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
+			TripID:       trip.ID,
+			CrewMemberID: personID,
+			Note:         note,
+			Status:       status,
+		})
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return errAlreadySignedUp
+		case isForeignKeyViolation(err, signUpPersonFKey):
+			return errSignUpPersonNotFound
+		case err != nil:
+			return &QueryError{Op: "CreateTripEnrollmentIfAbsent", Err: err}
+		}
+		row, err := q.GetTripEnrollmentDetail(ctx, sqlcdb.GetTripEnrollmentDetailParams{ID: e.ID, TripID: trip.ID})
+		if err != nil {
+			return &QueryError{Op: "GetTripEnrollmentDetail", Err: err}
+		}
+		out = sqlcdb.ListTripEnrollmentsRow(row)
+		return nil
 	})
 	return out, err
 }
 
 func (o enrollmentOperations) enrollByTripToken(ctx context.Context, tripID int64, token string, userID int64, note types.NullString, today string) (sqlcdb.TripEnrollment, error) {
 	var e sqlcdb.TripEnrollment
-	err := o.runTx(ctx, func(q sqlcdb.Querier) error {
+	err := retryDeadlock(o.runTx)(ctx, func(q sqlcdb.Querier) error {
 		trip, err := q.LockTripForSignUp(ctx, tripID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errTripNotPlanned
@@ -304,11 +385,15 @@ func (o enrollmentOperations) enrollByTripToken(ctx context.Context, tripID int6
 		if err != nil {
 			return err
 		}
+		personID, err := lockUserPerson(ctx, q, userID)
+		if err != nil {
+			return err
+		}
 		e, err = q.CreateTripEnrollment(ctx, sqlcdb.CreateTripEnrollmentParams{
-			TripID: trip.ID,
-			UserID: userID,
-			Note:   note,
-			Status: initial,
+			TripID:       trip.ID,
+			CrewMemberID: personID,
+			Note:         note,
+			Status:       initial,
 		})
 		return err
 	})
@@ -321,7 +406,8 @@ func (o enrollmentOperations) enrollByCruiseToken(ctx context.Context, cruiseID 
 	insertOrder := slices.Clone(tripIDs)
 	slices.Sort(insertOrder)
 	byTrip := make(map[int64]dto.EnrollLegResult, len(insertOrder))
-	err := o.runTx(ctx, func(q sqlcdb.Querier) error {
+	err := retryDeadlock(o.runTx)(ctx, func(q sqlcdb.Querier) error {
+		clear(byTrip)
 		if _, err := q.LockCruiseEnrollToken(ctx, sqlcdb.LockCruiseEnrollTokenParams{ID: cruiseID, EnrollToken: tok}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return errLinkSwitchedOff
@@ -350,16 +436,20 @@ func (o enrollmentOperations) enrollByCruiseToken(ctx context.Context, cruiseID 
 			}
 		}
 
+		personID, err := lockUserPerson(ctx, q, userID)
+		if err != nil {
+			return err
+		}
 		for _, id := range insertOrder {
 			initial, err := initialSignUpStatus(ctx, q, id, legs[id].MaxCrew)
 			if err != nil {
 				return err
 			}
 			e, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
-				TripID: id,
-				UserID: userID,
-				Note:   nullString(note),
-				Status: initial,
+				TripID:       id,
+				CrewMemberID: personID,
+				Note:         nullString(note),
+				Status:       initial,
 			})
 			result := "created"
 			if errors.Is(err, sql.ErrNoRows) {
@@ -372,7 +462,7 @@ func (o enrollmentOperations) enrollByCruiseToken(ctx context.Context, cruiseID 
 			r := dto.EnrollLegResult{
 				TripID:     id,
 				Result:     result,
-				Enrollment: dto.TripEnrollmentToDTO(e),
+				Enrollment: dto.UserTripEnrollmentToDTO(e, userID),
 			}
 			if err := setWaitlistPosition(ctx, q, &r.Enrollment, &r.WaitlistPosition); err != nil {
 				return err

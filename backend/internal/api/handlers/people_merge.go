@@ -62,9 +62,11 @@ func PlanPersonMerge(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID 
 // MergePeople merges the duplicate person into the kept one using q, which
 // must be bound to a transaction the caller commits or rolls back; a caller
 // should retry it when the transaction fails with a deadlock (40P01). Crew
-// assignments, voyage opinions and leg and voyage captaincies move to the
-// kept person; where both people
-// have one for the same leg, voyage or opinion, the kept person's stays. The
+// assignments, voyage opinions, leg sign-ups and leg and voyage captaincies
+// move to the kept person; where both people have one for the same leg,
+// voyage or opinion, the kept person's stays. Of two sign-ups for one leg
+// the stronger status stays (accepted > pending > waitlisted > rejected),
+// the kept person's on a tie, with the more advanced payment status. The
 // duplicate's names join the kept person's other names, empty contact fields
 // are filled from the duplicate, and the duplicate's account link moves over
 // together with the account's name, since profile saves overwrite it anyway;
@@ -173,9 +175,13 @@ func lockMergeLegs(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 }
 
 // moveMergeRows moves the duplicate's crew assignments, voyage opinions,
-// captaincies and person link requests to the kept person, dropping the entries the kept person
-// already has. It returns the files of the dropped opinions.
+// leg sign-ups, captaincies and person link requests to the kept person,
+// dropping the entries the kept person already has. It returns the files
+// of the dropped opinions.
 func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) ([]string, error) {
+	if err := moveMergeSignUps(ctx, q, keptID, duplicateID); err != nil {
+		return nil, err
+	}
 	if err := q.MergeSharedCrewAssignments(ctx, sqlcdb.MergeSharedCrewAssignmentsParams{
 		KeptID: keptID, DuplicateID: duplicateID,
 	}); err != nil {
@@ -218,6 +224,27 @@ func moveMergeRows(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID in
 		return nil, &QueryError{Op: "MovePersonLinkRequests", Err: err}
 	}
 	return files, nil
+}
+
+// moveMergeSignUps moves the duplicate's leg sign-ups to the kept person.
+// Where both signed up for one leg, one sign-up stays: see MergePeople.
+func moveMergeSignUps(ctx context.Context, q sqlcdb.Querier, keptID, duplicateID int64) error {
+	if err := q.MergeSharedTripEnrollmentPayments(ctx, sqlcdb.MergeSharedTripEnrollmentPaymentsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return &QueryError{Op: "MergeSharedTripEnrollmentPayments", Err: err}
+	}
+	if _, err := q.DeleteSharedTripEnrollments(ctx, sqlcdb.DeleteSharedTripEnrollmentsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return &QueryError{Op: "DeleteSharedTripEnrollments", Err: err}
+	}
+	if _, err := q.MoveTripEnrollments(ctx, sqlcdb.MoveTripEnrollmentsParams{
+		KeptID: keptID, DuplicateID: duplicateID,
+	}); err != nil {
+		return &QueryError{Op: "MoveTripEnrollments", Err: err}
+	}
+	return nil
 }
 
 func getMergePerson(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.CrewMember, error) {

@@ -50,7 +50,7 @@ type mockQuerier struct {
 	deleteVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
 
 	// crew assignments
-	createTripCrewFn        func(ctx context.Context, arg sqlcdb.CreateTripCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
+	updateTripCrewRoleFn    func(ctx context.Context, arg sqlcdb.UpdateTripCrewAssignmentRoleParams) (sqlcdb.UpdateTripCrewAssignmentRoleRow, error)
 	listTripCrewFn          func(ctx context.Context, tripID types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error)
 	deleteTripCrewFn        func(ctx context.Context, arg sqlcdb.DeleteTripCrewAssignmentParams) error
 	createVoyageCrewFn      func(ctx context.Context, arg sqlcdb.CreateVoyageCrewAssignmentParams) (sqlcdb.CrewAssignment, error)
@@ -61,8 +61,9 @@ type mockQuerier struct {
 	// trip enrollments
 	createTripEnrollmentFn         func(ctx context.Context, arg sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
 	listTripEnrollmentsFn          func(ctx context.Context, tripID int64) ([]sqlcdb.ListTripEnrollmentsRow, error)
+	getTripEnrollmentDetailFn      func(ctx context.Context, arg sqlcdb.GetTripEnrollmentDetailParams) (sqlcdb.GetTripEnrollmentDetailRow, error)
 	updateTripEnrollmentStatusFn   func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentStatusParams) error
-	updateTripEnrollmentPaymentFn  func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error)
+	updateTripEnrollmentPaymentFn  func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error)
 	deleteTripEnrollmentFn         func(ctx context.Context, id int64) error
 	countTripEnrollmentsFn         func(ctx context.Context, tripID int64) (sqlcdb.CountTripEnrollmentsRow, error)
 	getUserTripEnrollmentFn        func(ctx context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error)
@@ -344,11 +345,11 @@ func (m *mockQuerier) DeleteVoyagePort(ctx context.Context, arg sqlcdb.DeleteVoy
 
 // --- crew assignments ---
 
-func (m *mockQuerier) CreateTripCrewAssignment(ctx context.Context, arg sqlcdb.CreateTripCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
-	if m.createTripCrewFn == nil {
-		panic("unexpected call to CreateTripCrewAssignment")
+func (m *mockQuerier) UpdateTripCrewAssignmentRole(ctx context.Context, arg sqlcdb.UpdateTripCrewAssignmentRoleParams) (sqlcdb.UpdateTripCrewAssignmentRoleRow, error) {
+	if m.updateTripCrewRoleFn == nil {
+		panic("unexpected call to UpdateTripCrewAssignmentRole")
 	}
-	return m.createTripCrewFn(ctx, arg)
+	return m.updateTripCrewRoleFn(ctx, arg)
 }
 
 func (m *mockQuerier) ListTripCrewAssignments(ctx context.Context, tripID types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
@@ -409,7 +410,14 @@ func (m *mockQuerier) ListTripEnrollments(ctx context.Context, tripID int64) ([]
 	return m.listTripEnrollmentsFn(ctx, tripID)
 }
 
-func (m *mockQuerier) UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error) {
+func (m *mockQuerier) GetTripEnrollmentDetail(ctx context.Context, arg sqlcdb.GetTripEnrollmentDetailParams) (sqlcdb.GetTripEnrollmentDetailRow, error) {
+	if m.getTripEnrollmentDetailFn == nil {
+		panic("unexpected call to GetTripEnrollmentDetail")
+	}
+	return m.getTripEnrollmentDetailFn(ctx, arg)
+}
+
+func (m *mockQuerier) UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error) {
 	if m.updateTripEnrollmentPaymentFn == nil {
 		panic("unexpected call to UpdateTripEnrollmentPaymentStatus")
 	}

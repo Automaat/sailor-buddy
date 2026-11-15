@@ -488,8 +488,13 @@ func TestCruiseShareLinkHidesHiddenLegEnrollments(t *testing.T) {
 	conn := securityDatabase(t)
 	h, _ := securityRouter(t, conn)
 	f := seedVisibility(t, conn)
-	if _, err := conn.Exec(`INSERT INTO trip_enrollments(trip_id, user_id)
-		SELECT t, u.id FROM unnest($1::BIGINT[]) t, users u WHERE u.firebase_uid = 'approved'`, []int64{f.trip, f.hiddenTrip}); err != nil {
+	if _, err := conn.Exec(`INSERT INTO crew_members(user_id, full_name)
+		SELECT id, email FROM users WHERE firebase_uid = 'approved' ON CONFLICT (user_id) DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`INSERT INTO trip_enrollments(trip_id, crew_member_id)
+		SELECT t, cm.id FROM unnest($1::BIGINT[]) t, users u JOIN crew_members cm ON cm.user_id = u.id
+		WHERE u.firebase_uid = 'approved'`, []int64{f.trip, f.hiddenTrip}); err != nil {
 		t.Fatal(err)
 	}
 	var info dto.EnrollInfo

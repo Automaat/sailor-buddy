@@ -20,15 +20,15 @@ func TestUpdatePaymentStatus(t *testing.T) {
 		name     string
 		ctx      context.Context
 		body     map[string]any
-		update   func(context.Context, sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error)
+		update   func(context.Context, sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error)
 		wantCode int
 	}{
 		{
 			name: "admin sets deposit",
 			ctx:  userCtx(context.Background()),
 			body: map[string]any{"payment_status": "deposit"},
-			update: func(_ context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error) {
-				return sqlcdb.TripEnrollment{ID: arg.ID, TripID: arg.TripID, Status: "pending", PaymentStatus: arg.PaymentStatus}, nil
+			update: func(_ context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error) {
+				return sqlcdb.UpdateTripEnrollmentPaymentStatusRow{ID: arg.ID, TripID: arg.TripID, CrewMemberID: 4, Status: "pending", PaymentStatus: arg.PaymentStatus, PersonName: "Ola"}, nil
 			},
 			wantCode: http.StatusOK,
 		},
@@ -48,8 +48,8 @@ func TestUpdatePaymentStatus(t *testing.T) {
 			name: "enrollment of another trip is not found",
 			ctx:  userCtx(context.Background()),
 			body: map[string]any{"payment_status": "paid"},
-			update: func(context.Context, sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error) {
-				return sqlcdb.TripEnrollment{}, sql.ErrNoRows
+			update: func(context.Context, sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error) {
+				return sqlcdb.UpdateTripEnrollmentPaymentStatusRow{}, sql.ErrNoRows
 			},
 			wantCode: http.StatusNotFound,
 		},
@@ -57,8 +57,8 @@ func TestUpdatePaymentStatus(t *testing.T) {
 			name: "database error",
 			ctx:  userCtx(context.Background()),
 			body: map[string]any{"payment_status": "paid"},
-			update: func(context.Context, sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error) {
-				return sqlcdb.TripEnrollment{}, errors.New("boom")
+			update: func(context.Context, sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error) {
+				return sqlcdb.UpdateTripEnrollmentPaymentStatusRow{}, errors.New("boom")
 			},
 			wantCode: http.StatusInternalServerError,
 		},
@@ -68,7 +68,7 @@ func TestUpdatePaymentStatus(t *testing.T) {
 			var got *sqlcdb.UpdateTripEnrollmentPaymentStatusParams
 			m := &mockQuerier{}
 			if tt.update != nil {
-				m.updateTripEnrollmentPaymentFn = func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.TripEnrollment, error) {
+				m.updateTripEnrollmentPaymentFn = func(ctx context.Context, arg sqlcdb.UpdateTripEnrollmentPaymentStatusParams) (sqlcdb.UpdateTripEnrollmentPaymentStatusRow, error) {
 					got = &arg
 					return tt.update(ctx, arg)
 				}
@@ -86,11 +86,11 @@ func TestUpdatePaymentStatus(t *testing.T) {
 			if tt.wantCode != http.StatusOK {
 				return
 			}
-			var e dto.Enrollment
+			var e dto.TripEnrollmentDetail
 			if err := json.Unmarshal(resp.Body.Bytes(), &e); err != nil {
 				t.Fatalf("decode: %v; body=%s", err, resp.Body)
 			}
-			if e.PaymentStatus != "deposit" || e.Status != "pending" {
+			if e.PaymentStatus != "deposit" || e.Status != "pending" || e.PersonName != "Ola" || e.UserID != nil {
 				t.Fatalf("enrollment = %+v, want pending with deposit", e)
 			}
 		})

@@ -79,7 +79,8 @@ FOR UPDATE;
 
 -- name: CountCrewMergeRows :one
 -- Counts what merging the duplicate into the kept person moves. A shared
--- row is a leg, voyage or voyage opinion both people already have.
+-- row is a leg, voyage, voyage opinion or leg sign-up both people already
+-- have.
 SELECT
     (SELECT COUNT(*) FROM crew_assignments
      WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT AND trip_id IS NOT NULL)::BIGINT AS trip_assignments,
@@ -97,7 +98,12 @@ SELECT
     (SELECT COUNT(*) FROM trips
      WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS captained_trips,
     (SELECT COUNT(*) FROM voyages
-     WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS captained_voyages;
+     WHERE captain_person_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS captained_voyages,
+    (SELECT COUNT(*) FROM trip_enrollments
+     WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS trip_enrollments,
+    (SELECT COUNT(*) FROM trip_enrollments d
+     JOIN trip_enrollments k ON k.crew_member_id = sqlc.arg(kept_id)::BIGINT AND k.trip_id = d.trip_id
+     WHERE d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT)::BIGINT AS shared_trip_enrollments;
 
 -- name: DeleteMergedCrewMember :execrows
 DELETE FROM crew_members WHERE id = $1;
@@ -119,14 +125,18 @@ RETURNING *;
 SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: LockCrewMergeTrips :exec
--- Share-locks every leg either person is on or captains, so completing a
--- leg waits for the merge instead of moving its crew or captain under it.
--- Taken after the people, in the person-then-leg order of leg completion
--- and person deletion.
+-- Share-locks every leg either person is on, signed up for or captains, so
+-- completing a leg, or a sign-up change on it, waits for the merge instead
+-- of moving its crew, sign-ups or captain under it. Taken after the people,
+-- in the person-then-leg order of leg completion and person deletion.
 SELECT t.id FROM trips t
 WHERE t.id IN (
     SELECT ca.trip_id FROM crew_assignments ca
     WHERE ca.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
+)
+   OR t.id IN (
+    SELECT te.trip_id FROM trip_enrollments te
+    WHERE te.crew_member_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
 )
    OR t.captain_person_id IN (sqlc.arg(first_id)::BIGINT, sqlc.arg(second_id)::BIGINT)
 ORDER BY t.id

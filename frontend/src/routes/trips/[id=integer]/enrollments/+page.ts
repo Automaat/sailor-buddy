@@ -1,5 +1,10 @@
 import { redirect } from '@sveltejs/kit';
-import { getTrip, getTripSignUp, listTripEnrollments } from '#lib/api/routes.js';
+import {
+	getTrip,
+	getTripSignUp,
+	listAssignableCrew,
+	listTripEnrollments
+} from '#lib/api/routes.js';
 import { ApiError } from '#lib/api/client.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
@@ -39,9 +44,16 @@ export const load: PageLoad = async ({ params }) => {
 		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];
-	const [enrollments, signUp] = await Promise.all([
+	const [enrollments, signUp, people] = await Promise.all([
 		listTripEnrollments(id).then((e) => e ?? [], adminOnly(id)),
-		settle(getTripSignUp(id), null, noteFailure(loadErrors, 'liczba zajętych miejsc'))
+		settle(getTripSignUp(id), null, noteFailure(loadErrors, 'liczba zajętych miejsc')),
+		settle(listAssignableCrew(), [], noteFailure(loadErrors, 'lista osób'))
 	]);
-	return { trip, enrollments, otherAccepted: otherAcceptedCount(signUp, enrollments), loadErrors };
+	return {
+		trip,
+		enrollments,
+		people,
+		otherAccepted: otherAcceptedCount(signUp, enrollments),
+		loadErrors
+	};
 };

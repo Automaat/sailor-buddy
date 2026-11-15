@@ -15,8 +15,8 @@ import (
 )
 
 // legStore is an in-memory trip_enrollments table keyed like the real one
-// (UNIQUE(trip_id, user_id)), wired into a mockQuerier for the cruise with
-// ID 7 and the given trips.
+// (UNIQUE(trip_id, crew_member_id)), wired into a mockQuerier for the cruise
+// with ID 7 and the given trips. User u's person has id u.
 type legStore struct {
 	rows        []sqlcdb.TripEnrollment
 	nextID      int64
@@ -26,7 +26,7 @@ type legStore struct {
 
 func (s *legStore) find(tripID, userID int64) (int, bool) {
 	for i := range s.rows {
-		if s.rows[i].TripID == tripID && s.rows[i].UserID == userID {
+		if s.rows[i].TripID == tripID && s.rows[i].CrewMemberID == userID {
 			return i, true
 		}
 	}
@@ -79,11 +79,11 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 		createTripEnrollmentIfAbsentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error) {
 			s.inserts++
 			s.insertOrder = append(s.insertOrder, arg.TripID)
-			if _, ok := s.find(arg.TripID, arg.UserID); ok {
+			if _, ok := s.find(arg.TripID, arg.CrewMemberID); ok {
 				return sqlcdb.TripEnrollment{}, sql.ErrNoRows
 			}
 			s.nextID++
-			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, UserID: arg.UserID, Note: arg.Note, Status: arg.Status}
+			row := sqlcdb.TripEnrollment{ID: s.nextID, TripID: arg.TripID, CrewMemberID: arg.CrewMemberID, Note: arg.Note, Status: arg.Status}
 			s.rows = append(s.rows, row)
 			return row, nil
 		},
@@ -130,7 +130,10 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 			var out []sqlcdb.ListTripEnrollmentsRow
 			for i := range s.rows {
 				if r := &s.rows[i]; r.TripID == tripID {
-					out = append(out, sqlcdb.ListTripEnrollmentsRow{ID: r.ID, TripID: r.TripID, UserID: r.UserID, Status: r.Status})
+					out = append(out, sqlcdb.ListTripEnrollmentsRow{
+						ID: r.ID, TripID: r.TripID, CrewMemberID: r.CrewMemberID,
+						UserID: types.NullInt64{Int64: r.CrewMemberID, Valid: true}, Status: r.Status,
+					})
 				}
 			}
 			return out, nil
@@ -180,7 +183,7 @@ func TestEnrollLegs_CreatesOneEnrollmentPerLeg(t *testing.T) {
 		t.Fatalf("stored %d rows, want 2", len(s.rows))
 	}
 	for _, r := range s.rows {
-		if r.UserID != 1 || r.Status != "pending" || r.Note.String != "both please" {
+		if r.CrewMemberID != 1 || r.Status != "pending" || r.Note.String != "both please" {
 			t.Errorf("unexpected row %+v", r)
 		}
 	}
@@ -192,7 +195,7 @@ func TestEnrollLegs_CreatesOneEnrollmentPerLeg(t *testing.T) {
 }
 
 func TestEnrollLegs_ReportsAlreadyEnrolledAndCreatesOthers(t *testing.T) {
-	s := &legStore{nextID: 40, rows: []sqlcdb.TripEnrollment{{ID: 40, TripID: 11, UserID: 1, Status: "accepted"}}}
+	s := &legStore{nextID: 40, rows: []sqlcdb.TripEnrollment{{ID: 40, TripID: 11, CrewMemberID: 1, Status: "accepted"}}}
 	code, out, body := postLegs(t, newLegMock(s, legTrips()), userCtxRole(context.Background(), "member"),
 		map[string]any{"trip_ids": []int64{11, 12}})
 	if code != http.StatusCreated {
@@ -326,9 +329,9 @@ func TestEnrollLegs_Errors(t *testing.T) {
 
 func TestEnrollment_GetByToken_CruiseLegEnrollments(t *testing.T) {
 	s := &legStore{rows: []sqlcdb.TripEnrollment{
-		{ID: 1, TripID: 12, UserID: 1, Status: "accepted"},
-		{ID: 2, TripID: 11, UserID: 1, Status: "pending"},
-		{ID: 3, TripID: 11, UserID: 2, Status: "pending"},
+		{ID: 1, TripID: 12, CrewMemberID: 1, Status: "accepted"},
+		{ID: 2, TripID: 11, CrewMemberID: 1, Status: "pending"},
+		{ID: 3, TripID: 11, CrewMemberID: 2, Status: "pending"},
 	}}
 	resp := enrollTestAPI(t, newLegMock(s, legTrips())).GetCtx(userCtxRole(context.Background(), "member"), "/enroll/tok")
 	if resp.Code != http.StatusOK {

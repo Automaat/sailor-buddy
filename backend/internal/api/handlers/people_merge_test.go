@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -201,6 +202,7 @@ func (f mergeFixture) api(t *testing.T, runTx txRunner) humatest.TestAPI {
 	_, api := humatest.New(t)
 	q := sqlcdb.New(f.conn)
 	registerCrewRoutes(api, &CrewHandler{q: q, runTx: runTx, uploads: f.uploads})
+	registerEnrollmentRoutes(api, &EnrollmentHandler{q: q, runTx: runTx})
 	return api
 }
 
@@ -490,9 +492,10 @@ func TestCrewMerge_DBProfileSaveDuringMerge(t *testing.T) {
 	}
 }
 
-// TestCrewMerge_DBLegSignUpDuringMerge signs the duplicate's account up for a
-// leg the duplicate is on while a merge waits for that leg: the sign-up's
-// reference to the account must not wait on the merge's account lock.
+// TestCrewMerge_DBLegSignUpDuringMerge signs the duplicate's person up for a
+// leg the duplicate is on while a merge waits for that leg. The sign-up then
+// waits for the merge's lock on the person: the merge loses the deadlock,
+// runs again after the sign-up commits and moves it to the kept person.
 func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
 	f := seedMerge(t)
 	ctx := context.Background()
@@ -501,8 +504,13 @@ func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
 		t.Fatalf("begin sign-up: %v", err)
 	}
 	defer func() { _ = signUp.Rollback() }()
-	if _, err := signUp.ExecContext(ctx, "SELECT id FROM trips WHERE id = $1 FOR NO KEY UPDATE", f.trip1); err != nil {
-		t.Fatalf("lock leg: %v", err)
+	for _, step := range []string{
+		"SET LOCAL deadlock_timeout = '10s'",
+		fmt.Sprintf("SELECT id FROM trips WHERE id = %d FOR NO KEY UPDATE", f.trip1),
+	} {
+		if _, err := signUp.ExecContext(ctx, step); err != nil {
+			t.Fatalf("%s: %v", step, err)
+		}
 	}
 
 	done := make(chan int, 1)
@@ -514,7 +522,7 @@ func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
 	}()
 	waitForLockWaiters(t, f.conn, 1)
 	if _, err := signUp.ExecContext(ctx,
-		"INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'pending')", f.trip1, f.userID); err != nil {
+		"INSERT INTO trip_enrollments (trip_id, crew_member_id, status) VALUES ($1, $2, 'pending')", f.trip1, f.duplicateID); err != nil {
 		t.Fatalf("sign up: %v", err)
 	}
 	if err := signUp.Commit(); err != nil {
@@ -522,6 +530,11 @@ func TestCrewMerge_DBLegSignUpDuringMerge(t *testing.T) {
 	}
 	if code := <-done; code != http.StatusOK {
 		t.Fatalf("merge: got %d, want 200", code)
+	}
+	var person int64
+	if err := f.conn.QueryRowContext(ctx, "SELECT crew_member_id FROM trip_enrollments WHERE trip_id = $1", f.trip1).
+		Scan(&person); err != nil || person != f.keptID {
+		t.Fatalf("sign-up person = %d (err %v), want kept person %d", person, err, f.keptID)
 	}
 }
 
@@ -635,5 +648,100 @@ func TestCrewMerge_DBWaitsForCaptainedLegCompletion(t *testing.T) {
 	}
 	if captain != f.keptID {
 		t.Errorf("completed leg's voyage captain = %d, want the kept person %d", captain, f.keptID)
+	}
+}
+
+// TestCrewMerge_DBSignUps merges a duplicate with leg sign-ups into a person
+// without an account. A sign-up only the duplicate has moves; of two for one
+// leg the stronger status stays, the kept person's on a tie, with the more
+// advanced payment status of the two. The preview counts them.
+func TestCrewMerge_DBSignUps(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	leg := func() int64 {
+		t.Helper()
+		id, _ := f.newMergeLeg(t)
+		return id
+	}
+	type signUp struct{ status, payment string }
+	tests := []struct {
+		name      string
+		kept, dup *signUp
+		want      signUp
+		keptRow   bool
+	}{
+		{"duplicate only", nil, &signUp{"waitlisted", "unpaid"}, signUp{"waitlisted", "unpaid"}, false},
+		{"kept only", &signUp{"rejected", "unpaid"}, nil, signUp{"rejected", "unpaid"}, true},
+		{"accepted duplicate beats pending", &signUp{"pending", "paid"}, &signUp{"accepted", "deposit"}, signUp{"accepted", "paid"}, false},
+		{"pending beats waitlisted", &signUp{"waitlisted", "unpaid"}, &signUp{"pending", "unpaid"}, signUp{"pending", "unpaid"}, false},
+		{"waitlisted beats rejected", &signUp{"waitlisted", "unpaid"}, &signUp{"rejected", "deposit"}, signUp{"waitlisted", "deposit"}, true},
+		{"tie keeps the kept person's", &signUp{"accepted", "unpaid"}, &signUp{"accepted", "paid"}, signUp{"accepted", "paid"}, true},
+	}
+	legs := make([]int64, len(tests))
+	rowOf := map[string]int64{}
+	seed := func(trip, person int64, s *signUp, note string) int64 {
+		t.Helper()
+		var id int64
+		if err := f.conn.QueryRowContext(ctx, `INSERT INTO trip_enrollments (trip_id, crew_member_id, status, payment_status, note)
+			VALUES ($1, $2, $3, $4, $5) RETURNING id`, trip, person, s.status, s.payment, note).Scan(&id); err != nil {
+			t.Fatalf("seed sign-up: %v", err)
+		}
+		return id
+	}
+	for i, tt := range tests {
+		legs[i] = leg()
+		if tt.kept != nil {
+			rowOf["kept "+tt.name] = seed(legs[i], f.keptID, tt.kept, "kept")
+		}
+		if tt.dup != nil {
+			rowOf["dup "+tt.name] = seed(legs[i], f.duplicateID, tt.dup, "duplicate")
+		}
+	}
+
+	api := f.api(t, sqlTxRunner(f.conn))
+	admin := callerCtx(1, "admin")
+	keptPath := "/crew/" + strconv.FormatInt(f.keptID, 10)
+	var preview dto.PersonMerge
+	resp := api.GetCtx(admin, keptPath+"/merge-preview?duplicate_id="+strconv.FormatInt(f.duplicateID, 10))
+	if err := json.Unmarshal(resp.Body.Bytes(), &preview); err != nil || resp.Code != http.StatusOK {
+		t.Fatalf("preview: %d %v; body=%s", resp.Code, err, resp.Body)
+	}
+	if preview.TripEnrollments != 5 || preview.SharedEnrollments != 4 {
+		t.Errorf("preview sign-ups = %d, shared %d; want 5 and 4", preview.TripEnrollments, preview.SharedEnrollments)
+	}
+	if resp := api.PostCtx(admin, keptPath+"/merge", map[string]any{"duplicate_id": f.duplicateID}); resp.Code != http.StatusOK {
+		t.Fatalf("merge: got %d; body=%s", resp.Code, resp.Body)
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows, err := f.conn.QueryContext(ctx, `SELECT id, crew_member_id, status, payment_status, note
+				FROM trip_enrollments WHERE trip_id = $1`, legs[i])
+			if err != nil {
+				t.Fatalf("list sign-ups: %v", err)
+			}
+			defer func() { _ = rows.Close() }()
+			var n int
+			for rows.Next() {
+				n++
+				var id, person int64
+				var got signUp
+				var note string
+				if err := rows.Scan(&id, &person, &got.status, &got.payment, &note); err != nil {
+					t.Fatalf("scan: %v", err)
+				}
+				wantRow, wantNote := rowOf["dup "+tt.name], "duplicate"
+				if tt.keptRow {
+					wantRow, wantNote = rowOf["kept "+tt.name], "kept"
+				}
+				if person != f.keptID || got != tt.want || id != wantRow || note != wantNote {
+					t.Errorf("sign-up = row %d of %d %+v %q, want row %d of %d %+v %q",
+						id, person, got, note, wantRow, f.keptID, tt.want, wantNote)
+				}
+			}
+			if n != 1 {
+				t.Errorf("sign-ups on the leg = %d, want 1", n)
+			}
+		})
 	}
 }

@@ -1,20 +1,24 @@
 package dto
 
 import (
+	"strings"
 	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
-// Enrollment is a user's enrollment in a trip or cruise. Exactly one of
-// trip_id / cruise_id identifies the target.
+// Enrollment is an enrollment in a trip or cruise. Exactly one of
+// trip_id / cruise_id identifies the target. A trip (leg) sign-up belongs
+// to a person (crew_member_id), who may have no account; a cruise
+// enrollment belongs to an account (user_id).
 type Enrollment struct {
-	ID       int64   `json:"id"`
-	TripID   *int64  `json:"trip_id,omitempty"`
-	CruiseID *int64  `json:"cruise_id,omitempty"`
-	UserID   int64   `json:"user_id"`
-	Note     *string `json:"note,omitempty"`
-	Status   string  `json:"status"`
+	ID           int64   `json:"id"`
+	TripID       *int64  `json:"trip_id,omitempty"`
+	CruiseID     *int64  `json:"cruise_id,omitempty"`
+	CrewMemberID *int64  `json:"crew_member_id,omitempty" doc:"Person the leg sign-up belongs to. Leg sign-ups only"`
+	UserID       *int64  `json:"user_id,omitempty" doc:"Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none"`
+	Note         *string `json:"note,omitempty"`
+	Status       string  `json:"status"`
 	// PaymentStatus is set on trip (leg) enrollments only; cruise-level
 	// enrollments carry no payment status.
 	PaymentStatus string    `json:"payment_status,omitempty" enum:"unpaid,deposit,paid" doc:"Manual payment status set by an admin: unpaid, deposit (first payment received) or paid (in full). Leg sign-ups only"`
@@ -22,11 +26,17 @@ type Enrollment struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-// TripEnrollmentDetail is a trip enrollment joined with the enrolled user.
+// TripEnrollmentDetail is a trip enrollment joined with its person.
 type TripEnrollmentDetail struct {
 	Enrollment
-	UserName  string `json:"user_name"`
-	UserEmail string `json:"user_email"`
+	PersonName string  `json:"person_name" doc:"Full name of the person"`
+	Email      *string `json:"email,omitempty" doc:"The person's e-mail, or the account's when the person has none; omitted when neither has one"`
+}
+
+// TripEnrollmentCreateBody is an admin's sign-up of a person for a leg.
+type TripEnrollmentCreateBody struct {
+	CrewMemberID int64   `json:"crew_member_id" minimum:"1" doc:"Person to sign up; may have no account"`
+	Note         *string `json:"note,omitempty" maxLength:"2000" doc:"Optional note on the sign-up"`
 }
 
 // CruiseEnrollmentDetail is a cruise enrollment joined with the enrolled user
@@ -51,7 +61,7 @@ func CruiseEnrollmentsFromDB(rows []sqlcdb.ListCruiseEnrollmentsRow) []CruiseEnr
 			ID:               r.ID,
 			CruiseID:         &cid,
 			TripID:           intPtr(r.TripID),
-			UserID:           r.UserID,
+			UserID:           &r.UserID,
 			Note:             strPtr(r.Note),
 			Status:           r.Status,
 			CreatedAt:        timeVal(r.CreatedAt),
@@ -187,13 +197,15 @@ type AssignTripBody struct {
 	TripID *int64 `json:"trip_id,omitempty" doc:"Trip ID, or null to unassign"`
 }
 
-// TripEnrollmentToDTO maps a trip enrollment row to the unified model.
+// TripEnrollmentToDTO maps a trip enrollment row to the unified model. The
+// row does not say which account the person has, so user_id is left out.
 func TripEnrollmentToDTO(e sqlcdb.TripEnrollment) Enrollment {
 	tid := e.TripID
+	pid := e.CrewMemberID
 	return Enrollment{
 		ID:            e.ID,
 		TripID:        &tid,
-		UserID:        e.UserID,
+		CrewMemberID:  &pid,
 		Note:          strPtr(e.Note),
 		Status:        e.Status,
 		PaymentStatus: e.PaymentStatus,
@@ -202,14 +214,22 @@ func TripEnrollmentToDTO(e sqlcdb.TripEnrollment) Enrollment {
 	}
 }
 
+// UserTripEnrollmentToDTO maps a sign-up of userID's person.
+func UserTripEnrollmentToDTO(e sqlcdb.TripEnrollment, userID int64) Enrollment {
+	out := TripEnrollmentToDTO(e)
+	out.UserID = &userID
+	return out
+}
+
 // CruiseEnrollmentToDTO maps a cruise enrollment row to the unified model.
 func CruiseEnrollmentToDTO(e sqlcdb.CruiseEnrollment) Enrollment {
 	cid := e.CruiseID
+	uid := e.UserID
 	return Enrollment{
 		ID:        e.ID,
 		CruiseID:  &cid,
 		TripID:    intPtr(e.TripID),
-		UserID:    e.UserID,
+		UserID:    &uid,
 		Note:      strPtr(e.Note),
 		Status:    e.Status,
 		CreatedAt: timeVal(e.CreatedAt),
@@ -217,33 +237,44 @@ func CruiseEnrollmentToDTO(e sqlcdb.CruiseEnrollment) Enrollment {
 	}
 }
 
-// TripEnrollmentsToDTO maps plain trip enrollment rows.
-func TripEnrollmentsToDTO(rows []sqlcdb.TripEnrollment) []Enrollment {
+// UserTripEnrollmentsToDTO maps sign-ups of userID's person.
+func UserTripEnrollmentsToDTO(rows []sqlcdb.TripEnrollment, userID int64) []Enrollment {
 	out := make([]Enrollment, len(rows))
 	for i := range rows {
-		out[i] = TripEnrollmentToDTO(rows[i])
+		out[i] = UserTripEnrollmentToDTO(rows[i], userID)
 	}
 	return out
+}
+
+// TripEnrollmentDetailFromDB maps one joined trip-enrollment row. The
+// e-mail is the person's, or the account's when the person has none.
+func TripEnrollmentDetailFromDB(r sqlcdb.ListTripEnrollmentsRow) TripEnrollmentDetail {
+	tid := r.TripID
+	pid := r.CrewMemberID
+	email := strPtr(r.PersonEmail)
+	if email == nil || strings.TrimSpace(*email) == "" {
+		email = strPtr(r.AccountEmail)
+	}
+	return TripEnrollmentDetail{
+		ID:            r.ID,
+		TripID:        &tid,
+		CrewMemberID:  &pid,
+		UserID:        intPtr(r.UserID),
+		Note:          strPtr(r.Note),
+		Status:        r.Status,
+		PaymentStatus: r.PaymentStatus,
+		CreatedAt:     timeVal(r.CreatedAt),
+		UpdatedAt:     timeVal(r.UpdatedAt),
+		PersonName:    r.PersonName,
+		Email:         email,
+	}
 }
 
 // TripEnrollmentsFromDB maps the joined trip-enrollment rows.
 func TripEnrollmentsFromDB(rows []sqlcdb.ListTripEnrollmentsRow) []TripEnrollmentDetail {
 	out := make([]TripEnrollmentDetail, len(rows))
 	for i := range rows {
-		r := rows[i]
-		tid := r.TripID
-		out[i] = TripEnrollmentDetail{
-			ID:            r.ID,
-			TripID:        &tid,
-			UserID:        r.UserID,
-			Note:          strPtr(r.Note),
-			Status:        r.Status,
-			PaymentStatus: r.PaymentStatus,
-			CreatedAt:     timeVal(r.CreatedAt),
-			UpdatedAt:     timeVal(r.UpdatedAt),
-			UserName:      r.UserName,
-			UserEmail:     r.UserEmail,
-		}
+		out[i] = TripEnrollmentDetailFromDB(rows[i])
 	}
 	return out
 }
@@ -336,20 +367,7 @@ type SignUpNoteBody struct {
 func CruiseTripEnrollmentsFromDB(rows []sqlcdb.ListCruiseTripEnrollmentsRow) []TripEnrollmentDetail {
 	out := make([]TripEnrollmentDetail, len(rows))
 	for i := range rows {
-		r := rows[i]
-		tid := r.TripID
-		out[i] = TripEnrollmentDetail{
-			ID:            r.ID,
-			TripID:        &tid,
-			UserID:        r.UserID,
-			Note:          strPtr(r.Note),
-			Status:        r.Status,
-			PaymentStatus: r.PaymentStatus,
-			CreatedAt:     timeVal(r.CreatedAt),
-			UpdatedAt:     timeVal(r.UpdatedAt),
-			UserName:      r.UserName,
-			UserEmail:     r.UserEmail,
-		}
+		out[i] = TripEnrollmentDetailFromDB(sqlcdb.ListTripEnrollmentsRow(rows[i]))
 	}
 	return out
 }

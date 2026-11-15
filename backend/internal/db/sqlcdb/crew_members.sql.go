@@ -58,7 +58,12 @@ SELECT
     (SELECT COUNT(*) FROM trips
      WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
     (SELECT COUNT(*) FROM voyages
-     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
+     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages,
+    (SELECT COUNT(*) FROM trip_enrollments
+     WHERE crew_member_id = $1::BIGINT)::BIGINT AS trip_enrollments,
+    (SELECT COUNT(*) FROM trip_enrollments d
+     JOIN trip_enrollments k ON k.crew_member_id = $2::BIGINT AND k.trip_id = d.trip_id
+     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_trip_enrollments
 `
 
 type CountCrewMergeRowsParams struct {
@@ -67,17 +72,20 @@ type CountCrewMergeRowsParams struct {
 }
 
 type CountCrewMergeRowsRow struct {
-	TripAssignments   int64 `json:"trip_assignments"`
-	VoyageAssignments int64 `json:"voyage_assignments"`
-	SharedAssignments int64 `json:"shared_assignments"`
-	Opinions          int64 `json:"opinions"`
-	SharedOpinions    int64 `json:"shared_opinions"`
-	CaptainedTrips    int64 `json:"captained_trips"`
-	CaptainedVoyages  int64 `json:"captained_voyages"`
+	TripAssignments       int64 `json:"trip_assignments"`
+	VoyageAssignments     int64 `json:"voyage_assignments"`
+	SharedAssignments     int64 `json:"shared_assignments"`
+	Opinions              int64 `json:"opinions"`
+	SharedOpinions        int64 `json:"shared_opinions"`
+	CaptainedTrips        int64 `json:"captained_trips"`
+	CaptainedVoyages      int64 `json:"captained_voyages"`
+	TripEnrollments       int64 `json:"trip_enrollments"`
+	SharedTripEnrollments int64 `json:"shared_trip_enrollments"`
 }
 
 // Counts what merging the duplicate into the kept person moves. A shared
-// row is a leg, voyage or voyage opinion both people already have.
+// row is a leg, voyage, voyage opinion or leg sign-up both people already
+// have.
 //
 //	SELECT
 //	    (SELECT COUNT(*) FROM crew_assignments
@@ -96,7 +104,12 @@ type CountCrewMergeRowsRow struct {
 //	    (SELECT COUNT(*) FROM trips
 //	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_trips,
 //	    (SELECT COUNT(*) FROM voyages
-//	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages
+//	     WHERE captain_person_id = $1::BIGINT)::BIGINT AS captained_voyages,
+//	    (SELECT COUNT(*) FROM trip_enrollments
+//	     WHERE crew_member_id = $1::BIGINT)::BIGINT AS trip_enrollments,
+//	    (SELECT COUNT(*) FROM trip_enrollments d
+//	     JOIN trip_enrollments k ON k.crew_member_id = $2::BIGINT AND k.trip_id = d.trip_id
+//	     WHERE d.crew_member_id = $1::BIGINT)::BIGINT AS shared_trip_enrollments
 func (q *Queries) CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRowsParams) (CountCrewMergeRowsRow, error) {
 	row := q.db.QueryRowContext(ctx, countCrewMergeRows, arg.DuplicateID, arg.KeptID)
 	var i CountCrewMergeRowsRow
@@ -108,6 +121,8 @@ func (q *Queries) CountCrewMergeRows(ctx context.Context, arg CountCrewMergeRows
 		&i.SharedOpinions,
 		&i.CaptainedTrips,
 		&i.CaptainedVoyages,
+		&i.TripEnrollments,
+		&i.SharedTripEnrollments,
 	)
 	return i, err
 }
@@ -473,6 +488,10 @@ WHERE t.id IN (
     SELECT ca.trip_id FROM crew_assignments ca
     WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 )
+   OR t.id IN (
+    SELECT te.trip_id FROM trip_enrollments te
+    WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+)
    OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 ORDER BY t.id
 FOR SHARE
@@ -483,15 +502,19 @@ type LockCrewMergeTripsParams struct {
 	SecondID int64 `json:"second_id"`
 }
 
-// Share-locks every leg either person is on or captains, so completing a
-// leg waits for the merge instead of moving its crew or captain under it.
-// Taken after the people, in the person-then-leg order of leg completion
-// and person deletion.
+// Share-locks every leg either person is on, signed up for or captains, so
+// completing a leg, or a sign-up change on it, waits for the merge instead
+// of moving its crew, sign-ups or captain under it. Taken after the people,
+// in the person-then-leg order of leg completion and person deletion.
 //
 //	SELECT t.id FROM trips t
 //	WHERE t.id IN (
 //	    SELECT ca.trip_id FROM crew_assignments ca
 //	    WHERE ca.crew_member_id IN ($1::BIGINT, $2::BIGINT)
+//	)
+//	   OR t.id IN (
+//	    SELECT te.trip_id FROM trip_enrollments te
+//	    WHERE te.crew_member_id IN ($1::BIGINT, $2::BIGINT)
 //	)
 //	   OR t.captain_person_id IN ($1::BIGINT, $2::BIGINT)
 //	ORDER BY t.id

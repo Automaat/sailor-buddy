@@ -53,16 +53,17 @@ func (e *legFullError) Error() string {
 	return fmt.Sprintf("leg is full: all %d places are taken", e.limit)
 }
 
-// checkPlaceFree returns a legFullError when accepting userID's sign-up
-// would put the leg over its crew limit. Accepted crew of other users is
-// counted, so re-accepting someone who already holds a place passes. Run it
-// in the transaction that locked the leg, so concurrent accepts serialize.
-func checkPlaceFree(ctx context.Context, q sqlcdb.Querier, tripID, userID int64, maxCrew types.NullInt64) error {
+// checkPlaceFree returns a legFullError when accepting a sign-up of the
+// person personID would put the leg over its crew limit. Accepted crew of
+// other people is counted, so re-accepting someone who already holds a
+// place passes. Run it in the transaction that locked the leg, so
+// concurrent accepts serialize.
+func checkPlaceFree(ctx context.Context, q sqlcdb.Querier, tripID, personID int64, maxCrew types.NullInt64) error {
 	limit, ok := crewLimit(maxCrew)
 	if !ok {
 		return nil
 	}
-	accepted, err := q.CountOtherAcceptedForTrip(ctx, sqlcdb.CountOtherAcceptedForTripParams{TripID: tripID, UserID: userID})
+	accepted, err := q.CountOtherAcceptedForTrip(ctx, sqlcdb.CountOtherAcceptedForTripParams{TripID: tripID, CrewMemberID: personID})
 	if err != nil {
 		return &QueryError{Op: "CountOtherAcceptedForTrip", Err: err}
 	}

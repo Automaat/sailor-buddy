@@ -6,11 +6,10 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	deleteTrip: vi.fn(),
 	listTripCrew: vi.fn(),
-	assignTripCrew: vi.fn(),
 	removeTripCrew: vi.fn(),
+	updateTripCrewRole: vi.fn(),
 	cancelTrip: vi.fn(),
 	completeTrip: vi.fn(),
-	listAssignableCrew: vi.fn(),
 	getCruise: vi.fn(),
 	generateTripEnrollToken: vi.fn(),
 	clearTripEnrollToken: vi.fn(),
@@ -26,7 +25,6 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 import {
 	getTrip,
 	listTripCrew,
-	listAssignableCrew,
 	getCruise,
 	getTripSignUp,
 	signUpForTrip,
@@ -54,6 +52,7 @@ function enrollment(overrides: Record<string, unknown> = {}) {
 	return {
 		id: 9,
 		trip_id: 50,
+		crew_member_id: 12,
 		user_id: 2,
 		status: 'pending',
 		created_at: '2026-01-01T00:00:00Z',
@@ -67,7 +66,6 @@ beforeEach(() => {
 		.mockReset()
 		.mockResolvedValue(makeTrip({ id: 50, cruise_id: 7, name: 'Jacht A', max_crew: 8 }));
 	fn(listTripCrew).mockReset().mockResolvedValue([]);
-	fn(listAssignableCrew).mockReset().mockResolvedValue([]);
 	fn(getCruise).mockReset().mockResolvedValue({ id: 7, name: 'WSEX 2026' });
 	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 3 });
 	for (const f of [signUpForTrip, updateTripSignUpNote, withdrawTripSignUp]) fn(f).mockReset();
