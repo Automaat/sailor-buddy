@@ -25,7 +25,73 @@ func TestMigrate_PortSearch(t *testing.T) {
 	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	assertPortSearch(t, conn, "public")
+}
 
+// TestMigrate_PortSearchExtensionsSchema runs every migration on a fresh
+// database where unaccent was installed in its own schema beforehand, which
+// CREATE EXTENSION IF NOT EXISTS keeps.
+func TestMigrate_PortSearchExtensionsSchema(t *testing.T) {
+	conn := testDB(t)
+	resetSchema(t, conn)
+	dropExtensionsSchema := func() {
+		if _, err := conn.Exec(`DROP SCHEMA IF EXISTS extensions CASCADE`); err != nil {
+			t.Fatalf("drop extensions schema: %v", err)
+		}
+	}
+	dropExtensionsSchema()
+	t.Cleanup(dropExtensionsSchema)
+	if _, err := conn.Exec(`CREATE SCHEMA extensions;
+		CREATE EXTENSION unaccent SCHEMA extensions;`); err != nil {
+		t.Fatalf("install unaccent in extensions: %v", err)
+	}
+
+	if err := Migrate(t.Context(), conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	cruiseID := insertPortSearchCruise(t, conn, true)
+	voyageID := insertPortSearchVoyage(t, conn, cruiseID, true)
+	insertPortSearchPort(t, conn, voyageID, "Świnoujście", 53.91, 14.25)
+	assertPortSearch(t, conn, "extensions")
+}
+
+// TestMigrate_PortSearchUpgrade checks a database that applied 036 as first
+// released, with unaccent hard-coded in public: later migrations apply on
+// top of it and port search keeps working.
+func TestMigrate_PortSearchUpgrade(t *testing.T) {
+	conn := testDB(t)
+	resetSchema(t, conn)
+	applyMigrationsBefore(t, conn, portSearchMigration)
+	if _, err := conn.Exec(`
+		CREATE EXTENSION IF NOT EXISTS pg_trgm;
+		CREATE EXTENSION IF NOT EXISTS unaccent;
+		CREATE FUNCTION port_search_norm(name TEXT) RETURNS TEXT
+			LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+			AS $$ SELECT lower(public.unaccent('public.unaccent'::regdictionary, btrim($1))) $$;
+		CREATE INDEX voyage_ports_name_trgm_idx
+			ON voyage_ports USING gin (port_search_norm(name) gin_trgm_ops);`); err != nil {
+		t.Fatalf("apply released 036: %v", err)
+	}
+	if _, err := conn.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", portSearchMigration); err != nil {
+		t.Fatalf("record 036: %v", err)
+	}
+
+	cruiseID := insertPortSearchCruise(t, conn, true)
+	voyageID := insertPortSearchVoyage(t, conn, cruiseID, true)
+	insertPortSearchPort(t, conn, voyageID, "Świnoujście", 53.91, 14.25)
+
+	if err := Migrate(t.Context(), conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	assertPortSearch(t, conn, "public")
+}
+
+// assertPortSearch checks the port search objects of migration 036 against
+// unaccent installed in schema, and that a stored "Świnoujście" is suggested
+// for queries typed without diacritics.
+func assertPortSearch(t *testing.T, conn *sql.DB, schema string) {
+	t.Helper()
 	var exts []string
 	rows, err := conn.Query(`SELECT extname FROM pg_extension WHERE extname IN ('pg_trgm', 'unaccent') ORDER BY extname`)
 	if err != nil {
@@ -40,11 +106,22 @@ func TestMigrate_PortSearch(t *testing.T) {
 	if !reflect.DeepEqual(exts, []string{"pg_trgm", "unaccent"}) {
 		t.Fatalf("extensions = %v, want [pg_trgm unaccent]", exts)
 	}
+	var extSchema string
+	mustScan(t, conn.QueryRow(`SELECT extnamespace::regnamespace::TEXT FROM pg_extension
+		WHERE extname = 'unaccent'`), &extSchema)
+	if extSchema != schema {
+		t.Fatalf("unaccent schema = %q, want %q", extSchema, schema)
+	}
 
-	var volatility string
-	mustScan(t, conn.QueryRow(`SELECT provolatile FROM pg_proc WHERE proname = 'port_search_norm'`), &volatility)
+	var volatility, src string
+	mustScan(t, conn.QueryRow(`SELECT provolatile, prosrc FROM pg_proc WHERE proname = 'port_search_norm'`),
+		&volatility, &src)
 	if volatility != "i" {
 		t.Fatalf("port_search_norm volatility = %q, want immutable (i)", volatility)
+	}
+	wantSrc := " SELECT lower(" + schema + ".unaccent('" + schema + ".unaccent'::regdictionary, btrim($1))) "
+	if src != wantSrc {
+		t.Fatalf("port_search_norm body = %q, want %q", src, wantSrc)
 	}
 	var folded string
 	mustScan(t, conn.QueryRow(`SELECT port_search_norm('  Świnoujście ')`), &folded)
@@ -58,14 +135,16 @@ func TestMigrate_PortSearch(t *testing.T) {
 		t.Fatal("trigram index missing")
 	}
 
-	got, err := sqlcdb.New(conn).SuggestPorts(t.Context(), sqlcdb.SuggestPortsParams{
-		Query: "swinou", IncludeHidden: false, RowLimit: 8,
-	})
-	if err != nil {
-		t.Fatalf("suggest: %v", err)
-	}
-	if len(got) != 1 || got[0].Name != "Świnoujście" {
-		t.Fatalf("existing port not suggested: %+v", got)
+	for _, query := range []string{"swinou", "Swinoujscie"} {
+		got, err := sqlcdb.New(conn).SuggestPorts(t.Context(), sqlcdb.SuggestPortsParams{
+			Query: query, IncludeHidden: false, RowLimit: 8,
+		})
+		if err != nil {
+			t.Fatalf("suggest %q: %v", query, err)
+		}
+		if len(got) != 1 || got[0].Name != "Świnoujście" {
+			t.Fatalf("suggest %q = %+v, want Świnoujście", query, got)
+		}
 	}
 }
 
