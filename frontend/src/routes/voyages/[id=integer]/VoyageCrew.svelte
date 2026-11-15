@@ -64,10 +64,10 @@
 <div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 	<div class="mb-3 flex items-center justify-between">
 		<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
+		{#if sectionError}<div role="alert" class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+				{sectionError}
+			</div>{/if}
 	</div>
-	{#if sectionError}<div role="alert" class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
-			{sectionError}
-		</div>{/if}
 
 	{#if allCrewMembers.length > 0}
 		<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
