@@ -280,7 +280,14 @@ func (h *CrewHandler) delete(ctx context.Context, in *crewIDParam) (*noContentOu
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	n, err := h.q.DeleteUnlinkedCrewMember(ctx, in.ID)
+	// Deleting a voyage's captain nulls voyages.captain_person_id after locking
+	// the person and its opinions, the reverse of a captain write's order.
+	var n int64
+	err := onDeadlockRetry(func() error {
+		var delErr error
+		n, delErr = h.q.DeleteUnlinkedCrewMember(ctx, in.ID)
+		return delErr
+	})
 	if err != nil {
 		slog.Error("delete crew member", "crew_member_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to delete crew member")

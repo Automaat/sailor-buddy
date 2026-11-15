@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -129,6 +131,21 @@ func TestCrewHandler_Delete(t *testing.T) {
 		resp := crewTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/crew/1")
 		if resp.Code != http.StatusNoContent {
 			t.Fatalf("got %d, want 204", resp.Code)
+		}
+	})
+
+	t.Run("retries a deadlock victim", func(t *testing.T) {
+		calls := 0
+		m := &mockQuerier{deleteCrewMemberFn: func(context.Context, int64) (int64, error) {
+			calls++
+			if calls == 1 {
+				return 0, &pgconn.PgError{Code: "40P01"}
+			}
+			return 1, nil
+		}}
+		resp := crewTestAPI(t, m).DeleteCtx(userCtx(context.Background()), "/crew/1")
+		if resp.Code != http.StatusNoContent || calls != 2 {
+			t.Fatalf("got %d after %d calls, want 204 after 2", resp.Code, calls)
 		}
 	})
 
