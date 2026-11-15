@@ -6,10 +6,12 @@ import {
 	isLegOverdue,
 	isMineFilter,
 	legStatus,
+	legStatusLabels,
 	onlyMine,
 	parseRejsTab,
 	rejsListUrl,
 	rejsStatusLabels,
+	rejsTabs,
 	warsawToday
 } from './rejsy.js';
 
@@ -95,6 +97,14 @@ describe('legStatus', () => {
 		[{ status: 'cancelled', disembark_date: '2026-08-01' }, 'cancelled']
 	] as const)('%j -> %s', (leg, want) => {
 		expect(legStatus(leg, '2026-08-10')).toBe(want);
+	});
+});
+
+describe('upcoming labels', () => {
+	it('match the Nadchodzące tab for legs and cruises', () => {
+		expect(rejsTabs.find((t) => t.value === 'upcoming')?.label).toBe('Nadchodzące');
+		expect(legStatusLabels.planned).toBe('Nadchodzący');
+		expect(rejsStatusLabels.upcoming).toBe('Nadchodzący');
 	});
 });
 

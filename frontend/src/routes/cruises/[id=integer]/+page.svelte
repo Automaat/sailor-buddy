@@ -222,7 +222,7 @@
 
 	<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 		<div class="mb-3 flex items-center justify-between">
-			<h2 class="font-semibold text-[var(--navy)]">Planowane etapy ({trips.length})</h2>
+			<h2 class="font-semibold text-[var(--navy)]">Nadchodzące etapy ({trips.length})</h2>
 			{#if isAdmin}
 				<a
 					href="/trips/new?cruise_id={id}"
