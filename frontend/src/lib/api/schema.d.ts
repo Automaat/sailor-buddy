@@ -39,6 +39,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/me/legs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The current user's upcoming legs
+         * @description Legs that are not cancelled and end today or later in the club's time zone (or have no dates), which the caller's person captains, crews or signed up for (not rejected), or which the account's cruise enrollment was assigned to. Hidden legs are listed only for admins and the captain group.
+         */
+        get: operations["list-my-legs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/me/person-candidates": {
         parameters: {
             query?: never;
@@ -2225,6 +2245,44 @@ export interface components {
             /** @description Cruises with the user's accepted enrollment, captained leg or crew-list entry */
             cruise_ids: number[] | null;
         };
+        MyLeg: {
+            /** Format: int64 */
+            cruise_id: number;
+            /** @description The edition's name; the label of a leg without a series */
+            cruise_name: string;
+            disembark_date?: string;
+            /** @description The edition label within its series, such as 2026 */
+            edition?: string;
+            embark_date?: string;
+            end_port?: string;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /**
+             * @description The caller's strongest link to the leg: captain, then crew, then sign-up
+             * @enum {string}
+             */
+            relation: "captain" | "crew" | "sign_up";
+            /** Format: int64 */
+            series_id?: number;
+            series_name?: string;
+            /**
+             * @description Status of the caller's sign-up; set only when relation is sign_up
+             * @enum {string}
+             */
+            sign_up_status?: "accepted" | "pending" | "waitlisted";
+            start_port?: string;
+        };
+        MyLegs: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/MyLegs.json
+             */
+            readonly $schema?: string;
+            /** @description Sorted by embark date, undated legs last */
+            legs: components["schemas"]["MyLeg"][] | null;
+        };
         MyPersonLinkRequest: {
             /**
              * Format: uri
@@ -3410,6 +3468,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyCruises"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-my-legs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyLegs"];
                 };
             };
             /** @description Error */

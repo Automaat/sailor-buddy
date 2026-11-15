@@ -1,13 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
-import type { DashboardStats, SeaTime } from '#lib/api/types.js';
+import type { DashboardStats, MyLeg, SeaTime } from '#lib/api/types.js';
 
-vi.mock('#lib/api/routes.js', () => ({ getDashboard: vi.fn() }));
+vi.mock('#lib/api/routes.js', () => ({ getDashboard: vi.fn(), listMyLegs: vi.fn() }));
+vi.mock('#lib/stores/auth.svelte.js', () => ({
+	auth: { isAdmin: false, user: { id: 2, role: 'member' } }
+}));
 
-import { getDashboard } from '#lib/api/routes.js';
+import { getDashboard, listMyLegs } from '#lib/api/routes.js';
+import { auth } from '#lib/stores/auth.svelte.js';
 import DashboardPage from './+page.svelte';
+import { load } from './+page.js';
+import type { PageData } from './$types';
 
-const mockGet = getDashboard as unknown as ReturnType<typeof vi.fn>;
+const mockGet = vi.mocked(getDashboard);
+const mockLegs = vi.mocked(listMyLegs);
+const mockAuth = auth as unknown as { isAdmin: boolean };
+
+function runLoad() {
+	return load({} as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
+}
+
+async function renderPage() {
+	return render(DashboardPage, { props: { data: await runLoad() } });
+}
+
+function leg(overrides: Partial<MyLeg> = {}): MyLeg {
+	return {
+		id: 7,
+		name: 'Etap 1',
+		cruise_id: 3,
+		cruise_name: 'Sycylia 2027',
+		relation: 'crew',
+		...overrides
+	};
+}
 
 function seaTime(overrides: Partial<SeaTime> = {}): SeaTime {
 	return {
@@ -96,19 +123,15 @@ const sailor: DashboardStats = {
 
 beforeEach(() => {
 	mockGet.mockReset();
+	mockLegs.mockReset().mockResolvedValue([]);
+	mockAuth.isAdmin = false;
 	vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('dashboard page', () => {
-	it('shows a loading message while data is being fetched', () => {
-		mockGet.mockReturnValue(new Promise(() => {}));
-		render(DashboardPage);
-		expect(screen.getByText('Wczytywanie...')).toBeInTheDocument();
-	});
-
 	it("shows the user's own totals, role split, years and voyages", async () => {
 		mockGet.mockResolvedValue(sailor);
-		render(DashboardPage);
+		await renderPage();
 
 		const mine = await screen.findByRole('region', { name: 'Mój staż' });
 		expect(within(mine).getByText('Zrealizowane rejsy').nextElementSibling).toHaveTextContent('2');
@@ -146,7 +169,7 @@ describe('dashboard page', () => {
 		mockGet.mockResolvedValue({
 			personal: { ...sailor.personal, as_captain: split, as_crew: split }
 		});
-		render(DashboardPage);
+		await renderPage();
 
 		const mine = await screen.findByRole('region', { name: 'Mój staż' });
 		for (const label of ['Jako kapitan', 'Jako załoga']) {
@@ -158,12 +181,13 @@ describe('dashboard page', () => {
 
 	it('hides the club section when the response has none (member)', async () => {
 		mockGet.mockResolvedValue(sailor);
-		render(DashboardPage);
+		await renderPage();
 		await screen.findByRole('region', { name: 'Mój staż' });
 		expect(screen.queryByRole('region', { name: 'Klub' })).not.toBeInTheDocument();
 	});
 
 	it('shows labelled club totals for an admin', async () => {
+		mockAuth.isAdmin = true;
 		mockGet.mockResolvedValue({
 			...sailor,
 			club: {
@@ -179,7 +203,7 @@ describe('dashboard page', () => {
 				]
 			}
 		});
-		render(DashboardPage);
+		await renderPage();
 
 		const club = await screen.findByRole('region', { name: 'Klub' });
 		expect(within(club).getByText('Zrealizowane rejsy').nextElementSibling).toHaveTextContent('9');
@@ -193,7 +217,7 @@ describe('dashboard page', () => {
 
 	it('shows an empty state linking to cruises for a user with no voyages', async () => {
 		mockGet.mockResolvedValue({ personal: emptyPersonal() });
-		render(DashboardPage);
+		await renderPage();
 
 		const mine = await screen.findByRole('region', { name: 'Mój staż' });
 		expect(
@@ -206,11 +230,154 @@ describe('dashboard page', () => {
 		expect(within(mine).queryByText('Zrealizowane rejsy')).not.toBeInTheDocument();
 	});
 
-	it('shows an error message when loading fails', async () => {
+	it('names the failed statistics in the banner instead of showing them', async () => {
 		mockGet.mockRejectedValue(new Error('Request failed: 500'));
-		render(DashboardPage);
+		await renderPage();
 
-		expect(await screen.findByRole('alert')).toHaveTextContent('Nie udało się wczytać pulpitu');
+		expect(screen.getByRole('alert')).toHaveTextContent('Nie udało się wczytać: statystyki');
 		expect(screen.queryByRole('region', { name: 'Mój staż' })).not.toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Twoje etapy' })).toBeInTheDocument();
+	});
+});
+
+const clubStats: NonNullable<DashboardStats['club']> = {
+	total: seaTime({ voyage_count: 9, total_miles: 2775 }),
+	by_year: []
+};
+
+describe('dashboard load', () => {
+	it('loads the upcoming legs and sea time', async () => {
+		const legs = [leg()];
+		mockLegs.mockResolvedValue(legs);
+		mockGet.mockResolvedValue(sailor);
+		await expect(runLoad()).resolves.toEqual({ legs, stats: sailor, loadErrors: [] });
+	});
+
+	it.each([
+		[
+			'legs',
+			() => mockLegs.mockRejectedValue(new Error('boom')),
+			{ legs: null, stats: sailor },
+			'Twoje etapy'
+		],
+		[
+			'statistics',
+			() => mockGet.mockRejectedValue(new Error('boom')),
+			{ legs: [], stats: null },
+			'statystyki'
+		]
+	])('marks failed %s instead of showing an empty section', async (_, fail, data, label) => {
+		mockGet.mockResolvedValue(sailor);
+		fail();
+		await expect(runLoad()).resolves.toEqual({ ...data, loadErrors: [label] });
+	});
+});
+
+describe('dashboard upcoming legs', () => {
+	it('lists the legs above the statistics, each card linking to its leg', async () => {
+		mockGet.mockResolvedValue(sailor);
+		mockLegs.mockResolvedValue([
+			leg({
+				id: 7,
+				name: 'Etap 1',
+				series_name: 'Sycylia',
+				edition: '2027',
+				embark_date: '2027-05-01',
+				disembark_date: '2027-05-08',
+				start_port: 'Palermo',
+				end_port: 'Trapani',
+				relation: 'captain'
+			}),
+			leg({ id: 9, name: 'Bałtyk', cruise_name: 'Bałtyk 2027', relation: 'crew' }),
+			leg({ id: 10, name: 'Mazury', relation: 'sign_up', sign_up_status: 'pending' }),
+			leg({ id: 11, name: 'Chorwacja', relation: 'sign_up', sign_up_status: 'accepted' }),
+			leg({ id: 12, name: 'Grecja', relation: 'sign_up', sign_up_status: 'waitlisted' })
+		]);
+		await renderPage();
+
+		const mine = screen.getByRole('region', { name: 'Twoje etapy' });
+		const stats = screen.getByRole('region', { name: 'Mój staż' });
+		expect(mine.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+		const cards = within(mine).getAllByRole('link');
+		expect(cards.map((c) => c.getAttribute('href'))).toEqual([
+			'/trips/7',
+			'/trips/9',
+			'/trips/10',
+			'/trips/11',
+			'/trips/12'
+		]);
+		expect(cards[0]).toHaveTextContent('Etap 1');
+		expect(cards[0]).toHaveTextContent('Kapitan');
+		expect(cards[0]).toHaveTextContent('Sycylia · edycja 2027');
+		expect(cards[0]).toHaveTextContent('1–8 maj 2027 · 8 dni');
+		expect(cards[0]).toHaveTextContent('Palermo → Trapani');
+		expect(cards[1]).toHaveTextContent('W załodze');
+		expect(cards[1]).toHaveTextContent('Bałtyk 2027');
+		expect(cards[1]).toHaveTextContent('Termin do ustalenia');
+		expect(cards[1]).not.toHaveTextContent('→');
+		expect(cards[2]).toHaveTextContent('Zapis: oczekuje');
+		expect(cards[3]).toHaveTextContent('Zapis: zaakceptowany');
+		expect(cards[4]).toHaveTextContent('Zapis: lista rezerwowa');
+	});
+
+	it('lets a long unbroken leg or edition name wrap inside its card', async () => {
+		const long = 'X'.repeat(200);
+		mockGet.mockResolvedValue(sailor);
+		mockLegs.mockResolvedValue([
+			leg({ id: 7, name: long, cruise_name: long, relation: 'captain' })
+		]);
+		await renderPage();
+
+		const mine = screen.getByRole('region', { name: 'Twoje etapy' });
+		const card = within(mine).getByRole('link');
+		expect(card.closest('li')).toHaveClass('min-w-0');
+		expect(within(card).getByRole('heading', { name: long })).toHaveClass(
+			'min-w-0',
+			'[overflow-wrap:anywhere]'
+		);
+		expect(within(card).getByText(long, { selector: 'p' })).toHaveClass('[overflow-wrap:anywhere]');
+		expect(within(card).getByText('Kapitan')).toHaveClass('shrink-0', 'whitespace-nowrap');
+	});
+
+	it('shows an empty state linking to the series list', async () => {
+		mockGet.mockResolvedValue(sailor);
+		await renderPage();
+
+		const mine = screen.getByRole('region', { name: 'Twoje etapy' });
+		expect(within(mine).getByText('Nie masz nadchodzących etapów.')).toBeInTheDocument();
+		expect(within(mine).getByRole('link', { name: 'Zobacz serie rejsów' })).toHaveAttribute(
+			'href',
+			'/series'
+		);
+	});
+
+	it('names failed legs in the banner instead of an empty state', async () => {
+		mockGet.mockResolvedValue(sailor);
+		mockLegs.mockRejectedValue(new Error('Request failed: 500'));
+		await renderPage();
+
+		expect(screen.getByRole('alert')).toHaveTextContent('Nie udało się wczytać: Twoje etapy');
+		expect(screen.queryByRole('region', { name: 'Twoje etapy' })).not.toBeInTheDocument();
+		expect(screen.queryByText('Nie masz nadchodzących etapów.')).not.toBeInTheDocument();
+		expect(screen.getByRole('region', { name: 'Mój staż' })).toBeInTheDocument();
+	});
+});
+
+describe('dashboard club statistics', () => {
+	it('hides club statistics from a member even when the reply has them', async () => {
+		mockGet.mockResolvedValue({ ...sailor, club: clubStats });
+		await renderPage();
+
+		expect(screen.getByRole('region', { name: 'Mój staż' })).toBeInTheDocument();
+		expect(screen.queryByRole('region', { name: 'Klub' })).not.toBeInTheDocument();
+	});
+
+	it('shows club statistics to an admin', async () => {
+		mockAuth.isAdmin = true;
+		mockGet.mockResolvedValue({ ...sailor, club: clubStats });
+		await renderPage();
+
+		expect(screen.getByRole('region', { name: 'Klub' })).toBeInTheDocument();
 	});
 });

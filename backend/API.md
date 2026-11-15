@@ -288,6 +288,7 @@ require the caller to be an `admin` (marked **admin** below).
 | GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number, person_id}`; `person_id` is the account's person |
 | PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
 | GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise enrollment or trip enrollment of the caller's person, leg captained by the account's person, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
+| GET | `/api/auth/me/legs` | `{legs}`: the caller's upcoming legs and how they take part (see below) |
 | GET | `/api/dashboard` | Caller's sea time; club totals for admins |
 
 `PUT /api/auth/me` body — `first_name` and `last_name` required (non-blank);
@@ -309,6 +310,22 @@ counts once; captain wins when both apply. Crew records without a linked
 account don't count; an account's own person (created at sign-in) does.
 Admins also get `club` with the club-wide `total` and
 `by_year`; the key is absent for members.
+
+`GET /api/auth/me/legs` lists the caller's upcoming legs (trips): a leg that
+is not cancelled and whose `disembark_date` (its `embark_date` when it has
+none) is today or later in Europe/Warsaw, or that has no dates. A leg is the
+caller's when their person (`crew_members.user_id`) captains it
+(`captain_person_id`), is on its crew (`crew_assignments`) or signed up for it
+(`trip_enrollments`, not `rejected`), or when the account's cruise enrollment
+was assigned to it (`cruise_enrollments.trip_id`, not `rejected`). Each leg
+appears once with the strongest relation: `captain`, then `crew`, then
+`sign_up` with `sign_up_status` `accepted`, `pending` or `waitlisted`, in that
+order. Each entry carries `id`, `name`, `cruise_id`, `cruise_name`, optional
+`series_id`, `series_name`, `edition`, `embark_date`, `disembark_date`,
+`start_port` and `end_port`, plus `relation` and `sign_up_status`. Legs are
+sorted by `embark_date`, undated last; the list is not paged and holds at most
+100 legs. Hidden legs and legs of hidden cruises are listed only for admins
+and the captain group.
 
 ### Members
 

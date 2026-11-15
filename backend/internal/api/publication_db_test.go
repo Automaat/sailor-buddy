@@ -648,6 +648,41 @@ func TestMyCruisesHidesHiddenRecords(t *testing.T) {
 	}
 }
 
+// TestMyLegsHidesHiddenRecords: /auth/me/legs leaves out a hidden leg and a
+// leg of a hidden cruise, except for the captain group and admins.
+func TestMyLegsHidesHiddenRecords(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	f := seedVisibility(t, conn)
+	for _, persona := range []string{"member", "captain"} {
+		for _, trip := range []int64{f.trip, f.hiddenTrip, f.hiddenCruiseTrip} {
+			if _, err := conn.Exec(`INSERT INTO crew_assignments(trip_id,crew_member_id,role)
+				SELECT $1, cm.id, 'zalogant' FROM crew_members cm JOIN users u ON u.id = cm.user_id
+				WHERE u.firebase_uid = $2`, trip, persona); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	want := map[string][]int64{
+		"member":  {f.trip},
+		"captain": {f.hiddenCruiseTrip, f.trip, f.hiddenTrip},
+	}
+	for persona, ids := range want {
+		var got dto.MyLegs
+		mustDecode(t, mustGet(t, h, persona, "/api/auth/me/legs"), &got)
+		gotIDs := make([]int64, len(got.Legs))
+		for i, leg := range got.Legs {
+			gotIDs[i] = leg.ID
+			if leg.Relation != "crew" {
+				t.Errorf("%s leg %d relation = %q, want crew", persona, leg.ID, leg.Relation)
+			}
+		}
+		if !slices.Equal(gotIDs, ids) {
+			t.Errorf("%s leg ids = %v, want %v", persona, gotIDs, ids)
+		}
+	}
+}
+
 // TestPublishLegMovedAfterCruiseLock moves the leg to a hidden standalone
 // cruise after its publish locked the old cruise, while a cruise publish of
 // the new cruise with include_legs holds that cruise. The leg publish waits

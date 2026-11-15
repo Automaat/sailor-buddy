@@ -64,6 +64,58 @@ type MyCruises struct {
 	CruiseIDs []int64 `json:"cruise_ids" doc:"Cruises with the user's accepted enrollment, captained leg or crew-list entry"`
 }
 
+// MyLeg is one of the caller's upcoming legs and how they take part in it.
+type MyLeg struct {
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	CruiseID      int64   `json:"cruise_id"`
+	CruiseName    string  `json:"cruise_name" doc:"The edition's name; the label of a leg without a series"`
+	SeriesID      *int64  `json:"series_id,omitempty"`
+	SeriesName    *string `json:"series_name,omitempty"`
+	Edition       *string `json:"edition,omitempty" doc:"The edition label within its series, such as 2026"`
+	EmbarkDate    *string `json:"embark_date,omitempty"`
+	DisembarkDate *string `json:"disembark_date,omitempty"`
+	StartPort     *string `json:"start_port,omitempty"`
+	EndPort       *string `json:"end_port,omitempty"`
+	Relation      string  `json:"relation" enum:"captain,crew,sign_up" doc:"The caller's strongest link to the leg: captain, then crew, then sign-up"`
+	SignUpStatus  *string `json:"sign_up_status,omitempty" enum:"accepted,pending,waitlisted" doc:"Status of the caller's sign-up; set only when relation is sign_up"`
+}
+
+// MyLegs lists the caller's upcoming legs.
+type MyLegs struct {
+	Legs []MyLeg `json:"legs" doc:"Sorted by embark date, undated legs last"`
+}
+
+// MyLegsFromDB maps the upcoming-leg rows. A row's relation is captain, crew
+// or the sign-up status, which becomes relation sign_up with that status.
+func MyLegsFromDB(rows []sqlcdb.ListUserUpcomingLegsRow) MyLegs {
+	out := MyLegs{Legs: make([]MyLeg, len(rows))}
+	for i := range rows {
+		r := &rows[i]
+		leg := MyLeg{
+			ID:            r.ID,
+			Name:          r.Name,
+			CruiseID:      r.CruiseID,
+			CruiseName:    r.CruiseName,
+			SeriesID:      intPtr(r.SeriesID),
+			SeriesName:    strPtr(r.SeriesName),
+			Edition:       strPtr(r.Edition),
+			EmbarkDate:    strPtr(r.EmbarkDate),
+			DisembarkDate: strPtr(r.DisembarkDate),
+			StartPort:     strPtr(r.StartPort),
+			EndPort:       strPtr(r.EndPort),
+			Relation:      r.Relation,
+		}
+		if r.Relation != "captain" && r.Relation != "crew" {
+			status := r.Relation
+			leg.Relation = "sign_up"
+			leg.SignUpStatus = &status
+		}
+		out.Legs[i] = leg
+	}
+	return out
+}
+
 // VoyagesByYear is one row of the per-year sailing breakdown.
 type VoyagesByYear struct {
 	Year        *int64  `json:"year,omitempty"`

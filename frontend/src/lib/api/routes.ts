@@ -3,7 +3,7 @@
 // a single club: all data is shared and routes are flat (no org prefix).
 import { api } from './client';
 import type { components } from './schema';
-import type { EnrollPageData } from './types';
+import type { EnrollPageData, MyLeg } from './types';
 
 type Schemas = components['schemas'];
 
@@ -508,6 +508,12 @@ export function getMe() {
 export async function listMyCruiseIds(): Promise<number[]> {
 	const res = await api.get('/auth/me/cruises');
 	return res?.cruise_ids ?? [];
+}
+
+/** listMyLegs returns the caller's upcoming legs, sorted by embark date, undated last. */
+export async function listMyLegs(): Promise<MyLeg[]> {
+	const res = await api.get('/auth/me/legs');
+	return res?.legs ?? [];
 }
 
 export function updateMe(body: Schemas['UpdateProfileBody']) {
