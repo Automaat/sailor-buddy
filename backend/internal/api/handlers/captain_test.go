@@ -28,7 +28,7 @@ func callerCtx(userID int64, role string) context.Context {
 // (users.is_captain).
 func captainGroupCtx(userID int64) context.Context {
 	return context.WithValue(context.Background(), middleware.UserCtxKey, &auth.Claims{
-		UserID: userID, Email: "kpt@example.com", Name: "Captain", Role: "member", IsCaptain: true,
+		UserID: userID, Email: "kpt@example.com", EmailVerified: true, Name: "Captain", Role: "member", IsCaptain: true,
 	})
 }
 
