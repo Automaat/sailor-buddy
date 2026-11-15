@@ -124,9 +124,10 @@ type mockQuerier struct {
 	deleteTrainingFn func(ctx context.Context, arg sqlcdb.DeleteTrainingParams) error
 
 	// crew members
-	listCrewMembersFn  func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
-	countCrewMembersFn func(ctx context.Context, search types.NullString) (int64, error)
-	getCrewMemberFn    func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
+	listCrewMembersFn        func(ctx context.Context, arg sqlcdb.ListCrewMembersParams) ([]sqlcdb.CrewMember, error)
+	countCrewMembersFn       func(ctx context.Context, search types.NullString) (int64, error)
+	getCrewMemberFn          func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
+	lockCrewMemberForShareFn func(ctx context.Context, id int64) (sqlcdb.CrewMember, error)
 	// person merge
 	lockCrewMembersForMergeFn      func(ctx context.Context, arg sqlcdb.LockCrewMembersForMergeParams) ([]sqlcdb.CrewMember, error)
 	lockUserForUpdateFn            func(ctx context.Context, id int64) (int64, error)
@@ -650,6 +651,13 @@ func (m *mockQuerier) GetCrewMember(ctx context.Context, id int64) (sqlcdb.CrewM
 		panic("unexpected call to GetCrewMember")
 	}
 	return m.getCrewMemberFn(ctx, id)
+}
+
+func (m *mockQuerier) LockCrewMemberForShare(ctx context.Context, id int64) (sqlcdb.CrewMember, error) {
+	if m.lockCrewMemberForShareFn == nil {
+		panic("unexpected call to LockCrewMemberForShare")
+	}
+	return m.lockCrewMemberForShareFn(ctx, id)
 }
 
 func (m *mockQuerier) CreateCrewMember(ctx context.Context, arg sqlcdb.CreateCrewMemberParams) (sqlcdb.CrewMember, error) {

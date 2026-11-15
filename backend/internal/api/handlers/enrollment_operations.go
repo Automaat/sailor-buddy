@@ -325,12 +325,15 @@ func (o enrollmentOperations) signUpPerson(ctx context.Context, tripID, personID
 		if trip.Status != sqlcdb.TripStatusPlanned {
 			return errTripNotPlanned
 		}
-		person, err := q.GetCrewMember(ctx, personID)
+		// Share-locking the person keeps its account fixed until the insert:
+		// a merge or account link either commits first and is seen here, or
+		// waits for this sign-up.
+		person, err := q.LockCrewMemberForShare(ctx, personID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return errSignUpPersonNotFound
 			}
-			return &QueryError{Op: "GetCrewMember", Err: err}
+			return &QueryError{Op: "LockCrewMemberForShare", Err: err}
 		}
 		// A cruise enrollment of the person's account placed on this leg is
 		// already their sign-up for it, as signUpOf reports to the account.

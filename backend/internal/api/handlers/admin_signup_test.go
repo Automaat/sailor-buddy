@@ -35,7 +35,7 @@ func (a *adminSignUpMock) mock() *mockQuerier {
 			}
 			return a.leg, nil
 		},
-		getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
+		lockCrewMemberForShareFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
 			if id != 7 {
 				return sqlcdb.CrewMember{}, sql.ErrNoRows
 			}

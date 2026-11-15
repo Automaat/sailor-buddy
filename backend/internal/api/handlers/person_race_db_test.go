@@ -386,3 +386,47 @@ func TestMergePeople_PaymentChangeWaitsForMerge(t *testing.T) {
 		t.Errorf("kept sign-up payment = %s, want unpaid", payment)
 	}
 }
+
+// TestAdminSignUp_WaitsForMergeOfPerson signs up a person without an account
+// while a merge that gives it the account of the duplicate is uncommitted.
+// That account's cruise enrollment is already placed on the leg. The sign-up
+// waits for the merge, then sees the account and refuses the duplicate.
+func TestAdminSignUp_WaitsForMergeOfPerson(t *testing.T) {
+	f := seedMerge(t)
+	ctx := context.Background()
+	leg, cruise := f.newMergeLeg(t)
+	if _, err := f.conn.ExecContext(ctx, `INSERT INTO cruise_enrollments (cruise_id, user_id, trip_id, status)
+		VALUES ($1, $2, $3, 'pending')`, cruise, f.userID, leg); err != nil {
+		t.Fatalf("seed cruise enrollment: %v", err)
+	}
+
+	merge, err := f.conn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin merge: %v", err)
+	}
+	defer func() { _ = merge.Rollback() }()
+	mq := sqlcdb.New(merge)
+	if _, _, err := lockMergePeople(ctx, mq, f.keptID, f.duplicateID); err != nil {
+		t.Fatalf("lock merge: %v", err)
+	}
+
+	done := make(chan int, 1)
+	api := personSignUpAPI(t, f.conn)
+	go func() {
+		done <- api.PostCtx(userCtx(ctx), fmt.Sprintf("/trips/%d/enrollments", leg),
+			map[string]any{"crew_member_id": f.keptID}).Code
+	}()
+	waitForLockWaiters(t, f.conn, 1)
+	if _, err := MergePeople(ctx, mq, f.keptID, f.duplicateID); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if err := merge.Commit(); err != nil {
+		t.Fatalf("commit merge: %v", err)
+	}
+	if code := <-done; code != http.StatusConflict {
+		t.Fatalf("admin sign-up of the merged person: got %d, want 409", code)
+	}
+	if got := signUpsOn(t, f.conn, leg); len(got) != 0 {
+		t.Errorf("leg sign-ups = %v, want none", got)
+	}
+}
