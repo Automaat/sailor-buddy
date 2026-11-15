@@ -153,13 +153,15 @@
 		class="mb-6 flex items-center justify-between max-md:flex-wrap max-md:gap-3"
 		data-testid="cruise-header"
 	>
-		<div>
+		<div class="min-w-0">
 			<div class="flex flex-wrap items-center gap-3">
-				<h1 class="text-3xl font-bold text-[var(--navy)]">{cruise.name}</h1>
+				<h1 class="min-w-0 text-3xl font-bold [overflow-wrap:anywhere] text-[var(--navy)]">
+					{cruise.name}
+				</h1>
 				{#if showHidden && isHidden(cruise)}<HiddenBadge />{/if}
 			</div>
 			{#if series}
-				<p class="mt-1 text-sm">
+				<p class="mt-1 text-sm [overflow-wrap:anywhere]">
 					<a href="/series/{series.id}" class="text-[var(--ocean)] hover:underline">{series.name}</a
 					>
 					{#if cruise.edition}
@@ -167,11 +169,11 @@
 				</p>
 			{/if}
 			{#if cruise.countries}
-				<p class="mt-1 text-[var(--text-muted)]">{cruise.countries}</p>
+				<p class="mt-1 [overflow-wrap:anywhere] text-[var(--text-muted)]">{cruise.countries}</p>
 			{/if}
 		</div>
 		{#if isAdmin}
-			<div class="flex gap-2">
+			<div class="flex shrink-0 flex-wrap gap-2">
 				{#if isHidden(cruise)}
 					<button
 						onclick={handlePublish}

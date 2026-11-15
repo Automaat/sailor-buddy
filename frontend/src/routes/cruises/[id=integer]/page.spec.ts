@@ -128,6 +128,16 @@ describe('cruise page logistics', () => {
 		expect(await screen.findByText('0+')).toBeInTheDocument();
 	});
 
+	it('lets a long unbroken edition name wrap in the header', async () => {
+		const long = 'X'.repeat(200);
+		mockGet.mockResolvedValue(cruise({ name: long }));
+		await renderPage();
+
+		const heading = await screen.findByRole('heading', { name: long });
+		expect(heading).toHaveClass('min-w-0', '[overflow-wrap:anywhere]');
+		expect(heading.parentElement?.parentElement).toHaveClass('min-w-0');
+	});
+
 	it('renders as before when no logistics are set', async () => {
 		mockGet.mockResolvedValue(cruise());
 		await renderPage();

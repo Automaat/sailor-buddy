@@ -203,6 +203,17 @@ describe('series detail page', () => {
 		expect(screen.queryByText('Morski')).not.toBeInTheDocument();
 	});
 
+	it('lets a long unbroken series name and description wrap', async () => {
+		const long = 'X'.repeat(200);
+		mockGet.mockResolvedValue({ ...series, name: long, description: long });
+		await renderPage();
+
+		const heading = await screen.findByRole('heading', { name: long });
+		expect(heading).toHaveClass('[overflow-wrap:anywhere]');
+		expect(heading.parentElement).toHaveClass('min-w-0');
+		expect(screen.getByText(long, { selector: 'p' })).toHaveClass('[overflow-wrap:anywhere]');
+	});
+
 	it('keeps the form open with the error when saving fails', async () => {
 		mockAuth.isAdmin = true;
 		mockUpdate.mockRejectedValue(new Error('name taken'));
