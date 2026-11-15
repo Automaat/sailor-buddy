@@ -80,7 +80,8 @@ func signUpVia(t *testing.T, conn *sql.DB, api humatest.TestAPI, how string, tri
 	}
 	var id int64
 	if err := conn.QueryRowContext(context.Background(),
-		"SELECT id FROM trip_enrollments WHERE trip_id = $1 AND user_id = $2", tripID, userID).Scan(&id); err != nil {
+		`SELECT te.id FROM trip_enrollments te JOIN crew_members cm ON cm.id = te.crew_member_id
+		WHERE te.trip_id = $1 AND cm.user_id = $2`, tripID, userID).Scan(&id); err != nil {
 		t.Fatalf("find enrollment: %v", err)
 	}
 	return id
@@ -169,9 +170,10 @@ func TestAcceptedCrew_HandAddedEntryStays(t *testing.T) {
 				t.Fatalf("create user: %v", err)
 			}
 			person := ensurePerson(t, conn, user.ID)
-			if _, err := sqlcdb.New(conn).CreateTripCrewAssignment(context.Background(), sqlcdb.CreateTripCrewAssignmentParams{
-				TripID: types.NullInt64{Int64: trip, Valid: true}, CrewMemberID: person, Role: "oficer",
-			}); err != nil {
+			// Crew could be added by hand before it came only from sign-ups.
+			if _, err := conn.ExecContext(context.Background(), `
+				INSERT INTO crew_assignments (trip_id, crew_member_id, role) VALUES ($1, $2, 'oficer')`,
+				trip, person); err != nil {
 				t.Fatalf("hand-add crew: %v", err)
 			}
 			api := acceptedCrewAPI(t, conn)
@@ -204,7 +206,8 @@ func TestAcceptedCrew_FullLegAddsNothing(t *testing.T) {
 	first := signUpVia(t, conn, api, "sign-up", trip, users[0])
 	var second int64
 	if err := conn.QueryRowContext(context.Background(), `
-		INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'pending') RETURNING id`,
+		INSERT INTO trip_enrollments (trip_id, crew_member_id, status)
+		SELECT $1, id, 'pending' FROM crew_members WHERE user_id = $2 RETURNING id`,
 		trip, users[1]).Scan(&second); err != nil {
 		t.Fatalf("seed second sign-up: %v", err)
 	}
@@ -273,7 +276,8 @@ func TestAcceptedCrew_LegacyCruiseEnrollment(t *testing.T) {
 
 	var direct int64
 	if err := conn.QueryRowContext(ctx, `
-		INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'pending') RETURNING id`,
+		INSERT INTO trip_enrollments (trip_id, crew_member_id, status)
+		SELECT $1, id, 'pending' FROM crew_members WHERE user_id = $2 RETURNING id`,
 		legA, user).Scan(&direct); err != nil {
 		t.Fatalf("seed direct sign-up: %v", err)
 	}
@@ -384,7 +388,8 @@ func TestAcceptedCrew_ConcurrentRejects(t *testing.T) {
 	legA, _, user, cruise, enrollment := legacyLegs(t, conn)
 	var direct int64
 	if err := conn.QueryRowContext(ctx, `
-		INSERT INTO trip_enrollments (trip_id, user_id, status) VALUES ($1, $2, 'pending') RETURNING id`,
+		INSERT INTO trip_enrollments (trip_id, crew_member_id, status)
+		SELECT $1, id, 'pending' FROM crew_members WHERE user_id = $2 RETURNING id`,
 		legA, user).Scan(&direct); err != nil {
 		t.Fatalf("seed direct sign-up: %v", err)
 	}

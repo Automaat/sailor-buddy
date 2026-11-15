@@ -199,12 +199,12 @@ type Trip struct {
 type TripEnrollment struct {
 	ID            int64            `json:"id"`
 	TripID        int64            `json:"trip_id"`
-	UserID        int64            `json:"user_id"`
 	Note          types.NullString `json:"note"`
 	Status        string           `json:"status"`
 	CreatedAt     types.NullTime   `json:"created_at"`
 	UpdatedAt     types.NullTime   `json:"updated_at"`
 	PaymentStatus string           `json:"payment_status"`
+	CrewMemberID  int64            `json:"crew_member_id"`
 }
 
 type User struct {

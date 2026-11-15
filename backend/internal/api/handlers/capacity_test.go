@@ -25,12 +25,12 @@ func limitedTrip(id, maxCrew int64) sqlcdb.Trip {
 	return t
 }
 
-// enrollmentRows builds sign-ups of trip 5, one per user starting at 100,
-// with the given statuses, in sign-up order.
+// enrollmentRows builds sign-ups of trip 5, one per person starting at
+// 100, with the given statuses, in sign-up order.
 func enrollmentRows(statuses ...string) []sqlcdb.TripEnrollment {
 	rows := make([]sqlcdb.TripEnrollment, len(statuses))
 	for i, st := range statuses {
-		rows[i] = sqlcdb.TripEnrollment{ID: int64(i + 1), TripID: 5, UserID: int64(100 + i), Status: st, PaymentStatus: "unpaid"}
+		rows[i] = sqlcdb.TripEnrollment{ID: int64(i + 1), TripID: 5, CrewMemberID: int64(100 + i), Status: st, PaymentStatus: "unpaid"}
 	}
 	return rows
 }
@@ -167,7 +167,7 @@ func TestSignUpForTrip_Waitlist(t *testing.T) {
 	t.Run("signing up again keeps the position", func(t *testing.T) {
 		s := newSignUpStore(limitedTrip(5, 1))
 		s.rows = append(enrollmentRows("accepted", "waitlisted"),
-			sqlcdb.TripEnrollment{ID: 3, TripID: 5, UserID: 42, Status: "waitlisted"})
+			sqlcdb.TripEnrollment{ID: 3, TripID: 5, CrewMemberID: 42, Status: "waitlisted"})
 		resp := enrollTestAPI(t, s.mock()).PostCtx(guestCtx(42), "/trips/5/sign-up")
 		got := decodeSignUp(t, resp.Body.Bytes())
 		if resp.Code != http.StatusOK || got.Result != "already_enrolled" ||
@@ -180,7 +180,7 @@ func TestSignUpForTrip_Waitlist(t *testing.T) {
 func TestGetTripSignUp_WaitlistPosition(t *testing.T) {
 	s := newSignUpStore(limitedTrip(5, 1))
 	s.rows = append(enrollmentRows("accepted", "waitlisted", "rejected"),
-		sqlcdb.TripEnrollment{ID: 4, TripID: 5, UserID: 42, Status: "waitlisted"})
+		sqlcdb.TripEnrollment{ID: 4, TripID: 5, CrewMemberID: 42, Status: "waitlisted"})
 	resp := enrollTestAPI(t, s.mock()).GetCtx(guestCtx(42), "/trips/5/sign-up")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
@@ -197,7 +197,7 @@ func TestGetTripSignUp_WaitlistPosition(t *testing.T) {
 func TestEnrollLegs_WaitlistsFullLegs(t *testing.T) {
 	trips := legTrips()
 	trips[0].MaxCrew = types.NullInt64{Int64: 1, Valid: true}
-	s := &legStore{rows: []sqlcdb.TripEnrollment{{ID: 1, TripID: 11, UserID: 99, Status: "pending"}}, nextID: 1}
+	s := &legStore{rows: []sqlcdb.TripEnrollment{{ID: 1, TripID: 11, CrewMemberID: 99, Status: "pending"}}, nextID: 1}
 	m := newLegMock(s, trips)
 	m.countTripPlaceUseFn = func(_ context.Context, tripID int64) (sqlcdb.CountTripPlaceUseRow, error) {
 		var n int64

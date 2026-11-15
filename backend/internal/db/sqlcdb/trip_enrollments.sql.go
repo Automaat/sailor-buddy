@@ -14,10 +14,11 @@ import (
 const countAcceptedByCruiseTrip = `-- name: CountAcceptedByCruiseTrip :many
 SELECT t.id AS trip_id,
     (SELECT COUNT(*) FROM (
-        SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
+        SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
         UNION
-        SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'
-    ) accepted_users)::BIGINT AS accepted
+        SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+        WHERE ce.trip_id = t.id AND ce.status = 'accepted'
+    ) accepted_people)::BIGINT AS accepted
 FROM trips t
 WHERE t.cruise_id = $1
 ORDER BY t.id
@@ -28,15 +29,17 @@ type CountAcceptedByCruiseTripRow struct {
 	Accepted int64 `json:"accepted"`
 }
 
-// Accepted crew per trip of a cruise: distinct users with an accepted direct
-// trip enrollment or an accepted cruise enrollment assigned to the trip.
+// Accepted crew per trip of a cruise: distinct people with an accepted
+// direct trip enrollment, or whose account has an accepted cruise
+// enrollment assigned to the trip.
 //
 //	SELECT t.id AS trip_id,
 //	    (SELECT COUNT(*) FROM (
-//	        SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
+//	        SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
 //	        UNION
-//	        SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'
-//	    ) accepted_users)::BIGINT AS accepted
+//	        SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+//	        WHERE ce.trip_id = t.id AND ce.status = 'accepted'
+//	    ) accepted_people)::BIGINT AS accepted
 //	FROM trips t
 //	WHERE t.cruise_id = $1
 //	ORDER BY t.id
@@ -65,19 +68,21 @@ func (q *Queries) CountAcceptedByCruiseTrip(ctx context.Context, cruiseID int64)
 
 const countAcceptedForTrip = `-- name: CountAcceptedForTrip :one
 SELECT COUNT(*)::BIGINT AS accepted FROM (
-    SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
+    SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
     UNION
-    SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'
-) accepted_users
+    SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+    WHERE ce.trip_id = $1 AND ce.status = 'accepted'
+) accepted_people
 `
 
 // Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 //
 //	SELECT COUNT(*)::BIGINT AS accepted FROM (
-//	    SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
+//	    SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
 //	    UNION
-//	    SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'
-//	) accepted_users
+//	    SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+//	    WHERE ce.trip_id = $1 AND ce.status = 'accepted'
+//	) accepted_people
 func (q *Queries) CountAcceptedForTrip(ctx context.Context, tripID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countAcceptedForTrip, tripID)
 	var accepted int64
@@ -87,31 +92,36 @@ func (q *Queries) CountAcceptedForTrip(ctx context.Context, tripID int64) (int64
 
 const countOtherAcceptedForTrip = `-- name: CountOtherAcceptedForTrip :one
 SELECT COUNT(*)::BIGINT AS accepted FROM (
-    SELECT te.user_id FROM trip_enrollments te
-    WHERE te.trip_id = $1 AND te.status = 'accepted' AND te.user_id <> $2
+    SELECT te.crew_member_id FROM trip_enrollments te
+    WHERE te.trip_id = $1::BIGINT AND te.status = 'accepted'
+      AND te.crew_member_id <> $2::BIGINT
     UNION
-    SELECT ce.user_id FROM cruise_enrollments ce
-    WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
-) accepted_users
+    SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+    WHERE ce.trip_id = $1::BIGINT AND ce.status = 'accepted'
+      AND cm.id <> $2::BIGINT
+) accepted_people
 `
 
 type CountOtherAcceptedForTripParams struct {
-	TripID int64 `json:"trip_id"`
-	UserID int64 `json:"user_id"`
+	TripID       int64 `json:"trip_id"`
+	CrewMemberID int64 `json:"crew_member_id"`
 }
 
-// Accepted crew of one trip other than the given user, counted the same way
-// as CountAcceptedForTrip. Accepting that user's sign-up takes one more place.
+// Accepted crew of one trip other than the given person, counted the same
+// way as CountAcceptedForTrip. Accepting that person's sign-up takes one
+// more place.
 //
 //	SELECT COUNT(*)::BIGINT AS accepted FROM (
-//	    SELECT te.user_id FROM trip_enrollments te
-//	    WHERE te.trip_id = $1 AND te.status = 'accepted' AND te.user_id <> $2
+//	    SELECT te.crew_member_id FROM trip_enrollments te
+//	    WHERE te.trip_id = $1::BIGINT AND te.status = 'accepted'
+//	      AND te.crew_member_id <> $2::BIGINT
 //	    UNION
-//	    SELECT ce.user_id FROM cruise_enrollments ce
-//	    WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
-//	) accepted_users
+//	    SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+//	    WHERE ce.trip_id = $1::BIGINT AND ce.status = 'accepted'
+//	      AND cm.id <> $2::BIGINT
+//	) accepted_people
 func (q *Queries) CountOtherAcceptedForTrip(ctx context.Context, arg CountOtherAcceptedForTripParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countOtherAcceptedForTrip, arg.TripID, arg.UserID)
+	row := q.db.QueryRowContext(ctx, countOtherAcceptedForTrip, arg.TripID, arg.CrewMemberID)
 	var accepted int64
 	err := row.Scan(&accepted)
 	return accepted, err
@@ -167,12 +177,12 @@ func (q *Queries) CountTripLinkedEnrollments(ctx context.Context, tripID int64) 
 const countTripPlaceUse = `-- name: CountTripPlaceUse :one
 SELECT
     (SELECT COUNT(*) FROM (
-        SELECT te.user_id FROM trip_enrollments te
+        SELECT te.crew_member_id FROM trip_enrollments te
         WHERE te.trip_id = $1::BIGINT AND te.status IN ('accepted', 'pending')
         UNION
-        SELECT ce.user_id FROM cruise_enrollments ce
+        SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
         WHERE ce.trip_id = $1::BIGINT AND ce.status IN ('accepted', 'pending')
-    ) taken_users)::BIGINT AS taken,
+    ) taken_people)::BIGINT AS taken,
     (SELECT COUNT(*) FROM trip_enrollments w
      WHERE w.trip_id = $1::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted
 `
@@ -182,19 +192,20 @@ type CountTripPlaceUseRow struct {
 	Waitlisted int64 `json:"waitlisted"`
 }
 
-// How one trip's places are used. taken counts distinct users with an
-// accepted or pending direct trip enrollment or cruise enrollment assigned
-// to the trip; waitlisted counts its waitlisted trip enrollments. A new
-// sign-up is waitlisted once taken reaches max_crew or anyone is waiting.
+// How one trip's places are used. taken counts distinct people with an
+// accepted or pending direct trip enrollment, or whose account has such a
+// cruise enrollment assigned to the trip; waitlisted counts its waitlisted
+// trip enrollments. A new sign-up is waitlisted once taken reaches max_crew
+// or anyone is waiting.
 //
 //	SELECT
 //	    (SELECT COUNT(*) FROM (
-//	        SELECT te.user_id FROM trip_enrollments te
+//	        SELECT te.crew_member_id FROM trip_enrollments te
 //	        WHERE te.trip_id = $1::BIGINT AND te.status IN ('accepted', 'pending')
 //	        UNION
-//	        SELECT ce.user_id FROM cruise_enrollments ce
+//	        SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
 //	        WHERE ce.trip_id = $1::BIGINT AND ce.status IN ('accepted', 'pending')
-//	    ) taken_users)::BIGINT AS taken,
+//	    ) taken_people)::BIGINT AS taken,
 //	    (SELECT COUNT(*) FROM trip_enrollments w
 //	     WHERE w.trip_id = $1::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted
 func (q *Queries) CountTripPlaceUse(ctx context.Context, tripID int64) (CountTripPlaceUseRow, error) {
@@ -205,25 +216,25 @@ func (q *Queries) CountTripPlaceUse(ctx context.Context, tripID int64) (CountTri
 }
 
 const createTripEnrollment = `-- name: CreateTripEnrollment :one
-INSERT INTO trip_enrollments (trip_id, user_id, note, status)
-VALUES ($1, $2, $3, $4) RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
+VALUES ($1, $2, $3, $4) RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 `
 
 type CreateTripEnrollmentParams struct {
-	TripID int64            `json:"trip_id"`
-	UserID int64            `json:"user_id"`
-	Note   types.NullString `json:"note"`
-	Status string           `json:"status"`
+	TripID       int64            `json:"trip_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Note         types.NullString `json:"note"`
+	Status       string           `json:"status"`
 }
 
 // status is 'pending', or 'waitlisted' when the leg's places are taken.
 //
-//	INSERT INTO trip_enrollments (trip_id, user_id, note, status)
-//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+//	INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
+//	VALUES ($1, $2, $3, $4) RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 func (q *Queries) CreateTripEnrollment(ctx context.Context, arg CreateTripEnrollmentParams) (TripEnrollment, error) {
 	row := q.db.QueryRowContext(ctx, createTripEnrollment,
 		arg.TripID,
-		arg.UserID,
+		arg.CrewMemberID,
 		arg.Note,
 		arg.Status,
 	)
@@ -231,42 +242,42 @@ func (q *Queries) CreateTripEnrollment(ctx context.Context, arg CreateTripEnroll
 	err := row.Scan(
 		&i.ID,
 		&i.TripID,
-		&i.UserID,
 		&i.Note,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PaymentStatus,
+		&i.CrewMemberID,
 	)
 	return i, err
 }
 
 const createTripEnrollmentIfAbsent = `-- name: CreateTripEnrollmentIfAbsent :one
-INSERT INTO trip_enrollments (trip_id, user_id, note, status)
+INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (trip_id, user_id) DO NOTHING
-RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+ON CONFLICT (trip_id, crew_member_id) DO NOTHING
+RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 `
 
 type CreateTripEnrollmentIfAbsentParams struct {
-	TripID int64            `json:"trip_id"`
-	UserID int64            `json:"user_id"`
-	Note   types.NullString `json:"note"`
-	Status string           `json:"status"`
+	TripID       int64            `json:"trip_id"`
+	CrewMemberID int64            `json:"crew_member_id"`
+	Note         types.NullString `json:"note"`
+	Status       string           `json:"status"`
 }
 
-// Inserts a trip enrollment unless the user already has one for the trip;
+// Inserts a trip enrollment unless the person already has one for the trip;
 // returns no row (sql.ErrNoRows) when the enrollment already exists. status
 // is 'pending', or 'waitlisted' when the leg's places are taken.
 //
-//	INSERT INTO trip_enrollments (trip_id, user_id, note, status)
+//	INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
 //	VALUES ($1, $2, $3, $4)
-//	ON CONFLICT (trip_id, user_id) DO NOTHING
-//	RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+//	ON CONFLICT (trip_id, crew_member_id) DO NOTHING
+//	RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 func (q *Queries) CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTripEnrollmentIfAbsentParams) (TripEnrollment, error) {
 	row := q.db.QueryRowContext(ctx, createTripEnrollmentIfAbsent,
 		arg.TripID,
-		arg.UserID,
+		arg.CrewMemberID,
 		arg.Note,
 		arg.Status,
 	)
@@ -274,14 +285,52 @@ func (q *Queries) CreateTripEnrollmentIfAbsent(ctx context.Context, arg CreateTr
 	err := row.Scan(
 		&i.ID,
 		&i.TripID,
-		&i.UserID,
 		&i.Note,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PaymentStatus,
+		&i.CrewMemberID,
 	)
 	return i, err
+}
+
+const deleteSharedTripEnrollments = `-- name: DeleteSharedTripEnrollments :execrows
+DELETE FROM trip_enrollments x
+USING trip_enrollments k, trip_enrollments d
+WHERE k.crew_member_id = $1::BIGINT
+  AND d.crew_member_id = $2::BIGINT
+  AND d.trip_id = k.trip_id
+  AND x.id = CASE
+      WHEN COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], d.status), 0)
+         > COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], k.status), 0)
+      THEN k.id ELSE d.id END
+`
+
+type DeleteSharedTripEnrollmentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// On a leg both people signed up for, a merge keeps the sign-up with the
+// stronger status (accepted > pending > waitlisted > rejected), the kept
+// person's on a tie, and deletes the other one.
+//
+//	DELETE FROM trip_enrollments x
+//	USING trip_enrollments k, trip_enrollments d
+//	WHERE k.crew_member_id = $1::BIGINT
+//	  AND d.crew_member_id = $2::BIGINT
+//	  AND d.trip_id = k.trip_id
+//	  AND x.id = CASE
+//	      WHEN COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], d.status), 0)
+//	         > COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], k.status), 0)
+//	      THEN k.id ELSE d.id END
+func (q *Queries) DeleteSharedTripEnrollments(ctx context.Context, arg DeleteSharedTripEnrollmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSharedTripEnrollments, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteTripEnrollment = `-- name: DeleteTripEnrollment :exec
@@ -308,9 +357,72 @@ func (q *Queries) DeleteTripEnrollmentsForTrip(ctx context.Context, tripID int64
 	return err
 }
 
+const getTripEnrollmentDetail = `-- name: GetTripEnrollmentDetail :one
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+       te.created_at, te.updated_at,
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
+FROM trip_enrollments te
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
+WHERE te.id = $1 AND te.trip_id = $2
+`
+
+type GetTripEnrollmentDetailParams struct {
+	ID     int64 `json:"id"`
+	TripID int64 `json:"trip_id"`
+}
+
+type GetTripEnrollmentDetailRow struct {
+	ID            int64            `json:"id"`
+	TripID        int64            `json:"trip_id"`
+	CrewMemberID  int64            `json:"crew_member_id"`
+	UserID        types.NullInt64  `json:"user_id"`
+	Note          types.NullString `json:"note"`
+	Status        string           `json:"status"`
+	PaymentStatus string           `json:"payment_status"`
+	CreatedAt     types.NullTime   `json:"created_at"`
+	UpdatedAt     types.NullTime   `json:"updated_at"`
+	PersonName    string           `json:"person_name"`
+	PersonEmail   types.NullString `json:"person_email"`
+	AccountEmail  types.NullString `json:"account_email"`
+}
+
+// One sign-up of a trip with its person, as in ListTripEnrollments. No row
+// when the trip has no such sign-up.
+//
+//	SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+//	       te.created_at, te.updated_at,
+//	       cm.full_name AS person_name,
+//	       cm.email AS person_email, u.email AS account_email
+//	FROM trip_enrollments te
+//	JOIN crew_members cm ON cm.id = te.crew_member_id
+//	LEFT JOIN users u ON u.id = cm.user_id
+//	WHERE te.id = $1 AND te.trip_id = $2
+func (q *Queries) GetTripEnrollmentDetail(ctx context.Context, arg GetTripEnrollmentDetailParams) (GetTripEnrollmentDetailRow, error) {
+	row := q.db.QueryRowContext(ctx, getTripEnrollmentDetail, arg.ID, arg.TripID)
+	var i GetTripEnrollmentDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.TripID,
+		&i.CrewMemberID,
+		&i.UserID,
+		&i.Note,
+		&i.Status,
+		&i.PaymentStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PersonName,
+		&i.PersonEmail,
+		&i.AccountEmail,
+	)
+	return i, err
+}
+
 const getUserTripEnrollment = `-- name: GetUserTripEnrollment :one
-SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2
+SELECT id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id FROM trip_enrollments
+WHERE trip_id = $1
+  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
 `
 
 type GetUserTripEnrollmentParams struct {
@@ -318,22 +430,23 @@ type GetUserTripEnrollmentParams struct {
 	UserID int64 `json:"user_id"`
 }
 
-// GetUserTripEnrollment
+// The user's sign-up for a trip: the one of the account's person.
 //
-//	SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
-//	WHERE trip_id = $1 AND user_id = $2
+//	SELECT id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id FROM trip_enrollments
+//	WHERE trip_id = $1
+//	  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
 func (q *Queries) GetUserTripEnrollment(ctx context.Context, arg GetUserTripEnrollmentParams) (TripEnrollment, error) {
 	row := q.db.QueryRowContext(ctx, getUserTripEnrollment, arg.TripID, arg.UserID)
 	var i TripEnrollment
 	err := row.Scan(
 		&i.ID,
 		&i.TripID,
-		&i.UserID,
 		&i.Note,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PaymentStatus,
+		&i.CrewMemberID,
 	)
 	return i, err
 }
@@ -364,12 +477,14 @@ func (q *Queries) GetWaitlistPosition(ctx context.Context, id int64) (int64, err
 }
 
 const listCruiseTripEnrollments = `-- name: ListCruiseTripEnrollments :many
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
        te.created_at, te.updated_at,
-       u.name AS user_name, u.email AS user_email
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
-JOIN users u ON u.id = te.user_id
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
 WHERE t.cruise_id = $1
 ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
 `
@@ -377,25 +492,29 @@ ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
 type ListCruiseTripEnrollmentsRow struct {
 	ID            int64            `json:"id"`
 	TripID        int64            `json:"trip_id"`
-	UserID        int64            `json:"user_id"`
+	CrewMemberID  int64            `json:"crew_member_id"`
+	UserID        types.NullInt64  `json:"user_id"`
 	Note          types.NullString `json:"note"`
 	Status        string           `json:"status"`
 	PaymentStatus string           `json:"payment_status"`
 	CreatedAt     types.NullTime   `json:"created_at"`
 	UpdatedAt     types.NullTime   `json:"updated_at"`
-	UserName      string           `json:"user_name"`
-	UserEmail     string           `json:"user_email"`
+	PersonName    string           `json:"person_name"`
+	PersonEmail   types.NullString `json:"person_email"`
+	AccountEmail  types.NullString `json:"account_email"`
 }
 
-// Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
-// leg in leg order, then by sign-up time.
+// Every trip (leg) enrollment of a cruise with its person, as in
+// ListTripEnrollments, grouped by leg in leg order, then by sign-up time.
 //
-//	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+//	SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
 //	       te.created_at, te.updated_at,
-//	       u.name AS user_name, u.email AS user_email
+//	       cm.full_name AS person_name,
+//	       cm.email AS person_email, u.email AS account_email
 //	FROM trip_enrollments te
 //	JOIN trips t ON t.id = te.trip_id
-//	JOIN users u ON u.id = te.user_id
+//	JOIN crew_members cm ON cm.id = te.crew_member_id
+//	LEFT JOIN users u ON u.id = cm.user_id
 //	WHERE t.cruise_id = $1
 //	ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC
 func (q *Queries) ListCruiseTripEnrollments(ctx context.Context, cruiseID int64) ([]ListCruiseTripEnrollmentsRow, error) {
@@ -410,14 +529,16 @@ func (q *Queries) ListCruiseTripEnrollments(ctx context.Context, cruiseID int64)
 		if err := rows.Scan(
 			&i.ID,
 			&i.TripID,
+			&i.CrewMemberID,
 			&i.UserID,
 			&i.Note,
 			&i.Status,
 			&i.PaymentStatus,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.UserName,
-			&i.UserEmail,
+			&i.PersonName,
+			&i.PersonEmail,
+			&i.AccountEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -433,37 +554,44 @@ func (q *Queries) ListCruiseTripEnrollments(ctx context.Context, cruiseID int64)
 }
 
 const listTripEnrollments = `-- name: ListTripEnrollments :many
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
        te.created_at, te.updated_at,
-       u.name AS user_name, u.email AS user_email
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
 FROM trip_enrollments te
-JOIN users u ON u.id = te.user_id
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
 WHERE te.trip_id = $1
-ORDER BY te.created_at
+ORDER BY te.created_at, te.id
 `
 
 type ListTripEnrollmentsRow struct {
 	ID            int64            `json:"id"`
 	TripID        int64            `json:"trip_id"`
-	UserID        int64            `json:"user_id"`
+	CrewMemberID  int64            `json:"crew_member_id"`
+	UserID        types.NullInt64  `json:"user_id"`
 	Note          types.NullString `json:"note"`
 	Status        string           `json:"status"`
 	PaymentStatus string           `json:"payment_status"`
 	CreatedAt     types.NullTime   `json:"created_at"`
 	UpdatedAt     types.NullTime   `json:"updated_at"`
-	UserName      string           `json:"user_name"`
-	UserEmail     string           `json:"user_email"`
+	PersonName    string           `json:"person_name"`
+	PersonEmail   types.NullString `json:"person_email"`
+	AccountEmail  types.NullString `json:"account_email"`
 }
 
-// ListTripEnrollments
+// A trip's sign-ups with their person. user_id and account_email are the
+// person's account, NULL for a person without one.
 //
-//	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+//	SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
 //	       te.created_at, te.updated_at,
-//	       u.name AS user_name, u.email AS user_email
+//	       cm.full_name AS person_name,
+//	       cm.email AS person_email, u.email AS account_email
 //	FROM trip_enrollments te
-//	JOIN users u ON u.id = te.user_id
+//	JOIN crew_members cm ON cm.id = te.crew_member_id
+//	LEFT JOIN users u ON u.id = cm.user_id
 //	WHERE te.trip_id = $1
-//	ORDER BY te.created_at
+//	ORDER BY te.created_at, te.id
 func (q *Queries) ListTripEnrollments(ctx context.Context, tripID int64) ([]ListTripEnrollmentsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listTripEnrollments, tripID)
 	if err != nil {
@@ -476,14 +604,16 @@ func (q *Queries) ListTripEnrollments(ctx context.Context, tripID int64) ([]List
 		if err := rows.Scan(
 			&i.ID,
 			&i.TripID,
+			&i.CrewMemberID,
 			&i.UserID,
 			&i.Note,
 			&i.Status,
 			&i.PaymentStatus,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.UserName,
-			&i.UserEmail,
+			&i.PersonName,
+			&i.PersonEmail,
+			&i.AccountEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -499,10 +629,11 @@ func (q *Queries) ListTripEnrollments(ctx context.Context, tripID int64) ([]List
 }
 
 const listUserCruiseTripEnrollments = `-- name: ListUserCruiseTripEnrollments :many
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
+SELECT te.id, te.trip_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status, te.crew_member_id
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
-WHERE t.cruise_id = $1 AND te.user_id = $2
+WHERE t.cruise_id = $1
+  AND te.crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
   AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 ORDER BY t.embark_date ASC, t.id ASC
 `
@@ -513,14 +644,16 @@ type ListUserCruiseTripEnrollmentsParams struct {
 	IncludeHidden bool  `json:"include_hidden"`
 }
 
-// A user's trip (leg) enrollments across the trips of one cruise, in leg order.
-// Without include_hidden, enrollments in hidden legs are left out; the
-// caller has already checked the cruise itself is visible.
+// A user's trip (leg) enrollments, those of the account's person, across
+// the trips of one cruise, in leg order. Without include_hidden,
+// enrollments in hidden legs are left out; the caller has already checked
+// the cruise itself is visible.
 //
-//	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
+//	SELECT te.id, te.trip_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status, te.crew_member_id
 //	FROM trip_enrollments te
 //	JOIN trips t ON t.id = te.trip_id
-//	WHERE t.cruise_id = $1 AND te.user_id = $2
+//	WHERE t.cruise_id = $1
+//	  AND te.crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
 //	  AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 //	ORDER BY t.embark_date ASC, t.id ASC
 func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error) {
@@ -535,12 +668,12 @@ func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUse
 		if err := rows.Scan(
 			&i.ID,
 			&i.TripID,
-			&i.UserID,
 			&i.Note,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PaymentStatus,
+			&i.CrewMemberID,
 		); err != nil {
 			return nil, err
 		}
@@ -612,7 +745,7 @@ func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([
 }
 
 const lockTripEnrollmentOfTrip = `-- name: LockTripEnrollmentOfTrip :one
-SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
+SELECT id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id FROM trip_enrollments
 WHERE id = $1 AND trip_id = $2
 FOR UPDATE
 `
@@ -625,7 +758,7 @@ type LockTripEnrollmentOfTripParams struct {
 // Row-locks one enrollment of a trip for a status change. No row when the
 // enrollment does not exist or belongs to another trip.
 //
-//	SELECT id, trip_id, user_id, note, status, created_at, updated_at, payment_status FROM trip_enrollments
+//	SELECT id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id FROM trip_enrollments
 //	WHERE id = $1 AND trip_id = $2
 //	FOR UPDATE
 func (q *Queries) LockTripEnrollmentOfTrip(ctx context.Context, arg LockTripEnrollmentOfTripParams) (TripEnrollment, error) {
@@ -634,12 +767,12 @@ func (q *Queries) LockTripEnrollmentOfTrip(ctx context.Context, arg LockTripEnro
 	err := row.Scan(
 		&i.ID,
 		&i.TripID,
-		&i.UserID,
 		&i.Note,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PaymentStatus,
+		&i.CrewMemberID,
 	)
 	return i, err
 }
@@ -695,10 +828,80 @@ func (q *Queries) LockTripForSignUp(ctx context.Context, id int64) (LockTripForS
 	return i, err
 }
 
+const mergeSharedTripEnrollmentPayments = `-- name: MergeSharedTripEnrollmentPayments :exec
+UPDATE trip_enrollments w SET
+    payment_status = (ARRAY['unpaid', 'deposit', 'paid'])[GREATEST(
+        COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], k.payment_status), 1),
+        COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], d.payment_status), 1))],
+    updated_at = CURRENT_TIMESTAMP
+FROM trip_enrollments k
+JOIN trip_enrollments d ON d.trip_id = k.trip_id
+WHERE k.crew_member_id = $1::BIGINT
+  AND d.crew_member_id = $2::BIGINT
+  AND w.id IN (k.id, d.id)
+  AND k.payment_status <> d.payment_status
+`
+
+type MergeSharedTripEnrollmentPaymentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// On a leg both people signed up for, both sign-ups take the more advanced
+// payment status of the two (unpaid < deposit < paid), so the one a merge
+// keeps (DeleteSharedTripEnrollments) loses no recorded payment.
+//
+//	UPDATE trip_enrollments w SET
+//	    payment_status = (ARRAY['unpaid', 'deposit', 'paid'])[GREATEST(
+//	        COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], k.payment_status), 1),
+//	        COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], d.payment_status), 1))],
+//	    updated_at = CURRENT_TIMESTAMP
+//	FROM trip_enrollments k
+//	JOIN trip_enrollments d ON d.trip_id = k.trip_id
+//	WHERE k.crew_member_id = $1::BIGINT
+//	  AND d.crew_member_id = $2::BIGINT
+//	  AND w.id IN (k.id, d.id)
+//	  AND k.payment_status <> d.payment_status
+func (q *Queries) MergeSharedTripEnrollmentPayments(ctx context.Context, arg MergeSharedTripEnrollmentPaymentsParams) error {
+	_, err := q.db.ExecContext(ctx, mergeSharedTripEnrollmentPayments, arg.KeptID, arg.DuplicateID)
+	return err
+}
+
+const moveTripEnrollments = `-- name: MoveTripEnrollments :execrows
+UPDATE trip_enrollments SET crew_member_id = $1::BIGINT
+WHERE crew_member_id = $2::BIGINT
+`
+
+type MoveTripEnrollmentsParams struct {
+	KeptID      int64 `json:"kept_id"`
+	DuplicateID int64 `json:"duplicate_id"`
+}
+
+// MoveTripEnrollments
+//
+//	UPDATE trip_enrollments SET crew_member_id = $1::BIGINT
+//	WHERE crew_member_id = $2::BIGINT
+func (q *Queries) MoveTripEnrollments(ctx context.Context, arg MoveTripEnrollmentsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveTripEnrollments, arg.KeptID, arg.DuplicateID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateTripEnrollmentPaymentStatus = `-- name: UpdateTripEnrollmentPaymentStatus :one
-UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
-WHERE id = $2 AND trip_id = $3
-RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+WITH updated AS (
+    UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
+    WHERE trip_enrollments.id = $2 AND trip_enrollments.trip_id = $3
+    RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
+)
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+       te.created_at, te.updated_at,
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
+FROM updated te
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
 `
 
 type UpdateTripEnrollmentPaymentStatusParams struct {
@@ -707,24 +910,53 @@ type UpdateTripEnrollmentPaymentStatusParams struct {
 	TripID        int64  `json:"trip_id"`
 }
 
-// Sets the manual payment status of one sign-up of a trip. The review
-// status is left unchanged. No row when the trip has no such enrollment.
+type UpdateTripEnrollmentPaymentStatusRow struct {
+	ID            int64            `json:"id"`
+	TripID        int64            `json:"trip_id"`
+	CrewMemberID  int64            `json:"crew_member_id"`
+	UserID        types.NullInt64  `json:"user_id"`
+	Note          types.NullString `json:"note"`
+	Status        string           `json:"status"`
+	PaymentStatus string           `json:"payment_status"`
+	CreatedAt     types.NullTime   `json:"created_at"`
+	UpdatedAt     types.NullTime   `json:"updated_at"`
+	PersonName    string           `json:"person_name"`
+	PersonEmail   types.NullString `json:"person_email"`
+	AccountEmail  types.NullString `json:"account_email"`
+}
+
+// Sets the manual payment status of one sign-up of a trip and returns it
+// with its person, as in ListTripEnrollments. The review status is left
+// unchanged. No row when the trip has no such enrollment.
 //
-//	UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $2 AND trip_id = $3
-//	RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
-func (q *Queries) UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg UpdateTripEnrollmentPaymentStatusParams) (TripEnrollment, error) {
+//	WITH updated AS (
+//	    UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
+//	    WHERE trip_enrollments.id = $2 AND trip_enrollments.trip_id = $3
+//	    RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
+//	)
+//	SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+//	       te.created_at, te.updated_at,
+//	       cm.full_name AS person_name,
+//	       cm.email AS person_email, u.email AS account_email
+//	FROM updated te
+//	JOIN crew_members cm ON cm.id = te.crew_member_id
+//	LEFT JOIN users u ON u.id = cm.user_id
+func (q *Queries) UpdateTripEnrollmentPaymentStatus(ctx context.Context, arg UpdateTripEnrollmentPaymentStatusParams) (UpdateTripEnrollmentPaymentStatusRow, error) {
 	row := q.db.QueryRowContext(ctx, updateTripEnrollmentPaymentStatus, arg.PaymentStatus, arg.ID, arg.TripID)
-	var i TripEnrollment
+	var i UpdateTripEnrollmentPaymentStatusRow
 	err := row.Scan(
 		&i.ID,
 		&i.TripID,
+		&i.CrewMemberID,
 		&i.UserID,
 		&i.Note,
 		&i.Status,
+		&i.PaymentStatus,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PaymentStatus,
+		&i.PersonName,
+		&i.PersonEmail,
+		&i.AccountEmail,
 	)
 	return i, err
 }
@@ -747,42 +979,46 @@ func (q *Queries) UpdateTripEnrollmentStatus(ctx context.Context, arg UpdateTrip
 }
 
 const updateUserTripEnrollmentNote = `-- name: UpdateUserTripEnrollmentNote :one
-UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
-WHERE trip_id = $1 AND user_id = $2
-RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+UPDATE trip_enrollments SET note = $1, updated_at = CURRENT_TIMESTAMP
+WHERE trip_id = $2
+  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $3::BIGINT)
+RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 `
 
 type UpdateUserTripEnrollmentNoteParams struct {
+	Note   types.NullString `json:"note"`
 	TripID int64            `json:"trip_id"`
 	UserID int64            `json:"user_id"`
-	Note   types.NullString `json:"note"`
 }
 
-// Sets the note on the caller's own sign-up for a trip. No row when the
-// user has no sign-up for it.
+// Sets the note on the caller's own sign-up for a trip, the one of the
+// account's person. No row when the user has no sign-up for it.
 //
-//	UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
-//	WHERE trip_id = $1 AND user_id = $2
-//	RETURNING id, trip_id, user_id, note, status, created_at, updated_at, payment_status
+//	UPDATE trip_enrollments SET note = $1, updated_at = CURRENT_TIMESTAMP
+//	WHERE trip_id = $2
+//	  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $3::BIGINT)
+//	RETURNING id, trip_id, note, status, created_at, updated_at, payment_status, crew_member_id
 func (q *Queries) UpdateUserTripEnrollmentNote(ctx context.Context, arg UpdateUserTripEnrollmentNoteParams) (TripEnrollment, error) {
-	row := q.db.QueryRowContext(ctx, updateUserTripEnrollmentNote, arg.TripID, arg.UserID, arg.Note)
+	row := q.db.QueryRowContext(ctx, updateUserTripEnrollmentNote, arg.Note, arg.TripID, arg.UserID)
 	var i TripEnrollment
 	err := row.Scan(
 		&i.ID,
 		&i.TripID,
-		&i.UserID,
 		&i.Note,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PaymentStatus,
+		&i.CrewMemberID,
 	)
 	return i, err
 }
 
 const withdrawUserTripEnrollment = `-- name: WithdrawUserTripEnrollment :one
 DELETE FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2 AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
+WHERE trip_id = $1
+  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
+  AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
 RETURNING id
 `
 
@@ -796,7 +1032,9 @@ type WithdrawUserTripEnrollmentParams struct {
 // has no such sign-up for it.
 //
 //	DELETE FROM trip_enrollments
-//	WHERE trip_id = $1 AND user_id = $2 AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
+//	WHERE trip_id = $1
+//	  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = $2::BIGINT)
+//	  AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
 //	RETURNING id
 func (q *Queries) WithdrawUserTripEnrollment(ctx context.Context, arg WithdrawUserTripEnrollmentParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, withdrawUserTripEnrollment, arg.TripID, arg.UserID)

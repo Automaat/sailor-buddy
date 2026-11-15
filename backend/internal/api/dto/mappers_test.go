@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -419,12 +420,19 @@ func TestYachtsFromDB(t *testing.T) {
 }
 
 func TestTripEnrollmentToDTO(t *testing.T) {
-	got := TripEnrollmentToDTO(sqlcdb.TripEnrollment{
-		ID: 1, TripID: 5, UserID: 9, Note: nstr("hi"),
+	row := sqlcdb.TripEnrollment{
+		ID: 1, TripID: 5, CrewMemberID: 9, Note: nstr("hi"),
 		Status: "accepted", CreatedAt: ntime(), UpdatedAt: ntime(),
-	})
-	if got.ID != 1 || got.UserID != 9 || got.Status != "accepted" {
+	}
+	got := TripEnrollmentToDTO(row)
+	if got.ID != 1 || got.Status != "accepted" {
 		t.Fatalf("unexpected: %+v", got)
+	}
+	if got.CrewMemberID == nil || *got.CrewMemberID != 9 {
+		t.Fatalf("crew_member_id = %v", got.CrewMemberID)
+	}
+	if got.UserID != nil {
+		t.Fatalf("a bare sign-up row names no account, got user_id %d", *got.UserID)
 	}
 	if got.TripID == nil || *got.TripID != 5 {
 		t.Fatalf("trip_id = %v", got.TripID)
@@ -434,6 +442,10 @@ func TestTripEnrollmentToDTO(t *testing.T) {
 	}
 	if got.Note == nil || *got.Note != "hi" {
 		t.Fatalf("note = %v", got.Note)
+	}
+	own := UserTripEnrollmentToDTO(row, 4)
+	if own.UserID == nil || *own.UserID != 4 || own.CrewMemberID == nil || *own.CrewMemberID != 9 {
+		t.Fatalf("own sign-up: user_id %v crew_member_id %v", own.UserID, own.CrewMemberID)
 	}
 }
 
@@ -462,15 +474,42 @@ func TestCruiseEnrollmentToDTO(t *testing.T) {
 func TestTripEnrollmentsFromDB(t *testing.T) {
 	out := TripEnrollmentsFromDB([]sqlcdb.ListTripEnrollmentsRow{
 		{
-			ID: 1, TripID: 5, UserID: 9, Status: "accepted",
-			UserName: "Gail", UserEmail: "gail@x", CreatedAt: ntime(), UpdatedAt: ntime(),
+			ID: 1, TripID: 5, CrewMemberID: 7, UserID: nint(9), Status: "accepted",
+			PersonName: "Gail", PersonEmail: nstr("gail@x"), AccountEmail: nstr("account@x"),
+			CreatedAt: ntime(), UpdatedAt: ntime(),
 		},
+		{ID: 2, TripID: 5, CrewMemberID: 8, UserID: nint(10), PersonName: "Hal", PersonEmail: nstr(" "), AccountEmail: nstr("hal@x")},
+		{ID: 3, TripID: 5, CrewMemberID: 11, PersonName: "Ida"},
 	})
-	if len(out) != 1 {
-		t.Fatalf("want 1, got %d", len(out))
+	if len(out) != 3 {
+		t.Fatalf("want 3, got %d", len(out))
 	}
-	if out[0].UserName != "Gail" || out[0].UserEmail != "gail@x" {
-		t.Fatalf("unexpected joined fields: %+v", out[0])
+	tests := []struct {
+		name   string
+		got    TripEnrollmentDetail
+		person int64
+		user   *int64
+		email  *string
+	}{
+		{"person e-mail wins", out[0], 7, new(int64(9)), new("gail@x")},
+		{"account e-mail when the person has none", out[1], 8, new(int64(10)), new("hal@x")},
+		{"person without an account or e-mail", out[2], 11, nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got.CrewMemberID == nil || *tt.got.CrewMemberID != tt.person {
+				t.Errorf("crew_member_id = %v, want %d", tt.got.CrewMemberID, tt.person)
+			}
+			if !reflect.DeepEqual(tt.got.UserID, tt.user) {
+				t.Errorf("user_id = %v, want %v", tt.got.UserID, tt.user)
+			}
+			if !reflect.DeepEqual(tt.got.Email, tt.email) {
+				t.Errorf("email = %v, want %v", tt.got.Email, tt.email)
+			}
+		})
+	}
+	if out[0].PersonName != "Gail" {
+		t.Fatalf("person_name = %q", out[0].PersonName)
 	}
 	if out[0].TripID == nil || *out[0].TripID != 5 {
 		t.Fatalf("trip_id = %v", out[0].TripID)

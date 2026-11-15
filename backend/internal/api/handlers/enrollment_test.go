@@ -111,7 +111,7 @@ func TestEnrollment_UpdateStatus_InvalidEnum(t *testing.T) {
 func TestEnrollment_ListEnrollments(t *testing.T) {
 	m := &mockQuerier{
 		listTripEnrollmentsFn: func(context.Context, int64) ([]sqlcdb.ListTripEnrollmentsRow, error) {
-			return []sqlcdb.ListTripEnrollmentsRow{{ID: 1, TripID: 9, Status: "pending", UserName: "Jan"}}, nil
+			return []sqlcdb.ListTripEnrollmentsRow{{ID: 1, TripID: 9, CrewMemberID: 3, Status: "pending", PersonName: "Jan"}}, nil
 		},
 	}
 	resp := enrollTestAPI(t, m).GetCtx(userCtx(context.Background()), "/trips/9/enrollments")

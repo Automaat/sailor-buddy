@@ -72,7 +72,7 @@ func TestSignUpForTrip_NoDeadlineStaysOpen(t *testing.T) {
 
 func TestSignUpForTrip_ExistingSignUpAfterDeadlineIsReturned(t *testing.T) {
 	s := newSignUpStore(deadlineTrip(5))
-	s.rows = []sqlcdb.TripEnrollment{{ID: 3, TripID: 5, UserID: 42, Status: "pending"}}
+	s.rows = []sqlcdb.TripEnrollment{{ID: 3, TripID: 5, CrewMemberID: 42, Status: "pending"}}
 	resp := enrollTestAPIAt(t, s.mock(), deadlineClock[2].now).PostCtx(guestCtx(42), "/trips/5/sign-up")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
@@ -131,9 +131,11 @@ func TestEnroll_TripToken_Deadline(t *testing.T) {
 						SignUpDeadline: types.NullString{String: testDeadline, Valid: true},
 					}, nil
 				},
+				ensureUserPersonFn: func(context.Context, int64) error { return nil },
+				lockUserPersonFn:   func(_ context.Context, u types.NullInt64) (int64, error) { return u.Int64, nil },
 				createTripEnrollmentFn: func(_ context.Context, arg sqlcdb.CreateTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 					inserts++
-					return sqlcdb.TripEnrollment{ID: 1, TripID: arg.TripID, UserID: arg.UserID, Status: "pending"}, nil
+					return sqlcdb.TripEnrollment{ID: 1, TripID: arg.TripID, CrewMemberID: arg.CrewMemberID, Status: "pending"}, nil
 				},
 			}
 			resp := enrollTestAPIAt(t, m, c.now).PostCtx(userCtx(context.Background()), "/enroll/tok", map[string]any{})

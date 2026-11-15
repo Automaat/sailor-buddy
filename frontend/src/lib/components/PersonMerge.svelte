@@ -182,6 +182,16 @@
 						)}
 					</li>
 					<li>{count(preview.opinions, 'opinia', 'opinie', 'opinii')}</li>
+					{#if preview.trip_enrollments}
+						<li>
+							{count(
+								preview.trip_enrollments,
+								'zapis na etap',
+								'zapisy na etapy',
+								'zapisów na etapy'
+							)}
+						</li>
+					{/if}
 					{#if preview.captained_trips || preview.captained_voyages}
 						<li>
 							kapitan: {count(preview.captained_trips, 'etap', 'etapy', 'etapów')},
@@ -194,6 +204,13 @@
 						Wspólne wpisy obu osób (zostają wpisy {keptName}):
 						{count(preview.shared_assignments, 'przypisanie', 'przypisania', 'przypisań')},
 						{count(preview.shared_opinions, 'opinia', 'opinie', 'opinii')}.
+					</p>
+				{/if}
+				{#if preview.shared_trip_enrollments}
+					<p class="mt-2" data-testid="merge-shared-sign-ups">
+						Obie osoby zapisały się na te same etapy:
+						{count(preview.shared_trip_enrollments, 'etap', 'etapy', 'etapów')}. Na każdym zostaje
+						jeden zapis, z mocniejszym statusem i dalszym statusem płatności.
 					</p>
 				{/if}
 				{#if preview.person.other_names?.length}

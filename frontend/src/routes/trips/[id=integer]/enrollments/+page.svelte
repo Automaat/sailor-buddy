@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { formatTimestampDate } from '#lib/dates.js';
 	import {
+		createTripEnrollment,
 		updateTripEnrollmentStatus,
 		updateTripEnrollmentPaymentStatus,
 		deleteTripEnrollment
 	} from '#lib/api/routes.js';
 	import { ApiError } from '#lib/api/client.js';
+	import { errorMessage } from '#lib/api/errors.js';
+	import { perLoad } from '#lib/state.svelte.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import type { TripEnrollment } from '#lib/api/types.js';
 	import {
@@ -42,6 +45,44 @@
 
 	const id = $derived(data.trip.id);
 	const payments = $derived(paymentCounts(enrollments));
+
+	// People who can still be signed up: everyone without a sign-up here.
+	const signedUp = $derived(new Set(enrollments.map((e) => e.crew_member_id)));
+	const candidates = $derived(data.people.filter((p) => !signedUp.has(p.id)));
+	let addForm = $derived(perLoad(data, { personId: '', note: '', busy: false, error: '' }));
+
+	async function addSignUp(e: Event) {
+		e.preventDefault();
+		const held = addForm;
+		if (!held.personId || held.busy) return;
+		const tripId = id;
+		held.busy = true;
+		held.error = '';
+		try {
+			const note = held.note.trim();
+			const created = await createTripEnrollment(tripId, {
+				crew_member_id: Number(held.personId),
+				...(note ? { note } : {})
+			});
+			if (held !== addForm || leftTrip(tripId)) return;
+			enrollments = [...enrollments, created];
+			held.personId = '';
+			held.note = '';
+		} catch (err) {
+			console.error('Failed to add sign-up:', err);
+			if (held !== addForm) return;
+			if (err instanceof ApiError && err.status === 409) {
+				held.error =
+					'Nie udało się dodać zapisu: ta osoba jest już zapisana albo etap nie przyjmuje zapisów.';
+			} else if (err instanceof ApiError && err.status === 422) {
+				held.error = 'Nie udało się dodać zapisu: nie ma już tej osoby na liście osób.';
+			} else {
+				held.error = `Nie udało się dodać zapisu: ${errorMessage(err)}`;
+			}
+		} finally {
+			held.busy = false;
+		}
+	}
 
 	// Alerts belong to one trip: a link to another clears them.
 	$effect(() => {
@@ -154,6 +195,58 @@
 		</a>
 	</div>
 
+	{#if trip.status === 'planned'}
+		<form
+			onsubmit={addSignUp}
+			class="mb-6 flex flex-wrap items-end gap-2 rounded-2xl bg-white p-4 shadow-sm"
+			aria-labelledby="add-sign-up-heading"
+		>
+			<h2 id="add-sign-up-heading" class="w-full font-semibold text-[var(--navy)]">Dodaj zapis</h2>
+			<p class="w-full text-sm text-[var(--text-muted)]">
+				Zapisz dowolną osobę, także bez konta w aplikacji. Po akceptacji trafi do załogi.
+			</p>
+			<div class="min-w-0 max-w-full">
+				<label for="add-sign-up-person" class="block text-xs text-[var(--text-muted)]">Osoba</label>
+				<select
+					id="add-sign-up-person"
+					bind:value={addForm.personId}
+					class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
+				>
+					<option value="">Wybierz...</option>
+					{#each candidates as person (person.id)}
+						<option value={String(person.id)}
+							>{person.full_name}{person.email ? ` (${person.email})` : ''}</option
+						>
+					{/each}
+				</select>
+			</div>
+			<div class="min-w-0 max-w-full">
+				<label for="add-sign-up-note" class="block text-xs text-[var(--text-muted)]"
+					>Notatka (opcjonalnie)</label
+				>
+				<input
+					id="add-sign-up-note"
+					type="text"
+					maxlength="2000"
+					bind:value={addForm.note}
+					class="max-w-full rounded-lg border px-3 py-1.5 text-sm"
+				/>
+			</div>
+			<button
+				type="submit"
+				disabled={!addForm.personId || addForm.busy}
+				class="rounded-lg bg-[var(--ocean)] px-4 py-1.5 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+			>
+				{addForm.busy ? 'Dodawanie...' : 'Dodaj zapis'}
+			</button>
+			{#if addForm.error}
+				<p role="alert" class="w-full rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+					{addForm.error}
+				</p>
+			{/if}
+		</form>
+	{/if}
+
 	{#if error}
 		<p role="alert" class="mb-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
 	{/if}
@@ -182,10 +275,14 @@
 				<div class="rounded-xl bg-white p-4 shadow-sm">
 					<div class="flex items-center justify-between max-md:flex-wrap max-md:gap-2">
 						<div class="min-w-0 break-words">
-							<span class="font-medium">{enrollment.user_name ?? 'Nieznany'}</span>
-							<span class="ml-2 text-sm text-[var(--text-muted)]"
-								>{enrollment.user_email ?? ''}</span
-							>
+							<span class="font-medium">{enrollment.person_name || 'Nieznany'}</span>
+							<span class="ml-2 text-sm text-[var(--text-muted)]">{enrollment.email ?? ''}</span>
+							{#if enrollment.user_id == null}
+								<span
+									class="ml-2 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+									data-testid="no-account">bez konta</span
+								>
+							{/if}
 							<span
 								class="ml-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[
 									enrollment.status
@@ -204,7 +301,7 @@
 						</div>
 						<div class="flex items-center gap-1 max-md:flex-wrap">
 							<label class="sr-only" for={`payment-${enrollment.id}`}>
-								Płatność: {enrollment.user_name ?? 'Nieznany'}
+								Płatność: {enrollment.person_name || 'Nieznany'}
 							</label>
 							<select
 								id={`payment-${enrollment.id}`}

@@ -23,7 +23,7 @@ export class ApiError extends Error {
 	}
 }
 
-type HttpMethod = 'get' | 'put' | 'post' | 'delete';
+type HttpMethod = 'get' | 'put' | 'post' | 'patch' | 'delete';
 
 // PathsFor selects the path templates that declare a given HTTP method.
 // openapi-typescript types absent methods as optional `never`, so a real
@@ -35,6 +35,7 @@ type PathsFor<M extends HttpMethod> = {
 type GetPath = PathsFor<'get'>;
 type PostPath = PathsFor<'post'>;
 type PutPath = PathsFor<'put'>;
+type PatchPath = PathsFor<'patch'>;
 type DeletePath = PathsFor<'delete'>;
 
 // Op resolves the OpenAPI operation backing a path + method pair.
@@ -263,6 +264,13 @@ export const api = {
 	): Promise<OpResponse<Op<P, 'put'>>> {
 		const opts = args[0] as CallOpts | undefined;
 		return request('PUT', resolvePath(path, opts), opts?.body);
+	},
+	patch<P extends PatchPath>(
+		path: P,
+		...args: OptsArg<Op<P, 'patch'>>
+	): Promise<OpResponse<Op<P, 'patch'>>> {
+		const opts = args[0] as CallOpts | undefined;
+		return request('PATCH', resolvePath(path, opts), opts?.body);
 	},
 	del<P extends DeletePath>(
 		path: P,

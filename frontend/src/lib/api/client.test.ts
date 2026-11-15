@@ -145,6 +145,19 @@ describe('api write verbs', () => {
 		);
 	});
 
+	it('serializes the body and uses PATCH', async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ id: 9, role: 'oficer' }));
+		await api.patch('/trips/{tripID}/crew/{assignmentID}', {
+			path: { tripID: 1, assignmentID: 9 },
+			body: { role: 'oficer' }
+		});
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/trips/1/crew/9',
+			expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ role: 'oficer' }) })
+		);
+	});
+
 	it('uses DELETE for del', async () => {
 		fetchMock.mockResolvedValue(jsonResponse(null, { status: 204 }));
 		await api.del('/trips/{tripID}', { path: { tripID: 1 } });
