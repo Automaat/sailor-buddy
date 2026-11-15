@@ -98,11 +98,21 @@ func CrewMemberFromDB(m sqlcdb.CrewMember) CrewMember {
 	}
 }
 
-// CrewMembersFromDB maps a slice of database rows, returning a non-nil slice.
-func CrewMembersFromDB(ms []sqlcdb.CrewMember) []CrewMember {
-	out := make([]CrewMember, len(ms))
-	for i := range ms {
-		out[i] = CrewMemberFromDB(ms[i])
+// CrewMemberForCaller maps a person read for the caller. The emergency
+// contact stays only when the row says the caller may read it.
+func CrewMemberForCaller(m sqlcdb.CrewMember, contactsVisible bool) CrewMember {
+	c := CrewMemberFromDB(m)
+	if !contactsVisible {
+		c.EmergencyContactName, c.EmergencyContactPhone = nil, nil
+	}
+	return c
+}
+
+// CrewMembersForCaller maps the people list rows, returning a non-nil slice.
+func CrewMembersForCaller(rows []sqlcdb.ListCrewMembersRow) []CrewMember {
+	out := make([]CrewMember, len(rows))
+	for i := range rows {
+		out[i] = CrewMemberForCaller(rows[i].CrewMember, rows[i].ContactsVisible)
 	}
 	return out
 }
