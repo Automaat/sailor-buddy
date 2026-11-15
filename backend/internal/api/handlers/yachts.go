@@ -46,19 +46,21 @@ func yachtNotFound() error {
 	return huma.Error422UnprocessableEntity("yacht not found")
 }
 
-// RegisterYachtRoutes wires the club yacht operations onto the API. Reads are
-// open to any member; mutations require an admin.
+// RegisterYachtRoutes wires the club yacht operations onto the API. The yacht
+// list is the captains' working tool: reads require an admin or the captain
+// group, mutations an admin. Members see a voyage's yacht name in the voyage
+// itself.
 func RegisterYachtRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewYachtHandler(q)
 	tag := []string{"Yachts"}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-yachts", Method: http.MethodGet, Path: "/yachts",
-		Summary: "List yachts", Tags: tag,
+		Summary: "List yachts (admin or captain group)", Tags: tag,
 	}, h.list)
 	huma.Register(api, huma.Operation{
 		OperationID: "get-yacht", Method: http.MethodGet, Path: "/yachts/{yachtID}",
-		Summary: "Get a yacht", Tags: tag,
+		Summary: "Get a yacht (admin or captain group)", Tags: tag,
 	}, h.get)
 	huma.Register(api, huma.Operation{
 		OperationID: "create-yacht", Method: http.MethodPost, Path: "/yachts",
@@ -77,10 +79,10 @@ func RegisterYachtRoutes(api huma.API, q sqlcdb.Querier) {
 func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput] {
 	return crudConfig[pageParams, yachtIDParam, createYachtInput, updateYachtInput, yachtIDParam, sqlcdb.Yacht, yachtListOutput, yachtOutput]{
 		listScope: func(ctx context.Context, _ *pageParams) (crudScope, error) {
-			return memberScope(ctx)
+			return captainGroupScope(ctx)
 		},
 		getScope: func(ctx context.Context, _ *yachtIDParam) (crudScope, error) {
-			return memberScope(ctx)
+			return captainGroupScope(ctx)
 		},
 		createScope: func(ctx context.Context, _ *createYachtInput) (crudScope, error) {
 			return adminScope(ctx)
@@ -92,15 +94,7 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 			return adminScope(ctx)
 		},
 		list: func(ctx context.Context, _ crudScope, in *pageParams) ([]sqlcdb.Yacht, error) {
-			var key nameKey
-			ok, err := decodeCursor(in.After, &key)
-			if err != nil {
-				return nil, err
-			}
-			return q.ListYachts(ctx, sqlcdb.ListYachtsParams{
-				AfterID: afterID(ok, key.ID), AfterName: afterText(ok, key.Name),
-				RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
-			})
+			return listYachtPage(ctx, q, in)
 		},
 		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
 			return q.CountYachts(ctx)
@@ -141,10 +135,7 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 			}
 			return err
 		},
-		listOutput: func(in *pageParams, rows []sqlcdb.Yacht, total int64) *yachtListOutput {
-			return &yachtListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.YachtsFromDB,
-				func(r sqlcdb.Yacht) any { return nameKey{Name: r.Name, ID: r.ID} })}
-		},
+		listOutput: yachtListPage,
 		itemOutput: func(row sqlcdb.Yacht) *yachtOutput {
 			return &yachtOutput{Body: dto.YachtFromDB(row)}
 		},
@@ -175,4 +166,23 @@ func yachtCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, yachtIDParam, crea
 		deleteClientMsg: "failed to delete yacht",
 		notFoundMsg:     "yacht not found",
 	}
+}
+
+// listYachtPage lists one window of yachts by name, after the in.After cursor
+// when one is given.
+func listYachtPage(ctx context.Context, q sqlcdb.Querier, in *pageParams) ([]sqlcdb.Yacht, error) {
+	var key nameKey
+	ok, err := decodeCursor(in.After, &key)
+	if err != nil {
+		return nil, err
+	}
+	return q.ListYachts(ctx, sqlcdb.ListYachtsParams{
+		AfterID: afterID(ok, key.ID), AfterName: afterText(ok, key.Name),
+		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
+	})
+}
+
+func yachtListPage(in *pageParams, rows []sqlcdb.Yacht, total int64) *yachtListOutput {
+	return &yachtListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.YachtsFromDB,
+		func(r sqlcdb.Yacht) any { return nameKey{Name: r.Name, ID: r.ID} })}
 }

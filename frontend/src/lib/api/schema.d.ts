@@ -1385,7 +1385,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List the club yachts for the voyage log (admin or voyage captain) */
+        get: operations["list-voyage-yachts"];
         put?: never;
         /** Add a yacht to the club list from a voyage (admin or voyage captain) */
         post: operations["add-voyage-yacht"];
@@ -1402,7 +1403,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List yachts */
+        /** List yachts (admin or captain group) */
         get: operations["list-yachts"];
         put?: never;
         /** Create a yacht (admin) */
@@ -1420,7 +1421,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get a yacht */
+        /** Get a yacht (admin or captain group) */
         get: operations["get-yacht"];
         /** Update a yacht (admin) */
         put: operations["update-yacht"];
@@ -3128,6 +3129,72 @@ export interface components {
             /** Format: int64 */
             year?: number;
         };
+        VoyageDetail: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/VoyageDetail.json
+             */
+            readonly $schema?: string;
+            captain_name?: string;
+            captain_notes?: string;
+            /**
+             * Format: int64
+             * @description Person (crew record) who captains the voyage
+             */
+            captain_person_id?: number;
+            /** Format: double */
+            cost_per_person?: number;
+            /** Format: double */
+            cost_total?: number;
+            countries?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            created_by?: number;
+            /** Format: int64 */
+            cruise_id: number;
+            /** Format: int64 */
+            days: number;
+            description?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            /** Format: double */
+            hours_engine: number;
+            /** Format: double */
+            hours_over_6bf: number;
+            /** Format: double */
+            hours_sail: number;
+            /** Format: double */
+            hours_total: number;
+            /** Format: int64 */
+            id: number;
+            image_logo_url?: string;
+            image_photo_url?: string;
+            image_route_url?: string;
+            /** Format: double */
+            miles: number;
+            name: string;
+            /**
+             * Format: date-time
+             * @description When the voyage was published; absent while it is a hidden draft
+             */
+            published_at?: string;
+            start_port?: string;
+            /** Format: int64 */
+            tidal_waters: number;
+            track_url?: string;
+            /** Format: date-time */
+            updated_at: string;
+            voyage_card?: string;
+            /** @description Yacht sailed; absent when yacht_id is unset */
+            yacht?: components["schemas"]["YachtSummary"];
+            /** Format: int64 */
+            yacht_id?: number;
+            /** Format: int64 */
+            year?: number;
+        };
         VoyageLogBody: {
             /**
              * Format: uri
@@ -3306,6 +3373,12 @@ export interface components {
             /** @description Charter owner (armator) */
             owner_name?: string;
             registration_no?: string;
+            yacht_type?: string;
+        };
+        YachtSummary: {
+            /** Format: int64 */
+            id: number;
+            name: string;
             yacht_type?: string;
         };
     };
@@ -6192,7 +6265,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Voyage"];
+                    "application/json": components["schemas"]["VoyageDetail"];
                 };
             };
             /** @description Error */
@@ -6727,6 +6800,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Voyage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-voyage-yachts": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+                /** @description A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageYacht"];
                 };
             };
             /** @description Error */

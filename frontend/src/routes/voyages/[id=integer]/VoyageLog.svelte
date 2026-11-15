@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { updateVoyageLog, addVoyageYacht } from '#lib/api/routes.js';
-	import type { YachtBody } from '#lib/api/types.js';
+	import { updateVoyageLog, addVoyageYacht, listVoyageYachts } from '#lib/api/routes.js';
+	import type { Yacht, YachtBody, YachtSummary } from '#lib/api/types.js';
+	import { errorMessage } from '#lib/api/errors.js';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 
 	import { onDestroy } from 'svelte';
@@ -14,10 +15,30 @@
 	}
 	let {
 		voyage = $bindable(),
-		yachts = $bindable(),
+		yacht = $bindable(),
 		canLog
-	}: { voyage: PageData['voyage']; yachts: PageData['yachts']; canLog: boolean } = $props();
+	}: { voyage: PageData['voyage']; yacht: YachtSummary | null; canLog: boolean } = $props();
 	const id = $derived(voyage.id);
+
+	// The picker's list comes through the voyage: its captain may be outside
+	// the captain group, which alone reads the club yacht list.
+	let yachts = $state<Yacht[]>([]);
+	let yachtsError = $state('');
+	$effect(() => {
+		if (!canLog) return;
+		const voyageId = id;
+		yachtsError = '';
+		listVoyageYachts(voyageId).then(
+			(list) => {
+				if (leftVoyage(voyageId)) return;
+				// Keep a yacht added from the log before the list answered.
+				yachts = [...list, ...yachts.filter((y) => !list.some((l) => l.id === y.id))];
+			},
+			(err) => {
+				if (!leftVoyage(voyageId)) yachtsError = errorMessage(err);
+			}
+		);
+	});
 	let logOpen = $state(false);
 	let logError = $state('');
 	let logForm = $state({
@@ -72,6 +93,7 @@
 			await updateVoyageLog(voyageId, body);
 			if (leftVoyage(voyageId)) return;
 			voyage = { ...voyage, ...body };
+			yacht = body.yacht_id ? summaryOf(body.yacht_id) : null;
 			logOpen = false;
 		} catch (err) {
 			if (leftVoyage(voyageId)) return;
@@ -79,6 +101,14 @@
 		} finally {
 			if (logSavingFor === voyageId) logSavingFor = null;
 		}
+	}
+
+	// summaryOf names the logged yacht; one missing from a list that failed to
+	// load is the voyage's unchanged yacht.
+	function summaryOf(yachtID: number): YachtSummary | null {
+		const picked = yachts.find((y) => y.id === yachtID);
+		if (picked) return { id: picked.id, name: picked.name, yacht_type: picked.yacht_type };
+		return yacht?.id === yachtID ? yacht : null;
 	}
 
 	function addYachtForVoyage(body: YachtBody) {
@@ -188,6 +218,11 @@
 							bind:yachts
 							create={addYachtForVoyage}
 						/>
+						{#if yachtsError}
+							<p role="alert" class="mt-1 text-xs text-red-600">
+								Nie udało się wczytać listy jachtów: {yachtsError}
+							</p>
+						{/if}
 					</div>
 					<div>
 						<label for="log_track_url" class="mb-1 block text-xs font-medium"

@@ -22,6 +22,19 @@ type Yacht struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+// YachtSummary names a yacht for readers outside the captain group, who may
+// not read the club yacht list.
+type YachtSummary struct {
+	ID        int64   `json:"id"`
+	Name      string  `json:"name"`
+	YachtType *string `json:"yacht_type,omitempty"`
+}
+
+// YachtSummaryFromDB maps a database row to its summary.
+func YachtSummaryFromDB(y sqlcdb.Yacht) YachtSummary {
+	return YachtSummary{ID: y.ID, Name: y.Name, YachtType: strPtr(y.YachtType)}
+}
+
 // YachtBody is the create/update request payload for a yacht.
 type YachtBody struct {
 	Name           string  `json:"name" minLength:"1" doc:"Yacht name"`

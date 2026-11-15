@@ -126,6 +126,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   A leg's captain sees its crew read-only with contacts (phone, emergency
   contact) and may complete the leg only after its `disembark_date`
   (Europe/Warsaw). Captain is not a role — keep it off `users.role`.
+- Yacht list (`/yachts`, `GET /yachts*`): admins and the captain group only.
+  A voyage captain outside the group picks a yacht through
+  `GET /voyages/{id}/yachts`; members see a voyage's yacht as the
+  `yacht` summary on `GET /voyages/{id}`. Do not expose the full list to
+  members again.
 - Hidden drafts: `published_at` on cruises, trips and voyages; NULL is
   hidden and every new row starts hidden. A trip or voyage is visible only
   while it and its cruise are published. Admins and the captain group see

@@ -23,6 +23,18 @@ export function hasClubAccess(user: Pick<User, 'email_verified' | 'suspended'>):
 }
 
 /**
+ * isAdminOrCaptainGroup mirrors the API's rule for the captains' working
+ * data, such as hidden drafts and the yacht list (Jachty): admins and the
+ * captain group (users.is_captain). It is false until /auth/me answers.
+ */
+export function isAdminOrCaptainGroup(auth: {
+	isAdmin: boolean;
+	user: Pick<User, 'is_captain'> | null | undefined;
+}): boolean {
+	return auth.isAdmin || !!auth.user?.is_captain;
+}
+
+/**
  * accessRedirect decides where the access gate sends an onboarded user:
  * without club access, to ACCESS_PATH unless the page works without it.
  * Returns null when the current page may render.

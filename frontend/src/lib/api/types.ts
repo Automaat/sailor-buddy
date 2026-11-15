@@ -15,6 +15,7 @@ export type TripStatus = Trip['status'];
 export type TripBody = Schemas['TripBody'];
 export type CreateTripBody = Schemas['CreateTripBody'];
 export type Voyage = Schemas['Voyage'];
+export type VoyageDetail = Schemas['VoyageDetail'];
 export type VoyageBody = Schemas['VoyageBody'];
 export type CompleteTripPayload = Schemas['CompleteTripBody'];
 
@@ -24,6 +25,7 @@ export type GeocodeResult = Schemas['GeocodeResult'];
 export type PortSuggestion = Schemas['PortSuggestion'];
 
 export type Yacht = Schemas['Yacht'];
+export type YachtSummary = Schemas['YachtSummary'];
 export type YachtBody = Schemas['YachtBody'];
 
 export type CrewMember = Schemas['CrewMember'];

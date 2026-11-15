@@ -149,22 +149,31 @@ never fetched. The cursor is opaque; do not build or parse it.
 
 Nested sub-resource lists (a trip's crew, a cruise's child trips/voyages,
 a series' editions, the members roster) are not paginated — they stay bare JSON arrays.
+The exception is `GET /api/voyages/{id}/yachts`, the club yacht list served
+through a voyage, which is paged like `/yachts`.
 
 ## Data model & authorization
 
 All sailing data is **club-wide**: there is one club and every member sees
-every cruise, trip, voyage, yacht and crew member. Authorization is by role,
+every cruise, trip, voyage and crew member. Authorization is by role,
 held on the `users.role` column:
 
 - **Reads** (`GET`) — open to any authenticated member, except hidden
-  drafts (see Hidden drafts below).
+  drafts (see Hidden drafts below) and the club yacht list.
+- **Yacht list** (`GET /yachts`, `GET /yachts/{id}`) — the captains'
+  working tool: admins and the captain group (`users.is_captain`) only; a
+  member gets `403 admin or captain group only`. Members see a voyage's
+  yacht as the `yacht` summary (`id`, `name`, `yacht_type`) in
+  `GET /voyages/{id}`. A voyage's captain outside the group lists the
+  yachts for the voyage log through `GET /voyages/{id}/yachts`.
 - **Mutations** (`POST`/`PUT`/`DELETE`, plus `complete`/`cancel`/enroll-token)
   on shared club data — require the caller to be an `admin`; a member gets
   `403 admin only`.
 - **Voyage captain** — the account linked to a voyage's captain person
   (`captain_person_id` → `crew_members.user_id`) may also write that
   voyage's post-cruise log (`PUT /voyages/{id}/log`), its visited ports and
-  its opinions, and add a yacht to the club list from the voyage
+  its opinions, list the club yachts for the log (`GET /voyages/{id}/yachts`)
+  and add a yacht to the club list from the voyage
   (`POST /voyages/{id}/yachts`). A captain person without an account grants
   no rights. Other mutations stay admin-only.
 - **Leg captain** — the account linked to a trip's captain person reads the
@@ -647,9 +656,10 @@ moves it returns `409`.
 |--------|------|------|-------------|---------|
 | GET | `/api/voyages` | member | List voyages | 200 |
 | POST | `/api/voyages` | **admin** | Create voyage (body needs `cruise_id`) | 201 |
-| GET | `/api/voyages/{id}` | member | Get voyage | 200 |
+| GET | `/api/voyages/{id}` | member | Get voyage, with the `yacht` summary (`id`, `name`, `yacht_type`) when `yacht_id` is set | 200 |
 | PUT | `/api/voyages/{id}` | **admin** | Update voyage | 204 |
 | PUT | `/api/voyages/{id}/log` | **admin** or voyage captain | Post-cruise log: hours, miles, days, tidal waters, `captain_notes`, `yacht_id`, `track_url`, `voyage_card`; every field replaces the stored value | 204 |
+| GET | `/api/voyages/{id}/yachts` | **admin** or voyage captain | List the club yachts for the voyage log's picker (paged like `/api/yachts`) | 200 |
 | POST | `/api/voyages/{id}/yachts` | **admin** or voyage captain | Add a yacht to the club list (does not assign it) | 201 |
 | DELETE | `/api/voyages/{id}` | **admin** | Delete voyage | 204 |
 | GET | `/api/voyages/{voyageID}/crew` | member | List voyage crew | 200 |
@@ -863,9 +873,9 @@ published, `published_at`. Unknown series → 404.
 
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
-| GET | `/api/yachts` | member | List yachts | 200 |
+| GET | `/api/yachts` | **admin** or captain group | List yachts | 200 |
 | POST | `/api/yachts` | **admin** | Create yacht | 201 |
-| GET | `/api/yachts/{id}` | member | Get yacht | 200 |
+| GET | `/api/yachts/{id}` | **admin** or captain group | Get yacht | 200 |
 | PUT | `/api/yachts/{id}` | **admin** | Update yacht | 204 |
 | DELETE | `/api/yachts/{id}` | **admin** | Delete yacht; `409` while a trip or voyage uses it | 204 |
 

@@ -482,6 +482,38 @@ func TestHiddenVoyageStaysWritableByItsCaptain(t *testing.T) {
 	}
 }
 
+// TestHiddenVoyageHidesYachtPickerFromItsCaptain: the voyage's captain
+// outside the captain group reads the yacht picker list only while they can
+// see the voyage; a hidden voyage or one under a hidden cruise answers 404.
+func TestHiddenVoyageHidesYachtPickerFromItsCaptain(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	f := seedVisibility(t, conn)
+	if _, err := conn.Exec(`UPDATE voyages SET captain_person_id =
+		(SELECT cm.id FROM crew_members cm JOIN users u ON u.id = cm.user_id WHERE u.firebase_uid = 'subject')
+		WHERE id = ANY($1)`, []int64{f.voyage, f.hiddenVoyage, f.hiddenCruiseVoyage}); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		token  string
+		voyage int64
+		want   int
+	}{
+		{"subject", f.voyage, http.StatusOK},
+		{"subject", f.hiddenVoyage, http.StatusNotFound},
+		{"subject", f.hiddenCruiseVoyage, http.StatusNotFound},
+		{"member", f.hiddenVoyage, http.StatusNotFound},
+		{"captain", f.hiddenVoyage, http.StatusForbidden},
+		{"admin", f.hiddenVoyage, http.StatusOK},
+	}
+	for _, c := range cases {
+		path := fmt.Sprintf("/api/voyages/%d/yachts", c.voyage)
+		if rr := securityRequest(h, c.token, http.MethodGet, path, ""); rr.Code != c.want {
+			t.Errorf("%s GET %s: %d %s, want %d", c.token, path, rr.Code, rr.Body, c.want)
+		}
+	}
+}
+
 // TestCruiseShareLinkHidesHiddenLegEnrollments: a published cruise's share
 // link lists the caller's leg enrollments only for the legs it offers.
 func TestCruiseShareLinkHidesHiddenLegEnrollments(t *testing.T) {

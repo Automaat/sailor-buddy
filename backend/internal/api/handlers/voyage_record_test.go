@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -317,5 +319,116 @@ func TestTripComplete_RejectsHalfCoordinates(t *testing.T) {
 	})
 	if resp.Code != http.StatusUnprocessableEntity || !strings.Contains(resp.Body.String(), "latitude and longitude") {
 		t.Fatalf("status = %d, want 422 for paired coordinates; body=%s", resp.Code, resp.Body)
+	}
+}
+
+func TestVoyageListYachts_Authorization(t *testing.T) {
+	tests := []struct {
+		name   string
+		ctx    context.Context
+		voyage error
+		want   int
+	}{
+		{name: "admin", ctx: callerCtx(1, "admin"), want: http.StatusOK},
+		{name: "assigned captain outside the captain group", ctx: callerCtx(recordCaptainID, "member"), want: http.StatusOK},
+		{name: "other member", ctx: callerCtx(8, "member"), want: http.StatusForbidden},
+		{name: "captain group, not this voyage's captain", ctx: captainGroupCtx(9), want: http.StatusForbidden},
+		{name: "missing voyage", ctx: callerCtx(1, "admin"), voyage: sql.ErrNoRows, want: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got *sqlcdb.ListYachtsParams
+			m := &mockQuerier{
+				getVoyageFn: func(ctx context.Context, id int64) (sqlcdb.Voyage, error) {
+					if tt.voyage != nil {
+						return sqlcdb.Voyage{}, tt.voyage
+					}
+					return captainVoyage(ctx, id)
+				},
+				getCrewMemberFn: recordCaptain,
+				listYachtsFn: func(_ context.Context, arg sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
+					got = &arg
+					return []sqlcdb.Yacht{{ID: 3, Name: "Zawisza"}}, nil
+				},
+				countYachtsFn: func(context.Context) (int64, error) { return 1, nil },
+			}
+			resp := voyageTestAPI(t, m).GetCtx(tt.ctx, "/voyages/5/yachts?limit=10")
+			if resp.Code != tt.want {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			}
+			if tt.want != http.StatusOK {
+				if got != nil {
+					t.Fatal("yachts listed despite rejection")
+				}
+				return
+			}
+			if got == nil || got.RowLimit != 11 {
+				t.Fatalf("list args = %+v, want one row past a 10-row window", got)
+			}
+			var page dto.Page[dto.Yacht]
+			if err := json.Unmarshal(resp.Body.Bytes(), &page); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Name != "Zawisza" {
+				t.Fatalf("unexpected page: %+v", page)
+			}
+		})
+	}
+}
+
+func TestVoyageGet_YachtSummary(t *testing.T) {
+	yachtType := types.NullString{String: "Bavaria 46", Valid: true}
+	tests := []struct {
+		name    string
+		yachtID types.NullInt64
+		yacht   error
+		want    int
+		summary *dto.YachtSummary
+	}{
+		{name: "no yacht", want: http.StatusOK},
+		{
+			name: "yacht", yachtID: types.NullInt64{Int64: 3, Valid: true}, want: http.StatusOK,
+			summary: &dto.YachtSummary{ID: 3, Name: "Zawisza", YachtType: &yachtType.String},
+		},
+		{name: "yacht deleted meanwhile", yachtID: types.NullInt64{Int64: 3, Valid: true}, yacht: sql.ErrNoRows, want: http.StatusOK},
+		{name: "yacht read fails", yachtID: types.NullInt64{Int64: 3, Valid: true}, yacht: errors.New("fail"), want: http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) {
+					return sqlcdb.Voyage{ID: id, Name: "Baltic", YachtID: tt.yachtID, PublishedAt: published}, nil
+				},
+				getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
+					if tt.yacht != nil {
+						return sqlcdb.Yacht{}, tt.yacht
+					}
+					return sqlcdb.Yacht{
+						ID: id, Name: "Zawisza", YachtType: yachtType,
+						OwnerName: types.NullString{String: "Armator", Valid: true},
+					}, nil
+				},
+			}
+			resp := voyageTestAPI(t, m).GetCtx(callerCtx(8, "member"), "/voyages/5")
+			if resp.Code != tt.want {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			}
+			if tt.want != http.StatusOK {
+				return
+			}
+			var v dto.VoyageDetail
+			if err := json.Unmarshal(resp.Body.Bytes(), &v); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if v.ID != 5 || v.Name != "Baltic" {
+				t.Fatalf("unexpected voyage: %+v", v.Voyage)
+			}
+			if !reflect.DeepEqual(v.Yacht, tt.summary) {
+				t.Fatalf("yacht = %+v, want %+v", v.Yacht, tt.summary)
+			}
+			if strings.Contains(resp.Body.String(), "Armator") {
+				t.Fatalf("summary leaks yacht details: %s", resp.Body)
+			}
+		})
 	}
 }

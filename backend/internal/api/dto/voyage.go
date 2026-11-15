@@ -46,6 +46,13 @@ type Voyage struct {
 	PublishedAt     *time.Time `json:"published_at,omitempty" doc:"When the voyage was published; absent while it is a hidden draft"`
 }
 
+// VoyageDetail is a single voyage with the yacht it sailed, so the voyage page
+// names the yacht for members who may not read the yacht list.
+type VoyageDetail struct {
+	Voyage
+	Yacht *YachtSummary `json:"yacht,omitempty" doc:"Yacht sailed; absent when yacht_id is unset"`
+}
+
 // VoyageBody is the create/update request payload for a voyage.
 type VoyageBody struct {
 	Name            string   `json:"name" minLength:"1" doc:"Voyage name"`

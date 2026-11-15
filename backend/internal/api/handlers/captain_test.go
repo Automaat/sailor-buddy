@@ -24,6 +24,14 @@ func callerCtx(userID int64, role string) context.Context {
 	})
 }
 
+// captainGroupCtx injects a member caller in the captain group
+// (users.is_captain).
+func captainGroupCtx(userID int64) context.Context {
+	return context.WithValue(context.Background(), middleware.UserCtxKey, &auth.Claims{
+		UserID: userID, Email: "kpt@example.com", EmailVerified: true, Name: "Captain", Role: "member", IsCaptain: true,
+	})
+}
+
 func captainUser(id int64) sqlcdb.User {
 	return sqlcdb.User{
 		ID: id, Name: "Kpt. Anna", Role: "member", IsCaptain: true, Membership: "czlonek",

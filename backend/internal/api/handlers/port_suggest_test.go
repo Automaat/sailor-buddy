@@ -9,17 +9,9 @@ import (
 	"testing"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
-	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
-
-func captainGroupCtx() context.Context {
-	return context.WithValue(context.Background(), middleware.UserCtxKey, &auth.Claims{
-		EmailVerified: true, UserID: 7, Role: "member", IsCaptain: true,
-	})
-}
 
 // TestSuggestPorts_Visibility checks that only admins and the captain group
 // get suggestions from hidden voyages; members and an unidentified caller
@@ -31,7 +23,7 @@ func TestSuggestPorts_Visibility(t *testing.T) {
 		includeHidden bool
 	}{
 		{"admin", userCtxRole(context.Background(), "admin"), true},
-		{"captain group", captainGroupCtx(), true},
+		{"captain group", captainGroupCtx(7), true},
 		{"member", userCtxRole(context.Background(), "member"), false},
 		{"no caller", context.Background(), false},
 	}
