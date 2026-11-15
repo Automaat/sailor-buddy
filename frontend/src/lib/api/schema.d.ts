@@ -684,6 +684,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ports/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Suggest port names the club already entered */
+        get: operations["suggest-ports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series": {
         parameters: {
             query?: never;
@@ -2065,6 +2082,11 @@ export interface components {
             /** Format: double */
             longitude: number;
             name: string;
+            /**
+             * @description Search service that found the place
+             * @enum {string}
+             */
+            source: "nominatim" | "photon";
         };
         LegSignUp: {
             /**
@@ -2518,6 +2540,18 @@ export interface components {
             by_year: components["schemas"]["VoyagesByYear"][] | null;
             total: components["schemas"]["SeaTime"];
             voyages: components["schemas"]["SeaTimeVoyage"][] | null;
+        };
+        PortSuggestion: {
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+            name: string;
+            /**
+             * Format: int64
+             * @description How many visited ports carry this name
+             */
+            uses: number;
         };
         PublishCruiseBody: {
             /**
@@ -4362,6 +4396,10 @@ export interface operations {
             query: {
                 /** @description Town or place name to search for */
                 q: string;
+                /** @description Latitude of the map centre; nearby places rank higher. Give together with lon */
+                lat?: number;
+                /** @description Longitude of the map centre; nearby places rank higher. Give together with lat */
+                lon?: number;
             };
             header?: never;
             path?: never;
@@ -4662,6 +4700,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonLinkRequest"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "suggest-ports": {
+        parameters: {
+            query: {
+                /** @description Start or part of a port name; case, accents and small typos are ignored */
+                q: string;
+                /** @description Maximum number of suggestions */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortSuggestion"][] | null;
                 };
             };
             /** @description Error */

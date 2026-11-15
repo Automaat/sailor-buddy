@@ -6,8 +6,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,128 +22,493 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 )
 
-// stubNominatim returns a handler backed by a test server serving the given
-// raw JSON body, with no rate limit so tests run fast.
-func stubNominatim(t *testing.T, status int, body string) *GeocodeHandler {
-	t.Helper()
-	h, _ := countingNominatim(t, status, body, rate.NewLimiter(rate.Inf, 1))
-	return h
+// stubUpstream is an httptest server standing in for Nominatim or Photon. It
+// answers every request with status and body and records each request's
+// query and User-Agent.
+type stubUpstream struct {
+	srv    *httptest.Server
+	hits   atomic.Int64
+	mu     sync.Mutex
+	params []url.Values
+	agents []string
 }
 
-// countingNominatim is stubNominatim with an injectable limiter and a counter
-// of upstream hits.
-func countingNominatim(t *testing.T, status int, body string, limiter *rate.Limiter) (*GeocodeHandler, *atomic.Int64) {
+func newStubUpstream(t *testing.T, status int, body string) *stubUpstream {
 	t.Helper()
-	var hits atomic.Int64
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		hits.Add(1)
+	s := &stubUpstream{}
+	s.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.hits.Add(1)
+		s.mu.Lock()
+		s.params = append(s.params, r.URL.Query())
+		s.agents = append(s.agents, r.UserAgent())
+		s.mu.Unlock()
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(body))
 	}))
-	t.Cleanup(srv.Close)
-	return &GeocodeHandler{
-		baseURL:    srv.URL,
-		httpClient: srv.Client(),
-		limiter:    limiter,
-		maxWait:    time.Minute,
-		cache:      newGeocodeCache(time.Hour, 10, time.Now),
-	}, &hits
+	t.Cleanup(s.srv.Close)
+	return s
 }
 
-const splitBody = `[{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place"}]`
+func (s *stubUpstream) lastParams(t *testing.T) url.Values {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.params) == 0 {
+		t.Fatal("upstream not called")
+	}
+	return s.params[len(s.params)-1]
+}
+
+// testGeocoder wires a handler to the stub upstreams with no rate limit. A
+// nil photon turns the fallback off.
+func testGeocoder(nominatim, photon *stubUpstream) *GeocodeHandler {
+	h := &GeocodeHandler{
+		nominatim:  geocodeUpstream{name: geocodeSourceNominatim, baseURL: nominatim.srv.URL, limiter: rate.NewLimiter(rate.Inf, 1)},
+		photon:     geocodeUpstream{name: geocodeSourcePhoton, limiter: rate.NewLimiter(rate.Inf, 1)},
+		httpClient: nominatim.srv.Client(),
+		maxWait:    time.Minute,
+		cache:      newGeocodeCache(time.Hour, 10, time.Now),
+	}
+	if photon != nil {
+		h.photon.baseURL = photon.srv.URL
+	}
+	return h
+}
+
+// stubNominatim returns a handler without the Photon fallback, backed by a
+// Nominatim stub serving body.
+func stubNominatim(t *testing.T, status int, body string) *GeocodeHandler {
+	t.Helper()
+	return testGeocoder(newStubUpstream(t, status, body), nil)
+}
+
+const splitBody = `[{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place","type":"city",
+	"address":{"county":"Split-Dalmatia County","country":"Chorwacja"}}]`
+
+const photonSplitBody = `{"type":"FeatureCollection","features":[
+	{"type":"Feature","geometry":{"type":"Point","coordinates":[16.4402,43.5081]},
+	 "properties":{"name":"Split","osm_key":"place","osm_value":"city","county":"Split-Dalmatia County","country":"Croatia"}}]}`
+
+func names(rs []dto.GeocodeResult) []string {
+	out := make([]string, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, r.Name)
+	}
+	return out
+}
+
+func wantStatus(t *testing.T, err error, status int) {
+	t.Helper()
+	var se huma.StatusError
+	if !errors.As(err, &se) || se.GetStatus() != status {
+		t.Fatalf("got %v, want %d", err, status)
+	}
+}
 
 func TestGeocode_Search(t *testing.T) {
 	h := stubNominatim(t, http.StatusOK, `[
-		{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place"},
-		{"name":"","display_name":"Hvar, Croatia","lat":"43.1729","lon":"16.4412","category":"boundary"},
-		{"name":"Bad","display_name":"Bad","lat":"not-a-number","lon":"0","category":"place"}
+		{"name":"Lefkada","display_name":"Lefkada, Lefkada Regional Unit, Wyspy Jońskie, Grecja","lat":"38.83","lon":"20.70","category":"place","type":"town",
+		 "address":{"town":"Lefkada","county":"Lefkada Regional Unit","state":"Wyspy Jońskie","country":"Grecja"}},
+		{"name":"Gdynia","display_name":"Gdynia, województwo pomorskie, Polska","lat":"54.51","lon":"18.53","category":"boundary","type":"administrative","addresstype":"city",
+		 "address":{"city":"Gdynia","county":"Gdynia","state":"województwo pomorskie","country":"Polska"}},
+		{"name":"","display_name":"Hvar, Croatia","lat":"43.17","lon":"16.44","category":"place","type":"town"},
+		{"name":"Bad","display_name":"Bad","lat":"not-a-number","lon":"0","category":"place","type":"town"}
 	]`)
+	out, err := h.search(context.Background(), &geocodeInput{Query: "Lefkada"})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	want := []dto.GeocodeResult{
+		{Name: "Lefkada", Label: "Lefkada, Lefkada Regional Unit, Wyspy Jońskie, Grecja", Latitude: 38.83, Longitude: 20.70, Source: "nominatim"},
+		{Name: "Gdynia", Label: "Gdynia, województwo pomorskie, Polska", Latitude: 54.51, Longitude: 18.53, Source: "nominatim"},
+		{Name: "Hvar, Croatia", Label: "Hvar, Croatia", Latitude: 43.17, Longitude: 16.44, Source: "nominatim"},
+	}
+	if !reflect.DeepEqual(out.Body, want) {
+		t.Fatalf("results = %+v, want %+v", out.Body, want)
+	}
+}
+
+// TestGeocode_KeepsOnlySettlements checks the town filter: place records of
+// settlement types and administrative boundaries around a settlement stay;
+// everything else, from streets to regions and bays, goes.
+func TestGeocode_KeepsOnlySettlements(t *testing.T) {
+	tests := []struct {
+		category, typ, addressType string
+		keep                       bool
+	}{
+		{"place", "city", "city", true},
+		{"place", "town", "town", true},
+		{"place", "village", "village", true},
+		{"place", "hamlet", "hamlet", true},
+		{"place", "suburb", "suburb", true},
+		{"place", "island", "island", true},
+		{"place", "islet", "islet", true},
+		{"place", "locality", "locality", true},
+		{"place", "municipality", "municipality", true},
+		{"boundary", "administrative", "city", true},
+		{"boundary", "administrative", "town", true},
+		{"boundary", "administrative", "village", true},
+		{"boundary", "administrative", "municipality", true},
+		{"boundary", "administrative", "state", false},
+		{"boundary", "administrative", "county", false},
+		{"boundary", "administrative", "country", false},
+		{"boundary", "national_park", "city", false},
+		{"place", "state", "state", false},
+		{"place", "region", "region", false},
+		{"place", "", "", false},
+		{"natural", "bay", "bay", false},
+		{"leisure", "marina", "leisure", false},
+		{"highway", "residential", "road", false},
+		{"amenity", "restaurant", "amenity", false},
+		{"tourism", "hotel", "tourism", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.typ+"/"+tt.addressType, func(t *testing.T) {
+			body, err := json.Marshal([]map[string]any{{
+				"name": "Hel", "display_name": "Hel, Polska", "lat": "54.6", "lon": "18.8",
+				"category": tt.category, "type": tt.typ, "addresstype": tt.addressType,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := stubNominatim(t, http.StatusOK, string(body))
+			out, err := h.search(context.Background(), &geocodeInput{Query: "Hel"})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if kept := len(out.Body) == 1; kept != tt.keep {
+				t.Fatalf("kept = %v, want %v", kept, tt.keep)
+			}
+		})
+	}
+}
+
+// TestGeocode_Dedups checks that one town listed several times collapses to
+// its best-ranked record, while distinct towns of one name stay.
+func TestGeocode_Dedups(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			name: "identical labels far apart",
+			body: `[
+				{"name":"Szczecin","display_name":"Szczecin, województwo zachodniopomorskie, Polska","lat":"53.4300","lon":"14.5500","category":"boundary","type":"administrative","addresstype":"city","address":{"state":"województwo zachodniopomorskie","country":"Polska"}},
+				{"name":"Szczecin","display_name":"Szczecin, województwo zachodniopomorskie, Polska","lat":"53.3800","lon":"14.6600","category":"place","type":"city","address":{"state":"województwo zachodniopomorskie","country":"Polska"}}
+			]`,
+			want: []string{"Szczecin, województwo zachodniopomorskie, Polska"},
+		},
+		{
+			name: "labels differing in case and accents",
+			body: `[
+				{"name":"Świnoujście","display_name":"Świnoujście, Polska","lat":"53.91","lon":"14.25","category":"place","type":"town","address":{"country":"Polska"}},
+				{"name":"SWINOUJSCIE","display_name":"SWINOUJSCIE, POLSKA","lat":"53.70","lon":"14.60","category":"place","type":"town","address":{"country":"POLSKA"}}
+			]`,
+			want: []string{"Świnoujście, Polska"},
+		},
+		{
+			name: "same name within 5 km",
+			body: `[
+				{"name":"Gdańsk","display_name":"Gdańsk, województwo pomorskie, Polska","lat":"54.3480","lon":"18.6540","category":"boundary","type":"administrative","addresstype":"city","address":{"state":"województwo pomorskie","country":"Polska"}},
+				{"name":"Gdańsk","display_name":"Gdańsk, powiat gdański, Polska","lat":"54.3720","lon":"18.6380","category":"place","type":"city","address":{"county":"powiat gdański","country":"Polska"}}
+			]`,
+			want: []string{"Gdańsk, województwo pomorskie, Polska"},
+		},
+		{
+			name: "same name far apart",
+			body: `[
+				{"name":"Gdańsk","display_name":"Gdańsk, Polska","lat":"54.35","lon":"18.65","category":"place","type":"city","address":{"country":"Polska"}},
+				{"name":"Gdansk","display_name":"Gdansk, North Dakota, USA","lat":"48.41","lon":"-98.37","category":"place","type":"village","address":{"state":"North Dakota","country":"USA"}}
+			]`,
+			want: []string{"Gdańsk, Polska", "Gdansk, North Dakota, USA"},
+		},
+		{
+			name: "different names close together",
+			body: `[
+				{"name":"Hel","display_name":"Hel, Polska","lat":"54.6080","lon":"18.8010","category":"place","type":"town","address":{"country":"Polska"}},
+				{"name":"Jurata","display_name":"Jurata, Polska","lat":"54.6300","lon":"18.7400","category":"place","type":"village","address":{"country":"Polska"}}
+			]`,
+			want: []string{"Hel, Polska", "Jurata, Polska"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := stubNominatim(t, http.StatusOK, tt.body)
+			out, err := h.search(context.Background(), &geocodeInput{Query: "x" + tt.name})
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			var labels []string
+			for _, r := range out.Body {
+				labels = append(labels, r.Label)
+			}
+			if !reflect.DeepEqual(labels, tt.want) {
+				t.Fatalf("labels = %q, want %q", labels, tt.want)
+			}
+		})
+	}
+}
+
+func TestGeocode_CapsResults(t *testing.T) {
+	var records []map[string]any
+	for i := range 8 {
+		records = append(records, map[string]any{
+			"name": "Town", "display_name": "Town " + strconv.Itoa(i), "lat": "10", "lon": strconv.Itoa(i * 10),
+			"category": "place", "type": "town",
+		})
+	}
+	body, err := json.Marshal(records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := stubNominatim(t, http.StatusOK, string(body)).search(context.Background(), &geocodeInput{Query: "Town"})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(out.Body) != geocodeMaxResults {
+		t.Fatalf("got %d results, want %d", len(out.Body), geocodeMaxResults)
+	}
+}
+
+// TestGeocode_NominatimRequest checks the request shape: jsonv2 with address
+// details, names in Polish then English, a descriptive User-Agent, and a
+// viewbox around the rounded map centre only when the caller sends one.
+func TestGeocode_NominatimRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		wantViewbox string
+	}{
+		{"no bias", "/geocode?q=Hel", ""},
+		{"bias rounded to the grid", "/geocode?q=Hel&lat=54.37&lon=18.62", "15.5,56.5,21.5,52.5"},
+		{"viewbox clamped", "/geocode?q=Hel&lat=89.9&lon=179.9", "177,90,180,88"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+			_, api := humatest.New(t)
+			registerGeocode(api, testGeocoder(nominatim, nil))
+			if resp := api.Get(tt.path); resp.Code != http.StatusOK {
+				t.Fatalf("status = %d: %s", resp.Code, resp.Body.String())
+			}
+			p := nominatim.lastParams(t)
+			want := map[string]string{
+				"q": "Hel", "format": "jsonv2", "addressdetails": "1", "limit": "15",
+				"accept-language": "pl,en", "viewbox": tt.wantViewbox, "bounded": "",
+			}
+			if tt.wantViewbox != "" {
+				want["bounded"] = "0"
+			}
+			for k, v := range want {
+				if got := p.Get(k); got != v {
+					t.Errorf("%s = %q, want %q", k, got, v)
+				}
+			}
+			if ua := nominatim.agents[0]; ua != geocodeUserAgent {
+				t.Errorf("User-Agent = %q, want %q", ua, geocodeUserAgent)
+			}
+		})
+	}
+}
+
+// TestGeocode_BiasIsPartOfCacheKey checks that a search near another map
+// centre asks upstream again, while a centre on the same grid cell and a
+// repeat of the unbiased search are served from the cache.
+func TestGeocode_BiasIsPartOfCacheKey(t *testing.T) {
+	nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+	_, api := humatest.New(t)
+	registerGeocode(api, testGeocoder(nominatim, nil))
+	steps := []struct {
+		path     string
+		wantHits int64
+	}{
+		{"/geocode?q=Split", 1},
+		{"/geocode?q=Split&lat=43.5&lon=16.4", 2},
+		{"/geocode?q=split&lat=43.6&lon=16.3", 2},
+		{"/geocode?q=Split&lat=54.4&lon=18.6", 3},
+		{"/geocode?q=SPLIT", 3},
+	}
+	for _, s := range steps {
+		if resp := api.Get(s.path); resp.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d: %s", s.path, resp.Code, resp.Body.String())
+		}
+		if got := nominatim.hits.Load(); got != s.wantHits {
+			t.Fatalf("after %s: upstream hits = %d, want %d", s.path, got, s.wantHits)
+		}
+	}
+}
+
+// TestGeocode_PhotonFallback covers when the Photon fallback runs and what
+// the caller gets: Photon answers when Nominatim finds no town or fails, but
+// a throttled Nominatim answers 503 without touching Photon.
+func TestGeocode_PhotonFallback(t *testing.T) {
+	const onlyStreets = `[{"name":"Jastarnia","display_name":"Jastarnia street","lat":"52.2","lon":"21.0","category":"highway","type":"residential"}]`
+	tests := []struct {
+		name            string
+		nominatimStatus int
+		nominatimBody   string
+		photonStatus    int
+		photonBody      string
+		wantStatus      int
+		wantNames       []string
+		wantSource      string
+		wantPhotonHits  int64
+	}{
+		{"nominatim finds a town", http.StatusOK, splitBody, http.StatusOK, photonSplitBody, 0, []string{"Split"}, "nominatim", 0},
+		{"nominatim finds nothing", http.StatusOK, `[]`, http.StatusOK, photonSplitBody, 0, []string{"Split"}, "photon", 1},
+		{"nominatim finds no town", http.StatusOK, onlyStreets, http.StatusOK, photonSplitBody, 0, []string{"Split"}, "photon", 1},
+		{"nominatim fails", http.StatusInternalServerError, "boom", http.StatusOK, photonSplitBody, 0, []string{"Split"}, "photon", 1},
+		{"nominatim returns junk", http.StatusOK, "<html>", http.StatusOK, photonSplitBody, 0, []string{"Split"}, "photon", 1},
+		{"nominatim throttled", http.StatusTooManyRequests, "slow down", http.StatusOK, photonSplitBody, http.StatusServiceUnavailable, nil, "", 0},
+		{"both fail", http.StatusBadGateway, "boom", http.StatusInternalServerError, "boom", http.StatusBadGateway, nil, "", 1},
+		{"nominatim fails, photon throttled", http.StatusInternalServerError, "boom", http.StatusTooManyRequests, "", http.StatusServiceUnavailable, nil, "", 1},
+		{"both find nothing", http.StatusOK, `[]`, http.StatusOK, `{"features":[]}`, 0, []string{}, "", 1},
+		{"nominatim finds nothing, photon fails", http.StatusOK, `[]`, http.StatusInternalServerError, "boom", 0, []string{}, "", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			photon := newStubUpstream(t, tt.photonStatus, tt.photonBody)
+			h := testGeocoder(newStubUpstream(t, tt.nominatimStatus, tt.nominatimBody), photon)
+			out, err := h.search(context.Background(), &geocodeInput{Query: "Jastarn"})
+			if got := photon.hits.Load(); got != tt.wantPhotonHits {
+				t.Fatalf("photon hits = %d, want %d", got, tt.wantPhotonHits)
+			}
+			if tt.wantStatus != 0 {
+				wantStatus(t, err, tt.wantStatus)
+				return
+			}
+			if err != nil {
+				t.Fatalf("search: %v", err)
+			}
+			if got := names(out.Body); !reflect.DeepEqual(got, tt.wantNames) {
+				t.Fatalf("names = %q, want %q", got, tt.wantNames)
+			}
+			for _, r := range out.Body {
+				if r.Source != tt.wantSource {
+					t.Fatalf("source = %q, want %q", r.Source, tt.wantSource)
+				}
+			}
+		})
+	}
+}
+
+// TestGeocode_NominatimUnreachableFallsBack checks that a connection
+// failure, not only an error status, sends the lookup to Photon.
+func TestGeocode_NominatimUnreachableFallsBack(t *testing.T) {
+	nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+	photon := newStubUpstream(t, http.StatusOK, photonSplitBody)
+	h := testGeocoder(nominatim, photon)
+	nominatim.srv.Close()
+	h.httpClient = http.DefaultClient
 	out, err := h.search(context.Background(), &geocodeInput{Query: "Split"})
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
-	// The third entry has an unparseable latitude and is dropped.
-	if len(out.Body) != 2 {
-		t.Fatalf("got %d results, want 2: %+v", len(out.Body), out.Body)
-	}
-	if out.Body[0].Name != "Split" || out.Body[0].Latitude != 43.5081 {
-		t.Fatalf("unexpected first result: %+v", out.Body[0])
-	}
-	if out.Body[0].Label != "Split, Croatia" {
-		t.Fatalf("label not populated: %+v", out.Body[0])
-	}
-	// Empty name falls back to display_name.
-	if out.Body[1].Name != "Hvar, Croatia" {
-		t.Fatalf("name fallback failed: %+v", out.Body[1])
+	if len(out.Body) != 1 || out.Body[0].Source != "photon" {
+		t.Fatalf("results = %+v, want one Photon result", out.Body)
 	}
 }
 
-// TestGeocode_FiltersAndDedups checks that non-place categories (streets, POIs)
-// are dropped and that a town listed as both a place node and an admin
-// boundary collapses to one result.
-func TestGeocode_FiltersAndDedups(t *testing.T) {
-	h := stubNominatim(t, http.StatusOK, `[
-		{"name":"Gdańsk","display_name":"Gdańsk, Poland","lat":"54.3520","lon":"18.6466","category":"place"},
-		{"name":"Gdańsk","display_name":"Gdańsk, Pomerania, Poland","lat":"54.3521","lon":"18.6467","category":"boundary"},
-		{"name":"Gdańska","display_name":"Gdańska street","lat":"52.2300","lon":"21.0100","category":"highway"},
-		{"name":"Gdansk","display_name":"Gdansk, North Dakota, USA","lat":"48.4100","lon":"-98.3700","category":"place"}
-	]`)
-	out, err := h.search(context.Background(), &geocodeInput{Query: "Gdansk"})
-	if err != nil {
-		t.Fatalf("search: %v", err)
+// TestGeocode_FallbackCaching checks which answers are cached: a Photon
+// answer, even an empty one, is; an empty Nominatim answer whose fallback
+// failed is not, so the next try reaches Photon again.
+func TestGeocode_FallbackCaching(t *testing.T) {
+	tests := []struct {
+		name             string
+		photonStatus     int
+		photonBody       string
+		wantSecondHits   int64
+		wantSecondPhoton int64
+	}{
+		{"photon answer cached", http.StatusOK, photonSplitBody, 1, 1},
+		{"empty photon answer cached", http.StatusOK, `{"features":[]}`, 1, 1},
+		{"failed fallback not cached", http.StatusInternalServerError, "boom", 2, 2},
 	}
-	// The street is filtered out; the duplicate Gdańsk coordinates collapse.
-	if len(out.Body) != 2 {
-		t.Fatalf("got %d results, want 2: %+v", len(out.Body), out.Body)
-	}
-	if out.Body[1].Label != "Gdansk, North Dakota, USA" {
-		t.Fatalf("unexpected second result: %+v", out.Body[1])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nominatim := newStubUpstream(t, http.StatusOK, `[]`)
+			photon := newStubUpstream(t, tt.photonStatus, tt.photonBody)
+			h := testGeocoder(nominatim, photon)
+			for range 2 {
+				if _, err := h.search(context.Background(), &geocodeInput{Query: "Jastarn"}); err != nil {
+					t.Fatalf("search: %v", err)
+				}
+			}
+			if got := nominatim.hits.Load(); got != tt.wantSecondHits {
+				t.Fatalf("nominatim hits = %d, want %d", got, tt.wantSecondHits)
+			}
+			if got := photon.hits.Load(); got != tt.wantSecondPhoton {
+				t.Fatalf("photon hits = %d, want %d", got, tt.wantSecondPhoton)
+			}
+		})
 	}
 }
 
-// TestGeocode_ReadsJSONv2Category feeds full Nominatim jsonv2 records, which
-// carry the feature class as "category" and no "class" key, and checks the
-// handler asks for jsonv2 and keeps places and boundaries but drops streets.
-func TestGeocode_ReadsJSONv2Category(t *testing.T) {
-	var format string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		format = r.URL.Query().Get("format")
-		_, _ = w.Write([]byte(`[
-			{"place_id":1,"licence":"ODbL","osm_type":"relation","osm_id":1597935,"lat":"54.3482907","lon":"18.6540233","category":"boundary","type":"administrative","place_rank":16,"importance":0.71,"addresstype":"city","name":"Gdańsk","display_name":"Gdańsk, Pomeranian Voivodeship, Poland","boundingbox":["54.27","54.45","18.43","18.95"]},
-			{"place_id":2,"licence":"ODbL","osm_type":"node","osm_id":31560326,"lat":"44.1194","lon":"15.2314","category":"place","type":"city","place_rank":16,"importance":0.6,"addresstype":"city","name":"Zadar","display_name":"Zadar, Croatia","boundingbox":["43.9","44.3","15.0","15.4"]},
-			{"place_id":3,"licence":"ODbL","osm_type":"way","osm_id":4229281,"lat":"52.2300","lon":"21.0100","category":"highway","type":"residential","place_rank":26,"importance":0.1,"addresstype":"road","name":"Gdańska","display_name":"Gdańska, Warsaw, Poland","boundingbox":["52.22","52.24","21.00","21.02"]}
-		]`))
-	}))
-	t.Cleanup(srv.Close)
-	h := &GeocodeHandler{
-		baseURL:    srv.URL,
-		httpClient: srv.Client(),
-		limiter:    rate.NewLimiter(rate.Inf, 1),
-		maxWait:    time.Minute,
-		cache:      newGeocodeCache(time.Hour, 10, time.Now),
-	}
-
-	out, err := h.search(context.Background(), &geocodeInput{Query: "Gdańsk"})
+// TestGeocode_PhotonResults checks how Photon features map to results: only
+// place features of settlement types with valid coordinates, longitude first
+// in GeoJSON, a "Town, County, Region, Country" label and the same dedup as
+// Nominatim.
+func TestGeocode_PhotonResults(t *testing.T) {
+	photon := newStubUpstream(t, http.StatusOK, `{"type":"FeatureCollection","features":[
+		{"geometry":{"coordinates":[18.6788,54.6961]},"properties":{"name":"Jastarnia","osm_key":"place","osm_value":"town","county":"Puck County","state":"Pomeranian Voivodeship","country":"Poland"}},
+		{"geometry":{"coordinates":[18.6790,54.6970]},"properties":{"name":"Jastarnia","osm_key":"place","osm_value":"village","county":"Puck County","state":"Pomeranian Voivodeship","country":"Poland"}},
+		{"geometry":{"coordinates":[14.5680,68.2340]},"properties":{"name":"Svolvær","osm_key":"place","osm_value":"town","state":"Nordland","country":"Norway"}},
+		{"geometry":{"coordinates":[18.0,54.0]},"properties":{"name":"Pomeranian Voivodeship","osm_key":"place","osm_value":"state","country":"Poland"}},
+		{"geometry":{"coordinates":[18.0,54.0]},"properties":{"name":"Jastarnia Marina","osm_key":"leisure","osm_value":"marina","country":"Poland"}},
+		{"geometry":{"coordinates":[18.0]},"properties":{"name":"Broken","osm_key":"place","osm_value":"town"}},
+		{"geometry":{"coordinates":[200,54.0]},"properties":{"name":"Far","osm_key":"place","osm_value":"town"}},
+		{"geometry":{"coordinates":[18.0,54.0]},"properties":{"name":"","osm_key":"place","osm_value":"town"}},
+		{"geometry":{"coordinates":[12.5683,55.6761]},"properties":{"name":"Copenhagen","osm_key":"place","osm_value":"city","county":"Copenhagen","state":"Capital Region of Denmark","country":"Denmark"}}
+	]}`)
+	h := testGeocoder(newStubUpstream(t, http.StatusOK, `[]`), photon)
+	in := &geocodeInput{Query: " Jastarn ", bias: &geocodeBias{lat: 54.5, lon: 18.5}}
+	out, err := h.search(context.Background(), in)
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
-	if format != "jsonv2" {
-		t.Fatalf("upstream format = %q, want jsonv2", format)
+	want := []dto.GeocodeResult{
+		{Name: "Jastarnia", Label: "Jastarnia, Puck County, Pomeranian Voivodeship, Poland", Latitude: 54.6961, Longitude: 18.6788, Source: "photon"},
+		{Name: "Svolvær", Label: "Svolvær, Nordland, Norway", Latitude: 68.2340, Longitude: 14.5680, Source: "photon"},
+		{Name: "Copenhagen", Label: "Copenhagen, Capital Region of Denmark, Denmark", Latitude: 55.6761, Longitude: 12.5683, Source: "photon"},
 	}
-	var names []string
-	for _, r := range out.Body {
-		names = append(names, r.Name)
+	if !reflect.DeepEqual(out.Body, want) {
+		t.Fatalf("results = %+v, want %+v", out.Body, want)
 	}
-	if len(names) != 2 || names[0] != "Gdańsk" || names[1] != "Zadar" {
-		t.Fatalf("got %v, want [Gdańsk Zadar]", names)
+
+	p := photon.lastParams(t)
+	wantParams := map[string]string{
+		"q": "Jastarn", "limit": "10", "lang": "en", "osm_tag": "place",
+		"lat": "54.5", "lon": "18.5", "zoom": photonBiasZoom,
+	}
+	for k, v := range wantParams {
+		if got := p.Get(k); got != v {
+			t.Errorf("%s = %q, want %q", k, got, v)
+		}
+	}
+	if ua := photon.agents[0]; ua != geocodeUserAgent {
+		t.Errorf("User-Agent = %q, want %q", ua, geocodeUserAgent)
+	}
+}
+
+func TestGeocode_PhotonRequestWithoutBias(t *testing.T) {
+	photon := newStubUpstream(t, http.StatusOK, photonSplitBody)
+	h := testGeocoder(newStubUpstream(t, http.StatusOK, `[]`), photon)
+	if _, err := h.search(context.Background(), &geocodeInput{Query: "Split"}); err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	p := photon.lastParams(t)
+	for _, k := range []string{"lat", "lon", "zoom"} {
+		if p.Has(k) {
+			t.Errorf("%s sent without a bias: %q", k, p.Get(k))
+		}
 	}
 }
 
 func TestGeocode_UpstreamError(t *testing.T) {
 	h := stubNominatim(t, http.StatusInternalServerError, "boom")
-	if _, err := h.search(context.Background(), &geocodeInput{Query: "Split"}); err == nil {
-		t.Fatal("expected error on upstream 500")
-	}
+	_, err := h.search(context.Background(), &geocodeInput{Query: "Split"})
+	wantStatus(t, err, http.StatusBadGateway)
 }
 
 func TestGeocode_NoResults(t *testing.T) {
@@ -150,8 +517,8 @@ func TestGeocode_NoResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
-	if len(out.Body) != 0 {
-		t.Fatalf("got %d results, want 0", len(out.Body))
+	if out.Body == nil || len(out.Body) != 0 {
+		t.Fatalf("got %#v, want an empty slice", out.Body)
 	}
 }
 
@@ -159,7 +526,8 @@ func TestGeocode_NoResults(t *testing.T) {
 // in case and surrounding whitespace or invisible characters reach the
 // upstream once.
 func TestGeocode_CachesNormalizedQuery(t *testing.T) {
-	h, hits := countingNominatim(t, http.StatusOK, splitBody, rate.NewLimiter(rate.Inf, 1))
+	nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+	h := testGeocoder(nominatim, nil)
 	for _, q := range []string{"Split", "  split ", "SPLIT", "\u200bsplit\ufeff"} {
 		out, err := h.search(context.Background(), &geocodeInput{Query: q})
 		if err != nil {
@@ -169,7 +537,7 @@ func TestGeocode_CachesNormalizedQuery(t *testing.T) {
 			t.Fatalf("search %q: unexpected results %+v", q, out.Body)
 		}
 	}
-	if got := hits.Load(); got != 1 {
+	if got := nominatim.hits.Load(); got != 1 {
 		t.Fatalf("upstream hits = %d, want 1", got)
 	}
 }
@@ -187,9 +555,8 @@ func TestGeocode_CoalescesConcurrentIdenticalQueries(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	h := &GeocodeHandler{
-		baseURL:    srv.URL,
+		nominatim:  geocodeUpstream{baseURL: srv.URL, limiter: rate.NewLimiter(rate.Every(10*time.Millisecond), 1)},
 		httpClient: srv.Client(),
-		limiter:    rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
 		maxWait:    time.Minute,
 		cache:      newGeocodeCache(time.Hour, 10, time.Now),
 	}
@@ -206,8 +573,6 @@ func TestGeocode_CoalescesConcurrentIdenticalQueries(t *testing.T) {
 			errs <- err
 		})
 	}
-	// Hold the first upstream call well past the limiter interval so a
-	// follower that only re-checked the cache would fetch again.
 	time.Sleep(200 * time.Millisecond)
 	close(release)
 	wg.Wait()
@@ -225,13 +590,14 @@ func TestGeocode_CoalescesConcurrentIdenticalQueries(t *testing.T) {
 // TestGeocode_LookupSurvivesCallerCancel checks that a cancelled request
 // does not fail other callers sharing its lookup.
 func TestGeocode_LookupSurvivesCallerCancel(t *testing.T) {
-	h, hits := countingNominatim(t, http.StatusOK, splitBody, rate.NewLimiter(rate.Inf, 1))
+	nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+	h := testGeocoder(nominatim, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := h.search(ctx, &geocodeInput{Query: "Split"}); err != nil {
 		t.Fatalf("search with cancelled caller: %v", err)
 	}
-	if got := hits.Load(); got != 1 {
+	if got := nominatim.hits.Load(); got != 1 {
 		t.Fatalf("upstream hits = %d, want 1", got)
 	}
 }
@@ -239,26 +605,32 @@ func TestGeocode_LookupSurvivesCallerCancel(t *testing.T) {
 // TestGeocode_CachesEmptyResults checks that a query with no matches is not
 // re-sent upstream either.
 func TestGeocode_CachesEmptyResults(t *testing.T) {
-	h, hits := countingNominatim(t, http.StatusOK, `[]`, rate.NewLimiter(rate.Inf, 1))
+	nominatim := newStubUpstream(t, http.StatusOK, `[]`)
+	h := testGeocoder(nominatim, nil)
 	for range 2 {
 		if _, err := h.search(context.Background(), &geocodeInput{Query: "zzzzz"}); err != nil {
 			t.Fatalf("search: %v", err)
 		}
 	}
-	if got := hits.Load(); got != 1 {
+	if got := nominatim.hits.Load(); got != 1 {
 		t.Fatalf("upstream hits = %d, want 1", got)
 	}
 }
 
 func TestGeocode_DoesNotCacheErrors(t *testing.T) {
-	h, hits := countingNominatim(t, http.StatusInternalServerError, "boom", rate.NewLimiter(rate.Inf, 1))
-	for range 2 {
-		if _, err := h.search(context.Background(), &geocodeInput{Query: "Split"}); err == nil {
-			t.Fatal("expected error on upstream 500")
-		}
-	}
-	if got := hits.Load(); got != 2 {
-		t.Fatalf("upstream hits = %d, want 2", got)
+	for _, status := range []int{http.StatusInternalServerError, http.StatusTooManyRequests} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			nominatim := newStubUpstream(t, status, "boom")
+			h := testGeocoder(nominatim, nil)
+			for range 2 {
+				if _, err := h.search(context.Background(), &geocodeInput{Query: "Split"}); err == nil {
+					t.Fatal("expected an error")
+				}
+			}
+			if got := nominatim.hits.Load(); got != 2 {
+				t.Fatalf("upstream hits = %d, want 2", got)
+			}
+		})
 	}
 }
 
@@ -276,9 +648,8 @@ func TestGeocode_RateLimitsUpstream(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	h := &GeocodeHandler{
-		baseURL:    srv.URL,
+		nominatim:  geocodeUpstream{baseURL: srv.URL, limiter: rate.NewLimiter(rate.Every(interval), 1)},
 		httpClient: srv.Client(),
-		limiter:    rate.NewLimiter(rate.Every(interval), 1),
 		maxWait:    time.Minute,
 		cache:      newGeocodeCache(time.Hour, 10, time.Now),
 	}
@@ -298,7 +669,6 @@ func TestGeocode_RateLimitsUpstream(t *testing.T) {
 		t.Fatalf("upstream hits = %d, want %d", len(times), len(queries))
 	}
 	sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-	// Allow scheduler jitter; without the limiter the gaps are ~0.
 	const minGap = interval * 8 / 10
 	for i := 1; i < len(times); i++ {
 		if gap := times[i].Sub(times[i-1]); gap < minGap {
@@ -308,22 +678,24 @@ func TestGeocode_RateLimitsUpstream(t *testing.T) {
 }
 
 // TestGeocode_BusyWhenLimiterQueueTooLong checks that a request that would
-// wait longer than maxWait fails with 503 and never reaches the upstream.
+// wait longer than maxWait fails with 503 and reaches neither upstream.
 func TestGeocode_BusyWhenLimiterQueueTooLong(t *testing.T) {
-	h, hits := countingNominatim(t, http.StatusOK, splitBody, rate.NewLimiter(rate.Every(time.Hour), 1))
+	nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+	photon := newStubUpstream(t, http.StatusOK, photonSplitBody)
+	h := testGeocoder(nominatim, photon)
+	h.nominatim.limiter = rate.NewLimiter(rate.Every(time.Hour), 1)
 	h.maxWait = 10 * time.Millisecond
 	if _, err := h.search(context.Background(), &geocodeInput{Query: "Split"}); err != nil {
 		t.Fatalf("first search: %v", err)
 	}
 	_, err := h.search(context.Background(), &geocodeInput{Query: "Hvar"})
-	var se huma.StatusError
-	if !errors.As(err, &se) || se.GetStatus() != http.StatusServiceUnavailable {
-		t.Fatalf("got %v, want 503", err)
+	wantStatus(t, err, http.StatusServiceUnavailable)
+	if got := nominatim.hits.Load(); got != 1 {
+		t.Fatalf("nominatim hits = %d, want 1", got)
 	}
-	if got := hits.Load(); got != 1 {
-		t.Fatalf("upstream hits = %d, want 1", got)
+	if got := photon.hits.Load(); got != 0 {
+		t.Fatalf("photon hits = %d, want 0", got)
 	}
-	// A cached query still answers while the limiter is exhausted.
 	if _, err := h.search(context.Background(), &geocodeInput{Query: "split"}); err != nil {
 		t.Fatalf("cached search: %v", err)
 	}
@@ -370,7 +742,7 @@ func TestGeocodeCache_EvictsExpiredBeforeLive(t *testing.T) {
 	c.put("old", nil)
 	now = now.Add(30 * time.Minute)
 	c.put("live", nil)
-	now = now.Add(45 * time.Minute) // "old" is now expired, "live" is not
+	now = now.Add(45 * time.Minute)
 	c.put("new", nil)
 	if _, ok := c.get("live"); !ok {
 		t.Fatal("live entry evicted while an expired one existed")
@@ -382,8 +754,14 @@ func TestGeocodeCache_EvictsExpiredBeforeLive(t *testing.T) {
 
 func TestNewGeocodeHandler_PolicyLimits(t *testing.T) {
 	h := NewGeocodeHandler()
-	if h.limiter.Limit() != rate.Every(time.Second) || h.limiter.Burst() != 1 {
-		t.Fatalf("limiter = %v/%d, want 1 req/s burst 1", h.limiter.Limit(), h.limiter.Burst())
+	if h.nominatim.limiter.Limit() != rate.Every(time.Second) || h.nominatim.limiter.Burst() != 1 {
+		t.Fatalf("nominatim limiter = %v/%d, want 1 req/s burst 1", h.nominatim.limiter.Limit(), h.nominatim.limiter.Burst())
+	}
+	if h.photon.limiter.Limit() != rate.Every(500*time.Millisecond) || h.photon.limiter.Burst() != 1 {
+		t.Fatalf("photon limiter = %v/%d, want 2 req/s burst 1", h.photon.limiter.Limit(), h.photon.limiter.Burst())
+	}
+	if h.nominatim.baseURL != nominatimBaseURL || h.photon.baseURL != photonBaseURL {
+		t.Fatalf("base URLs = %q, %q", h.nominatim.baseURL, h.photon.baseURL)
 	}
 	if h.cache.ttl != 24*time.Hour || h.cache.limit != 1000 {
 		t.Fatalf("cache = ttl %v limit %d, want 24h/1000", h.cache.ttl, h.cache.limit)
@@ -392,16 +770,16 @@ func TestNewGeocodeHandler_PolicyLimits(t *testing.T) {
 
 // TestGeocode_QueryValidation drives the operation through huma: a missing,
 // bare, empty or too-short query, counting only base characters (no blanks,
-// blank lookalikes or combining marks), is rejected with 422 before it
-// reaches the cache, the rate limiter or the upstream service. An accepted
-// query reaches the upstream trimmed, with the marks of decomposed letters
-// intact.
+// blank lookalikes or combining marks), or a half or invalid map bias is
+// rejected with 422 before it reaches the cache, the rate limiter or the
+// upstream service. An accepted query reaches the upstream trimmed, with the
+// marks of decomposed letters intact.
 func TestGeocode_QueryValidation(t *testing.T) {
 	tests := []struct {
 		name        string
 		path        string
 		wantStatus  int
-		wantUpQuery string // the q the upstream receives; "" means no call
+		wantUpQuery string
 	}{
 		{"missing", "/geocode", http.StatusUnprocessableEntity, ""},
 		{"bare", "/geocode?q", http.StatusUnprocessableEntity, ""},
@@ -427,7 +805,15 @@ func TestGeocode_QueryValidation(t *testing.T) {
 		{"one decomposed letter", "/geocode?q=a%CC%81", http.StatusUnprocessableEntity, ""},
 		{"one character among blank lookalikes", "/geocode?q=%E3%85%A4a%E2%A0%80%EF%B8%8F", http.StatusUnprocessableEntity, ""},
 		{"one character among inner blanks", "/geocode?q=a%E2%A0%80%E3%85%A4%CD%8F", http.StatusUnprocessableEntity, ""},
+		{"lat without lon", "/geocode?q=ab&lat=54", http.StatusUnprocessableEntity, ""},
+		{"lon without lat", "/geocode?q=ab&lon=18", http.StatusUnprocessableEntity, ""},
+		{"lat out of range", "/geocode?q=ab&lat=91&lon=18", http.StatusUnprocessableEntity, ""},
+		{"lon out of range", "/geocode?q=ab&lat=54&lon=-181", http.StatusUnprocessableEntity, ""},
+		{"NaN lat", "/geocode?q=ab&lat=NaN&lon=18", http.StatusUnprocessableEntity, ""},
+		{"infinite lon", "/geocode?q=ab&lat=54&lon=Inf", http.StatusUnprocessableEntity, ""},
+		{"text lat", "/geocode?q=ab&lat=north&lon=18", http.StatusUnprocessableEntity, ""},
 		{"two characters", "/geocode?q=ab", http.StatusOK, "ab"},
+		{"with bias", "/geocode?q=ab&lat=54.4&lon=18.6", http.StatusOK, "ab"},
 		{"two characters padded", "/geocode?q=%20ab%20", http.StatusOK, "ab"},
 		{"two multibyte characters", "/geocode?q=%C5%81%C3%B3", http.StatusOK, "Łó"},
 		{"two characters among invisibles", "/geocode?q=%E2%80%8Bab%00%EF%BB%BF", http.StatusOK, "ab"},
@@ -441,26 +827,10 @@ func TestGeocode_QueryValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// One token and no refill: a rejected query must leave it unspent.
+			nominatim := newStubUpstream(t, http.StatusOK, splitBody)
+			h := testGeocoder(nominatim, nil)
 			limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
-			var (
-				mu        sync.Mutex
-				upQueries []string
-			)
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				mu.Lock()
-				upQueries = append(upQueries, r.URL.Query().Get("q"))
-				mu.Unlock()
-				_, _ = w.Write([]byte(splitBody))
-			}))
-			t.Cleanup(srv.Close)
-			h := &GeocodeHandler{
-				baseURL:    srv.URL,
-				httpClient: srv.Client(),
-				limiter:    limiter,
-				maxWait:    time.Minute,
-				cache:      newGeocodeCache(time.Hour, 10, time.Now),
-			}
+			h.nominatim.limiter = limiter
 			_, api := humatest.New(t)
 			registerGeocode(api, h)
 
@@ -468,9 +838,12 @@ func TestGeocode_QueryValidation(t *testing.T) {
 			if resp.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d: %s", resp.Code, tt.wantStatus, resp.Body.String())
 			}
-			mu.Lock()
-			got := upQueries
-			mu.Unlock()
+			nominatim.mu.Lock()
+			var got []string
+			for _, p := range nominatim.params {
+				got = append(got, p.Get("q"))
+			}
+			nominatim.mu.Unlock()
 			if tt.wantUpQuery != "" {
 				if len(got) != 1 || got[0] != tt.wantUpQuery {
 					t.Fatalf("upstream queries = %q, want [%q]", got, tt.wantUpQuery)
@@ -512,19 +885,19 @@ func TestGeocode_DropsInvalidCoordinates(t *testing.T) {
 		{"longitude below -180", "43.50", "-200"},
 	}
 	want := []dto.GeocodeResult{
-		{Name: "Split", Label: "Split, Croatia", Latitude: 43.5081, Longitude: 16.4402},
-		{Name: "Pole", Label: "North Pole", Latitude: 90, Longitude: -180},
+		{Name: "Split", Label: "Split, Croatia", Latitude: 43.5081, Longitude: 16.4402, Source: "nominatim"},
+		{Name: "Pole", Label: "North Pole", Latitude: 90, Longitude: -180, Source: "nominatim"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := `[
-				{"name":"Broken","display_name":"Broken","lat":"` + tt.lat + `","lon":"` + tt.lon + `","category":"place"},
-				{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place"},
-				{"name":"Pole","display_name":"North Pole","lat":"90","lon":"-180","category":"natural"}
+				{"name":"Broken","display_name":"Broken","lat":"` + tt.lat + `","lon":"` + tt.lon + `","category":"place","type":"town"},
+				{"name":"Split","display_name":"Split, Croatia","lat":"43.5081","lon":"16.4402","category":"place","type":"city"},
+				{"name":"Pole","display_name":"North Pole","lat":"90","lon":"-180","category":"place","type":"locality"}
 			]`
-			h, hits := countingNominatim(t, http.StatusOK, body, rate.NewLimiter(rate.Inf, 1))
+			nominatim := newStubUpstream(t, http.StatusOK, body)
 			_, api := humatest.New(t)
-			registerGeocode(api, h)
+			registerGeocode(api, testGeocoder(nominatim, nil))
 
 			for range 2 {
 				resp := api.Get("/geocode?q=Split")
@@ -539,9 +912,35 @@ func TestGeocode_DropsInvalidCoordinates(t *testing.T) {
 					t.Fatalf("results = %+v, want %+v", got, want)
 				}
 			}
-			if n := hits.Load(); n != 1 {
+			if n := nominatim.hits.Load(); n != 1 {
 				t.Fatalf("upstream hits = %d, want 1", n)
 			}
 		})
+	}
+}
+
+func TestFoldPlaceName(t *testing.T) {
+	tests := map[string]string{
+		"Świnoujście":        "swinoujscie",
+		"  ŁEBA ":            "leba",
+		"Svolvær":            "svolvaer",
+		"København":          "kobenhavn",
+		"Gdan\u0301sk":       "gdansk",
+		"Nowa\u00a0  Wieś":   "nowa wies",
+		"Hel\u200b":          "hel",
+		"Λευκάδα":            "λευκαδα",
+		"Szczecin, Polska":   "szczecin, polska",
+		"Straße am Hafen":    "strasse am hafen",
+		"Đurđevac":           "durdevac",
+		"Œuilly":             "oeuilly",
+		"Þórshöfn":           "thorshofn",
+		"Ísafjörður":         "isafjordur",
+		"Kızkalesi":          "kizkalesi",
+		"Kraków  i  okolice": "krakow i okolice",
+	}
+	for in, want := range tests {
+		if got := foldPlaceName(in); got != want {
+			t.Errorf("foldPlaceName(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

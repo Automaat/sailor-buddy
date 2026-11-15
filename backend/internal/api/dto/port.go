@@ -75,12 +75,40 @@ func VoyagePortsFromDB(ps []sqlcdb.VoyagePort) []VoyagePort {
 }
 
 // GeocodeResult is a single town/place match returned by the geocoding proxy.
-// Name is the short port name stored on the voyage; Label is the full
-// administrative path (town, region, country) shown in the picker so that
-// otherwise identically named matches can be told apart.
+// Name is the short port name stored on the voyage; Label is the
+// administrative path (town, county, region, country) shown in the picker so
+// that otherwise identically named matches can be told apart. Source names
+// the OpenStreetMap search service that found it, for attribution.
 type GeocodeResult struct {
 	Name      string  `json:"name"`
 	Label     string  `json:"label"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
+	Source    string  `json:"source" enum:"nominatim,photon" doc:"Search service that found the place"`
+}
+
+// PortSuggestion is a port name the club already entered on a voyage. Its
+// coordinates come from the latest such port that has them; a name only
+// ever entered without a location has none. Uses counts the ports with
+// this name, ignoring case and accents.
+type PortSuggestion struct {
+	Name      string   `json:"name"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+	Uses      int64    `json:"uses" doc:"How many visited ports carry this name"`
+}
+
+// PortSuggestionsFromDB maps suggestion rows, returning a non-nil slice so an
+// empty answer serializes to [].
+func PortSuggestionsFromDB(rows []sqlcdb.SuggestPortsRow) []PortSuggestion {
+	out := make([]PortSuggestion, len(rows))
+	for i, r := range rows {
+		out[i] = PortSuggestion{
+			Name:      r.Name,
+			Latitude:  floatPtr(r.Latitude),
+			Longitude: floatPtr(r.Longitude),
+			Uses:      r.Uses,
+		}
+	}
+	return out
 }

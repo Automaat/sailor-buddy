@@ -550,6 +550,26 @@ describe('geocode', () => {
 		api.get.mockResolvedValueOnce(null);
 		await expect(routes.geocode('zzz')).resolves.toEqual([]);
 	});
+
+	it('sends the map centre as bias', async () => {
+		api.get.mockResolvedValueOnce([]);
+		await routes.geocode('Hel', { lat: 54.6, lon: 18.8 });
+		expect(api.get).toHaveBeenCalledWith('/geocode', { query: { q: 'Hel', lat: 54.6, lon: 18.8 } });
+	});
+});
+
+describe('suggestPorts', () => {
+	it('returns the club port names', async () => {
+		const ports = [{ name: 'Hel', latitude: 54.6, longitude: 18.8, uses: 3 }];
+		api.get.mockResolvedValueOnce(ports);
+		await expect(routes.suggestPorts('he')).resolves.toEqual(ports);
+		expect(api.get).toHaveBeenCalledWith('/ports/suggest', { query: { q: 'he' } });
+	});
+
+	it('falls back to an empty array', async () => {
+		api.get.mockResolvedValueOnce(null);
+		await expect(routes.suggestPorts('he')).resolves.toEqual([]);
+	});
 });
 
 describe('resolveEnroll', () => {
