@@ -317,6 +317,9 @@ func encodeOtherNames(names []string) (json.RawMessage, error) {
 }
 
 func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (*crewAssignmentListOutput, error) {
+	if err := requireVisibleTrip(ctx, h.q, in.TripID); err != nil {
+		return nil, err
+	}
 	assignments, err := h.q.ListTripCrewAssignments(ctx, types.NullInt64{Int64: in.TripID, Valid: true})
 	if err != nil {
 		slog.Error("list trip crew", "trip_id", in.TripID, "err", err)
@@ -361,7 +364,7 @@ func (h *CrewHandler) assignTripCrew(ctx context.Context, in *assignTripCrewInpu
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if _, err := h.q.GetTrip(ctx, in.TripID); err != nil {
+	if _, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.TripID, IncludeHidden: true}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
 		}
@@ -410,6 +413,9 @@ func (h *CrewHandler) removeTripCrew(ctx context.Context, in *removeTripCrewInpu
 }
 
 func (h *CrewHandler) listVoyageCrew(ctx context.Context, in *voyageCrewListInput) (*crewAssignmentListOutput, error) {
+	if err := requireVisibleVoyage(ctx, h.q, in.VoyageID); err != nil {
+		return nil, err
+	}
 	assignments, err := h.q.ListVoyageCrewAssignments(ctx, types.NullInt64{Int64: in.VoyageID, Valid: true})
 	if err != nil {
 		slog.Error("list voyage crew", "voyage_id", in.VoyageID, "err", err)
@@ -422,7 +428,7 @@ func (h *CrewHandler) assignVoyageCrew(ctx context.Context, in *assignVoyageCrew
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if _, err := h.q.GetVoyage(ctx, in.VoyageID); err != nil {
+	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, IncludeHidden: true}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
 		}

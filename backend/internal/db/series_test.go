@@ -86,7 +86,7 @@ func TestCruiseSeries_Editions(t *testing.T) {
 	addVoyage(newer.ID, 49.5, 10)
 	addVoyage(unrelated.ID, 999, 999)
 
-	rows, err := q.ListCruiseSeriesEditions(ctx, inSeries)
+	rows, err := q.ListCruiseSeriesEditions(ctx, sqlcdb.ListCruiseSeriesEditionsParams{SeriesID: inSeries, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("list editions: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestCruiseSeries_DeleteKeepsCruises(t *testing.T) {
 	if err := q.DeleteCruiseSeries(ctx, series.ID); err != nil {
 		t.Fatalf("delete series: %v", err)
 	}
-	after, err := q.GetCruise(ctx, cruise.ID)
+	after, err := q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: cruise.ID, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("cruise must survive series delete: %v", err)
 	}

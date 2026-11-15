@@ -29,13 +29,16 @@ func capacityLeg(t *testing.T, conn *sql.DB, maxCrew, n int) (tripID int64, user
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)
 	}
+	if _, err := q.PublishCruise(ctx, cruise.ID); err != nil {
+		t.Fatalf("publish cruise: %v", err)
+	}
 	trip, err := q.CreateTrip(ctx, sqlcdb.CreateTripParams{
 		CruiseID: cruise.ID, Name: "Leg 1", Status: sqlcdb.TripStatusPlanned, Currency: "PLN",
 	})
 	if err != nil {
 		t.Fatalf("create trip: %v", err)
 	}
-	if _, err := conn.ExecContext(ctx, "UPDATE trips SET enroll_token = 'leg-tok', max_crew = $1 WHERE id = $2", maxCrew, trip.ID); err != nil {
+	if _, err := conn.ExecContext(ctx, "UPDATE trips SET enroll_token = 'leg-tok', max_crew = $1, published_at = now() WHERE id = $2", maxCrew, trip.ID); err != nil {
 		t.Fatalf("open leg: %v", err)
 	}
 	users = make([]int64, n)

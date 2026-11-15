@@ -106,15 +106,17 @@ func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput
 	if err != nil {
 		return nil, err
 	}
+	hidden := canSeeHidden(ctx)
 	trips, err := h.q.ListTrips(ctx, sqlcdb.ListTripsParams{
-		AfterID: afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
+		IncludeHidden: hidden,
+		AfterID:       afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
 		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
 	if err != nil {
 		slog.Error("list trips", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
 	}
-	total, err := h.q.CountTrips(ctx)
+	total, err := h.q.CountTrips(ctx, hidden)
 	if err != nil {
 		slog.Error("count trips", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
@@ -124,7 +126,7 @@ func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput
 }
 
 func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripOutput, error) {
-	trip, err := h.q.GetTrip(ctx, in.ID)
+	trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
@@ -243,7 +245,7 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	if err := checkSignUpDeadline(&in.Body); err != nil {
 		return nil, err
 	}
-	current, err := h.q.GetTrip(ctx, in.ID)
+	current, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: true})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")

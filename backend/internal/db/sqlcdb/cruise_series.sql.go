@@ -152,15 +152,23 @@ SELECT
     c.kind,
     c.embark_date,
     c.disembark_date,
+    c.published_at,
     COUNT(v.id)::BIGINT AS voyage_count,
     COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours
 FROM cruises c
 LEFT JOIN voyages v ON v.cruise_id = c.id
-WHERE c.series_id = $1
+    AND ($1::BOOLEAN OR v.published_at IS NOT NULL)
+WHERE c.series_id = $2
+  AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
 GROUP BY c.id
 ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 `
+
+type ListCruiseSeriesEditionsParams struct {
+	IncludeHidden bool            `json:"include_hidden"`
+	SeriesID      types.NullInt64 `json:"series_id"`
+}
 
 type ListCruiseSeriesEditionsRow struct {
 	ID            int64            `json:"id"`
@@ -169,6 +177,7 @@ type ListCruiseSeriesEditionsRow struct {
 	Kind          string           `json:"kind"`
 	EmbarkDate    types.NullString `json:"embark_date"`
 	DisembarkDate types.NullString `json:"disembark_date"`
+	PublishedAt   types.NullTime   `json:"published_at"`
 	VoyageCount   int64            `json:"voyage_count"`
 	TotalMiles    float64          `json:"total_miles"`
 	TotalHours    float64          `json:"total_hours"`
@@ -177,7 +186,8 @@ type ListCruiseSeriesEditionsRow struct {
 // Editions of a series newest first, each with the miles and hours summed
 // over its voyages. An edition without an embark date (NULL, or the empty
 // string the cruise forms send) is still being planned, so it sorts before
-// every dated one.
+// every dated one. Without include_hidden only published editions are
+// listed and only their visible voyages are summed.
 //
 //	SELECT
 //	    c.id,
@@ -186,16 +196,19 @@ type ListCruiseSeriesEditionsRow struct {
 //	    c.kind,
 //	    c.embark_date,
 //	    c.disembark_date,
+//	    c.published_at,
 //	    COUNT(v.id)::BIGINT AS voyage_count,
 //	    COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
 //	    COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours
 //	FROM cruises c
 //	LEFT JOIN voyages v ON v.cruise_id = c.id
-//	WHERE c.series_id = $1
+//	    AND ($1::BOOLEAN OR v.published_at IS NOT NULL)
+//	WHERE c.series_id = $2
+//	  AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
 //	GROUP BY c.id
 //	ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
-func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, seriesID types.NullInt64) ([]ListCruiseSeriesEditionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseSeriesEditions, seriesID)
+func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSeriesEditionsParams) ([]ListCruiseSeriesEditionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseSeriesEditions, arg.IncludeHidden, arg.SeriesID)
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +223,7 @@ func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, seriesID types.N
 			&i.Kind,
 			&i.EmbarkDate,
 			&i.DisembarkDate,
+			&i.PublishedAt,
 			&i.VoyageCount,
 			&i.TotalMiles,
 			&i.TotalHours,

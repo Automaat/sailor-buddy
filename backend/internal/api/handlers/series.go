@@ -89,7 +89,9 @@ func (h *SeriesHandler) listEditions(ctx context.Context, in *seriesIDParam) (*s
 		slog.Error("verify series", "series_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list editions")
 	}
-	rows, err := h.q.ListCruiseSeriesEditions(ctx, types.NullInt64{Int64: in.ID, Valid: true})
+	rows, err := h.q.ListCruiseSeriesEditions(ctx, sqlcdb.ListCruiseSeriesEditionsParams{
+		SeriesID: types.NullInt64{Int64: in.ID, Valid: true}, IncludeHidden: canSeeHidden(ctx),
+	})
 	if err != nil {
 		slog.Error("list series editions", "series_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list editions")

@@ -72,7 +72,7 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 			}
 			out := make([]sqlcdb.LockCruiseTripStatusesRow, len(trips))
 			for i := range trips {
-				out[i] = sqlcdb.LockCruiseTripStatusesRow{ID: trips[i].ID, Status: trips[i].Status, MaxCrew: trips[i].MaxCrew, SignUpDeadline: trips[i].SignUpDeadline}
+				out[i] = sqlcdb.LockCruiseTripStatusesRow{ID: trips[i].ID, Status: trips[i].Status, Published: true, MaxCrew: trips[i].MaxCrew, SignUpDeadline: trips[i].SignUpDeadline}
 			}
 			return out, nil
 		},
@@ -105,7 +105,7 @@ func newLegMock(s *legStore, trips []sqlcdb.Trip) *mockQuerier {
 		lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
 			for i := range trips {
 				if trips[i].ID == id {
-					return sqlcdb.LockTripForSignUpRow{ID: id, Status: trips[i].Status, MaxCrew: trips[i].MaxCrew}, nil
+					return sqlcdb.LockTripForSignUpRow{ID: id, Status: trips[i].Status, MaxCrew: trips[i].MaxCrew, Published: true}, nil
 				}
 			}
 			return sqlcdb.LockTripForSignUpRow{}, sql.ErrNoRows

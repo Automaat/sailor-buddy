@@ -34,6 +34,7 @@ func voyagePortTestAPIWithDB(t *testing.T, m *mockQuerier, db *sql.DB) humatest.
 
 func TestVoyagePorts_List(t *testing.T) {
 	m := &mockQuerier{
+		getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 		listVoyagePortsFn: func(_ context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error) {
 			if voyageID != 5 {
 				t.Fatalf("unexpected voyage id: %d", voyageID)

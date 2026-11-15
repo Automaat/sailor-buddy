@@ -76,8 +76,9 @@ func keysetCases() []keysetCase {
 			seed: func(t *testing.T, conn *sql.DB, _ int64) {
 				t.Helper()
 				for _, d := range dates {
-					execSeed(t, conn, "INSERT INTO cruises (name, embark_date) VALUES ('C', $1)", d)
+					execSeed(t, conn, "INSERT INTO cruises (name, embark_date, published_at) VALUES ('C', $1, now())", d)
 				}
+				execSeed(t, conn, "INSERT INTO cruises (name, embark_date) VALUES ('Hidden', $1)", dates[3])
 			},
 		},
 		{
@@ -85,11 +86,16 @@ func keysetCases() []keysetCase {
 			register: func(api huma.API, q sqlcdb.Querier, conn *sql.DB) { RegisterTripRoutes(api, q, conn) },
 			seed: func(t *testing.T, conn *sql.DB, _ int64) {
 				t.Helper()
-				execSeed(t, conn, "INSERT INTO cruises (name) VALUES ('Parent')")
+				execSeed(t, conn, "INSERT INTO cruises (name, published_at) VALUES ('Parent', now())")
 				for _, d := range dates {
-					execSeed(t, conn, "INSERT INTO trips (cruise_id, name, embark_date) "+
-						"VALUES ((SELECT min(id) FROM cruises), 'T', $1)", d)
+					execSeed(t, conn, "INSERT INTO trips (cruise_id, name, embark_date, published_at) "+
+						"VALUES ((SELECT min(id) FROM cruises), 'T', $1, now())", d)
 				}
+				execSeed(t, conn, "INSERT INTO trips (cruise_id, name, embark_date) "+
+					"VALUES ((SELECT min(id) FROM cruises), 'Hidden', $1)", dates[3])
+				execSeed(t, conn, "INSERT INTO cruises (name) VALUES ('Hidden parent')")
+				execSeed(t, conn, "INSERT INTO trips (cruise_id, name, embark_date, published_at) "+
+					"VALUES ((SELECT max(id) FROM cruises), 'In hidden', $1, now())", dates[3])
 			},
 		},
 		{
@@ -97,11 +103,16 @@ func keysetCases() []keysetCase {
 			register: func(api huma.API, q sqlcdb.Querier, _ *sql.DB) { RegisterVoyageRoutes(api, q) },
 			seed: func(t *testing.T, conn *sql.DB, _ int64) {
 				t.Helper()
-				execSeed(t, conn, "INSERT INTO cruises (name) VALUES ('Parent')")
+				execSeed(t, conn, "INSERT INTO cruises (name, published_at) VALUES ('Parent', now())")
 				for i, d := range dates {
-					execSeed(t, conn, "INSERT INTO voyages (cruise_id, name, year, embark_date) "+
-						"VALUES ((SELECT min(id) FROM cruises), 'V', $1, $2)", years[i], d)
+					execSeed(t, conn, "INSERT INTO voyages (cruise_id, name, year, embark_date, published_at) "+
+						"VALUES ((SELECT min(id) FROM cruises), 'V', $1, $2, now())", years[i], d)
 				}
+				execSeed(t, conn, "INSERT INTO voyages (cruise_id, name, year, embark_date) "+
+					"VALUES ((SELECT min(id) FROM cruises), 'Hidden', $1, $2)", years[3], dates[3])
+				execSeed(t, conn, "INSERT INTO cruises (name) VALUES ('Hidden parent')")
+				execSeed(t, conn, "INSERT INTO voyages (cruise_id, name, year, embark_date, published_at) "+
+					"VALUES ((SELECT max(id) FROM cruises), 'In hidden', $1, $2, now())", years[3], dates[3])
 			},
 		},
 		{

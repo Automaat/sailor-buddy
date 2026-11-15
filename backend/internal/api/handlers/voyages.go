@@ -81,7 +81,7 @@ func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (
 // getVoyageForCaptain loads a voyage and authorizes the caller as an admin or
 // its assigned captain.
 func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.Voyage, error) {
-	voyage, err := q.GetVoyage(ctx, id)
+	voyage, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
@@ -189,7 +189,8 @@ func listVoyagePage(ctx context.Context, q sqlcdb.Querier, in *pageParams) ([]sq
 		year = types.NullInt64{Int64: *key.Year, Valid: true}
 	}
 	return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{
-		AfterID: afterID(ok, key.ID), AfterYear: year, AfterEmbarkDate: afterNullText(key.Date),
+		IncludeHidden: canSeeHidden(ctx),
+		AfterID:       afterID(ok, key.ID), AfterYear: year, AfterEmbarkDate: afterNullText(key.Date),
 		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
 }
@@ -224,10 +225,10 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			return listVoyagePage(ctx, q, in)
 		},
 		count: func(ctx context.Context, _ crudScope, _ *pageParams) (int64, error) {
-			return q.CountVoyages(ctx)
+			return q.CountVoyages(ctx, canSeeHidden(ctx))
 		},
 		get: func(ctx context.Context, _ crudScope, in *voyageIDParam) (sqlcdb.Voyage, error) {
-			return q.GetVoyage(ctx, in.ID)
+			return q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 		},
 		create: func(ctx context.Context, scope crudScope, in *createVoyageInput) (sqlcdb.Voyage, error) {
 			if err := requireParentCruise(ctx, q, in.Body.CruiseID); err != nil {
@@ -251,7 +252,7 @@ func voyageCRUDConfig(q sqlcdb.Querier) crudConfig[pageParams, voyageIDParam, cr
 			}
 			params := updateVoyageParams(in.Body)
 			params.ID = in.ID
-			if _, err := q.GetVoyage(ctx, in.ID); err != nil {
+			if _, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: true}); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return huma.Error404NotFound("voyage not found")
 				}

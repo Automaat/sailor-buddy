@@ -42,6 +42,12 @@ func TestSignUp_AgainstDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create trip: %v", err)
 	}
+	if _, err := q.PublishTrip(ctx, trip.ID); err != nil {
+		t.Fatalf("publish trip: %v", err)
+	}
+	if _, err := q.PublishCruise(ctx, cruise.ID); err != nil {
+		t.Fatalf("publish cruise: %v", err)
+	}
 	caller := guestCtx(user.ID)
 	path := "/trips/" + strconv.FormatInt(trip.ID, 10) + "/sign-up"
 

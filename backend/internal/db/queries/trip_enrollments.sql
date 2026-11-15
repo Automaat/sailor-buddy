@@ -126,7 +126,9 @@ ORDER BY t.embark_date ASC, t.id ASC;
 -- leg cannot be cancelled or removed between validation and insert, and
 -- concurrent sign-ups and accepts of one leg take its places one at a time.
 -- FOR NO KEY UPDATE still lets foreign-key checks (KEY SHARE) through.
-SELECT id, status, max_crew, sign_up_deadline FROM trips
+-- published is the leg's own flag; the caller holds the published cruise.
+SELECT id, status, max_crew, sign_up_deadline, (published_at IS NOT NULL)::BOOLEAN AS published
+FROM trips
 WHERE cruise_id = $1
 ORDER BY id
 FOR NO KEY UPDATE;
@@ -145,11 +147,15 @@ SELECT (
 -- through. open is true while the leg's sign-ups are switched on (it has an
 -- enroll token); enroll_token is the current share token, so a share-link
 -- sign-up can check the presented token still holds. sign_up_deadline is the
--- last day it takes them. No row when the trip does not exist.
-SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, enroll_token, max_crew, sign_up_deadline
-FROM trips
-WHERE id = $1
-FOR NO KEY UPDATE;
+-- last day it takes them. published is true while the trip and its cruise
+-- are both published: a hidden leg takes no sign-ups. No row when the trip
+-- does not exist.
+SELECT t.id, t.status, (t.enroll_token IS NOT NULL)::BOOLEAN AS open, t.enroll_token, t.max_crew, t.sign_up_deadline,
+       (t.published_at IS NOT NULL AND EXISTS (
+           SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL))::BOOLEAN AS published
+FROM trips t
+WHERE t.id = $1
+FOR NO KEY UPDATE OF t;
 
 -- name: UpdateUserTripEnrollmentNote :one
 -- Sets the note on the caller's own sign-up for a trip. No row when the

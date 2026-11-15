@@ -27,7 +27,8 @@ DELETE FROM cruise_series WHERE id = $1;
 -- Editions of a series newest first, each with the miles and hours summed
 -- over its voyages. An edition without an embark date (NULL, or the empty
 -- string the cruise forms send) is still being planned, so it sorts before
--- every dated one.
+-- every dated one. Without include_hidden only published editions are
+-- listed and only their visible voyages are summed.
 SELECT
     c.id,
     c.name,
@@ -35,11 +36,14 @@ SELECT
     c.kind,
     c.embark_date,
     c.disembark_date,
+    c.published_at,
     COUNT(v.id)::BIGINT AS voyage_count,
     COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours
 FROM cruises c
 LEFT JOIN voyages v ON v.cruise_id = c.id
-WHERE c.series_id = $1
+    AND (sqlc.arg(include_hidden)::BOOLEAN OR v.published_at IS NOT NULL)
+WHERE c.series_id = sqlc.arg(series_id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR c.published_at IS NOT NULL)
 GROUP BY c.id
 ORDER BY NULLIF(c.embark_date, '') DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC;

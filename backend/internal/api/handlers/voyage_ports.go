@@ -79,6 +79,9 @@ func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
 }
 
 func (h *VoyagePortHandler) list(ctx context.Context, in *voyagePortListInput) (*voyagePortListOutput, error) {
+	if err := requireVisibleVoyage(ctx, h.q, in.VoyageID); err != nil {
+		return nil, err
+	}
 	ports, err := h.q.ListVoyagePorts(ctx, in.VoyageID)
 	if err != nil {
 		slog.Error("list voyage ports", "voyage_id", in.VoyageID, "err", err)

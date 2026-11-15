@@ -153,15 +153,17 @@ func (h *CruiseHandler) list(ctx context.Context, in *pageParams) (*cruiseListOu
 	if err != nil {
 		return nil, err
 	}
+	hidden := canSeeHidden(ctx)
 	cruises, err := h.q.ListCruises(ctx, sqlcdb.ListCruisesParams{
-		AfterID: afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
+		IncludeHidden: hidden,
+		AfterID:       afterID(ok, key.ID), AfterEmbarkDate: afterNullText(key.Date),
 		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
 	if err != nil {
 		slog.Error("list cruises", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list cruises")
 	}
-	total, err := h.q.CountCruises(ctx)
+	total, err := h.q.CountCruises(ctx, hidden)
 	if err != nil {
 		slog.Error("count cruises", "err", err)
 		return nil, huma.Error500InternalServerError("failed to list cruises")
@@ -171,7 +173,7 @@ func (h *CruiseHandler) list(ctx context.Context, in *pageParams) (*cruiseListOu
 }
 
 func (h *CruiseHandler) get(ctx context.Context, in *cruiseIDParam) (*cruiseOutput, error) {
-	cruise, err := h.q.GetCruise(ctx, in.ID)
+	cruise, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("cruise not found")
@@ -347,7 +349,7 @@ func (h *CruiseHandler) listChildTrips(ctx context.Context, in *cruiseIDParam) (
 	if err := h.verifyCruise(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	trips, err := h.q.ListCruiseTrips(ctx, in.ID)
+	trips, err := h.q.ListCruiseTrips(ctx, sqlcdb.ListCruiseTripsParams{CruiseID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		slog.Error("list cruise child trips", "cruise_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trips")
@@ -359,7 +361,7 @@ func (h *CruiseHandler) listChildVoyages(ctx context.Context, in *cruiseIDParam)
 	if err := h.verifyCruise(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	voyages, err := h.q.ListCruiseVoyages(ctx, in.ID)
+	voyages, err := h.q.ListCruiseVoyages(ctx, sqlcdb.ListCruiseVoyagesParams{CruiseID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		slog.Error("list cruise child voyages", "cruise_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list voyages")
@@ -474,9 +476,9 @@ func (h *CruiseHandler) deleteEnrollment(ctx context.Context, in *cruiseEnrollme
 	return &noContentOutput{}, nil
 }
 
-// verifyCruise confirms the cruise exists.
+// verifyCruise confirms the cruise exists and the caller may see it.
 func (h *CruiseHandler) verifyCruise(ctx context.Context, cruiseID int64) error {
-	if _, err := h.q.GetCruise(ctx, cruiseID); err != nil {
+	if _, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: cruiseID, IncludeHidden: canSeeHidden(ctx)}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return huma.Error404NotFound("cruise not found")
 		}

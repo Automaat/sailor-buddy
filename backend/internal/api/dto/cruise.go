@@ -8,35 +8,36 @@ import (
 
 // Cruise is the API representation of a club cruise event.
 type Cruise struct {
-	ID                     int64     `json:"id"`
-	CreatedBy              *int64    `json:"created_by,omitempty"`
-	Name                   string    `json:"name"`
-	Kind                   string    `json:"kind" enum:"sea,inland" doc:"Cruise kind: sea (morski) or inland (śródlądowy)"`
-	SeriesID               *int64    `json:"series_id,omitempty" doc:"Series this cruise is an edition of"`
-	Edition                *string   `json:"edition,omitempty" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
-	EmbarkDate             *string   `json:"embark_date,omitempty"`
-	DisembarkDate          *string   `json:"disembark_date,omitempty"`
-	Countries              *string   `json:"countries,omitempty"`
-	StartPort              *string   `json:"start_port,omitempty"`
-	EndPort                *string   `json:"end_port,omitempty"`
-	Description            *string   `json:"description,omitempty"`
-	ImageLogoUrl           *string   `json:"image_logo_url,omitempty"`
-	ImagePhotoUrl          *string   `json:"image_photo_url,omitempty"`
-	ImageRouteUrl          *string   `json:"image_route_url,omitempty"`
-	MaxCrew                *int64    `json:"max_crew,omitempty"`
-	CostPerPerson          *float64  `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
-	Currency               string    `json:"currency" enum:"PLN,EUR" doc:"Currency of every price on the cruise"`
-	CostPerPersonNonMember *float64  `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
-	YachtFund              *float64  `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"`
-	Deposit                *float64  `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
-	Included               []string  `json:"included" doc:"What the price covers"`
-	NotIncluded            []string  `json:"not_included" doc:"What the price does not cover"`
-	EnrollToken            *string   `json:"enroll_token,omitempty"`
-	GroupChatUrl           *string   `json:"group_chat_url,omitempty" doc:"Link to the crew group chat (http or https)"`
-	TravelNotes            *string   `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
-	MinAge                 *int64    `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
-	CreatedAt              time.Time `json:"created_at"`
-	UpdatedAt              time.Time `json:"updated_at"`
+	ID                     int64      `json:"id"`
+	CreatedBy              *int64     `json:"created_by,omitempty"`
+	Name                   string     `json:"name"`
+	Kind                   string     `json:"kind" enum:"sea,inland" doc:"Cruise kind: sea (morski) or inland (śródlądowy)"`
+	SeriesID               *int64     `json:"series_id,omitempty" doc:"Series this cruise is an edition of"`
+	Edition                *string    `json:"edition,omitempty" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
+	EmbarkDate             *string    `json:"embark_date,omitempty"`
+	DisembarkDate          *string    `json:"disembark_date,omitempty"`
+	Countries              *string    `json:"countries,omitempty"`
+	StartPort              *string    `json:"start_port,omitempty"`
+	EndPort                *string    `json:"end_port,omitempty"`
+	Description            *string    `json:"description,omitempty"`
+	ImageLogoUrl           *string    `json:"image_logo_url,omitempty"`
+	ImagePhotoUrl          *string    `json:"image_photo_url,omitempty"`
+	ImageRouteUrl          *string    `json:"image_route_url,omitempty"`
+	MaxCrew                *int64     `json:"max_crew,omitempty"`
+	CostPerPerson          *float64   `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
+	Currency               string     `json:"currency" enum:"PLN,EUR" doc:"Currency of every price on the cruise"`
+	CostPerPersonNonMember *float64   `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
+	YachtFund              *float64   `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"`
+	Deposit                *float64   `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
+	Included               []string   `json:"included" doc:"What the price covers"`
+	NotIncluded            []string   `json:"not_included" doc:"What the price does not cover"`
+	EnrollToken            *string    `json:"enroll_token,omitempty"`
+	GroupChatUrl           *string    `json:"group_chat_url,omitempty" doc:"Link to the crew group chat (http or https)"`
+	TravelNotes            *string    `json:"travel_notes,omitempty" doc:"How to get there: flights, transport, meeting point"`
+	MinAge                 *int64     `json:"min_age,omitempty" doc:"Minimum crew age, shown as information only"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
+	PublishedAt            *time.Time `json:"published_at,omitempty" doc:"When the cruise was published; absent while it is a hidden draft"`
 }
 
 // CruiseBody is the create/update request payload for a cruise.
@@ -99,6 +100,7 @@ func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 		MinAge:                 intPtr(c.MinAge),
 		CreatedAt:              timeVal(c.CreatedAt),
 		UpdatedAt:              timeVal(c.UpdatedAt),
+		PublishedAt:            timePtr(c.PublishedAt),
 	}
 }
 
@@ -109,4 +111,9 @@ func CruisesFromDB(cs []sqlcdb.Cruise) []Cruise {
 		out[i] = CruiseFromDB(cs[i])
 	}
 	return out
+}
+
+// PublishCruiseBody is the optional request payload for publishing a cruise.
+type PublishCruiseBody struct {
+	IncludeLegs bool `json:"include_legs,omitempty" doc:"Also publish the cruise's hidden trips and voyages"`
 }

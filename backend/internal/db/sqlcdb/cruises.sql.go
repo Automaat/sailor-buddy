@@ -26,13 +26,15 @@ func (q *Queries) ClearCruiseEnrollToken(ctx context.Context, id int64) error {
 
 const countCruises = `-- name: CountCruises :one
 SELECT COUNT(*)::BIGINT FROM cruises
+WHERE $1::BOOLEAN OR published_at IS NOT NULL
 `
 
 // CountCruises
 //
 //	SELECT COUNT(*)::BIGINT FROM cruises
-func (q *Queries) CountCruises(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countCruises)
+//	WHERE $1::BOOLEAN OR published_at IS NOT NULL
+func (q *Queries) CountCruises(ctx context.Context, includeHidden bool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCruises, includeHidden)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -48,7 +50,7 @@ INSERT INTO cruises (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
     $17, $18, $19, $20, $21, $22, $23, $24, $25
-) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age
+) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
 `
 
 type CreateCruiseParams struct {
@@ -90,7 +92,7 @@ type CreateCruiseParams struct {
 //	) VALUES (
 //	    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
 //	    $17, $18, $19, $20, $21, $22, $23, $24, $25
-//	) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age
+//	) RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
 func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cruise, error) {
 	row := q.db.QueryRowContext(ctx, createCruise,
 		arg.CreatedBy,
@@ -150,6 +152,7 @@ func (q *Queries) CreateCruise(ctx context.Context, arg CreateCruiseParams) (Cru
 		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
+		&i.PublishedAt,
 	)
 	return i, err
 }
@@ -167,14 +170,24 @@ func (q *Queries) DeleteCruise(ctx context.Context, id int64) error {
 }
 
 const getCruise = `-- name: GetCruise :one
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
+SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+WHERE id = $1
+  AND ($2::BOOLEAN OR published_at IS NOT NULL)
 `
 
-// GetCruise
+type GetCruiseParams struct {
+	ID            int64 `json:"id"`
+	IncludeHidden bool  `json:"include_hidden"`
+}
+
+// include_hidden is true for callers who may read hidden drafts (admins and
+// the captain group); others get no row for an unpublished cruise.
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises WHERE id = $1
-func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
-	row := q.db.QueryRowContext(ctx, getCruise, id)
+//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+//	WHERE id = $1
+//	  AND ($2::BOOLEAN OR published_at IS NOT NULL)
+func (q *Queries) GetCruise(ctx context.Context, arg GetCruiseParams) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, getCruise, arg.ID, arg.IncludeHidden)
 	var i Cruise
 	err := row.Scan(
 		&i.ID,
@@ -206,6 +219,7 @@ func (q *Queries) GetCruise(ctx context.Context, id int64) (Cruise, error) {
 		&i.GroupChatUrl,
 		&i.TravelNotes,
 		&i.MinAge,
+		&i.PublishedAt,
 	)
 	return i, err
 }
@@ -215,7 +229,7 @@ SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, image_photo_url, max_crew, cost_per_person,
        currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
        group_chat_url, travel_notes, min_age
-FROM cruises WHERE enroll_token = $1
+FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL
 `
 
 type GetCruiseByEnrollTokenRow struct {
@@ -247,7 +261,7 @@ type GetCruiseByEnrollTokenRow struct {
 //	       description, image_photo_url, max_crew, cost_per_person,
 //	       currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
 //	       group_chat_url, travel_notes, min_age
-//	FROM cruises WHERE enroll_token = $1
+//	FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL
 func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.NullString) (GetCruiseByEnrollTokenRow, error) {
 	row := q.db.QueryRowContext(ctx, getCruiseByEnrollToken, enrollToken)
 	var i GetCruiseByEnrollTokenRow
@@ -277,14 +291,28 @@ func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.
 }
 
 const listCruiseTrips = `-- name: ListCruiseTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+WHERE t.cruise_id = $1
+  AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
+ORDER BY t.embark_date ASC, t.id ASC
 `
 
-// ListCruiseTrips
+type ListCruiseTripsParams struct {
+	CruiseID      int64 `json:"cruise_id"`
+	IncludeHidden bool  `json:"include_hidden"`
+}
+
+// Without include_hidden a leg is listed only while it and its cruise are
+// published.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC
-func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseTrips, cruiseID)
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+//	WHERE t.cruise_id = $1
+//	  AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+//	      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
+//	ORDER BY t.embark_date ASC, t.id ASC
+func (q *Queries) ListCruiseTrips(ctx context.Context, arg ListCruiseTripsParams) ([]Trip, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseTrips, arg.CruiseID, arg.IncludeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -321,6 +349,7 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, 
 			&i.Deposit,
 			&i.SignUpDeadline,
 			&i.CaptainPersonID,
+			&i.PublishedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -336,14 +365,28 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]Trip, 
 }
 
 const listCruiseVoyages = `-- name: ListCruiseVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+WHERE v.cruise_id = $1
+  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+ORDER BY v.year DESC, v.embark_date DESC, v.id DESC
 `
 
-// ListCruiseVoyages
+type ListCruiseVoyagesParams struct {
+	CruiseID      int64 `json:"cruise_id"`
+	IncludeHidden bool  `json:"include_hidden"`
+}
+
+// Without include_hidden a voyage is listed only while it and its cruise are
+// published.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC
-func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voyage, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseVoyages, cruiseID)
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+//	WHERE v.cruise_id = $1
+//	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+//	ORDER BY v.year DESC, v.embark_date DESC, v.id DESC
+func (q *Queries) ListCruiseVoyages(ctx context.Context, arg ListCruiseVoyagesParams) ([]Voyage, error) {
+	rows, err := q.db.QueryContext(ctx, listCruiseVoyages, arg.CruiseID, arg.IncludeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +426,7 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voya
 			&i.TrackUrl,
 			&i.VoyageCard,
 			&i.CaptainPersonID,
+			&i.PublishedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -398,16 +442,18 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]Voya
 }
 
 const listCruises = `-- name: ListCruises :many
-SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises
-WHERE $1::BIGINT IS NULL
+SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
+  AND ($2::BIGINT IS NULL
    OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
-    < ($2::TEXT IS NOT NULL,
-       COALESCE($2::TEXT, ''), $1::BIGINT)
+    < ($3::TEXT IS NOT NULL,
+       COALESCE($3::TEXT, ''), $2::BIGINT))
 ORDER BY embark_date DESC NULLS LAST, id DESC
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListCruisesParams struct {
+	IncludeHidden   bool             `json:"include_hidden"`
 	AfterID         types.NullInt64  `json:"after_id"`
 	AfterEmbarkDate types.NullString `json:"after_embark_date"`
 	RowOffset       int32            `json:"row_offset"`
@@ -416,16 +462,19 @@ type ListCruisesParams struct {
 
 // A set after_id starts the page after the cursor's sort key. The keyset
 // tuple sorts descending like the ORDER BY: a NULL embark_date last.
+// Without include_hidden only published cruises are listed.
 //
-//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age FROM cruises
-//	WHERE $1::BIGINT IS NULL
+//	SELECT id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at FROM cruises
+//	WHERE ($1::BOOLEAN OR published_at IS NOT NULL)
+//	  AND ($2::BIGINT IS NULL
 //	   OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
-//	    < ($2::TEXT IS NOT NULL,
-//	       COALESCE($2::TEXT, ''), $1::BIGINT)
+//	    < ($3::TEXT IS NOT NULL,
+//	       COALESCE($3::TEXT, ''), $2::BIGINT))
 //	ORDER BY embark_date DESC NULLS LAST, id DESC
-//	LIMIT $4 OFFSET $3
+//	LIMIT $5 OFFSET $4
 func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cruise, error) {
 	rows, err := q.db.QueryContext(ctx, listCruises,
+		arg.IncludeHidden,
 		arg.AfterID,
 		arg.AfterEmbarkDate,
 		arg.RowOffset,
@@ -468,6 +517,7 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 			&i.GroupChatUrl,
 			&i.TravelNotes,
 			&i.MinAge,
+			&i.PublishedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -576,7 +626,7 @@ func (q *Queries) ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64,
 
 const lockCruiseEnrollToken = `-- name: LockCruiseEnrollToken :one
 SELECT id FROM cruises
-WHERE id = $1 AND enroll_token = $2
+WHERE id = $1 AND enroll_token = $2 AND published_at IS NOT NULL
 FOR SHARE
 `
 
@@ -590,16 +640,113 @@ type LockCruiseEnrollTokenParams struct {
 // the sign-up to commit and a sign-up after that sees the change. Taken
 // before LockCruiseTripStatuses, in the same cruise-then-trips order as
 // DELETE FROM cruises and trip completion. No row when the cruise no longer
-// has that token.
+// has that token or is hidden; holding the lock also keeps an unpublish
+// waiting until the sign-up commits.
 //
 //	SELECT id FROM cruises
-//	WHERE id = $1 AND enroll_token = $2
+//	WHERE id = $1 AND enroll_token = $2 AND published_at IS NOT NULL
 //	FOR SHARE
 func (q *Queries) LockCruiseEnrollToken(ctx context.Context, arg LockCruiseEnrollTokenParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, lockCruiseEnrollToken, arg.ID, arg.EnrollToken)
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const publishCruise = `-- name: PublishCruise :one
+UPDATE cruises SET
+    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+`
+
+// Publishes the cruise, keeping an earlier published_at.
+//
+//	UPDATE cruises SET
+//	    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+//	    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+//	WHERE id = $1
+//	RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+func (q *Queries) PublishCruise(ctx context.Context, id int64) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, publishCruise, id)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.Description,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.MaxCrew,
+		&i.CostPerPerson,
+		&i.EnrollToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.SeriesID,
+		&i.Edition,
+		&i.Currency,
+		&i.CostPerPersonNonMember,
+		&i.YachtFund,
+		&i.Deposit,
+		&i.Included,
+		&i.NotIncluded,
+		&i.GroupChatUrl,
+		&i.TravelNotes,
+		&i.MinAge,
+		&i.PublishedAt,
+	)
+	return i, err
+}
+
+const publishCruiseTrips = `-- name: PublishCruiseTrips :exec
+UPDATE trips SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE cruise_id = $1 AND published_at IS NULL
+`
+
+// PublishCruiseTrips
+//
+//	UPDATE trips SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+//	WHERE cruise_id = $1 AND published_at IS NULL
+func (q *Queries) PublishCruiseTrips(ctx context.Context, cruiseID int64) error {
+	_, err := q.db.ExecContext(ctx, publishCruiseTrips, cruiseID)
+	return err
+}
+
+const publishCruiseVoyages = `-- name: PublishCruiseVoyages :exec
+UPDATE voyages SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE cruise_id = $1 AND published_at IS NULL
+`
+
+// PublishCruiseVoyages
+//
+//	UPDATE voyages SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+//	WHERE cruise_id = $1 AND published_at IS NULL
+func (q *Queries) PublishCruiseVoyages(ctx context.Context, cruiseID int64) error {
+	_, err := q.db.ExecContext(ctx, publishCruiseVoyages, cruiseID)
+	return err
+}
+
+const publishStandaloneCruise = `-- name: PublishStandaloneCruise :exec
+UPDATE cruises SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND published_at IS NULL AND series_id IS NULL
+`
+
+// Publishes a hidden cruise that belongs to no series, for a leg being
+// published: a standalone leg's wrapper cruise follows its leg.
+//
+//	UPDATE cruises SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+//	WHERE id = $1 AND published_at IS NULL AND series_id IS NULL
+func (q *Queries) PublishStandaloneCruise(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, publishStandaloneCruise, id)
+	return err
 }
 
 const setCruiseEnrollToken = `-- name: SetCruiseEnrollToken :exec
@@ -617,6 +764,59 @@ type SetCruiseEnrollTokenParams struct {
 func (q *Queries) SetCruiseEnrollToken(ctx context.Context, arg SetCruiseEnrollTokenParams) error {
 	_, err := q.db.ExecContext(ctx, setCruiseEnrollToken, arg.EnrollToken, arg.ID)
 	return err
+}
+
+const unpublishCruise = `-- name: UnpublishCruise :one
+UPDATE cruises SET
+    published_at = NULL,
+    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+`
+
+// UnpublishCruise
+//
+//	UPDATE cruises SET
+//	    published_at = NULL,
+//	    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+//	WHERE id = $1
+//	RETURNING id, created_by, name, embark_date, disembark_date, countries, start_port, end_port, description, image_logo_url, image_photo_url, image_route_url, max_crew, cost_per_person, enroll_token, created_at, updated_at, kind, series_id, edition, currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included, group_chat_url, travel_notes, min_age, published_at
+func (q *Queries) UnpublishCruise(ctx context.Context, id int64) (Cruise, error) {
+	row := q.db.QueryRowContext(ctx, unpublishCruise, id)
+	var i Cruise
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.Description,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.MaxCrew,
+		&i.CostPerPerson,
+		&i.EnrollToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.SeriesID,
+		&i.Edition,
+		&i.Currency,
+		&i.CostPerPersonNonMember,
+		&i.YachtFund,
+		&i.Deposit,
+		&i.Included,
+		&i.NotIncluded,
+		&i.GroupChatUrl,
+		&i.TravelNotes,
+		&i.MinAge,
+		&i.PublishedAt,
+	)
+	return i, err
 }
 
 const updateCruise = `-- name: UpdateCruise :exec

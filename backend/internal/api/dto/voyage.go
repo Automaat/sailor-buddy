@@ -12,37 +12,38 @@ import (
 
 // Voyage is the API representation of a completed, logged sailing record.
 type Voyage struct {
-	ID              int64     `json:"id"`
-	CreatedBy       *int64    `json:"created_by,omitempty"`
-	CruiseID        int64     `json:"cruise_id"`
-	Name            string    `json:"name"`
-	Year            *int64    `json:"year,omitempty"`
-	EmbarkDate      *string   `json:"embark_date,omitempty"`
-	DisembarkDate   *string   `json:"disembark_date,omitempty"`
-	Countries       *string   `json:"countries,omitempty"`
-	StartPort       *string   `json:"start_port,omitempty"`
-	EndPort         *string   `json:"end_port,omitempty"`
-	CaptainName     *string   `json:"captain_name,omitempty"`
-	CaptainPersonID *int64    `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage"`
-	CaptainNotes    *string   `json:"captain_notes,omitempty"`
-	YachtID         *int64    `json:"yacht_id,omitempty"`
-	HoursTotal      float64   `json:"hours_total"`
-	HoursSail       float64   `json:"hours_sail"`
-	HoursEngine     float64   `json:"hours_engine"`
-	HoursOver6bf    float64   `json:"hours_over_6bf"`
-	Miles           float64   `json:"miles"`
-	Days            int64     `json:"days"`
-	TidalWaters     int64     `json:"tidal_waters"`
-	CostTotal       *float64  `json:"cost_total,omitempty"`
-	CostPerPerson   *float64  `json:"cost_per_person,omitempty"`
-	ImageLogoUrl    *string   `json:"image_logo_url,omitempty"`
-	ImagePhotoUrl   *string   `json:"image_photo_url,omitempty"`
-	ImageRouteUrl   *string   `json:"image_route_url,omitempty"`
-	Description     *string   `json:"description,omitempty"`
-	TrackUrl        *string   `json:"track_url,omitempty"`
-	VoyageCard      *string   `json:"voyage_card,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              int64      `json:"id"`
+	CreatedBy       *int64     `json:"created_by,omitempty"`
+	CruiseID        int64      `json:"cruise_id"`
+	Name            string     `json:"name"`
+	Year            *int64     `json:"year,omitempty"`
+	EmbarkDate      *string    `json:"embark_date,omitempty"`
+	DisembarkDate   *string    `json:"disembark_date,omitempty"`
+	Countries       *string    `json:"countries,omitempty"`
+	StartPort       *string    `json:"start_port,omitempty"`
+	EndPort         *string    `json:"end_port,omitempty"`
+	CaptainName     *string    `json:"captain_name,omitempty"`
+	CaptainPersonID *int64     `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage"`
+	CaptainNotes    *string    `json:"captain_notes,omitempty"`
+	YachtID         *int64     `json:"yacht_id,omitempty"`
+	HoursTotal      float64    `json:"hours_total"`
+	HoursSail       float64    `json:"hours_sail"`
+	HoursEngine     float64    `json:"hours_engine"`
+	HoursOver6bf    float64    `json:"hours_over_6bf"`
+	Miles           float64    `json:"miles"`
+	Days            int64      `json:"days"`
+	TidalWaters     int64      `json:"tidal_waters"`
+	CostTotal       *float64   `json:"cost_total,omitempty"`
+	CostPerPerson   *float64   `json:"cost_per_person,omitempty"`
+	ImageLogoUrl    *string    `json:"image_logo_url,omitempty"`
+	ImagePhotoUrl   *string    `json:"image_photo_url,omitempty"`
+	ImageRouteUrl   *string    `json:"image_route_url,omitempty"`
+	Description     *string    `json:"description,omitempty"`
+	TrackUrl        *string    `json:"track_url,omitempty"`
+	VoyageCard      *string    `json:"voyage_card,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	PublishedAt     *time.Time `json:"published_at,omitempty" doc:"When the voyage was published; absent while it is a hidden draft"`
 }
 
 // VoyageBody is the create/update request payload for a voyage.
@@ -164,5 +165,6 @@ func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 		VoyageCard:      strPtr(v.VoyageCard),
 		CreatedAt:       timeVal(v.CreatedAt),
 		UpdatedAt:       timeVal(v.UpdatedAt),
+		PublishedAt:     timePtr(v.PublishedAt),
 	}
 }

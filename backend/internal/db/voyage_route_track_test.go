@@ -32,7 +32,7 @@ func TestMigrate_VoyageRouteKeepsExistingPorts(t *testing.T) {
 	if len(ports) != 1 || ports[0].Latitude.Float64 != 54.5 || ports[0].Longitude.Float64 != 18.5 || ports[0].Anchorage {
 		t.Fatalf("existing port changed: %+v", ports)
 	}
-	v, err := sqlcdb.New(conn).GetVoyage(context.Background(), voyageID)
+	v, err := sqlcdb.New(conn).GetVoyage(context.Background(), sqlcdb.GetVoyageParams{ID: voyageID, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("get voyage: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestVoyageRoute_NameOnlyPortsAndRecordFields(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("update log: %v", err)
 	}
-	v, err := q.GetVoyage(ctx, voyageID)
+	v, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: voyageID, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("get voyage: %v", err)
 	}

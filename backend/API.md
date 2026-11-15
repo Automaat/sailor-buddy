@@ -156,7 +156,8 @@ All sailing data is **club-wide**: there is one club and every member sees
 every cruise, trip, voyage, yacht and crew member. Authorization is by role,
 held on the `users.role` column:
 
-- **Reads** (`GET`) — open to any authenticated member.
+- **Reads** (`GET`) — open to any authenticated member, except hidden
+  drafts (see Hidden drafts below).
 - **Mutations** (`POST`/`PUT`/`DELETE`, plus `complete`/`cancel`/enroll-token)
   on shared club data — require the caller to be an `admin`; a member gets
   `403 admin only`.
@@ -214,6 +215,37 @@ deleted at the same moment returns `409`.
 Trip lifecycle: a `trip` is `planned`, then either `cancelled` or `completed`.
 Completing a trip atomically converts it into a `voyage` (a logged, finished
 sailing record) and repoints crew assignments.
+
+#### Hidden drafts
+
+Cruises, trips and voyages carry `published_at`, absent while the record is a
+hidden draft. Every new cruise, trip and voyage starts hidden; records that
+existed before migration `032_publication.sql` were published by it.
+
+- A cruise is visible when it is published. A trip or voyage is visible when
+  it **and its cruise** are published.
+- Admins and the captain group (`users.is_captain`) see everything. Everyone
+  else gets `404` for a hidden record and its nested routes (crew, ports,
+  opinions, sign-ups), and hidden records are missing from every list,
+  `total`, series-edition list and sea-time sum.
+- Share links refuse hidden records for every caller: `GET`/`POST
+  /enroll/{token}` answer `404` for a hidden cruise or trip, a cruise link
+  lists only visible legs, and picking a hidden leg through it is `422`.
+- `POST /trips/{id}/sign-up` on a hidden leg is `404`, or `422` for a caller
+  who can see it.
+- Completing a trip gives the voyage the trip's `published_at`.
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| POST | `/api/cruises/{id}/publish` | **admin** | Publish; optional body `{"include_legs": true}` also publishes its hidden trips and voyages in one transaction | 200 (cruise) |
+| POST | `/api/cruises/{id}/unpublish` | **admin** | Hide the cruise, and with it all its legs | 200 (cruise) |
+| POST | `/api/trips/{id}/publish` | **admin** | Publish; a hidden cruise without a series is published with it | 200 (trip) |
+| POST | `/api/trips/{id}/unpublish` | **admin** | Hide the trip | 200 (trip) |
+| POST | `/api/voyages/{id}/publish` | **admin** | Publish; a hidden cruise without a series is published with it | 200 (voyage) |
+| POST | `/api/voyages/{id}/unpublish` | **admin** | Hide the voyage | 200 (voyage) |
+
+Publishing keeps an earlier `published_at`. Unpublishing is allowed while the
+record has enrollments. The captain group gets `403` like any non-admin.
 
 ## Endpoint reference
 

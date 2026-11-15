@@ -214,6 +214,7 @@ func isUniqueViolation(err error) bool {
 func withClaims(ctx context.Context, user sqlcdb.User, role string, verified bool) context.Context {
 	return context.WithValue(ctx, UserCtxKey, &auth.Claims{
 		Approved:      user.AccessApproved || role == "admin",
+		IsCaptain:     user.IsCaptain,
 		Suspended:     user.Suspended,
 		EmailVerified: verified,
 		UserID:        user.ID,

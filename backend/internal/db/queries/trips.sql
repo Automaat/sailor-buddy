@@ -10,7 +10,12 @@ INSERT INTO trips (
 ) RETURNING *;
 
 -- name: GetTrip :one
-SELECT * FROM trips WHERE id = $1;
+-- include_hidden is true for callers who may read hidden drafts; others get
+-- no row unless the trip and its cruise are both published.
+SELECT * FROM trips t
+WHERE t.id = sqlc.arg(id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)));
 
 -- name: GetTripForUpdate :one
 -- Row-locks the trip for the rest of the transaction. Trip completion takes
@@ -48,16 +53,22 @@ FOR KEY SHARE OF y;
 -- name: ListTrips :many
 -- A set after_id starts the page after the cursor's sort key. The keyset
 -- tuple sorts like the ORDER BY: a NULL embark_date last, then by id.
-SELECT * FROM trips
-WHERE sqlc.narg(after_id)::BIGINT IS NULL
-   OR (embark_date IS NULL, COALESCE(embark_date, ''), id)
+-- Without include_hidden a trip is listed only while it and its cruise are
+-- published.
+SELECT * FROM trips t
+WHERE (sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
+  AND (sqlc.narg(after_id)::BIGINT IS NULL
+   OR (t.embark_date IS NULL, COALESCE(t.embark_date, ''), t.id)
     > (sqlc.narg(after_embark_date)::TEXT IS NULL,
-       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT)
-ORDER BY embark_date ASC, id ASC
+       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT))
+ORDER BY t.embark_date ASC, t.id ASC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountTrips :one
-SELECT COUNT(*)::BIGINT FROM trips;
+SELECT COUNT(*)::BIGINT FROM trips t
+WHERE sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+    SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL));
 
 -- name: UpdateTrip :exec
 UPDATE trips SET
@@ -85,8 +96,26 @@ UPDATE trips SET enroll_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2
 UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
 -- name: GetTripByEnrollToken :one
-SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
-       description, max_crew, captain_name, image_photo_url,
-       cost_per_person, currency, cost_per_person_non_member, yacht_fund, deposit,
-       sign_up_deadline
-FROM trips WHERE enroll_token = $1;
+-- No row while the trip or its cruise is hidden.
+SELECT t.id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port,
+       t.description, t.max_crew, t.captain_name, t.image_photo_url,
+       t.cost_per_person, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit,
+       t.sign_up_deadline
+FROM trips t
+WHERE t.enroll_token = $1 AND t.published_at IS NOT NULL AND EXISTS (
+    SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL);
+
+-- name: PublishTrip :one
+-- Publishes the trip, keeping an earlier published_at.
+UPDATE trips SET
+    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING *;
+
+-- name: UnpublishTrip :one
+UPDATE trips SET
+    published_at = NULL,
+    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING *;

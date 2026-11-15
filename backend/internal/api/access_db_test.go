@@ -154,10 +154,10 @@ func TestSensitiveDataAccess(t *testing.T) {
 	if _, err := conn.Exec(`UPDATE crew_members SET emergency_contact_name='PRIVATE-NAME',emergency_contact_phone='PRIVATE-PHONE' WHERE id=$1`, subject); err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.QueryRow(`INSERT INTO cruises(name,group_chat_url,enroll_token) VALUES('Event','https://chat.example/private','share') RETURNING id`).Scan(&cruise); err != nil {
+	if err := conn.QueryRow(`INSERT INTO cruises(name,group_chat_url,enroll_token,published_at) VALUES('Event','https://chat.example/private','share',now()) RETURNING id`).Scan(&cruise); err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.QueryRow(`INSERT INTO voyages(name,cruise_id,captain_person_id) VALUES('Voyage',$1,$2) RETURNING id`, cruise, captain).Scan(&voyage); err != nil {
+	if err := conn.QueryRow(`INSERT INTO voyages(name,cruise_id,captain_person_id,published_at) VALUES('Voyage',$1,$2,now()) RETURNING id`, cruise, captain).Scan(&voyage); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec(`INSERT INTO crew_assignments(voyage_id,crew_member_id,role) VALUES($1,$2,'zalogant')`, voyage, subject); err != nil {

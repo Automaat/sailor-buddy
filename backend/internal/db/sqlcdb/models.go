@@ -113,6 +113,7 @@ type Cruise struct {
 	GroupChatUrl           types.NullString  `json:"group_chat_url"`
 	TravelNotes            types.NullString  `json:"travel_notes"`
 	MinAge                 types.NullInt64   `json:"min_age"`
+	PublishedAt            types.NullTime    `json:"published_at"`
 }
 
 type CruiseEnrollment struct {
@@ -203,6 +204,7 @@ type Trip struct {
 	Deposit                types.NullFloat64 `json:"deposit"`
 	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 	CaptainPersonID        types.NullInt64   `json:"captain_person_id"`
+	PublishedAt            types.NullTime    `json:"published_at"`
 }
 
 type TripEnrollment struct {
@@ -269,6 +271,7 @@ type Voyage struct {
 	TrackUrl        types.NullString  `json:"track_url"`
 	VoyageCard      types.NullString  `json:"voyage_card"`
 	CaptainPersonID types.NullInt64   `json:"captain_person_id"`
+	PublishedAt     types.NullTime    `json:"published_at"`
 }
 
 type VoyageOpinion struct {

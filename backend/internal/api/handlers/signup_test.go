@@ -40,9 +40,11 @@ func (s *signUpStore) find(tripID, userID int64) (int, bool) {
 	return 0, false
 }
 
+// newSignUpStore holds the given trips as published legs.
 func newSignUpStore(trips ...sqlcdb.Trip) *signUpStore {
 	s := &signUpStore{trips: map[int64]sqlcdb.Trip{}}
 	for i := range trips {
+		trips[i].PublishedAt = published
 		s.trips[trips[i].ID] = trips[i]
 	}
 	return s
@@ -72,7 +74,7 @@ func (s *signUpStore) mock() *mockQuerier {
 			if !ok {
 				return sqlcdb.LockTripForSignUpRow{}, sql.ErrNoRows
 			}
-			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, MaxCrew: t.MaxCrew, SignUpDeadline: t.SignUpDeadline}, nil
+			return sqlcdb.LockTripForSignUpRow{ID: t.ID, Status: t.Status, Open: t.EnrollToken.Valid, Published: t.PublishedAt.Valid, MaxCrew: t.MaxCrew, SignUpDeadline: t.SignUpDeadline}, nil
 		},
 		getUserTripEnrollmentFn: func(_ context.Context, arg sqlcdb.GetUserTripEnrollmentParams) (sqlcdb.TripEnrollment, error) {
 			if i, ok := s.find(arg.TripID, arg.UserID); ok {
@@ -183,7 +185,10 @@ func (s *signUpStore) count(tripID, exceptUser int64, statuses ...string) int64 
 }
 
 func openTrip(id int64) sqlcdb.Trip {
-	return sqlcdb.Trip{ID: id, CruiseID: 7, Name: "Leg", Status: sqlcdb.TripStatusPlanned, EnrollToken: types.NullString{String: "tok", Valid: true}}
+	return sqlcdb.Trip{
+		ID: id, CruiseID: 7, Name: "Leg", Status: sqlcdb.TripStatusPlanned,
+		EnrollToken: types.NullString{String: "tok", Valid: true}, PublishedAt: published,
+	}
 }
 
 // guestCtx is a self-registered user who has not finished onboarding: the
@@ -482,7 +487,7 @@ func TestListCruiseLegSignUps(t *testing.T) {
 			if id != 7 {
 				return sqlcdb.Cruise{}, sql.ErrNoRows
 			}
-			return sqlcdb.Cruise{ID: 7}, nil
+			return sqlcdb.Cruise{ID: 7, PublishedAt: published}, nil
 		},
 		listCruiseTripsFn: func(context.Context, int64) ([]sqlcdb.Trip, error) { return trips, nil },
 		countAcceptedByCruiseTripFn: func(context.Context, int64) ([]sqlcdb.CountAcceptedByCruiseTripRow, error) {

@@ -11,21 +11,28 @@ INSERT INTO cruises (
 ) RETURNING *;
 
 -- name: GetCruise :one
-SELECT * FROM cruises WHERE id = $1;
+-- include_hidden is true for callers who may read hidden drafts (admins and
+-- the captain group); others get no row for an unpublished cruise.
+SELECT * FROM cruises
+WHERE id = sqlc.arg(id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL);
 
 -- name: ListCruises :many
 -- A set after_id starts the page after the cursor's sort key. The keyset
 -- tuple sorts descending like the ORDER BY: a NULL embark_date last.
+-- Without include_hidden only published cruises are listed.
 SELECT * FROM cruises
-WHERE sqlc.narg(after_id)::BIGINT IS NULL
+WHERE (sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL)
+  AND (sqlc.narg(after_id)::BIGINT IS NULL
    OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
     < (sqlc.narg(after_embark_date)::TEXT IS NOT NULL,
-       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT)
+       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT))
 ORDER BY embark_date DESC NULLS LAST, id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountCruises :one
-SELECT COUNT(*)::BIGINT FROM cruises;
+SELECT COUNT(*)::BIGINT FROM cruises
+WHERE sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL;
 
 -- name: UpdateCruise :exec
 UPDATE cruises SET
@@ -55,9 +62,10 @@ UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id 
 -- the sign-up to commit and a sign-up after that sees the change. Taken
 -- before LockCruiseTripStatuses, in the same cruise-then-trips order as
 -- DELETE FROM cruises and trip completion. No row when the cruise no longer
--- has that token.
+-- has that token or is hidden; holding the lock also keeps an unpublish
+-- waiting until the sign-up commits.
 SELECT id FROM cruises
-WHERE id = $1 AND enroll_token = $2
+WHERE id = $1 AND enroll_token = $2 AND published_at IS NOT NULL
 FOR SHARE;
 
 -- name: GetCruiseByEnrollToken :one
@@ -65,13 +73,54 @@ SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, image_photo_url, max_crew, cost_per_person,
        currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
        group_chat_url, travel_notes, min_age
-FROM cruises WHERE enroll_token = $1;
+FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL;
 
 -- name: ListCruiseTrips :many
-SELECT * FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC;
+-- Without include_hidden a leg is listed only while it and its cruise are
+-- published.
+SELECT * FROM trips t
+WHERE t.cruise_id = sqlc.arg(cruise_id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
+ORDER BY t.embark_date ASC, t.id ASC;
 
 -- name: ListCruiseVoyages :many
-SELECT * FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC;
+-- Without include_hidden a voyage is listed only while it and its cruise are
+-- published.
+SELECT * FROM voyages v
+WHERE v.cruise_id = sqlc.arg(cruise_id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+ORDER BY v.year DESC, v.embark_date DESC, v.id DESC;
+
+-- name: PublishCruise :one
+-- Publishes the cruise, keeping an earlier published_at.
+UPDATE cruises SET
+    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING *;
+
+-- name: UnpublishCruise :one
+UPDATE cruises SET
+    published_at = NULL,
+    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING *;
+
+-- name: PublishStandaloneCruise :exec
+-- Publishes a hidden cruise that belongs to no series, for a leg being
+-- published: a standalone leg's wrapper cruise follows its leg.
+UPDATE cruises SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND published_at IS NULL AND series_id IS NULL;
+
+-- name: PublishCruiseTrips :exec
+UPDATE trips SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE cruise_id = $1 AND published_at IS NULL;
+
+-- name: PublishCruiseVoyages :exec
+UPDATE voyages SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE cruise_id = $1 AND published_at IS NULL;
 
 -- name: ListUserCruiseIDs :many
 -- Cruises the user took part in: an accepted cruise or trip enrollment, a

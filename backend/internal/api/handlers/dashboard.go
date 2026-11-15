@@ -41,7 +41,8 @@ func (h *DashboardHandler) get(ctx context.Context, _ *struct{}) (*dashboardOutp
 	if u == nil {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	rows, err := h.q.ListUserSeaTimeVoyages(ctx, u.UserID)
+	hidden := canSeeHidden(ctx)
+	rows, err := h.q.ListUserSeaTimeVoyages(ctx, sqlcdb.ListUserSeaTimeVoyagesParams{UserID: u.UserID, IncludeHidden: hidden})
 	if err != nil {
 		slog.Error("dashboard personal sea time", "err", err)
 		return nil, huma.Error500InternalServerError("failed to get personal sea time")
@@ -50,12 +51,12 @@ func (h *DashboardHandler) get(ctx context.Context, _ *struct{}) (*dashboardOutp
 	if u.Role != "admin" {
 		return out, nil
 	}
-	stats, err := h.q.GetDashboardStats(ctx)
+	stats, err := h.q.GetDashboardStats(ctx, hidden)
 	if err != nil {
 		slog.Error("dashboard stats", "err", err)
 		return nil, huma.Error500InternalServerError("failed to get dashboard stats")
 	}
-	byYear, err := h.q.GetVoyagesByYear(ctx)
+	byYear, err := h.q.GetVoyagesByYear(ctx, hidden)
 	if err != nil {
 		slog.Error("dashboard yearly breakdown", "err", err)
 		return nil, huma.Error500InternalServerError("failed to get yearly breakdown")

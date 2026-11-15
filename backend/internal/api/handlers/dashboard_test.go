@@ -186,6 +186,9 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)
 	}
+	if _, err := q.PublishCruise(ctx, cruise.ID); err != nil {
+		t.Fatalf("publish cruise: %v", err)
+	}
 	yacht, err := q.CreateYacht(ctx, sqlcdb.CreateYachtParams{Name: "Zjawa"})
 	if err != nil {
 		t.Fatalf("create yacht: %v", err)
@@ -204,7 +207,7 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 		v, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
 			CruiseID: cruise.ID, Name: name, Year: nullID(year), YachtID: nullID(yacht.ID),
 			Miles: miles, HoursTotal: miles / 5, HoursSail: miles / 10, HoursEngine: miles / 10, Days: 2,
-			CaptainPersonID: captain,
+			CaptainPersonID: captain, PublishedAt: published,
 		})
 		if err != nil {
 			t.Fatalf("create voyage: %v", err)

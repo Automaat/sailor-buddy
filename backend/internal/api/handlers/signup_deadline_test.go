@@ -101,7 +101,9 @@ func TestGetTripSignUp_Deadline(t *testing.T) {
 func TestListCruiseLegSignUps_Deadline(t *testing.T) {
 	trips := []sqlcdb.Trip{openTrip(11), deadlineTrip(12)}
 	m := newLegMock(&legStore{}, trips)
-	m.getCruiseFn = func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil }
+	m.getCruiseFn = func(_ context.Context, id int64) (sqlcdb.Cruise, error) {
+		return sqlcdb.Cruise{ID: id, PublishedAt: published}, nil
+	}
 	resp := enrollTestAPIAt(t, m, deadlineClock[2].now).GetCtx(guestCtx(42), "/cruises/7/leg-sign-ups")
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d, want 200; body=%s", resp.Code, resp.Body)
@@ -125,7 +127,7 @@ func TestEnroll_TripToken_Deadline(t *testing.T) {
 				},
 				lockTripForSignUpFn: func(_ context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {
 					return sqlcdb.LockTripForSignUpRow{
-						ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok,
+						ID: id, Status: sqlcdb.TripStatusPlanned, Open: true, EnrollToken: tripTok, Published: true,
 						SignUpDeadline: types.NullString{String: testDeadline, Valid: true},
 					}, nil
 				},

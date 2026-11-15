@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -192,7 +193,8 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 		return nil, huma.Error500InternalServerError("failed to get cruise")
 	}
 	counts, _ := h.q.CountCruiseEnrollments(ctx, cruise.ID)
-	childTrips, tlistErr := h.q.ListCruiseTrips(ctx, cruise.ID)
+	// A share link offers only published legs: a hidden leg takes no sign-ups.
+	childTrips, tlistErr := h.q.ListCruiseTrips(ctx, sqlcdb.ListCruiseTripsParams{CruiseID: cruise.ID})
 	if tlistErr != nil {
 		slog.Error("list cruise trips", "cruise_id", cruise.ID, "err", tlistErr)
 		childTrips = nil
@@ -202,6 +204,9 @@ func (h *EnrollmentHandler) getByToken(ctx context.Context, in *tokenPathParam) 
 		slog.Error("count accepted per cruise trip", "cruise_id", cruise.ID, "err", taErr)
 		tripAccepted = nil
 	}
+	tripAccepted = slices.DeleteFunc(tripAccepted, func(c sqlcdb.CountAcceptedByCruiseTripRow) bool {
+		return !slices.ContainsFunc(childTrips, func(t sqlcdb.Trip) bool { return t.ID == c.TripID })
+	})
 	info := dto.EnrollInfo{
 		Kind:          "cruise",
 		Cruise:        new(dto.EnrollCruiseFromRow(cruise, user != nil && user.Approved && user.EmailVerified && !user.Suspended)),
@@ -262,6 +267,10 @@ func (h *EnrollmentHandler) enroll(ctx context.Context, in *enrollInput) (*enrol
 // planned, or was completed into a voyage, by the time its row is locked.
 var errTripNotPlanned = errors.New("trip is not planned")
 
+// errLegHidden aborts a trip-token enrollment when the trip or its cruise
+// was hidden between the token lookup and the lock.
+var errLegHidden = errors.New("leg hidden")
+
 // errLinkSwitchedOff aborts a share-link sign-up when the link was cleared or
 // regenerated between the token lookup and the lock.
 var errLinkSwitchedOff = errors.New("enrollment link switched off")
@@ -275,6 +284,9 @@ var errLinkSwitchedOff = errors.New("enrollment link switched off")
 func (h *EnrollmentHandler) enrollTrip(ctx context.Context, tripID int64, token string, userID int64, note types.NullString) (*enrollmentOutput, error) {
 	e, txErr := (enrollmentOperations{runTx: h.runTx}).enrollByTripToken(ctx, tripID, token, userID, note, h.today())
 	if txErr != nil {
+		if errors.Is(txErr, errLegHidden) {
+			return nil, huma.Error404NotFound("invalid enrollment link")
+		}
 		if errors.Is(txErr, errTripNotPlanned) {
 			return nil, huma.Error409Conflict("enrollment closed: trip is not planned")
 		}
@@ -346,7 +358,7 @@ func (h *EnrollmentHandler) generateToken(ctx context.Context, in *tripIDParam) 
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if _, err := h.q.GetTrip(ctx, in.ID); err != nil {
+	if _, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: true}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
 		}

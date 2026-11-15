@@ -26,15 +26,16 @@ type CruiseSeriesBody struct {
 // CruiseSeriesEdition is one cruise of a series with the miles and hours
 // summed over its voyages.
 type CruiseSeriesEdition struct {
-	CruiseID      int64   `json:"cruise_id"`
-	Name          string  `json:"name"`
-	Edition       *string `json:"edition,omitempty"`
-	Kind          string  `json:"kind" enum:"sea,inland"`
-	EmbarkDate    *string `json:"embark_date,omitempty"`
-	DisembarkDate *string `json:"disembark_date,omitempty"`
-	VoyageCount   int64   `json:"voyage_count"`
-	TotalMiles    float64 `json:"total_miles"`
-	TotalHours    float64 `json:"total_hours"`
+	CruiseID      int64      `json:"cruise_id"`
+	Name          string     `json:"name"`
+	Edition       *string    `json:"edition,omitempty"`
+	Kind          string     `json:"kind" enum:"sea,inland"`
+	EmbarkDate    *string    `json:"embark_date,omitempty"`
+	DisembarkDate *string    `json:"disembark_date,omitempty"`
+	PublishedAt   *time.Time `json:"published_at,omitempty" doc:"When the edition was published; absent while it is a hidden draft"`
+	VoyageCount   int64      `json:"voyage_count"`
+	TotalMiles    float64    `json:"total_miles"`
+	TotalHours    float64    `json:"total_hours"`
 }
 
 // CruiseSeriesFromDB maps a database row to the API model.
@@ -71,6 +72,7 @@ func CruiseSeriesEditionsFromDB(rows []sqlcdb.ListCruiseSeriesEditionsRow) []Cru
 			Kind:          r.Kind,
 			EmbarkDate:    strPtr(r.EmbarkDate),
 			DisembarkDate: strPtr(r.DisembarkDate),
+			PublishedAt:   timePtr(r.PublishedAt),
 			VoyageCount:   r.VoyageCount,
 			TotalMiles:    r.TotalMiles,
 			TotalHours:    r.TotalHours,

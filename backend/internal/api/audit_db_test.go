@@ -133,6 +133,9 @@ func TestAuditRealRoleChangesAndEarlyDenials(t *testing.T) {
 	if response := securityRequest(h, "actor", http.MethodPost, fmt.Sprintf("/api/trips/%d/enroll-token", tripID), ""); response.Code != 200 {
 		t.Fatalf("enable sign-up: %d %s", response.Code, response.Body)
 	}
+	if response := securityRequest(h, "actor", http.MethodPost, fmt.Sprintf("/api/trips/%d/publish", tripID), ""); response.Code != 200 {
+		t.Fatalf("publish trip: %d %s", response.Code, response.Body)
+	}
 	signup := securityRequest(h, "target", http.MethodPost, fmt.Sprintf("/api/trips/%d/sign-up", tripID), `{}`)
 	if signup.Code != 201 {
 		t.Fatalf("sign-up: %d %s", signup.Code, signup.Body)

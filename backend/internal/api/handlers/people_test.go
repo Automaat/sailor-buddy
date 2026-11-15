@@ -225,9 +225,12 @@ func TestDashboardSeaTime_AccountPerson(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create cruise: %v", err)
 	}
+	if _, err := q.PublishCruise(ctx, cruise.ID); err != nil {
+		t.Fatalf("publish cruise: %v", err)
+	}
 	voyage, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
 		CruiseID: cruise.ID, Name: "Gdynia–Bornholm", Year: types.NullInt64{Int64: 2026, Valid: true},
-		Miles: 120, HoursTotal: 30, Days: 3,
+		Miles: 120, HoursTotal: 30, Days: 3, PublishedAt: published,
 	})
 	if err != nil {
 		t.Fatalf("create voyage: %v", err)

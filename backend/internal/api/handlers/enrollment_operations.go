@@ -231,13 +231,18 @@ func (o enrollmentOperations) deleteCruiseEnrollment(ctx context.Context, cruise
 	})
 }
 
-func (o enrollmentOperations) signUp(ctx context.Context, tripID, userID int64, today string) (dto.EnrollLegResult, error) {
+// signUp creates or returns the user's sign-up for a leg. A hidden leg is
+// missing (sql.ErrNoRows) unless seeHidden; checkSignUpOpen then refuses it.
+func (o enrollmentOperations) signUp(ctx context.Context, tripID, userID int64, today string, seeHidden bool) (dto.EnrollLegResult, error) {
 	key := sqlcdb.GetUserTripEnrollmentParams{TripID: tripID, UserID: userID}
 	var out dto.EnrollLegResult
 	err := o.runTx(ctx, func(q sqlcdb.Querier) error {
 		trip, err := q.LockTripForSignUp(ctx, tripID)
 		if err != nil {
 			return err
+		}
+		if !trip.Published && !seeHidden {
+			return sql.ErrNoRows
 		}
 		existing, found, err := signUpOf(ctx, q, trip.ID, userID)
 		if err != nil {
@@ -282,6 +287,9 @@ func (o enrollmentOperations) enrollByTripToken(ctx context.Context, tripID int6
 		}
 		if err != nil {
 			return &QueryError{Op: "LockTripForSignUp", Err: err}
+		}
+		if !trip.Published {
+			return errLegHidden
 		}
 		if trip.Status != sqlcdb.TripStatusPlanned {
 			return errTripNotPlanned
@@ -331,7 +339,7 @@ func (o enrollmentOperations) enrollByCruiseToken(ctx context.Context, cruiseID 
 		today := o.today()
 		for _, id := range tripIDs {
 			leg, ok := legs[id]
-			if !ok {
+			if !ok || !leg.Published {
 				return &invalidLegsError{msg: fmt.Sprintf("trip %d is not a leg of this cruise", id)}
 			}
 			if leg.Status != sqlcdb.TripStatusPlanned {

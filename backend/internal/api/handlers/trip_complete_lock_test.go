@@ -89,7 +89,7 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 		t.Fatalf("create cruise: %v", err)
 	}
 	const token = "legs-token"
-	if _, err := conn.ExecContext(ctx, "UPDATE cruises SET enroll_token = $1 WHERE id = $2", token, cruise.ID); err != nil {
+	if _, err := conn.ExecContext(ctx, "UPDATE cruises SET enroll_token = $1, published_at = now() WHERE id = $2", token, cruise.ID); err != nil {
 		t.Fatalf("set cruise token: %v", err)
 	}
 	trip, err := q.CreateTrip(ctx, sqlcdb.CreateTripParams{
@@ -100,6 +100,9 @@ func seedLeg(t *testing.T, conn *sql.DB) legFixture {
 	})
 	if err != nil {
 		t.Fatalf("create trip: %v", err)
+	}
+	if _, err := q.PublishTrip(ctx, trip.ID); err != nil {
+		t.Fatalf("publish trip: %v", err)
 	}
 	if _, err := q.CreateTripEnrollmentIfAbsent(ctx, sqlcdb.CreateTripEnrollmentIfAbsentParams{
 		TripID: trip.ID, UserID: user.ID, Status: enrollmentPending,
