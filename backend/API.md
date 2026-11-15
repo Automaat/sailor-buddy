@@ -690,7 +690,7 @@ cruise. Deleting a series keeps its cruises and clears their `series_id`.
 | GET | `/api/series/{id}` | member | Get series | 200 |
 | PUT | `/api/series/{id}` | **admin** | Update series | 204 |
 | DELETE | `/api/series/{id}` | **admin** | Delete series; its cruises stay, unlinked | 204 |
-| GET | `/api/series/{id}/editions` | member | Editions with voyage totals | 200 |
+| GET | `/api/series/{id}/editions` | member | List the series' editions | 200 |
 
 Body — `name` required, `kind` `sea` (rejs morski, the default) or
 `inland` (rejs śródlądowy), shared by every edition of the series:
@@ -701,10 +701,8 @@ Any other `kind` is rejected with 422; `PUT` resets an omitted `kind` to
 `GET /api/series/{id}/editions` returns a bare array of the series' cruises,
 newest first (by the earliest embark date among its trips and voyages the
 caller may see, with editions that have no dated leg on top, then
-`edition`), each with
-`voyage_count`,
-`total_miles` and `total_hours` summed over its voyages (`hours_total`).
-An edition without voyages reports zeros. Unknown series → 404.
+`edition`). Each entry has `cruise_id`, `name`, `edition` and, once
+published, `published_at`. Unknown series → 404.
 
 ```json
 [
@@ -712,9 +710,7 @@ An edition without voyages reports zeros. Unknown series → 404.
     "cruise_id": 12,
     "name": "May I Sail 2025",
     "edition": "2025",
-    "voyage_count": 2,
-    "total_miles": 200,
-    "total_hours": 40
+    "published_at": "2025-03-01T10:00:00Z"
   }
 ]
 ```

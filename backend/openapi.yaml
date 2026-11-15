@@ -621,21 +621,9 @@ components:
           description: When the edition was published; absent while it is a hidden draft
           format: date-time
           type: string
-        total_hours:
-          format: double
-          type: number
-        total_miles:
-          format: double
-          type: number
-        voyage_count:
-          format: int64
-          type: integer
       required:
         - cruise_id
         - name
-        - voyage_count
-        - total_miles
-        - total_hours
       type: object
     Dashboard:
       additionalProperties: false

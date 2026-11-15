@@ -192,16 +192,16 @@ func TestHiddenRecordVisibility(t *testing.T) {
 
 			var editions []dto.CruiseSeriesEdition
 			mustDecode(t, mustGet(t, h, persona, fmt.Sprintf("/api/series/%d/editions", f.series)), &editions)
-			wantEditions := map[int64]float64{f.cruise: 100}
+			wantEditions := map[int64]bool{f.cruise: true}
 			if seesHidden {
-				wantEditions = map[int64]float64{f.cruise: 140, f.hiddenCruise: 500}
+				wantEditions = map[int64]bool{f.cruise: true, f.hiddenCruise: true}
 			}
 			if len(editions) != len(wantEditions) {
 				t.Errorf("editions = %+v, want %v", editions, wantEditions)
 			}
 			for _, e := range editions {
-				if miles, ok := wantEditions[e.CruiseID]; !ok || e.TotalMiles != miles || (e.PublishedAt == nil) != (e.CruiseID == f.hiddenCruise) {
-					t.Errorf("edition %+v, want miles %v", e, wantEditions[e.CruiseID])
+				if !wantEditions[e.CruiseID] || (e.PublishedAt == nil) != (e.CruiseID == f.hiddenCruise) {
+					t.Errorf("unexpected edition %+v", e)
 				}
 			}
 

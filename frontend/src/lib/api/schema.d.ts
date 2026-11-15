@@ -1759,12 +1759,6 @@ export interface components {
              * @description When the edition was published; absent while it is a hidden draft
              */
             published_at?: string;
-            /** Format: double */
-            total_hours: number;
-            /** Format: double */
-            total_miles: number;
-            /** Format: int64 */
-            voyage_count: number;
         };
         Dashboard: {
             /**
