@@ -459,3 +459,43 @@ func TestLegWriteWithUnknownYacht(t *testing.T) {
 		})
 	}
 }
+
+func TestYachtHandler_ReadAccess(t *testing.T) {
+	callers := []struct {
+		name string
+		ctx  context.Context
+		want int
+	}{
+		{name: "member", ctx: callerCtx(8, "member"), want: http.StatusForbidden},
+		{name: "captain group", ctx: captainGroupCtx(9), want: http.StatusOK},
+		{name: "admin", ctx: callerCtx(1, "admin"), want: http.StatusOK},
+	}
+	for _, path := range []string{"/yachts", "/yachts/1"} {
+		for _, c := range callers {
+			t.Run(path+" "+c.name, func(t *testing.T) {
+				queried := false
+				m := &mockQuerier{
+					listYachtsFn: func(context.Context, sqlcdb.ListYachtsParams) ([]sqlcdb.Yacht, error) {
+						queried = true
+						return []sqlcdb.Yacht{{ID: 1, Name: "Zawisza"}}, nil
+					},
+					countYachtsFn: func(context.Context) (int64, error) { return 1, nil },
+					getYachtFn: func(_ context.Context, id int64) (sqlcdb.Yacht, error) {
+						queried = true
+						return sqlcdb.Yacht{ID: id, Name: "Zawisza"}, nil
+					},
+				}
+				resp := yachtTestAPI(t, m).GetCtx(c.ctx, path)
+				if resp.Code != c.want {
+					t.Fatalf("status = %d, want %d; body=%s", resp.Code, c.want, resp.Body)
+				}
+				if queried != (c.want == http.StatusOK) {
+					t.Fatalf("queried = %v for status %d", queried, resp.Code)
+				}
+				if c.want == http.StatusOK && !strings.Contains(resp.Body.String(), "Zawisza") {
+					t.Fatalf("body lacks the yacht: %s", resp.Body)
+				}
+			})
+		}
+	}
+}

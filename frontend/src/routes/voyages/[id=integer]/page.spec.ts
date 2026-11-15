@@ -21,6 +21,7 @@ vi.mock('#lib/api/routes.js', () => ({
 	reorderVoyagePorts: vi.fn(),
 	updateVoyageLog: vi.fn(),
 	addVoyageYacht: vi.fn(),
+	listVoyageYachts: vi.fn(),
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),
 	getCruise: vi.fn(() => Promise.resolve(null)),
@@ -45,6 +46,7 @@ import {
 	listVoyageCrew,
 	listVoyageOpinions,
 	listVoyagePorts,
+	listVoyageYachts,
 	listYachts,
 	publishVoyage,
 	unpublishVoyage,
@@ -85,7 +87,7 @@ beforeEach(() => {
 	mockAuth.isAdmin = false;
 	mockAuth.user = { id: 7, role: 'member', person_id: 70 };
 	vi.mocked(listVoyagePorts).mockResolvedValue([]);
-	vi.mocked(listYachts).mockResolvedValue([yacht({ yacht_type: 'Bavaria 46' })]);
+	vi.mocked(listVoyageYachts).mockResolvedValue([yacht({ yacht_type: 'Bavaria 46' })]);
 });
 
 describe('voyage page record', () => {
@@ -94,6 +96,7 @@ describe('voyage page record', () => {
 			makeVoyage({
 				id: 5,
 				yacht_id: 3,
+				yacht: { id: 3, name: 'Zawisza', yacht_type: 'Bavaria 46' },
 				track_url: 'https://example.com/track/1',
 				voyage_card: 'u kpt. Nowaka'
 			})
@@ -125,6 +128,35 @@ describe('voyage page record', () => {
 		expect(within(items[1]).getByLabelText('Kotwicowisko')).toBeInTheDocument();
 		expect(items[1]).toHaveTextContent('(bez mapy)');
 		expect(items[0]).not.toHaveTextContent('(bez mapy)');
+		// A member who does not log the voyage reads its yacht from the voyage, not the yacht list.
+		expect(listVoyageYachts).not.toHaveBeenCalled();
+		expect(listYachts).not.toHaveBeenCalled();
+	});
+
+	it('keeps the logged yacht when the yacht list fails to load', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(
+			makeVoyage({
+				id: 5,
+				captain_person_id: 70,
+				yacht_id: 3,
+				yacht: { id: 3, name: 'Zawisza', yacht_type: 'Bavaria 46' }
+			})
+		);
+		vi.mocked(listVoyageYachts).mockRejectedValue(new ApiError(500, 'boom'));
+		vi.mocked(updateVoyageLog).mockResolvedValue(undefined as never);
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Uzupełnij po rejsie' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się wczytać listy jachtów: boom'
+		);
+		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz raport' }));
+
+		await waitFor(() => expect(screen.queryByLabelText('Jacht')).not.toBeInTheDocument());
+		expect(vi.mocked(updateVoyageLog).mock.calls[0][1]).toMatchObject({ yacht_id: 3 });
+		expect(screen.getByText('Bavaria 46 Zawisza')).toBeInTheDocument();
+		expect(listVoyageYachts).toHaveBeenCalledWith(5);
+		expect(listYachts).not.toHaveBeenCalled();
 	});
 
 	it('lets the captain add a name-only anchorage port', async () => {

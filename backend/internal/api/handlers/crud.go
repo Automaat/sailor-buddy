@@ -32,6 +32,15 @@ func adminScope(ctx context.Context) (crudScope, error) {
 	return memberScope(ctx)
 }
 
+// captainGroupScope requires the caller to be an admin or in the captain
+// group. Used for reads of captains' working data.
+func captainGroupScope(ctx context.Context) (crudScope, error) {
+	if err := requireAdminOrCaptainGroup(ctx); err != nil {
+		return crudScope{}, err
+	}
+	return memberScope(ctx)
+}
+
 type crudConfig[ListIn, GetIn, CreateIn, UpdateIn, DeleteIn, Row, ListOut, ItemOut any] struct {
 	listScope   func(context.Context, *ListIn) (crudScope, error)
 	getScope    func(context.Context, *GetIn) (crudScope, error)

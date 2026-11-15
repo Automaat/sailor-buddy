@@ -124,6 +124,11 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   The account linked to a voyage's captain person may write its post-cruise
   log and ports (`requireAdminOrCaptain`). Captain is not a role — keep it
   off `users.role`.
+- Yacht list (`/yachts`, `GET /yachts*`): admins and the captain group only.
+  A voyage captain outside the group picks a yacht through
+  `GET /voyages/{id}/yachts`; members see a voyage's yacht as the
+  `yacht` summary on `GET /voyages/{id}`. Do not expose the full list to
+  members again.
 - Hidden drafts: `published_at` on cruises, trips and voyages; NULL is
   hidden and every new row starts hidden. A trip or voyage is visible only
   while it and its cruise are published. Admins and the captain group see

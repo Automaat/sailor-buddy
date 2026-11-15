@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACCESS_PATH, accessRedirect, hasClubAccess } from '#lib/access.js';
+import { ACCESS_PATH, accessRedirect, hasClubAccess, isAdminOrCaptainGroup } from '#lib/access.js';
 
 const verified = { email_verified: true, suspended: false };
 const unverified = { email_verified: false, suspended: false };
@@ -36,5 +36,16 @@ describe('accessRedirect', () => {
 		]
 	])('%s', (_, user, pathname, want) => {
 		expect(accessRedirect(user, pathname)).toBe(want);
+	});
+});
+
+describe('isAdminOrCaptainGroup', () => {
+	it.each([
+		['member', false, { is_captain: false }, false],
+		['captain group', false, { is_captain: true }, true],
+		['admin', true, { is_captain: false }, true],
+		['account not loaded yet', false, null, false]
+	])('%s', (_, isAdmin, user, want) => {
+		expect(isAdminOrCaptainGroup({ isAdmin, user })).toBe(want);
 	});
 });

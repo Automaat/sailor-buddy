@@ -4,8 +4,7 @@ import {
 	listAssignableCrew,
 	listVoyageCrew,
 	listVoyageOpinions,
-	listVoyagePorts,
-	listYachts
+	listVoyagePorts
 } from '#lib/api/routes.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
@@ -23,7 +22,7 @@ export const load: PageLoad = async ({ params }) => {
 	// Crew, opinions and the people list feed admin-only sections; the page
 	// shows their failures only to an admin.
 	const adminLoadErrors: string[] = [];
-	const [crew, opinions, ports, allCrewMembers, yachts, cruise] = await Promise.all([
+	const [crew, opinions, ports, allCrewMembers, cruise] = await Promise.all([
 		settle(
 			listVoyageCrew(id).then((c) => c ?? []),
 			[],
@@ -40,11 +39,6 @@ export const load: PageLoad = async ({ params }) => {
 			noteFailure(loadErrors, 'porty')
 		),
 		settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
-		settle(
-			listYachts().then((y) => y ?? []),
-			[],
-			noteFailure(loadErrors, 'jachty')
-		),
 		voyage.cruise_id
 			? settle(getCruise(voyage.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'))
 			: Promise.resolve(null)
@@ -56,7 +50,6 @@ export const load: PageLoad = async ({ params }) => {
 		opinions,
 		ports,
 		allCrewMembers,
-		yachts,
 		loadErrors,
 		adminLoadErrors
 	};

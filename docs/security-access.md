@@ -6,16 +6,21 @@ Policy change, 2026-11-15: the owner replaced explicit administrator approval wi
 
 Anyone may register. Reading club data requires a verified Firebase email and an account that is not suspended. Access is independent of the account role and club membership (`czlonek`, `sympatyk`, `gosc`). Administrators also need a verified email for club access. Suspension denies authenticated application access, including existing tokens.
 
-| Caller | Own profile/onboarding | Public token preview | Token enrollment as self | Club records | Emergency contacts | Voyage opinions |
-| --- | --- | --- | --- | --- | --- | --- |
-| Anonymous | No | Yes | No | No | No | No |
-| Unverified email | Yes | Yes | Yes | No | No | No |
-| Verified email | Yes | Yes | Yes | Yes | No | Own opinions only |
-| Verified assigned captain | Yes | Yes | Yes | Yes | Assigned crew only | Own opinions and assigned voyage opinions |
-| Verified administrator | Yes | Yes | Yes | Yes | Yes | Yes |
-| Suspended | No | Anonymous preview only | No | No | No | No |
+| Caller | Own profile/onboarding | Public token preview | Token enrollment as self | Club records | Yacht list | Emergency contacts | Voyage opinions |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Anonymous | No | Yes | No | No | No | No | No |
+| Unverified email | Yes | Yes | Yes | No | No | No | No |
+| Verified email | Yes | Yes | Yes | Yes | No | No | Own opinions only |
+| Verified assigned captain | Yes | Yes | Yes | Yes | Through the assigned voyage only | Assigned crew only | Own opinions and assigned voyage opinions |
+| Verified captain group | Yes | Yes | Yes | Yes | Yes | As an assigned captain only | Own opinions; assigned voyage opinions as its captain |
+| Verified administrator | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Suspended | No | Anonymous preview only | No | No | No | No | No |
 
-Club records include directory contact and patent details, trainings, cruise/trip/voyage data, group-chat links, and sailing summaries. Training records remain private to their owner. An unverified account cannot obtain a group-chat URL by authenticating to the public enrollment preview. Anonymous previews retain their existing limited fields.
+Club records include directory contact and patent details, trainings, cruise/trip/voyage data, group-chat links, and sailing summaries. A voyage names its yacht (name and type) for every reader of the voyage. Training records remain private to their owner. An unverified account cannot obtain a group-chat URL by authenticating to the public enrollment preview. Anonymous previews retain their existing limited fields.
+
+## Yacht list
+
+Policy change, 2026-11-15 (issue #737): the club yacht list (Jachty) is a working tool for the board and the captains. Only administrators and the captain group (`users.is_captain`) read `GET /yachts` and `GET /yachts/{id}` and see the Jachty page; every other caller gets 403 and the page sends them to the dashboard. Only administrators change the list directly. A voyage's assigned captain outside the group reads the list only through that voyage (`GET /voyages/{id}/yachts`) to pick the yacht in the voyage log, and may add a yacht from it (`POST /voyages/{id}/yachts`).
 
 ## Hidden drafts
 
@@ -29,6 +34,6 @@ Unverified users can finish their profile and use token-based enrollment. The UI
 
 ## Verification
 
-Use synthetic accounts for anonymous, unverified, verified member, assigned captain, admin, and suspended callers. A new account with a verified email and no administrator action must read club data. Test direct API list/detail requests, opinion downloads, token previews, and writes independently of UI visibility. Include a verified captain requesting another captain's crew and voyage, and a captain-group account, a member and an unverified account requesting hidden cruises, trips and voyages directly, in lists, through share links and by sign-up.
+Use synthetic accounts for anonymous, unverified, verified member, assigned captain, admin, and suspended callers. A new account with a verified email and no administrator action must read club data. Test direct API list/detail requests, opinion downloads, token previews, and writes independently of UI visibility. Include a member, a captain-group account and an assigned captain outside the group requesting the yacht list directly and through the voyage, a verified captain requesting another captain's crew and voyage, and a captain-group account, a member and an unverified account requesting hidden cruises, trips and voyages directly, in lists, through share links and by sign-up.
 
 No public deployment exists. Live TLS, headers, Firebase settings, admin MFA, backup restore, image restrictions, and the deployed access matrix remain unverified until the owner selects a target. Issue #690 stays open until that evidence exists.

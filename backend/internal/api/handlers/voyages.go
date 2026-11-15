@@ -129,6 +129,20 @@ type cruiseVoyagesOutput struct {
 	Body []dto.Voyage
 }
 
+// voyageDetailOutput is a single voyage with its yacht's summary.
+type voyageDetailOutput struct {
+	Body dto.VoyageDetail
+}
+
+// listVoyageYachtsInput repeats the pageParams fields: huma does not apply
+// the defaults of an embedded struct.
+type listVoyageYachtsInput struct {
+	ID     int64  `path:"voyageID" doc:"Voyage ID"`
+	Limit  int32  `query:"limit" minimum:"1" maximum:"100" default:"50" doc:"Maximum number of items to return"`
+	Offset int32  `query:"offset" minimum:"0" default:"0" doc:"Number of items to skip"`
+	After  string `query:"after" doc:"A previous page's next_cursor: the window starts after that page's last item, so rows deleted meanwhile shift nothing"`
+}
+
 type addVoyageYachtInput struct {
 	ID   int64 `path:"voyageID" doc:"Voyage ID"`
 	Body dto.YachtBody
@@ -140,8 +154,8 @@ type updateVoyageLogInput struct {
 }
 
 // RegisterVoyageRoutes wires the club voyage operations onto the API. Reads are
-// open to any member; mutations require an admin, except the post-cruise log,
-// which the voyage's captain may also write.
+// open to any member; mutations require an admin, except the post-cruise log
+// and its yacht picker, which the voyage's captain may also use.
 func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 	h := NewVoyageHandler(q)
 	tag := []string{"Voyages"}
@@ -166,6 +180,10 @@ func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
 		OperationID: "update-voyage-log", Method: http.MethodPut, Path: "/voyages/{voyageID}/log",
 		Summary: "Log post-cruise statistics and notes (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusNoContent,
 	}, h.updateLog)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-voyage-yachts", Method: http.MethodGet, Path: "/voyages/{voyageID}/yachts",
+		Summary: "List the club yachts for the voyage log (admin or voyage captain)", Tags: tag,
+	}, h.listYachts)
 	huma.Register(api, huma.Operation{
 		OperationID: "add-voyage-yacht", Method: http.MethodPost, Path: "/voyages/{voyageID}/yachts",
 		Summary: "Add a yacht to the club list from a voyage (admin or voyage captain)", Tags: tag, DefaultStatus: http.StatusCreated,
@@ -234,7 +252,7 @@ func (h *VoyageHandler) list(ctx context.Context, in *pageParams) (*voyageListOu
 	return &voyageListOutput{Body: buildPage(rows, total, in.Limit, in.Offset, dto.VoyagesFromDB, voyageCursor)}, nil
 }
 
-func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageOutput, error) {
+func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageDetailOutput, error) {
 	scope, _ := memberScope(ctx)
 	row, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
@@ -244,7 +262,46 @@ func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageOutp
 		logCRUD("get voyage", scopeAttrs(scope, "voyage_id", in.ID), err)
 		return nil, huma.Error500InternalServerError("failed to get voyage")
 	}
-	return &voyageOutput{Body: dto.VoyageFromDB(row)}, nil
+	out := &voyageDetailOutput{Body: dto.VoyageDetail{Voyage: dto.VoyageFromDB(row)}}
+	if !row.YachtID.Valid {
+		return out, nil
+	}
+	yacht, err := h.q.GetYacht(ctx, row.YachtID.Int64)
+	switch {
+	case err == nil:
+		summary := dto.YachtSummaryFromDB(yacht)
+		out.Body.Yacht = &summary
+	case errors.Is(err, sql.ErrNoRows):
+		// The voyage changed yacht and the old one was deleted after the read.
+	default:
+		logCRUD("get voyage yacht", scopeAttrs(scope, "voyage_id", in.ID, "yacht_id", row.YachtID.Int64), err)
+		return nil, huma.Error500InternalServerError("failed to get voyage")
+	}
+	return out, nil
+}
+
+// listYachts lists the club yachts for the voyage log's yacht picker. The
+// voyage's captain may pick from the list here even outside the captain
+// group, which alone reads GET /yachts.
+func (h *VoyageHandler) listYachts(ctx context.Context, in *listVoyageYachtsInput) (*yachtListOutput, error) {
+	if _, err := getVoyageForCaptain(ctx, h.q, in.ID); err != nil {
+		return nil, err
+	}
+	page := &pageParams{Limit: in.Limit, Offset: in.Offset, After: in.After}
+	rows, err := listYachtPage(ctx, h.q, page)
+	if se, ok := errors.AsType[huma.StatusError](err); ok {
+		return nil, se
+	}
+	if err != nil {
+		slog.Error("list voyage yachts", "voyage_id", in.ID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list yachts")
+	}
+	total, err := h.q.CountYachts(ctx)
+	if err != nil {
+		slog.Error("list voyage yachts", "voyage_id", in.ID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list yachts")
+	}
+	return yachtListPage(page, rows, total), nil
 }
 
 func (h *VoyageHandler) create(ctx context.Context, in *createVoyageInput) (*voyageOutput, error) {

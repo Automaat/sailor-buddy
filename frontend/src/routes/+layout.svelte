@@ -7,7 +7,13 @@
 	import { getMe } from '#lib/api/routes.js';
 	import { ApiError } from '#lib/api/client.js';
 	import { ONBOARDING_PATH, onboardingRedirect } from '#lib/onboarding.js';
-	import { ACCESS_PATH, accessRedirect, isEnrollRoute, isPublicRoute } from '#lib/access.js';
+	import {
+		ACCESS_PATH,
+		accessRedirect,
+		isAdminOrCaptainGroup,
+		isEnrollRoute,
+		isPublicRoute
+	} from '#lib/access.js';
 	import Anchor from '@lucide/svelte/icons/anchor';
 	import ClubLogo from '#lib/components/ClubLogo.svelte';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
@@ -24,7 +30,7 @@
 		href: string;
 		label: string;
 		icon: typeof Anchor;
-		adminOnly?: boolean;
+		visible?: () => boolean;
 		alsoActiveUnder?: string[];
 		badge?: () => number;
 	};
@@ -33,13 +39,18 @@
 		{ href: '/', label: 'Pulpit', icon: Anchor },
 		{ href: '/cruises', label: 'Rejsy', icon: Sailboat, alsoActiveUnder: ['/trips', '/voyages'] },
 		{ href: '/series', label: 'Serie', icon: Repeat },
-		{ href: '/yachts', label: 'Jachty', icon: Ship },
+		{
+			href: '/yachts',
+			label: 'Jachty',
+			icon: Ship,
+			visible: () => isAdminOrCaptainGroup(auth)
+		},
 		{ href: '/trainings', label: 'Moje kursy', icon: ClipboardList },
 		{
 			href: '/crew',
 			label: 'Osoby',
 			icon: Contact,
-			adminOnly: true,
+			visible: () => auth.isAdmin,
 			badge: () => linkRequests.pending
 		}
 	];
@@ -146,7 +157,7 @@
 {:else}
 	{#snippet navLinks(itemClass: string)}
 		{#each navItems as item (item.href)}
-			{#if !item.adminOnly || auth.isAdmin}
+			{#if item.visible?.() ?? true}
 				{@const active =
 					page.url.pathname === item.href ||
 					(item.href !== '/' && page.url.pathname.startsWith(item.href)) ||

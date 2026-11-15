@@ -26,6 +26,16 @@ type keysetCase struct {
 	path     string
 	register func(api huma.API, q sqlcdb.Querier, conn *sql.DB)
 	seed     func(t *testing.T, conn *sql.DB, user int64)
+	// caller builds the requesting context; nil means a plain member.
+	caller func(user int64) context.Context
+}
+
+// callerFor is the context tc's list is read with.
+func (tc keysetCase) callerFor(user int64) context.Context {
+	if tc.caller != nil {
+		return tc.caller(user)
+	}
+	return memberCtx(user)
 }
 
 func execSeed(t *testing.T, conn *sql.DB, stmt string, args ...any) {
@@ -63,6 +73,7 @@ func keysetCases() []keysetCase {
 		{
 			name: "yachts", table: "yachts", path: "/yachts",
 			register: func(api huma.API, q sqlcdb.Querier, _ *sql.DB) { RegisterYachtRoutes(api, q) },
+			caller:   captainGroupCtx,
 			seed: func(t *testing.T, conn *sql.DB, _ int64) {
 				t.Helper()
 				for _, n := range names {
@@ -168,10 +179,9 @@ func TestListPaging_CursorSurvivesDeletes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	ctx := memberCtx(user.ID)
-
 	for _, tc := range keysetCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := tc.callerFor(user.ID)
 			execSeed(t, conn, "TRUNCATE "+tc.table+" RESTART IDENTITY CASCADE")
 			tc.seed(t, conn, user.ID)
 			_, api := humatest.New(t)
@@ -217,10 +227,9 @@ func TestListPaging_CursorMatchesOffsetOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	ctx := memberCtx(user.ID)
-
 	for _, tc := range keysetCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := tc.callerFor(user.ID)
 			execSeed(t, conn, "TRUNCATE "+tc.table+" RESTART IDENTITY CASCADE")
 			tc.seed(t, conn, user.ID)
 			_, api := humatest.New(t)

@@ -25,12 +25,29 @@ func requireAdmin(ctx context.Context) error {
 	return nil
 }
 
-// canSeeHidden reports whether the caller may read hidden (unpublished)
-// cruises, trips and voyages: admins and the captain group
-// (users.is_captain). Everyone else sees a hidden record as missing.
-func canSeeHidden(ctx context.Context) bool {
+// isAdminOrCaptainGroup reports whether the caller is an admin or in the
+// captain group (users.is_captain).
+func isAdminOrCaptainGroup(ctx context.Context) bool {
 	u := middleware.GetUser(ctx)
 	return u != nil && (u.Role == "admin" || u.IsCaptain)
+}
+
+// canSeeHidden reports whether the caller may read hidden (unpublished)
+// cruises, trips and voyages: admins and the captain group. Everyone else
+// sees a hidden record as missing.
+func canSeeHidden(ctx context.Context) bool {
+	return isAdminOrCaptainGroup(ctx)
+}
+
+// requireAdminOrCaptainGroup returns a 403 error unless the caller is an
+// admin or in the captain group. It gates the captains' working data, such
+// as the club yacht list. A voyage's assigned captain outside the group
+// reaches the list only through the voyage (GET /voyages/{id}/yachts).
+func requireAdminOrCaptainGroup(ctx context.Context) error {
+	if !isAdminOrCaptainGroup(ctx) {
+		return huma.Error403Forbidden("admin or captain group only")
+	}
+	return nil
 }
 
 // requireAdminOrCaptain allows admins and the account linked to the record's
