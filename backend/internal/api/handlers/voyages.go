@@ -282,8 +282,12 @@ func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageDeta
 
 // listYachts lists the club yachts for the voyage log's yacht picker. The
 // voyage's captain may pick from the list here even outside the captain
-// group, which alone reads GET /yachts.
+// group, which alone reads GET /yachts. It is a read nested under the
+// voyage, so a hidden voyage answers 404 to a caller who cannot see it.
 func (h *VoyageHandler) listYachts(ctx context.Context, in *listVoyageYachtsInput) (*yachtListOutput, error) {
+	if err := requireVisibleVoyage(ctx, h.q, in.ID); err != nil {
+		return nil, err
+	}
 	if _, err := getVoyageForCaptain(ctx, h.q, in.ID); err != nil {
 		return nil, err
 	}
