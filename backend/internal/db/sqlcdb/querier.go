@@ -941,6 +941,58 @@ type Querier interface {
 	//        SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 	//  ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
 	ListUserSeaTimeVoyages(ctx context.Context, arg ListUserSeaTimeVoyagesParams) ([]ListUserSeaTimeVoyagesRow, error)
+	// The user's upcoming legs: legs their person captains, is on the crew of or
+	// signed up for (pending, accepted or waitlisted), and legs their account's
+	// cruise enrollment was assigned to (not rejected). One row per leg with the
+	// strongest relation: captain, crew, then sign-up accepted, pending,
+	// waitlisted. A leg is upcoming while it is not cancelled and its
+	// disembark date (embark date when it has none) is today or later, or it
+	// has no dates. Without include_hidden a leg counts only while it and its
+	// cruise are published. Bounded: a person has few upcoming legs.
+	//
+	//  WITH me AS (
+	//      SELECT cm.id AS person_id FROM crew_members cm WHERE cm.user_id = $3::BIGINT
+	//  ),
+	//  relations AS (
+	//      SELECT t.id AS trip_id, 1 AS strength FROM trips t
+	//      JOIN me ON me.person_id = t.captain_person_id
+	//      UNION ALL
+	//      SELECT ca.trip_id, 2 FROM crew_assignments ca
+	//      JOIN me ON me.person_id = ca.crew_member_id
+	//      WHERE ca.trip_id IS NOT NULL
+	//      UNION ALL
+	//      SELECT te.trip_id, CASE te.status WHEN 'accepted' THEN 3 WHEN 'pending' THEN 4 ELSE 5 END
+	//      FROM trip_enrollments te
+	//      JOIN me ON me.person_id = te.crew_member_id
+	//      WHERE te.status IN ('accepted', 'pending', 'waitlisted')
+	//      UNION ALL
+	//      SELECT ce.trip_id, CASE ce.status WHEN 'accepted' THEN 3 WHEN 'pending' THEN 4 ELSE 5 END
+	//      FROM cruise_enrollments ce
+	//      WHERE ce.user_id = $3::BIGINT AND ce.trip_id IS NOT NULL
+	//        AND ce.status IN ('accepted', 'pending', 'waitlisted')
+	//  ),
+	//  strongest AS (
+	//      SELECT r.trip_id, MIN(r.strength) AS strength FROM relations r GROUP BY r.trip_id
+	//  )
+	//  SELECT
+	//      t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+	//      c.id AS cruise_id, c.name AS cruise_name, c.edition,
+	//      s.id AS series_id, s.name AS series_name,
+	//      (CASE st.strength
+	//          WHEN 1 THEN 'captain' WHEN 2 THEN 'crew' WHEN 3 THEN 'accepted'
+	//          WHEN 4 THEN 'pending' ELSE 'waitlisted'
+	//      END)::TEXT AS relation
+	//  FROM strongest st
+	//  JOIN trips t ON t.id = st.trip_id
+	//  JOIN cruises c ON c.id = t.cruise_id
+	//  LEFT JOIN cruise_series s ON s.id = c.series_id
+	//  WHERE t.status <> 'cancelled'
+	//    AND COALESCE(LEFT(NULLIF(t.disembark_date, ''), 10), LEFT(NULLIF(t.embark_date, ''), 10), $1::TEXT)
+	//        >= $1::TEXT
+	//    AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND c.published_at IS NOT NULL))
+	//  ORDER BY NULLIF(t.embark_date, '') ASC NULLS LAST, t.id ASC
+	//  LIMIT 100
+	ListUserUpcomingLegs(ctx context.Context, arg ListUserUpcomingLegsParams) ([]ListUserUpcomingLegsRow, error)
 	//ListUsers
 	//
 	//  SELECT id, email, name, avatar_url, firebase_uid, role, patent_type, patent_number, created_at, updated_at, is_captain, membership, first_name, last_name, phone, onboarded_at, suspended FROM users ORDER BY role, name, id

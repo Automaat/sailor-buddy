@@ -161,6 +161,7 @@ type mockQuerier struct {
 	updateUserProfileFn    func(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error)
 	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
 	listUserCruiseIDsFn    func(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error)
+	listUserLegsFn         func(ctx context.Context, arg sqlcdb.ListUserUpcomingLegsParams) ([]sqlcdb.ListUserUpcomingLegsRow, error)
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
 	updateUserSuspendedFn  func(ctx context.Context, arg sqlcdb.UpdateUserSuspendedParams) error
@@ -953,6 +954,13 @@ func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, arg sqlcdb.ListUser
 		panic("unexpected call to ListUserCruiseIDs")
 	}
 	return m.listUserCruiseIDsFn(ctx, arg)
+}
+
+func (m *mockQuerier) ListUserUpcomingLegs(ctx context.Context, arg sqlcdb.ListUserUpcomingLegsParams) ([]sqlcdb.ListUserUpcomingLegsRow, error) {
+	if m.listUserLegsFn == nil {
+		panic("unexpected call to ListUserUpcomingLegs")
+	}
+	return m.listUserLegsFn(ctx, arg)
 }
 
 func (m *mockQuerier) LockTripForSignUp(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {

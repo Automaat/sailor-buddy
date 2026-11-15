@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -19,6 +20,8 @@ import (
 type AuthHandler struct {
 	q     sqlcdb.Querier
 	runTx txRunner
+	// now is the clock for upcoming legs; nil means time.Now.
+	now func() time.Time
 }
 
 func NewAuthHandler(q sqlcdb.Querier, db *sql.DB) *AuthHandler {
@@ -31,6 +34,10 @@ type meOutput struct {
 
 type myCruisesOutput struct {
 	Body dto.MyCruises
+}
+
+type myLegsOutput struct {
+	Body dto.MyLegs
 }
 
 type updateMeInput struct {
@@ -55,6 +62,34 @@ func registerAuthRoutes(api huma.API, h *AuthHandler) {
 		OperationID: "list-my-cruises", Method: http.MethodGet, Path: "/auth/me/cruises",
 		Summary: "Cruises the current user took part in", Tags: []string{"Auth"},
 	}, h.myCruises)
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-legs", Method: http.MethodGet, Path: "/auth/me/legs",
+		Summary: "The current user's upcoming legs",
+		Description: "Legs that are not cancelled and end today or later in the club's time zone " +
+			"(or have no dates), which the caller's person captains, crews or signed up for " +
+			"(not rejected), or which the account's cruise enrollment was assigned to. " +
+			"Hidden legs are listed only for admins and the captain group.",
+		Tags: []string{"Auth"},
+	}, h.myLegs)
+}
+
+func (h *AuthHandler) myLegs(ctx context.Context, _ *struct{}) (*myLegsOutput, error) {
+	claims := middleware.GetUser(ctx)
+	if claims == nil {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	now := time.Now
+	if h.now != nil {
+		now = h.now
+	}
+	rows, err := h.q.ListUserUpcomingLegs(ctx, sqlcdb.ListUserUpcomingLegsParams{
+		UserID: claims.UserID, Today: clubToday(now()), IncludeHidden: canSeeHidden(ctx),
+	})
+	if err != nil {
+		slog.Error("list user upcoming legs", "user_id", claims.UserID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to list your legs")
+	}
+	return &myLegsOutput{Body: dto.MyLegsFromDB(rows)}, nil
 }
 
 func (h *AuthHandler) myCruises(ctx context.Context, _ *struct{}) (*myCruisesOutput, error) {
