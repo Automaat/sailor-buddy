@@ -364,10 +364,12 @@ type photonResponse struct {
 
 // settlementTypes are the OpenStreetMap place values a port town can carry.
 // Nominatim and Photon both report them: as the type of a "place" record, or
-// as the address type of an administrative boundary drawn around one.
+// as the address type of an administrative boundary drawn around one. Islands
+// are left out: an island and its town often share a name and label, and a
+// port is the town.
 var settlementTypes = map[string]bool{
 	"city": true, "town": true, "village": true, "hamlet": true, "suburb": true,
-	"island": true, "islet": true, "locality": true, "municipality": true,
+	"locality": true, "municipality": true,
 }
 
 // isNominatimSettlement keeps towns and the administrative boundaries of

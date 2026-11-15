@@ -632,10 +632,11 @@ location; a name only ever entered without one has none.
 [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) and returns
 up to 5 settlements:
 
-- Kept: `place` records of type city, town, village, hamlet, suburb, island,
-  islet, locality or municipality, and `boundary=administrative` records whose
-  address type is one of those. Streets, POIs, marinas, natural features and
-  regions are dropped.
+- Kept: `place` records of type city, town, village, hamlet, suburb,
+  locality or municipality, and `boundary=administrative` records whose
+  address type is one of those. Islands, streets, POIs, marinas, natural
+  features and regions are dropped (an island and its town often share a
+  name and label; the port is the town).
 - Names come in Polish where OpenStreetMap has them, else English, else the
   local name (`accept-language=pl,en`). `label` is "Town, County, Region,
   Country".
