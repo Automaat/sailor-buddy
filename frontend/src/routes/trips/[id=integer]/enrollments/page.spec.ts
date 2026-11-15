@@ -88,6 +88,14 @@ function counts() {
 }
 
 describe('trip enrollments page payment status', () => {
+	it('links back to its leg above the title', async () => {
+		await renderPage();
+		const heading = await screen.findByRole('heading', { level: 1, name: 'Zapisy' });
+		const back = screen.getByRole('link', { name: /Jacht A/ });
+		expect(back).toHaveAttribute('href', '/trips/50');
+		expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
 	it('shows each sign-up payment status and the counts per status', async () => {
 		await renderPage();
 		const anna = await screen.findByLabelText('Płatność: Anna');
@@ -236,7 +244,7 @@ describe('trip enrollments page same-route navigation', () => {
 
 		await view.rerender({ data: await runLoad('51') });
 
-		expect(screen.getByText(/Jacht B/)).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: /Jacht B/ })).toHaveAttribute('href', '/trips/51');
 		expect(screen.getByLabelText('Płatność: Zenon')).toBeInTheDocument();
 		expect(screen.queryByLabelText('Płatność: Anna')).not.toBeInTheDocument();
 		await waitFor(() =>
@@ -279,7 +287,7 @@ describe('trip enrollments page same-route navigation', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(screen.getByText(/Jacht B/)).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: /Jacht B/ })).toHaveAttribute('href', '/trips/51');
 		expect(screen.getByRole('button', { name: 'Akceptuj' })).toBeInTheDocument();
 	});
 });
