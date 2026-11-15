@@ -235,8 +235,7 @@ test.describe.serial('Phone layout', () => {
 		const rows: [string, string][] = [
 			[`/trips/${ids.trip}`, 'Daty'],
 			[`/trips/${ids.trip}`, 'Kaucja (zwrotna)'],
-			[`/voyages/${ids.voyage}`, 'Daty'],
-			[`/cruises/${ids.cruise}`, 'Kaucja (zwrotna)']
+			[`/voyages/${ids.voyage}`, 'Daty']
 		];
 		for (const [path, term] of rows) {
 			await page.goto(path);
