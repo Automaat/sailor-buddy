@@ -821,6 +821,22 @@ describe('cruise page leg tiles', () => {
 		expect(goto).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ state: 'closed sign-ups', over: { open: false }, text: 'Zapisy zamknięte' },
+		{ state: 'a sign-up', over: { enrollment: pending(50) }, text: 'oczekujący' }
+	])('lets the sign-up panel text with $state open the leg', async ({ over, text }) => {
+		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, over)]);
+		await renderPage();
+		const tile = await screen.findByTestId('leg-row');
+		const panel = within(tile).getByTestId('leg-sign-up').parentElement!;
+		expect(panel).toHaveClass(
+			'pointer-events-none',
+			'[&_button]:pointer-events-auto',
+			'[&_form]:pointer-events-auto'
+		);
+		expect(within(tile).getByText(text).closest('button, form')).toBeNull();
+	});
+
 	it('withdraws from the tile without opening the leg', async () => {
 		fn(listCruiseLegSignUps).mockResolvedValue([signUp(50, { enrollment: pending(50) })]);
 		fn(withdrawTripSignUp).mockResolvedValue(undefined);
@@ -947,17 +963,17 @@ describe('cruise page past planned legs', () => {
 	it('flags a leg past its end and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;
 		await renderPage();
-		await screen.findByRole('link', { name: 'Jacht A' });
+		await screen.findByRole('link', { name: 'Jacht A Ukryte' });
 
-		const overdue = rowOf('Jacht A');
-		expect(within(overdue).getByRole('link', { name: 'Jacht A' })).toHaveAttribute(
+		const overdue = rowOf('Jacht A Ukryte');
+		expect(within(overdue).getByRole('link', { name: 'Jacht A Ukryte' })).toHaveAttribute(
 			'href',
 			'/trips/50'
 		);
 		expect(within(overdue).getByText('Do rozliczenia')).toBeInTheDocument();
 		expect(within(overdue).getByText('Zrealizuj →')).toBeInTheDocument();
 
-		const ongoing = rowOf('Jacht B');
+		const ongoing = rowOf('Jacht B Ukryte');
 		expect(within(ongoing).getByText('Nadchodzący')).toBeInTheDocument();
 		expect(within(ongoing).queryByText('Zrealizuj →')).not.toBeInTheDocument();
 	});
@@ -1096,6 +1112,17 @@ describe('cruise page publication', () => {
 		expect(within(voyageRow()).getByText('Ukryte')).toBeInTheDocument();
 		expect(within(header()).getByRole('button', { name: 'Opublikuj' })).toBeInTheDocument();
 		expect(within(header()).queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+
+	it.each([
+		{ kind: 'leg', row: () => legRow('Jacht A'), href: '/trips/50' },
+		{ kind: 'voyage', row: voyageRow, href: '/voyages/9' }
+	])('opens the $kind from its hidden badge, which keeps its tooltip', async ({ row, href }) => {
+		await renderPage();
+		const badge = within(row()).getByTestId('hidden-badge');
+		expect(badge).toHaveAttribute('title');
+		expect(badge.closest('a')).toHaveAttribute('href', href);
+		expect(badge.parentElement).toHaveClass('relative', 'z-10');
 	});
 
 	it('publishes the hidden legs too when the admin agrees', async () => {

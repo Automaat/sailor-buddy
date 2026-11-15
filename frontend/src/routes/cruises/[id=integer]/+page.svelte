@@ -46,6 +46,11 @@
 	 */
 	const tileLink =
 		'min-w-0 font-medium [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-lg group-hover:text-[var(--ocean)] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-[var(--ocean)]';
+	/**
+	 * Lifts a badge inside a tile link above the link's ::after so its hover
+	 * tooltip shows; a click on it still opens the link it sits in.
+	 */
+	const tileBadge = 'relative z-10 whitespace-nowrap';
 
 	const legs = $derived(numberLegs(trips));
 	const signUpByTrip = $derived(new Map(signUps.map((s) => [s.trip_id, s])));
@@ -255,11 +260,14 @@
 					>
 						<div class="min-w-0">
 							<div class="flex flex-wrap items-center gap-2">
-								<a href="/trips/{trip.id}" class={tileLink}>{trip.name}</a>
+								<a href="/trips/{trip.id}" class={tileLink}
+									>{trip.name}
+									{#if showHidden && isHidden(trip)}<span class={tileBadge}><HiddenBadge /></span
+										>{/if}</a
+								>
 								<span class="rounded-full px-2 py-0.5 text-xs {legStatusBadges[status]}">
 									{legStatusLabels[status]}
 								</span>
-								{#if showHidden && isHidden(trip)}<span class="relative"><HiddenBadge /></span>{/if}
 								{#if isAdmin && status === 'overdue'}
 									<span class="text-xs font-medium text-[var(--ocean)]">Zrealizuj →</span>
 								{/if}
@@ -281,7 +289,9 @@
 							</div>
 						</div>
 						{#if signUp}
-							<div class="relative z-10">
+							<div
+								class="pointer-events-none relative z-10 [&_button]:pointer-events-auto [&_form]:pointer-events-auto"
+							>
 								<LegSignUpControl
 									{signUp}
 									legName={trip.name}
@@ -320,8 +330,11 @@
 						data-testid="voyage-row"
 					>
 						<div class="flex min-w-0 flex-wrap items-center gap-2">
-							<a href="/voyages/{voyage.id}" class={tileLink}>{voyage.name}</a>
-							{#if showHidden && isHidden(voyage)}<span class="relative"><HiddenBadge /></span>{/if}
+							<a href="/voyages/{voyage.id}" class={tileLink}
+								>{voyage.name}
+								{#if showHidden && isHidden(voyage)}<span class={tileBadge}><HiddenBadge /></span
+									>{/if}</a
+							>
 						</div>
 						<span class="text-sm text-[var(--text-muted)]">
 							{Math.round(voyage.miles)} Mm · {voyage.days} dni
