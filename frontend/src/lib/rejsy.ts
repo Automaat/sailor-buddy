@@ -1,4 +1,5 @@
 import type { Cruise, Trip, Voyage } from '#lib/api/types.js';
+import { isHidden } from '#lib/publication.js';
 
 export type RejsStatus = 'upcoming' | 'overdue' | 'completed' | 'cancelled';
 export type RejsTab = 'upcoming' | 'completed' | 'all';
@@ -24,6 +25,8 @@ export type RejsEntry = {
 	status: RejsStatus;
 	/** True once the cruise's end (its own date, else its latest leg's) is before today. */
 	ended: boolean;
+	/** True while members cannot see it: the cruise, or a standalone trip's own leg, is a draft. */
+	hidden: boolean;
 	kind?: Cruise['kind'];
 	embarkDate?: string;
 	disembarkDate?: string;
@@ -178,6 +181,7 @@ export function buildRejsEntries(
 			name: info.name,
 			status: cruiseStatus(planned, overdue, cancelled, sailed.length),
 			ended: !!end && end < today,
+			hidden: isHidden(c) || (!!solo && isHidden(solo)),
 			kind: c.kind,
 			embarkDate: info.embark_date || legDates[0],
 			disembarkDate: info.disembark_date || undefined,

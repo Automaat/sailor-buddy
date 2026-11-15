@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatDateRangeWithDays } from '#lib/dates.js';
-	import { deleteVoyage } from '#lib/api/routes.js';
+	import { deleteVoyage, publishVoyage, unpublishVoyage } from '#lib/api/routes.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import VoyageLog from './VoyageLog.svelte';
@@ -10,13 +10,17 @@
 	import { goto } from '$app/navigation';
 	import { errorMessage } from '#lib/api/errors.js';
 	import { perLoad } from '#lib/state.svelte.js';
+	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
+	import { canSeeHidden, isHidden, isLegHidden } from '#lib/publication.js';
 	let { data } = $props();
-	const cruise = $derived(data.cruise);
+	// The cruise changes in place when publishing the voyage publishes it too.
+	let cruise = $derived(data.cruise);
 	let voyage = $derived(data.voyage);
 	let yachts = $derived(data.yachts);
 	let crew = $derived(data.crew);
 	const id = $derived(data.voyage.id);
 	const canManageCrew = $derived(auth.isAdmin);
+	const showHidden = $derived(canSeeHidden(auth));
 	const visibleLoadErrors = $derived(
 		canManageCrew ? [...data.loadErrors, ...data.adminLoadErrors] : data.loadErrors
 	);
@@ -26,6 +30,39 @@
 	const canLog = $derived(auth.isAdmin || isVoyageCaptain);
 	const yacht = $derived(yachts.find((y) => y.id === voyage.yacht_id) ?? null);
 	let deletion = $derived(perLoad(data, { error: '' }));
+	let publication = $derived(perLoad(data, { busy: false, error: '' }));
+	async function handlePublish() {
+		const held = publication;
+		held.busy = true;
+		held.error = '';
+		try {
+			const next = await publishVoyage(id);
+			if (held !== publication) return;
+			voyage = next;
+			// The API publishes a hidden cruise without a series along with its leg.
+			if (cruise && isHidden(cruise) && cruise.series_id == null) {
+				cruise = { ...cruise, published_at: next.published_at };
+			}
+		} catch (err) {
+			held.error = `Nie udało się opublikować rejsu: ${errorMessage(err)}`;
+		} finally {
+			held.busy = false;
+		}
+	}
+	async function handleUnpublish() {
+		const held = publication;
+		held.busy = true;
+		held.error = '';
+		try {
+			const next = await unpublishVoyage(id);
+			if (held !== publication) return;
+			voyage = next;
+		} catch (err) {
+			held.error = `Nie udało się ukryć rejsu: ${errorMessage(err)}`;
+		} finally {
+			held.busy = false;
+		}
+	}
 	async function handleDelete() {
 		if (!confirm('Usunąć ten rejs?')) return;
 		const held = deletion;
@@ -53,7 +90,14 @@
 					← Część wydarzenia: {cruise.name}
 				</a>
 			{/if}
-			<h1 class="text-3xl font-bold text-[var(--navy)]">{voyage.name}</h1>
+			<div class="flex flex-wrap items-center gap-3">
+				<h1 class="text-3xl font-bold text-[var(--navy)]">{voyage.name}</h1>
+				{#if showHidden && isLegHidden(voyage, cruise)}
+					<HiddenBadge
+						reason={isHidden(voyage) ? undefined : 'Ukryte, bo wydarzenie jest ukryte'}
+					/>
+				{/if}
+			</div>
 			<p class="mt-1 text-[var(--text-muted)]">
 				{#if voyage.start_port && voyage.end_port}
 					{voyage.start_port} → {voyage.end_port}
@@ -66,6 +110,23 @@
 		</div>
 		{#if canManageCrew}
 			<div class="flex gap-2 max-md:flex-wrap">
+				{#if isHidden(voyage)}
+					<button
+						onclick={handlePublish}
+						disabled={publication.busy}
+						class="rounded-lg bg-[var(--ocean)] px-4 py-2 text-sm text-white hover:bg-[var(--ocean-dark)] disabled:opacity-50"
+					>
+						Opublikuj
+					</button>
+				{:else}
+					<button
+						onclick={handleUnpublish}
+						disabled={publication.busy}
+						class="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+					>
+						Ukryj
+					</button>
+				{/if}
 				<a
 					href="/voyages/{id}/edit"
 					class="tap-target rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">Edytuj</a
@@ -80,6 +141,11 @@
 		{/if}
 	</div>
 
+	{#if publication.error}
+		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+			{publication.error}
+		</div>
+	{/if}
 	{#if deletion.error}
 		<div role="alert" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">
 			{deletion.error}

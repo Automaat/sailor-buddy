@@ -18,6 +18,8 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import Sailboat from '@lucide/svelte/icons/sailboat';
+	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
+	import { canSeeHidden } from '#lib/publication.js';
 
 	let entries = $state<RejsEntry[]>([]);
 	let loading = $state(true);
@@ -30,6 +32,7 @@
 		mine = isMineFilter(page.url.searchParams.get('mine'));
 	});
 	let kindFilter = $state<CruiseKind | 'all'>('all');
+	const showHidden = $derived(canSeeHidden(auth));
 
 	const mineUnavailable = $derived(mine && myCruiseIds === null);
 	const inTab = $derived(
@@ -202,6 +205,7 @@
 							>
 								{rejsStatusLabels[entry.status]}
 							</span>
+							{#if showHidden && entry.hidden}<HiddenBadge />{/if}
 							{#if entry.kind}
 								<span
 									class="rounded-full bg-[var(--ocean)]/10 px-2 py-0.5 text-xs text-[var(--ocean)]"

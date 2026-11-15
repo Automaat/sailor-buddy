@@ -18,7 +18,9 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTripSignUp: vi.fn(() => Promise.resolve(null)),
 	signUpForTrip: vi.fn(),
 	updateTripSignUpNote: vi.fn(),
-	withdrawTripSignUp: vi.fn()
+	withdrawTripSignUp: vi.fn(),
+	publishTrip: vi.fn(),
+	unpublishTrip: vi.fn()
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: false, user: { id: 2, role: 'member' } }
@@ -35,7 +37,9 @@ import {
 	getTripSignUp,
 	listAssignableCrew,
 	listTripCrew,
+	publishTrip,
 	removeTripCrew,
+	unpublishTrip,
 	signUpForTrip,
 	updateTripSignUpNote
 } from '#lib/api/routes.js';
@@ -638,5 +642,115 @@ describe('trip page load', () => {
 		expect(getTrip).toHaveBeenCalledWith(9);
 		expect(getTripSignUp).toHaveBeenCalledWith(9);
 		expect(listTripCrew).toHaveBeenCalledWith(9);
+	});
+});
+
+describe('trip page publication', () => {
+	const at = '2026-03-01T10:00:00Z';
+	const authState = auth as unknown as { isAdmin: boolean; user: Record<string, unknown> };
+	const header = () => screen.getByRole('heading', { name: 'Jacht A' }).parentElement!;
+
+	beforeEach(() => {
+		authState.isAdmin = true;
+		authState.user = { id: 1, role: 'admin', is_captain: false };
+		vi.mocked(publishTrip).mockReset();
+		vi.mocked(unpublishTrip).mockReset();
+	});
+
+	afterEach(() => {
+		authState.user = { id: 2, role: 'member' };
+		vi.restoreAllMocks();
+	});
+
+	it('publishes a hidden trip and drops the badge', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }), makeCruise({ id: 1, published_at: at }));
+		vi.mocked(publishTrip).mockResolvedValue(
+			makeTrip({ id: 50, name: 'Jacht A', published_at: at })
+		);
+		await renderPage();
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		expect(publishTrip).toHaveBeenCalledWith(50);
+		await waitFor(() => expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument());
+		expect(screen.getByRole('button', { name: 'Ukryj' })).toBeInTheDocument();
+	});
+
+	it('clears the badge when publishing also publishes a standalone cruise', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }), makeCruise({ id: 1 }));
+		vi.mocked(publishTrip).mockResolvedValue(
+			makeTrip({ id: 50, name: 'Jacht A', published_at: at })
+		);
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		await waitFor(() => expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument());
+	});
+
+	it('keeps the badge while the series edition stays hidden', async () => {
+		serve(makeTrip({ id: 50, name: 'Jacht A' }), makeCruise({ id: 1, series_id: 3 }));
+		vi.mocked(publishTrip).mockResolvedValue(
+			makeTrip({ id: 50, name: 'Jacht A', published_at: at })
+		);
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		expect(await screen.findByRole('button', { name: 'Ukryj' })).toBeInTheDocument();
+		expect(within(header()).getByText('Ukryte')).toHaveAttribute(
+			'title',
+			'Ukryte, bo wydarzenie jest ukryte'
+		);
+	});
+
+	it('hides a published trip', async () => {
+		serve(
+			makeTrip({ id: 50, name: 'Jacht A', published_at: at }),
+			makeCruise({ id: 1, published_at: at })
+		);
+		vi.mocked(unpublishTrip).mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A' }));
+		await renderPage();
+		expect(within(header()).queryByText('Ukryte')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Ukryj' }));
+
+		expect(unpublishTrip).toHaveBeenCalledWith(50);
+		expect(await within(header()).findByText('Ukryte')).toBeInTheDocument();
+	});
+
+	it('keeps the badge and shows the error when publishing fails', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		serve(makeTrip({ id: 50, name: 'Jacht A' }), makeCruise({ id: 1, published_at: at }));
+		vi.mocked(publishTrip).mockRejectedValue(new ApiError(500, 'failed to publish trip'));
+		await renderPage();
+		await fireEvent.click(screen.getByRole('button', { name: 'Opublikuj' }));
+
+		expect(await screen.findByRole('alert')).toHaveTextContent(
+			'Nie udało się opublikować etapu: failed to publish trip'
+		);
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Opublikuj' })).toBeEnabled();
+	});
+
+	it('shows the captain group the badge but no publish controls', async () => {
+		authState.isAdmin = false;
+		authState.user = { id: 3, role: 'member', is_captain: true };
+		serve(makeTrip({ id: 50, name: 'Jacht A' }), makeCruise({ id: 1, published_at: at }));
+		await renderPage();
+
+		expect(within(header()).getByText('Ukryte')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+
+	it('shows a member neither the badge nor publish controls', async () => {
+		authState.isAdmin = false;
+		authState.user = { id: 2, role: 'member', is_captain: false };
+		serve(makeTrip({ id: 50, name: 'Jacht A' }), makeCruise({ id: 1 }));
+		await renderPage();
+
+		expect(screen.queryByText('Ukryte')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
 	});
 });
