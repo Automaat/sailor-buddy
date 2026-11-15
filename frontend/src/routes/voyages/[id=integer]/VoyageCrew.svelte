@@ -15,8 +15,14 @@
 	let {
 		id,
 		crew = $bindable(),
-		allCrewMembers
-	}: { id: number; crew: PageData['crew']; allCrewMembers: PageData['allCrewMembers'] } = $props();
+		allCrewMembers,
+		readonly = false
+	}: {
+		id: number;
+		crew: PageData['crew'];
+		allCrewMembers: PageData['allCrewMembers'];
+		readonly?: boolean;
+	} = $props();
 	let assignCrewId = $state('');
 	let assignRole = $state('');
 	let assigningFor = $state<number | null>(null);
@@ -61,7 +67,7 @@
 	}
 </script>
 
-<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
+<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm" data-testid="voyage-crew">
 	<div class="mb-3 flex items-center justify-between">
 		<h2 class="font-semibold text-[var(--navy)]">Załoga ({crew.length})</h2>
 		{#if sectionError}<div role="alert" class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
@@ -69,7 +75,7 @@
 			</div>{/if}
 	</div>
 
-	{#if allCrewMembers.length > 0}
+	{#if !readonly && allCrewMembers.length > 0}
 		<form onsubmit={assignCrew} class="mb-4 flex flex-wrap items-end gap-2">
 			<div class="min-w-0 max-w-full">
 				<label for="assign-crew" class="block text-xs text-[var(--text-muted)]">Załogant</label>
@@ -116,12 +122,14 @@
 							{member.role}
 						</span>
 					</div>
-					<button
-						onclick={() => removeCrew(member.id)}
-						class="text-sm text-red-500 hover:underline"
-					>
-						Usuń
-					</button>
+					{#if !readonly}
+						<button
+							onclick={() => removeCrew(member.id)}
+							class="text-sm text-red-500 hover:underline"
+						>
+							Usuń
+						</button>
+					{/if}
 				</div>
 			{/each}
 		</div>

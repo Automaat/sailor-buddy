@@ -170,7 +170,7 @@ func TestCrewHandler_AssignVoyageCrew(t *testing.T) {
 func TestCrewHandler_ListTripCrew(t *testing.T) {
 	m := &mockQuerier{
 		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
-		listTripCrewFn: func(context.Context, types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
+		listTripCrewFn: func(context.Context, sqlcdb.ListTripCrewAssignmentsParams) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
 			return []sqlcdb.ListTripCrewAssignmentsRow{{ID: 1, CrewMemberID: 2, Role: "skipper", FullName: "Jan"}}, nil
 		},
 	}

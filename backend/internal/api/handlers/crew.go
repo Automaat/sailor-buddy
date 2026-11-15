@@ -149,6 +149,8 @@ func registerCrewRoutes(api huma.API, h *CrewHandler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-trip-crew", Method: http.MethodGet, Path: "/trips/{tripID}/crew",
 		Summary: "List a trip's crew", Tags: crew,
+		Description: "Any member who can see the leg reads names, roles and e-mails. Phone and emergency " +
+			"contact come only to admins and the leg's captain.",
 	}, h.listTripCrew)
 	huma.Register(api, huma.Operation{
 		OperationID: "update-trip-crew-role", Method: http.MethodPatch, Path: "/trips/{tripID}/crew/{assignmentID}",
@@ -323,10 +325,23 @@ func encodeOtherNames(names []string) (json.RawMessage, error) {
 }
 
 func (h *CrewHandler) listTripCrew(ctx context.Context, in *tripCrewListInput) (*crewAssignmentListOutput, error) {
-	if err := requireVisibleTrip(ctx, h.q, in.TripID); err != nil {
-		return nil, err
+	trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.TripID, IncludeHidden: canSeeHidden(ctx)})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, huma.Error404NotFound("trip not found")
+		}
+		slog.Error("get trip for crew", "trip_id", in.TripID, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get trip")
 	}
-	assignments, err := h.q.ListTripCrewAssignments(ctx, types.NullInt64{Int64: in.TripID, Valid: true})
+	// Admins and this leg's captain read the phone and emergency contact; the
+	// query decides the captain part in the same statement as the crew read.
+	// Captaining another leg the same people sail grants nothing here.
+	params := sqlcdb.ListTripCrewAssignmentsParams{TripID: trip.ID}
+	if u := middleware.GetUser(ctx); u != nil {
+		params.IsAdmin = u.Role == "admin"
+		params.CallerUserID = types.NullInt64{Int64: u.UserID, Valid: true}
+	}
+	assignments, err := h.q.ListTripCrewAssignments(ctx, params)
 	if err != nil {
 		slog.Error("list trip crew", "trip_id", in.TripID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list trip crew")
@@ -390,7 +405,14 @@ func (h *CrewHandler) updateTripCrewRole(ctx context.Context, in *updateTripCrew
 		slog.Error("update trip crew role", "trip_id", in.TripID, "assignment_id", in.AssignmentID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to update crew role")
 	}
-	return &crewAssignmentOutput{Body: dto.TripCrewMemberFromDB(sqlcdb.ListTripCrewAssignmentsRow(row))}, nil
+	// Only admins edit roles, so the reply carries the contacts.
+	return &crewAssignmentOutput{Body: dto.TripCrewMemberFromDB(sqlcdb.ListTripCrewAssignmentsRow{
+		ID: row.ID, TripID: row.TripID, VoyageID: row.VoyageID, CrewMemberID: row.CrewMemberID,
+		Role: row.Role, PatentNumber: row.PatentNumber, CreatedAt: row.CreatedAt,
+		FullName: row.FullName, Email: row.Email, Phone: row.Phone,
+		EmergencyContactName: row.EmergencyContactName, EmergencyContactPhone: row.EmergencyContactPhone,
+		ContactsVisible: true,
+	})}, nil
 }
 
 func (h *CrewHandler) removeTripCrew(ctx context.Context, in *removeTripCrewInput) (*noContentOutput, error) {

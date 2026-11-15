@@ -21,6 +21,8 @@ type TripHandler struct {
 	q     sqlcdb.Querier
 	db    *sql.DB
 	runTx txRunner
+	// now is the clock for the leg-ended rule; tests pin it.
+	now func() time.Time
 }
 
 func NewTripHandler(q sqlcdb.Querier, db *sql.DB) *TripHandler {
@@ -101,7 +103,10 @@ func registerTripRoutes(api huma.API, h *TripHandler) {
 	}, h.delete)
 	huma.Register(api, huma.Operation{
 		OperationID: "complete-trip", Method: http.MethodPost, Path: "/trips/{tripID}/complete",
-		Summary: "Complete a trip into a voyage (admin)", Tags: tag, DefaultStatus: http.StatusCreated,
+		Summary: "Complete a trip into a voyage (admin or leg captain)", Tags: tag, DefaultStatus: http.StatusCreated,
+		Description: "Admins complete any planned leg. The leg's captain completes it only once its " +
+			"disembark date is before today in Europe/Warsaw; 403 before then, for a leg without a " +
+			"disembark date and for anyone else.",
 	}, h.complete)
 	huma.Register(api, huma.Operation{
 		OperationID: "cancel-trip", Method: http.MethodPost, Path: "/trips/{tripID}/cancel",
@@ -387,11 +392,32 @@ func (h *TripHandler) cancel(ctx context.Context, in *tripIDParam) (*tripOutput,
 }
 
 func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voyageOutput, error) {
-	if err := requireAdmin(ctx); err != nil {
+	user, err := signedIn(ctx)
+	if err != nil {
 		return nil, err
 	}
-	voyage, err := completeTripTx(ctx, h.db, in.ID, in.Body)
+	var authorize tripCompletionAuth
+	if user.Role != "admin" {
+		authorize = h.authorizeCaptainCompletion
+		// Refuse early without opening the transaction; the transaction checks
+		// again against the locked trip and captain.
+		trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: true})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, huma.Error404NotFound("trip not found or not in planned state")
+			}
+			slog.Error("get trip for completion", "trip_id", in.ID, "err", err)
+			return nil, huma.Error500InternalServerError("failed to complete trip")
+		}
+		if err := authorize(ctx, h.q, trip); err != nil {
+			return nil, err
+		}
+	}
+	voyage, err := completeTripTxAs(ctx, h.db, nil, authorize, in.ID, in.Body)
 	if err != nil {
+		if status, ok := errors.AsType[huma.StatusError](err); ok {
+			return nil, status
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found or not in planned state")
 		}
@@ -408,4 +434,34 @@ func (h *TripHandler) complete(ctx context.Context, in *completeTripInput) (*voy
 		return nil, huma.Error500InternalServerError("failed to complete trip")
 	}
 	return &voyageOutput{Body: dto.VoyageFromDB(voyage)}, nil
+}
+
+// authorizeCaptainCompletion lets the leg's captain complete it once it ended.
+// A caller who cannot see a hidden leg gets 404 instead of 403.
+func (h *TripHandler) authorizeCaptainCompletion(ctx context.Context, q sqlcdb.Querier, trip sqlcdb.Trip) error {
+	if err := requireAdminOrCaptain(ctx, q, trip.CaptainPersonID); err != nil {
+		return hideForbidden(ctx, err, func() error { return requireVisibleTrip(ctx, q, trip.ID) })
+	}
+	if !legEnded(trip.DisembarkDate, h.today()) {
+		return huma.Error403Forbidden("the captain completes the leg only after its disembark date")
+	}
+	return nil
+}
+
+// legEnded reports whether a leg's disembark date (YYYY-MM-DD) is before the
+// club date today. A leg without a valid disembark date has not ended.
+func legEnded(disembark types.NullString, today string) bool {
+	if !disembark.Valid || len(disembark.String) < len(time.DateOnly) {
+		return false
+	}
+	day := disembark.String[:len(time.DateOnly)]
+	if _, err := time.Parse(time.DateOnly, day); err != nil {
+		return false
+	}
+	return day < today
+}
+
+// today is the club's current calendar date; tests pin h.now.
+func (h *TripHandler) today() string {
+	return clubTodayAt(h.now)
 }
