@@ -89,7 +89,7 @@ func TestListUserCruiseIDs(t *testing.T) {
 	noAccountCaptain := cruise("captained by a person without an account")
 	voyage(noAccountCaptain, noAccountPerson)
 
-	got, err := sqlcdb.New(conn).ListUserCruiseIDs(context.Background(), me)
+	got, err := sqlcdb.New(conn).ListUserCruiseIDs(context.Background(), sqlcdb.ListUserCruiseIDsParams{UserID: me, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}

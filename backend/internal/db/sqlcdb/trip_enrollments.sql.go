@@ -503,23 +503,28 @@ SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.upda
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
 WHERE t.cruise_id = $1 AND te.user_id = $2
+  AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 ORDER BY t.embark_date ASC, t.id ASC
 `
 
 type ListUserCruiseTripEnrollmentsParams struct {
-	CruiseID int64 `json:"cruise_id"`
-	UserID   int64 `json:"user_id"`
+	CruiseID      int64 `json:"cruise_id"`
+	UserID        int64 `json:"user_id"`
+	IncludeHidden bool  `json:"include_hidden"`
 }
 
 // A user's trip (leg) enrollments across the trips of one cruise, in leg order.
+// Without include_hidden, enrollments in hidden legs are left out; the
+// caller has already checked the cruise itself is visible.
 //
 //	SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.created_at, te.updated_at, te.payment_status
 //	FROM trip_enrollments te
 //	JOIN trips t ON t.id = te.trip_id
 //	WHERE t.cruise_id = $1 AND te.user_id = $2
+//	  AND ($3::BOOLEAN OR t.published_at IS NOT NULL)
 //	ORDER BY t.embark_date ASC, t.id ASC
 func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error) {
-	rows, err := q.db.QueryContext(ctx, listUserCruiseTripEnrollments, arg.CruiseID, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, listUserCruiseTripEnrollments, arg.CruiseID, arg.UserID, arg.IncludeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -551,7 +556,8 @@ func (q *Queries) ListUserCruiseTripEnrollments(ctx context.Context, arg ListUse
 }
 
 const lockCruiseTripStatuses = `-- name: LockCruiseTripStatuses :many
-SELECT id, status, max_crew, sign_up_deadline FROM trips
+SELECT id, status, max_crew, sign_up_deadline, (published_at IS NOT NULL)::BOOLEAN AS published
+FROM trips
 WHERE cruise_id = $1
 ORDER BY id
 FOR NO KEY UPDATE
@@ -562,14 +568,17 @@ type LockCruiseTripStatusesRow struct {
 	Status         TripStatus       `json:"status"`
 	MaxCrew        types.NullInt64  `json:"max_crew"`
 	SignUpDeadline types.NullString `json:"sign_up_deadline"`
+	Published      bool             `json:"published"`
 }
 
 // Locks a cruise's trips for the rest of the transaction, in id order, so a
 // leg cannot be cancelled or removed between validation and insert, and
 // concurrent sign-ups and accepts of one leg take its places one at a time.
 // FOR NO KEY UPDATE still lets foreign-key checks (KEY SHARE) through.
+// published is the leg's own flag; the caller holds the published cruise.
 //
-//	SELECT id, status, max_crew, sign_up_deadline FROM trips
+//	SELECT id, status, max_crew, sign_up_deadline, (published_at IS NOT NULL)::BOOLEAN AS published
+//	FROM trips
 //	WHERE cruise_id = $1
 //	ORDER BY id
 //	FOR NO KEY UPDATE
@@ -587,6 +596,7 @@ func (q *Queries) LockCruiseTripStatuses(ctx context.Context, cruiseID int64) ([
 			&i.Status,
 			&i.MaxCrew,
 			&i.SignUpDeadline,
+			&i.Published,
 		); err != nil {
 			return nil, err
 		}
@@ -635,10 +645,12 @@ func (q *Queries) LockTripEnrollmentOfTrip(ctx context.Context, arg LockTripEnro
 }
 
 const lockTripForSignUp = `-- name: LockTripForSignUp :one
-SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, enroll_token, max_crew, sign_up_deadline
-FROM trips
-WHERE id = $1
-FOR NO KEY UPDATE
+SELECT t.id, t.status, (t.enroll_token IS NOT NULL)::BOOLEAN AS open, t.enroll_token, t.max_crew, t.sign_up_deadline,
+       (t.published_at IS NOT NULL AND EXISTS (
+           SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL))::BOOLEAN AS published
+FROM trips t
+WHERE t.id = $1
+FOR NO KEY UPDATE OF t
 `
 
 type LockTripForSignUpRow struct {
@@ -648,6 +660,7 @@ type LockTripForSignUpRow struct {
 	EnrollToken    types.NullString `json:"enroll_token"`
 	MaxCrew        types.NullInt64  `json:"max_crew"`
 	SignUpDeadline types.NullString `json:"sign_up_deadline"`
+	Published      bool             `json:"published"`
 }
 
 // Locks one trip for the rest of a sign-up or accept transaction, so the leg
@@ -657,12 +670,16 @@ type LockTripForSignUpRow struct {
 // through. open is true while the leg's sign-ups are switched on (it has an
 // enroll token); enroll_token is the current share token, so a share-link
 // sign-up can check the presented token still holds. sign_up_deadline is the
-// last day it takes them. No row when the trip does not exist.
+// last day it takes them. published is true while the trip and its cruise
+// are both published: a hidden leg takes no sign-ups. No row when the trip
+// does not exist.
 //
-//	SELECT id, status, (enroll_token IS NOT NULL)::BOOLEAN AS open, enroll_token, max_crew, sign_up_deadline
-//	FROM trips
-//	WHERE id = $1
-//	FOR NO KEY UPDATE
+//	SELECT t.id, t.status, (t.enroll_token IS NOT NULL)::BOOLEAN AS open, t.enroll_token, t.max_crew, t.sign_up_deadline,
+//	       (t.published_at IS NOT NULL AND EXISTS (
+//	           SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL))::BOOLEAN AS published
+//	FROM trips t
+//	WHERE t.id = $1
+//	FOR NO KEY UPDATE OF t
 func (q *Queries) LockTripForSignUp(ctx context.Context, id int64) (LockTripForSignUpRow, error) {
 	row := q.db.QueryRowContext(ctx, lockTripForSignUp, id)
 	var i LockTripForSignUpRow
@@ -673,6 +690,7 @@ func (q *Queries) LockTripForSignUp(ctx context.Context, id int64) (LockTripForS
 		&i.EnrollToken,
 		&i.MaxCrew,
 		&i.SignUpDeadline,
+		&i.Published,
 	)
 	return i, err
 }

@@ -101,7 +101,7 @@ func (h *VoyageOpinionHandler) generate(ctx context.Context, in *generateOpinion
 	}
 	format := opinionFormat(in.Body.Format)
 
-	voyage, err := h.q.GetVoyage(ctx, in.VoyageID)
+	voyage, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.VoyageID, IncludeHidden: true})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
@@ -193,9 +193,9 @@ func (h *VoyageOpinionHandler) readOpinionFile(stored string) ([]byte, error) {
 	return h.uploads.ReadFile(rel)
 }
 
-// verifyVoyage confirms the voyage exists.
+// verifyVoyage confirms the voyage exists and the caller may see it.
 func (h *VoyageOpinionHandler) verifyVoyage(ctx context.Context, voyageID int64) error {
-	if _, err := h.q.GetVoyage(ctx, voyageID); err != nil {
+	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: voyageID, IncludeHidden: canSeeHidden(ctx)}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return huma.Error404NotFound("voyage not found")
 		}
@@ -331,7 +331,8 @@ func renderOpinionFile(ctx context.Context, format string, data docgen.OpinionDa
 }
 
 func (h *VoyageOpinionHandler) canReadVoyageOpinions(ctx context.Context, voyageID int64) (bool, error) {
-	voyage, err := h.q.GetVoyage(ctx, voyageID)
+	// Callers verified the voyage is visible to the caller first.
+	voyage, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: voyageID, IncludeHidden: true})
 	if err != nil {
 		return false, huma.Error500InternalServerError("failed to check document access")
 	}

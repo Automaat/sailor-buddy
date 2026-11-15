@@ -118,6 +118,14 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   The account linked to a voyage's captain person may write its post-cruise
   log and ports (`requireAdminOrCaptain`). Captain is not a role — keep it
   off `users.role`.
+- Hidden drafts: `published_at` on cruises, trips and voyages; NULL is
+  hidden and every new row starts hidden. A trip or voyage is visible only
+  while it and its cruise are published. Admins and the captain group see
+  hidden records (`canSeeHidden`, `internal/api/handlers/authz.go`). Reads
+  pass `include_hidden` to the sqlc query, never filter in Go after paging;
+  admin-only paths pass `true`. Share links and sign-ups refuse hidden
+  records for everyone. Publish/unpublish are admin-only
+  (`handlers/publication.go`).
 - `users.membership`: `czlonek` | `sympatyk` | `gosc` (club statute).
   Self-registered accounts start as `gosc`; an admin promotes them.
 - Onboarding: `users.onboarded_at` NULL sends a signed-in user to

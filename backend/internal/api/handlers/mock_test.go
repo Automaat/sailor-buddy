@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/middleware"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/auth"
@@ -156,7 +157,7 @@ type mockQuerier struct {
 	getUserByIDFn          func(ctx context.Context, id int64) (sqlcdb.User, error)
 	updateUserProfileFn    func(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error)
 	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
-	listUserCruiseIDsFn    func(ctx context.Context, userID int64) ([]int64, error)
+	listUserCruiseIDsFn    func(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error)
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
 	listUsersFn            func(ctx context.Context) ([]sqlcdb.User, error)
@@ -172,22 +173,22 @@ func (m *mockQuerier) ListTrips(ctx context.Context, arg sqlcdb.ListTripsParams)
 	return m.listTripsFn(ctx, arg)
 }
 
-func (m *mockQuerier) CountTrips(ctx context.Context) (int64, error) {
+func (m *mockQuerier) CountTrips(ctx context.Context, _ bool) (int64, error) {
 	if m.countTripsFn == nil {
 		panic("unexpected call to CountTrips")
 	}
 	return m.countTripsFn(ctx)
 }
 
-func (m *mockQuerier) GetTrip(ctx context.Context, id int64) (sqlcdb.Trip, error) {
+func (m *mockQuerier) GetTrip(ctx context.Context, arg sqlcdb.GetTripParams) (sqlcdb.Trip, error) {
 	if m.getTripFn == nil {
 		panic("unexpected call to GetTrip")
 	}
-	return m.getTripFn(ctx, id)
+	return m.getTripFn(ctx, arg.ID)
 }
 
 func (m *mockQuerier) GetTripForUpdate(ctx context.Context, id int64) (sqlcdb.Trip, error) {
-	return m.GetTrip(ctx, id)
+	return m.GetTrip(ctx, sqlcdb.GetTripParams{ID: id, IncludeHidden: true})
 }
 
 func (m *mockQuerier) CreateTrip(ctx context.Context, arg sqlcdb.CreateTripParams) (sqlcdb.Trip, error) {
@@ -239,18 +240,18 @@ func (m *mockQuerier) GetTripByEnrollToken(ctx context.Context, token types.Null
 	return m.getTripByEnrollFn(ctx, token)
 }
 
-func (m *mockQuerier) ListCruiseTrips(ctx context.Context, cruiseID int64) ([]sqlcdb.Trip, error) {
+func (m *mockQuerier) ListCruiseTrips(ctx context.Context, arg sqlcdb.ListCruiseTripsParams) ([]sqlcdb.Trip, error) {
 	if m.listCruiseTripsFn == nil {
 		panic("unexpected call to ListCruiseTrips")
 	}
-	return m.listCruiseTripsFn(ctx, cruiseID)
+	return m.listCruiseTripsFn(ctx, arg.CruiseID)
 }
 
-func (m *mockQuerier) ListCruiseVoyages(ctx context.Context, cruiseID int64) ([]sqlcdb.Voyage, error) {
+func (m *mockQuerier) ListCruiseVoyages(ctx context.Context, arg sqlcdb.ListCruiseVoyagesParams) ([]sqlcdb.Voyage, error) {
 	if m.listCruiseVoyagesFn == nil {
 		panic("unexpected call to ListCruiseVoyages")
 	}
-	return m.listCruiseVoyagesFn(ctx, cruiseID)
+	return m.listCruiseVoyagesFn(ctx, arg.CruiseID)
 }
 
 // --- voyages ---
@@ -262,18 +263,18 @@ func (m *mockQuerier) ListVoyages(ctx context.Context, arg sqlcdb.ListVoyagesPar
 	return m.listVoyagesFn(ctx, arg)
 }
 
-func (m *mockQuerier) CountVoyages(ctx context.Context) (int64, error) {
+func (m *mockQuerier) CountVoyages(ctx context.Context, _ bool) (int64, error) {
 	if m.countVoyagesFn == nil {
 		panic("unexpected call to CountVoyages")
 	}
 	return m.countVoyagesFn(ctx)
 }
 
-func (m *mockQuerier) GetVoyage(ctx context.Context, id int64) (sqlcdb.Voyage, error) {
+func (m *mockQuerier) GetVoyage(ctx context.Context, arg sqlcdb.GetVoyageParams) (sqlcdb.Voyage, error) {
 	if m.getVoyageFn == nil {
 		panic("unexpected call to GetVoyage")
 	}
-	return m.getVoyageFn(ctx, id)
+	return m.getVoyageFn(ctx, arg.ID)
 }
 
 func (m *mockQuerier) CreateVoyage(ctx context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
@@ -297,21 +298,21 @@ func (m *mockQuerier) DeleteVoyage(ctx context.Context, id int64) error {
 	return m.deleteVoyageFn(ctx, id)
 }
 
-func (m *mockQuerier) GetDashboardStats(ctx context.Context) (sqlcdb.GetDashboardStatsRow, error) {
+func (m *mockQuerier) GetDashboardStats(ctx context.Context, _ bool) (sqlcdb.GetDashboardStatsRow, error) {
 	if m.getDashboardFn == nil {
 		panic("unexpected call to GetDashboardStats")
 	}
 	return m.getDashboardFn(ctx)
 }
 
-func (m *mockQuerier) ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]sqlcdb.ListUserSeaTimeVoyagesRow, error) {
+func (m *mockQuerier) ListUserSeaTimeVoyages(ctx context.Context, arg sqlcdb.ListUserSeaTimeVoyagesParams) ([]sqlcdb.ListUserSeaTimeVoyagesRow, error) {
 	if m.listUserSeaTimeFn == nil {
 		panic("unexpected call to ListUserSeaTimeVoyages")
 	}
-	return m.listUserSeaTimeFn(ctx, userID)
+	return m.listUserSeaTimeFn(ctx, arg.UserID)
 }
 
-func (m *mockQuerier) GetVoyagesByYear(ctx context.Context) ([]sqlcdb.GetVoyagesByYearRow, error) {
+func (m *mockQuerier) GetVoyagesByYear(ctx context.Context, _ bool) ([]sqlcdb.GetVoyagesByYearRow, error) {
 	if m.getVoyagesByYearFn == nil {
 		panic("unexpected call to GetVoyagesByYear")
 	}
@@ -693,18 +694,18 @@ func (m *mockQuerier) ListCruises(ctx context.Context, arg sqlcdb.ListCruisesPar
 	return m.listCruisesFn(ctx, arg)
 }
 
-func (m *mockQuerier) CountCruises(ctx context.Context) (int64, error) {
+func (m *mockQuerier) CountCruises(ctx context.Context, _ bool) (int64, error) {
 	if m.countCruisesFn == nil {
 		panic("unexpected call to CountCruises")
 	}
 	return m.countCruisesFn(ctx)
 }
 
-func (m *mockQuerier) GetCruise(ctx context.Context, id int64) (sqlcdb.Cruise, error) {
+func (m *mockQuerier) GetCruise(ctx context.Context, arg sqlcdb.GetCruiseParams) (sqlcdb.Cruise, error) {
 	if m.getCruiseFn == nil {
 		panic("unexpected call to GetCruise")
 	}
-	return m.getCruiseFn(ctx, id)
+	return m.getCruiseFn(ctx, arg.ID)
 }
 
 func (m *mockQuerier) CreateCruise(ctx context.Context, arg sqlcdb.CreateCruiseParams) (sqlcdb.Cruise, error) {
@@ -805,6 +806,9 @@ func userCtx(ctx context.Context) context.Context {
 	return userCtxRole(ctx, "admin")
 }
 
+// published is a published_at value for fixtures of published records.
+var published = types.NullTime{Time: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Valid: true}
+
 // userCtxRole injects an authenticated caller with the given role.
 func userCtxRole(ctx context.Context, role string) context.Context {
 	return context.WithValue(ctx, middleware.UserCtxKey, &auth.Claims{
@@ -877,11 +881,11 @@ func (m *mockQuerier) DeleteCruiseSeries(ctx context.Context, id int64) error {
 	return m.deleteCruiseSeriesFn(ctx, id)
 }
 
-func (m *mockQuerier) ListCruiseSeriesEditions(ctx context.Context, seriesID types.NullInt64) ([]sqlcdb.ListCruiseSeriesEditionsRow, error) {
+func (m *mockQuerier) ListCruiseSeriesEditions(ctx context.Context, arg sqlcdb.ListCruiseSeriesEditionsParams) ([]sqlcdb.ListCruiseSeriesEditionsRow, error) {
 	if m.listCruiseSeriesEditionsFn == nil {
 		panic("unexpected call to ListCruiseSeriesEditions")
 	}
-	return m.listCruiseSeriesEditionsFn(ctx, seriesID)
+	return m.listCruiseSeriesEditionsFn(ctx, arg.SeriesID)
 }
 
 func (m *mockQuerier) CreateTripEnrollmentIfAbsent(ctx context.Context, arg sqlcdb.CreateTripEnrollmentIfAbsentParams) (sqlcdb.TripEnrollment, error) {
@@ -919,11 +923,11 @@ func (m *mockQuerier) CountTripLinkedEnrollments(ctx context.Context, tripID int
 	return m.countTripLinkedFn(ctx, tripID)
 }
 
-func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error) {
+func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error) {
 	if m.listUserCruiseIDsFn == nil {
 		panic("unexpected call to ListUserCruiseIDs")
 	}
-	return m.listUserCruiseIDsFn(ctx, userID)
+	return m.listUserCruiseIDsFn(ctx, arg)
 }
 
 func (m *mockQuerier) LockTripForSignUp(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {

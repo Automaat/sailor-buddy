@@ -62,7 +62,7 @@ func (h *AuthHandler) myCruises(ctx context.Context, _ *struct{}) (*myCruisesOut
 	if claims == nil {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	ids, err := h.q.ListUserCruiseIDs(ctx, claims.UserID)
+	ids, err := h.q.ListUserCruiseIDs(ctx, sqlcdb.ListUserCruiseIDsParams{UserID: claims.UserID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		slog.Error("list user cruises", "user_id", claims.UserID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list your cruises")

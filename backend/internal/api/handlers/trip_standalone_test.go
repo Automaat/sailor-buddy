@@ -217,7 +217,7 @@ func TestTripCreate_StandaloneRollbackAgainstDatabase(t *testing.T) {
 	if err := json.Unmarshal(resp.Body.Bytes(), &trip); err != nil {
 		t.Fatal(err)
 	}
-	cruise, err := q.GetCruise(ctx, trip.CruiseID)
+	cruise, err := q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: trip.CruiseID, IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("wrapper cruise: %v", err)
 	}

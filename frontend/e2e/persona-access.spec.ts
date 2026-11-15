@@ -328,6 +328,9 @@ test.describe.serial('Single-club persona matrix', () => {
 	});
 
 	test('member: sees the club data read-only', async ({ page }) => {
+		// New editions and legs start hidden from members until an admin publishes them.
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		await apiRequest(idToken, 'POST', `/cruises/${cruiseId}/publish`, { include_legs: true });
 		await loginViaUI(page, memberEmail, PASSWORD);
 
 		await page.goto('/cruises?tab=all');

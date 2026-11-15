@@ -38,6 +38,9 @@ func TestCruisePricing_RoundTrip(t *testing.T) {
 	if err := q.SetCruiseEnrollToken(ctx, sqlcdb.SetCruiseEnrollTokenParams{EnrollToken: text("tok"), ID: cruise.ID}); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
+	if _, err := q.PublishCruise(ctx, cruise.ID); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
 	row, err := q.GetCruiseByEnrollToken(ctx, text("tok"))
 	if err != nil {
 		t.Fatalf("get by token: %v", err)

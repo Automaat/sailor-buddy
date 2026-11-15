@@ -12,14 +12,18 @@ import (
 )
 
 const countVoyages = `-- name: CountVoyages :one
-SELECT COUNT(*)::BIGINT FROM voyages
+SELECT COUNT(*)::BIGINT FROM voyages v
+WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+    SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 `
 
 // CountVoyages
 //
-//	SELECT COUNT(*)::BIGINT FROM voyages
-func (q *Queries) CountVoyages(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countVoyages)
+//	SELECT COUNT(*)::BIGINT FROM voyages v
+//	WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	    SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+func (q *Queries) CountVoyages(ctx context.Context, includeHidden bool) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countVoyages, includeHidden)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -32,8 +36,8 @@ INSERT INTO voyages (
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
     cost_total, cost_per_person,
     image_logo_url, image_photo_url, image_route_url, description, captain_person_id,
-    track_url, voyage_card
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id
+    track_url, voyage_card, published_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
 `
 
 type CreateVoyageParams struct {
@@ -64,6 +68,7 @@ type CreateVoyageParams struct {
 	CaptainPersonID types.NullInt64   `json:"captain_person_id"`
 	TrackUrl        types.NullString  `json:"track_url"`
 	VoyageCard      types.NullString  `json:"voyage_card"`
+	PublishedAt     types.NullTime    `json:"published_at"`
 }
 
 // CreateVoyage
@@ -74,8 +79,8 @@ type CreateVoyageParams struct {
 //	    hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
 //	    cost_total, cost_per_person,
 //	    image_logo_url, image_photo_url, image_route_url, description, captain_person_id,
-//	    track_url, voyage_card
-//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id
+//	    track_url, voyage_card, published_at
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
 func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voyage, error) {
 	row := q.db.QueryRowContext(ctx, createVoyage,
 		arg.CreatedBy,
@@ -105,6 +110,7 @@ func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voy
 		arg.CaptainPersonID,
 		arg.TrackUrl,
 		arg.VoyageCard,
+		arg.PublishedAt,
 	)
 	var i Voyage
 	err := row.Scan(
@@ -139,6 +145,7 @@ func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voy
 		&i.TrackUrl,
 		&i.VoyageCard,
 		&i.CaptainPersonID,
+		&i.PublishedAt,
 	)
 	return i, err
 }
@@ -163,7 +170,9 @@ SELECT
     COALESCE(SUM(days), 0)::BIGINT AS total_days,
     COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
     COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
-FROM voyages
+FROM voyages v
+WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+    SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 `
 
 type GetDashboardStatsRow struct {
@@ -184,9 +193,11 @@ type GetDashboardStatsRow struct {
 //	    COALESCE(SUM(days), 0)::BIGINT AS total_days,
 //	    COALESCE(SUM(hours_sail), 0)::DOUBLE PRECISION AS total_hours_sail,
 //	    COALESCE(SUM(hours_engine), 0)::DOUBLE PRECISION AS total_hours_engine
-//	FROM voyages
-func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDashboardStats)
+//	FROM voyages v
+//	WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	    SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+func (q *Queries) GetDashboardStats(ctx context.Context, includeHidden bool) (GetDashboardStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDashboardStats, includeHidden)
 	var i GetDashboardStatsRow
 	err := row.Scan(
 		&i.VoyageCount,
@@ -200,14 +211,26 @@ func (q *Queries) GetDashboardStats(ctx context.Context) (GetDashboardStatsRow, 
 }
 
 const getVoyage = `-- name: GetVoyage :one
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages WHERE id = $1
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+WHERE v.id = $1
+  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 `
 
-// GetVoyage
+type GetVoyageParams struct {
+	ID            int64 `json:"id"`
+	IncludeHidden bool  `json:"include_hidden"`
+}
+
+// include_hidden is true for callers who may read hidden drafts; others get
+// no row unless the voyage and its cruise are both published.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages WHERE id = $1
-func (q *Queries) GetVoyage(ctx context.Context, id int64) (Voyage, error) {
-	row := q.db.QueryRowContext(ctx, getVoyage, id)
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+//	WHERE v.id = $1
+//	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+func (q *Queries) GetVoyage(ctx context.Context, arg GetVoyageParams) (Voyage, error) {
+	row := q.db.QueryRowContext(ctx, getVoyage, arg.ID, arg.IncludeHidden)
 	var i Voyage
 	err := row.Scan(
 		&i.ID,
@@ -241,6 +264,7 @@ func (q *Queries) GetVoyage(ctx context.Context, id int64) (Voyage, error) {
 		&i.TrackUrl,
 		&i.VoyageCard,
 		&i.CaptainPersonID,
+		&i.PublishedAt,
 	)
 	return i, err
 }
@@ -252,7 +276,10 @@ SELECT
     COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
     COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
     COALESCE(SUM(days), 0)::BIGINT AS total_days
-FROM voyages GROUP BY year ORDER BY year
+FROM voyages v
+WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+    SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+GROUP BY year ORDER BY year
 `
 
 type GetVoyagesByYearRow struct {
@@ -271,9 +298,12 @@ type GetVoyagesByYearRow struct {
 //	    COALESCE(SUM(hours_total), 0)::DOUBLE PRECISION AS total_hours,
 //	    COALESCE(SUM(miles), 0)::DOUBLE PRECISION AS total_miles,
 //	    COALESCE(SUM(days), 0)::BIGINT AS total_days
-//	FROM voyages GROUP BY year ORDER BY year
-func (q *Queries) GetVoyagesByYear(ctx context.Context) ([]GetVoyagesByYearRow, error) {
-	rows, err := q.db.QueryContext(ctx, getVoyagesByYear)
+//	FROM voyages v
+//	WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	    SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+//	GROUP BY year ORDER BY year
+func (q *Queries) GetVoyagesByYear(ctx context.Context, includeHidden bool) ([]GetVoyagesByYearRow, error) {
+	rows, err := q.db.QueryContext(ctx, getVoyagesByYear, includeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -310,14 +340,21 @@ SELECT
 FROM voyages v
 LEFT JOIN yachts y ON y.id = v.yacht_id
 LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
-WHERE cp.user_id = $1::BIGINT
+WHERE (cp.user_id = $1::BIGINT
    OR EXISTS (
        SELECT 1 FROM crew_assignments ca
        JOIN crew_members cm ON cm.id = ca.crew_member_id
        WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
-   )
+   ))
+  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
 `
+
+type ListUserSeaTimeVoyagesParams struct {
+	UserID        int64 `json:"user_id"`
+	IncludeHidden bool  `json:"include_hidden"`
+}
 
 type ListUserSeaTimeVoyagesRow struct {
 	ID            int64            `json:"id"`
@@ -336,7 +373,7 @@ type ListUserSeaTimeVoyagesRow struct {
 
 // Voyages the user sailed: as the captain through the account's person or
 // through a crew record linked to their account. One row per voyage; captain
-// wins on overlap.
+// wins on overlap. Without include_hidden only visible voyages count.
 //
 //	SELECT
 //	    v.id, v.name, v.year, v.embark_date, v.disembark_date,
@@ -346,15 +383,17 @@ type ListUserSeaTimeVoyagesRow struct {
 //	FROM voyages v
 //	LEFT JOIN yachts y ON y.id = v.yacht_id
 //	LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
-//	WHERE cp.user_id = $1::BIGINT
+//	WHERE (cp.user_id = $1::BIGINT
 //	   OR EXISTS (
 //	       SELECT 1 FROM crew_assignments ca
 //	       JOIN crew_members cm ON cm.id = ca.crew_member_id
 //	       WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
-//	   )
+//	   ))
+//	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 //	ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
-func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]ListUserSeaTimeVoyagesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUserSeaTimeVoyages, userID)
+func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, arg ListUserSeaTimeVoyagesParams) ([]ListUserSeaTimeVoyagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSeaTimeVoyages, arg.UserID, arg.IncludeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -390,17 +429,20 @@ func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, userID int64) ([]L
 }
 
 const listVoyages = `-- name: ListVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages
-WHERE $1::BIGINT IS NULL
-   OR (year IS NULL, COALESCE(year, 0), embark_date IS NULL, COALESCE(embark_date, ''), id)
-    < ($2::BIGINT IS NULL, COALESCE($2::BIGINT, 0),
-       $3::TEXT IS NULL,
-       COALESCE($3::TEXT, ''), $1::BIGINT)
-ORDER BY year DESC, embark_date DESC, id DESC
-LIMIT $5 OFFSET $4
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+  AND ($2::BIGINT IS NULL
+   OR (v.year IS NULL, COALESCE(v.year, 0), v.embark_date IS NULL, COALESCE(v.embark_date, ''), v.id)
+    < ($3::BIGINT IS NULL, COALESCE($3::BIGINT, 0),
+       $4::TEXT IS NULL,
+       COALESCE($4::TEXT, ''), $2::BIGINT))
+ORDER BY v.year DESC, v.embark_date DESC, v.id DESC
+LIMIT $6 OFFSET $5
 `
 
 type ListVoyagesParams struct {
+	IncludeHidden   bool             `json:"include_hidden"`
 	AfterID         types.NullInt64  `json:"after_id"`
 	AfterYear       types.NullInt64  `json:"after_year"`
 	AfterEmbarkDate types.NullString `json:"after_embark_date"`
@@ -410,17 +452,22 @@ type ListVoyagesParams struct {
 
 // A set after_id starts the page after the cursor's sort key. The keyset
 // tuple sorts descending like the ORDER BY: a NULL year or embark_date first.
+// Without include_hidden a voyage is listed only while it and its cruise are
+// published.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id FROM voyages
-//	WHERE $1::BIGINT IS NULL
-//	   OR (year IS NULL, COALESCE(year, 0), embark_date IS NULL, COALESCE(embark_date, ''), id)
-//	    < ($2::BIGINT IS NULL, COALESCE($2::BIGINT, 0),
-//	       $3::TEXT IS NULL,
-//	       COALESCE($3::TEXT, ''), $1::BIGINT)
-//	ORDER BY year DESC, embark_date DESC, id DESC
-//	LIMIT $5 OFFSET $4
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+//	WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+//	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+//	  AND ($2::BIGINT IS NULL
+//	   OR (v.year IS NULL, COALESCE(v.year, 0), v.embark_date IS NULL, COALESCE(v.embark_date, ''), v.id)
+//	    < ($3::BIGINT IS NULL, COALESCE($3::BIGINT, 0),
+//	       $4::TEXT IS NULL,
+//	       COALESCE($4::TEXT, ''), $2::BIGINT))
+//	ORDER BY v.year DESC, v.embark_date DESC, v.id DESC
+//	LIMIT $6 OFFSET $5
 func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voyage, error) {
 	rows, err := q.db.QueryContext(ctx, listVoyages,
+		arg.IncludeHidden,
 		arg.AfterID,
 		arg.AfterYear,
 		arg.AfterEmbarkDate,
@@ -466,6 +513,7 @@ func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voy
 			&i.TrackUrl,
 			&i.VoyageCard,
 			&i.CaptainPersonID,
+			&i.PublishedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -478,6 +526,136 @@ func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voy
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockVoyageCruiseForPublish = `-- name: LockVoyageCruiseForPublish :one
+SELECT c.id FROM cruises c
+WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
+FOR NO KEY UPDATE OF c
+`
+
+// Locks the cruise of the voyage being published before the voyage itself,
+// the order cruise publication with include_legs uses, so the two cannot
+// deadlock. No row when the voyage or its cruise is gone.
+//
+//	SELECT c.id FROM cruises c
+//	WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
+//	FOR NO KEY UPDATE OF c
+func (q *Queries) LockVoyageCruiseForPublish(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, lockVoyageCruiseForPublish, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const publishVoyage = `-- name: PublishVoyage :one
+UPDATE voyages SET
+    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+`
+
+// Publishes the voyage, keeping an earlier published_at.
+//
+//	UPDATE voyages SET
+//	    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+//	    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+//	WHERE id = $1
+//	RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+func (q *Queries) PublishVoyage(ctx context.Context, id int64) (Voyage, error) {
+	row := q.db.QueryRowContext(ctx, publishVoyage, id)
+	var i Voyage
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.CruiseID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CaptainNotes,
+		&i.TrackUrl,
+		&i.VoyageCard,
+		&i.CaptainPersonID,
+		&i.PublishedAt,
+	)
+	return i, err
+}
+
+const unpublishVoyage = `-- name: UnpublishVoyage :one
+UPDATE voyages SET
+    published_at = NULL,
+    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+`
+
+// UnpublishVoyage
+//
+//	UPDATE voyages SET
+//	    published_at = NULL,
+//	    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+//	WHERE id = $1
+//	RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+func (q *Queries) UnpublishVoyage(ctx context.Context, id int64) (Voyage, error) {
+	row := q.db.QueryRowContext(ctx, unpublishVoyage, id)
+	var i Voyage
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.CruiseID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CaptainNotes,
+		&i.TrackUrl,
+		&i.VoyageCard,
+		&i.CaptainPersonID,
+		&i.PublishedAt,
+	)
+	return i, err
 }
 
 const updateVoyage = `-- name: UpdateVoyage :exec

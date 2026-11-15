@@ -182,5 +182,6 @@ func createVoyageFromTrip(ctx context.Context, qtx sqlcdb.Querier, trip sqlcdb.T
 		ImagePhotoUrl:   trip.ImagePhotoUrl,
 		ImageRouteUrl:   trip.ImageRouteUrl,
 		Description:     trip.Description,
+		PublishedAt:     trip.PublishedAt,
 	})
 }

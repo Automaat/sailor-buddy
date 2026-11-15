@@ -11,21 +11,28 @@ INSERT INTO cruises (
 ) RETURNING *;
 
 -- name: GetCruise :one
-SELECT * FROM cruises WHERE id = $1;
+-- include_hidden is true for callers who may read hidden drafts (admins and
+-- the captain group); others get no row for an unpublished cruise.
+SELECT * FROM cruises
+WHERE id = sqlc.arg(id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL);
 
 -- name: ListCruises :many
 -- A set after_id starts the page after the cursor's sort key. The keyset
 -- tuple sorts descending like the ORDER BY: a NULL embark_date last.
+-- Without include_hidden only published cruises are listed.
 SELECT * FROM cruises
-WHERE sqlc.narg(after_id)::BIGINT IS NULL
+WHERE (sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL)
+  AND (sqlc.narg(after_id)::BIGINT IS NULL
    OR (embark_date IS NOT NULL, COALESCE(embark_date, ''), id)
     < (sqlc.narg(after_embark_date)::TEXT IS NOT NULL,
-       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT)
+       COALESCE(sqlc.narg(after_embark_date)::TEXT, ''), sqlc.narg(after_id)::BIGINT))
 ORDER BY embark_date DESC NULLS LAST, id DESC
 LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
 
 -- name: CountCruises :one
-SELECT COUNT(*)::BIGINT FROM cruises;
+SELECT COUNT(*)::BIGINT FROM cruises
+WHERE sqlc.arg(include_hidden)::BOOLEAN OR published_at IS NOT NULL;
 
 -- name: UpdateCruise :exec
 UPDATE cruises SET
@@ -55,9 +62,10 @@ UPDATE cruises SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id 
 -- the sign-up to commit and a sign-up after that sees the change. Taken
 -- before LockCruiseTripStatuses, in the same cruise-then-trips order as
 -- DELETE FROM cruises and trip completion. No row when the cruise no longer
--- has that token.
+-- has that token or is hidden; holding the lock also keeps an unpublish
+-- waiting until the sign-up commits.
 SELECT id FROM cruises
-WHERE id = $1 AND enroll_token = $2
+WHERE id = $1 AND enroll_token = $2 AND published_at IS NOT NULL
 FOR SHARE;
 
 -- name: GetCruiseByEnrollToken :one
@@ -65,20 +73,62 @@ SELECT id, name, embark_date, disembark_date, countries, start_port, end_port,
        description, image_photo_url, max_crew, cost_per_person,
        currency, cost_per_person_non_member, yacht_fund, deposit, included, not_included,
        group_chat_url, travel_notes, min_age
-FROM cruises WHERE enroll_token = $1;
+FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL;
 
 -- name: ListCruiseTrips :many
-SELECT * FROM trips WHERE cruise_id = $1 ORDER BY embark_date ASC, id ASC;
+-- Without include_hidden a leg is listed only while it and its cruise are
+-- published.
+SELECT * FROM trips t
+WHERE t.cruise_id = sqlc.arg(cruise_id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
+ORDER BY t.embark_date ASC, t.id ASC;
 
 -- name: ListCruiseVoyages :many
-SELECT * FROM voyages WHERE cruise_id = $1 ORDER BY year DESC, embark_date DESC, id DESC;
+-- Without include_hidden a voyage is listed only while it and its cruise are
+-- published.
+SELECT * FROM voyages v
+WHERE v.cruise_id = sqlc.arg(cruise_id)
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+ORDER BY v.year DESC, v.embark_date DESC, v.id DESC;
+
+-- name: PublishCruise :one
+-- Publishes the cruise, keeping an earlier published_at.
+UPDATE cruises SET
+    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING *;
+
+-- name: UnpublishCruise :one
+UPDATE cruises SET
+    published_at = NULL,
+    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
+WHERE id = $1
+RETURNING *;
+
+-- name: PublishStandaloneCruise :exec
+-- Publishes a hidden cruise that belongs to no series, for a leg being
+-- published: a standalone leg's wrapper cruise follows its leg.
+UPDATE cruises SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND published_at IS NULL AND series_id IS NULL;
+
+-- name: PublishCruiseTrips :exec
+UPDATE trips SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE cruise_id = $1 AND published_at IS NULL;
+
+-- name: PublishCruiseVoyages :exec
+UPDATE voyages SET published_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE cruise_id = $1 AND published_at IS NULL;
 
 -- name: ListUserCruiseIDs :many
 -- Cruises the user took part in: an accepted cruise or trip enrollment, a
 -- leg captained by the account's person, or a crew-list entry linked to the
 -- account, or one without an account that carries its email. Another
 -- account's person never matches by email: it keeps the email that account
--- had when the person was created.
+-- had when the person was created. Without include_hidden, a hidden cruise
+-- and a cruise reached only through a hidden leg are left out.
 WITH me AS (
     SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = sqlc.arg(user_id)
 ),
@@ -86,26 +136,31 @@ my_crew AS (
     SELECT cm.id AS crew_id FROM crew_members cm, me
     WHERE cm.user_id = me.me_id
        OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+),
+took_part AS (
+    SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
+    WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+    UNION ALL
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
+    WHERE te.user_id = me.me_id AND te.status = 'accepted'
+    UNION ALL
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
+    JOIN crew_members cm ON cm.id = t.captain_person_id, me
+    WHERE cm.user_id = me.me_id
+    UNION ALL
+    SELECT v.cruise_id, v.published_at IS NOT NULL FROM voyages v
+    JOIN crew_members cm ON cm.id = v.captain_person_id, me
+    WHERE cm.user_id = me.me_id
+    UNION ALL
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM crew_assignments ca
+    JOIN trips t ON t.id = ca.trip_id
+    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+    UNION ALL
+    SELECT v.cruise_id, v.published_at IS NOT NULL FROM crew_assignments ca
+    JOIN voyages v ON v.id = ca.voyage_id
+    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
 )
-SELECT ce.cruise_id FROM cruise_enrollments ce, me
-WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
-UNION
-SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
-WHERE te.user_id = me.me_id AND te.status = 'accepted'
-UNION
-SELECT t.cruise_id FROM trips t
-JOIN crew_members cm ON cm.id = t.captain_person_id, me
-WHERE cm.user_id = me.me_id
-UNION
-SELECT v.cruise_id FROM voyages v
-JOIN crew_members cm ON cm.id = v.captain_person_id, me
-WHERE cm.user_id = me.me_id
-UNION
-SELECT t.cruise_id FROM crew_assignments ca
-JOIN trips t ON t.id = ca.trip_id
-JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-UNION
-SELECT v.cruise_id FROM crew_assignments ca
-JOIN voyages v ON v.id = ca.voyage_id
-JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-ORDER BY cruise_id;
+SELECT DISTINCT tp.cruise_id FROM took_part tp
+JOIN cruises c ON c.id = tp.cruise_id
+WHERE sqlc.arg(include_hidden)::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
+ORDER BY tp.cruise_id;

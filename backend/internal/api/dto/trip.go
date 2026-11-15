@@ -8,34 +8,35 @@ import (
 
 // Trip is the API representation of a planned trip.
 type Trip struct {
-	ID                     int64     `json:"id"`
-	CreatedBy              *int64    `json:"created_by,omitempty"`
-	CruiseID               int64     `json:"cruise_id"`
-	Name                   string    `json:"name"`
-	Status                 string    `json:"status" enum:"planned,cancelled"`
-	EmbarkDate             *string   `json:"embark_date,omitempty"`
-	DisembarkDate          *string   `json:"disembark_date,omitempty"`
-	Countries              *string   `json:"countries,omitempty"`
-	StartPort              *string   `json:"start_port,omitempty"`
-	EndPort                *string   `json:"end_port,omitempty"`
-	CaptainName            *string   `json:"captain_name,omitempty"`
-	CaptainPersonID        *int64    `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip"`
-	YachtID                *int64    `json:"yacht_id,omitempty"`
-	CostTotal              *float64  `json:"cost_total,omitempty"`
-	CostPerPerson          *float64  `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
-	Currency               string    `json:"currency" enum:"PLN,EUR" doc:"Currency of every price on the trip"`
-	CostPerPersonNonMember *float64  `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
-	YachtFund              *float64  `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"`
-	Deposit                *float64  `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
-	MaxCrew                *int64    `json:"max_crew,omitempty"`
-	ImageLogoUrl           *string   `json:"image_logo_url,omitempty"`
-	ImagePhotoUrl          *string   `json:"image_photo_url,omitempty"`
-	ImageRouteUrl          *string   `json:"image_route_url,omitempty"`
-	Description            *string   `json:"description,omitempty"`
-	EnrollToken            *string   `json:"enroll_token,omitempty"`
-	SignUpDeadline         *string   `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none"`
-	CreatedAt              time.Time `json:"created_at"`
-	UpdatedAt              time.Time `json:"updated_at"`
+	ID                     int64      `json:"id"`
+	CreatedBy              *int64     `json:"created_by,omitempty"`
+	CruiseID               int64      `json:"cruise_id"`
+	Name                   string     `json:"name"`
+	Status                 string     `json:"status" enum:"planned,cancelled"`
+	EmbarkDate             *string    `json:"embark_date,omitempty"`
+	DisembarkDate          *string    `json:"disembark_date,omitempty"`
+	Countries              *string    `json:"countries,omitempty"`
+	StartPort              *string    `json:"start_port,omitempty"`
+	EndPort                *string    `json:"end_port,omitempty"`
+	CaptainName            *string    `json:"captain_name,omitempty"`
+	CaptainPersonID        *int64     `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip"`
+	YachtID                *int64     `json:"yacht_id,omitempty"`
+	CostTotal              *float64   `json:"cost_total,omitempty"`
+	CostPerPerson          *float64   `json:"cost_per_person,omitempty" doc:"Member price per person (czlonek, sympatyk)"`
+	Currency               string     `json:"currency" enum:"PLN,EUR" doc:"Currency of every price on the trip"`
+	CostPerPersonNonMember *float64   `json:"cost_per_person_non_member,omitempty" doc:"Non-member (gosc) price per person"`
+	YachtFund              *float64   `json:"yacht_fund,omitempty" doc:"Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"`
+	Deposit                *float64   `json:"deposit,omitempty" doc:"Refundable deposit (kaucja) per person"`
+	MaxCrew                *int64     `json:"max_crew,omitempty"`
+	ImageLogoUrl           *string    `json:"image_logo_url,omitempty"`
+	ImagePhotoUrl          *string    `json:"image_photo_url,omitempty"`
+	ImageRouteUrl          *string    `json:"image_route_url,omitempty"`
+	Description            *string    `json:"description,omitempty"`
+	EnrollToken            *string    `json:"enroll_token,omitempty"`
+	SignUpDeadline         *string    `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
+	PublishedAt            *time.Time `json:"published_at,omitempty" doc:"When the trip was published; absent while it is a hidden draft"`
 }
 
 // TripFields are the trip fields shared by the create and update payloads.
@@ -122,6 +123,7 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 		SignUpDeadline:         strPtr(t.SignUpDeadline),
 		CreatedAt:              timeVal(t.CreatedAt),
 		UpdatedAt:              timeVal(t.UpdatedAt),
+		PublishedAt:            timePtr(t.PublishedAt),
 	}
 }
 

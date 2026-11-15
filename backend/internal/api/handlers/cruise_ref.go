@@ -14,7 +14,7 @@ import (
 // requireParentCruise rejects a trip or voyage body whose cruise does not
 // exist. Every trip and voyage is a leg of a club event.
 func requireParentCruise(ctx context.Context, q sqlcdb.Querier, cruiseID int64) error {
-	if _, err := q.GetCruise(ctx, cruiseID); err != nil {
+	if _, err := q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: cruiseID, IncludeHidden: true}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return huma.Error422UnprocessableEntity("cruise not found")
 		}

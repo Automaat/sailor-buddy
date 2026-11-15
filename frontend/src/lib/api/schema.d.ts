@@ -353,6 +353,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cruises/{cruiseID}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a cruise (admin)
+         * @description Makes the cruise visible to every member and keeps an earlier publication time. With include_legs, its hidden trips and voyages are published in the same transaction.
+         */
+        post: operations["publish-cruise"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cruises/{cruiseID}/trip-enrollments": {
         parameters: {
             query?: never;
@@ -384,6 +404,26 @@ export interface paths {
         get: operations["list-cruise-trips"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cruises/{cruiseID}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hide a cruise (admin)
+         * @description Hides the cruise, and with it all of its trips and voyages, from members outside the captain group. Allowed while it has enrollments.
+         */
+        post: operations["unpublish-cruise"];
         delete?: never;
         options?: never;
         head?: never;
@@ -936,6 +976,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripID}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a trip (admin)
+         * @description Keeps an earlier publication time. A hidden cruise without a series is published with it; a trip in a hidden series edition stays hidden until the edition is published.
+         */
+        post: operations["publish-trip"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{tripID}/sign-up": {
         parameters: {
             query?: never;
@@ -978,6 +1038,26 @@ export interface paths {
          */
         put: operations["update-trip-sign-up-note"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{tripID}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hide a trip (admin)
+         * @description Allowed while it has enrollments.
+         */
+        post: operations["unpublish-trip"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1206,6 +1286,43 @@ export interface paths {
         post?: never;
         /** Remove a visited port from a voyage (admin or voyage captain) */
         delete: operations["remove-voyage-port"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voyages/{voyageID}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a voyage (admin)
+         * @description Keeps an earlier publication time. A hidden cruise without a series is published with it; a voyage in a hidden series edition stays hidden until the edition is published.
+         */
+        post: operations["publish-voyage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/voyages/{voyageID}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hide a voyage (admin) */
+        post: operations["unpublish-voyage"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1550,6 +1667,11 @@ export interface components {
             /** @description What the price does not cover */
             not_included: string[] | null;
             /**
+             * Format: date-time
+             * @description When the cruise was published; absent while it is a hidden draft
+             */
+            published_at?: string;
+            /**
              * Format: int64
              * @description Series this cruise is an edition of
              */
@@ -1702,6 +1824,11 @@ export interface components {
             /** @enum {string} */
             kind: "sea" | "inland";
             name: string;
+            /**
+             * Format: date-time
+             * @description When the edition was published; absent while it is a hidden draft
+             */
+            published_at?: string;
             /** Format: double */
             total_hours: number;
             /** Format: double */
@@ -2492,6 +2619,16 @@ export interface components {
             total: components["schemas"]["SeaTime"];
             voyages: components["schemas"]["SeaTimeVoyage"][] | null;
         };
+        PublishCruiseBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/PublishCruiseBody.json
+             */
+            readonly $schema?: string;
+            /** @description Also publish the cruise's hidden trips and voyages */
+            include_legs?: boolean;
+        };
         RoleBody: {
             /**
              * Format: uri
@@ -2651,6 +2788,11 @@ export interface components {
             /** Format: int64 */
             max_crew?: number;
             name: string;
+            /**
+             * Format: date-time
+             * @description When the trip was published; absent while it is a hidden draft
+             */
+            published_at?: string;
             /**
              * Format: date
              * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
@@ -2842,6 +2984,11 @@ export interface components {
             /** Format: double */
             miles: number;
             name: string;
+            /**
+             * Format: date-time
+             * @description When the voyage was published; absent while it is a hidden draft
+             */
+            published_at?: string;
             start_port?: string;
             /** Format: int64 */
             tidal_waters: number;
@@ -4013,6 +4160,42 @@ export interface operations {
             };
         };
     };
+    "publish-cruise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PublishCruiseBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cruise"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-cruise-trip-enrollments": {
         parameters: {
             query?: never;
@@ -4064,6 +4247,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Trip"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "unpublish-cruise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cruise ID */
+                cruiseID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cruise"];
                 };
             };
             /** @description Error */
@@ -5455,6 +5670,38 @@ export interface operations {
             };
         };
     };
+    "publish-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trip"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-trip-sign-up": {
         parameters: {
             query?: never;
@@ -5572,6 +5819,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "unpublish-trip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trip ID */
+                tripID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trip"];
                 };
             };
             /** @description Error */
@@ -6210,6 +6489,70 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "publish-voyage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Voyage"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "unpublish-voyage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voyage ID */
+                voyageID: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Voyage"];
+                };
             };
             /** @description Error */
             default: {

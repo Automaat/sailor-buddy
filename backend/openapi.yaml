@@ -444,6 +444,10 @@ components:
           type:
             - array
             - "null"
+        published_at:
+          description: When the cruise was published; absent while it is a hidden draft
+          format: date-time
+          type: string
         series_id:
           description: Series this cruise is an edition of
           format: int64
@@ -701,6 +705,10 @@ components:
             - inland
           type: string
         name:
+          type: string
+        published_at:
+          description: When the edition was published; absent while it is a hidden draft
+          format: date-time
           type: string
         total_hours:
           format: double
@@ -1978,6 +1986,20 @@ components:
         - by_year
         - voyages
       type: object
+    PublishCruiseBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/PublishCruiseBody.json
+          format: uri
+          readOnly: true
+          type: string
+        include_legs:
+          description: Also publish the cruise's hidden trips and voyages
+          type: boolean
+      type: object
     RoleBody:
       additionalProperties: false
       properties:
@@ -2233,6 +2255,10 @@ components:
           format: int64
           type: integer
         name:
+          type: string
+        published_at:
+          description: When the trip was published; absent while it is a hidden draft
+          format: date-time
           type: string
         sign_up_deadline:
           description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
@@ -2534,6 +2560,10 @@ components:
           format: double
           type: number
         name:
+          type: string
+        published_at:
+          description: When the voyage was published; absent while it is a hidden draft
+          format: date-time
           type: string
         start_port:
           type: string
@@ -3790,6 +3820,40 @@ paths:
       summary: Get the caller's sign-up state for every leg of a cruise
       tags:
         - Sign-up
+  /cruises/{cruiseID}/publish:
+    post:
+      description: Makes the cruise visible to every member and keeps an earlier publication time. With include_legs, its hidden trips and voyages are published in the same transaction.
+      operationId: publish-cruise
+      parameters:
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishCruiseBody"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cruise"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Publish a cruise (admin)
+      tags:
+        - Cruises
   /cruises/{cruiseID}/trip-enrollments:
     get:
       description: Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
@@ -3853,6 +3917,35 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: List a cruise's child trips
+      tags:
+        - Cruises
+  /cruises/{cruiseID}/unpublish:
+    post:
+      description: Hides the cruise, and with it all of its trips and voyages, from members outside the captain group. Allowed while it has enrollments.
+      operationId: unpublish-cruise
+      parameters:
+        - description: Cruise ID
+          in: path
+          name: cruiseID
+          required: true
+          schema:
+            description: Cruise ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cruise"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Hide a cruise (admin)
       tags:
         - Cruises
   /cruises/{cruiseID}/voyages:
@@ -5120,6 +5213,35 @@ paths:
       summary: Update a trip enrollment's status (admin)
       tags:
         - Enrollment
+  /trips/{tripID}/publish:
+    post:
+      description: Keeps an earlier publication time. A hidden cruise without a series is published with it; a trip in a hidden series edition stays hidden until the edition is published.
+      operationId: publish-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Publish a trip (admin)
+      tags:
+        - Trips
   /trips/{tripID}/sign-up:
     delete:
       description: Deletes the caller's sign-up while it is pending or on the waiting list and unpaid. 404 when the caller has not signed up; 409 once an admin has accepted or rejected it or recorded a payment on it (deposit or paid).
@@ -5236,6 +5358,35 @@ paths:
       summary: Set the note on the caller's leg sign-up
       tags:
         - Sign-up
+  /trips/{tripID}/unpublish:
+    post:
+      description: Allowed while it has enrollments.
+      operationId: unpublish-trip
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Hide a trip (admin)
+      tags:
+        - Trips
   /upload/image:
     post:
       operationId: upload-image
@@ -5842,6 +5993,63 @@ paths:
       summary: Remove a visited port from a voyage (admin or voyage captain)
       tags:
         - Voyage ports
+  /voyages/{voyageID}/publish:
+    post:
+      description: Keeps an earlier publication time. A hidden cruise without a series is published with it; a voyage in a hidden series edition stays hidden until the edition is published.
+      operationId: publish-voyage
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Publish a voyage (admin)
+      tags:
+        - Voyages
+  /voyages/{voyageID}/unpublish:
+    post:
+      operationId: unpublish-voyage
+      parameters:
+        - description: Voyage ID
+          in: path
+          name: voyageID
+          required: true
+          schema:
+            description: Voyage ID
+            format: int64
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Voyage"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Hide a voyage (admin)
+      tags:
+        - Voyages
   /voyages/{voyageID}/yachts:
     post:
       operationId: add-voyage-yacht

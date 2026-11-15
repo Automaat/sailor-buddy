@@ -160,6 +160,9 @@ func checkSignUpOpen(trip sqlcdb.LockTripForSignUpRow, today string) error {
 	if trip.Status != sqlcdb.TripStatusPlanned {
 		return &signUpClosedError{msg: "sign-up closed: the leg is not planned"}
 	}
+	if !trip.Published {
+		return &signUpClosedError{msg: "sign-up closed: the leg is not published"}
+	}
 	if !trip.Open {
 		return &signUpClosedError{msg: "sign-up closed: sign-ups for this leg are switched off"}
 	}
@@ -169,9 +172,11 @@ func checkSignUpOpen(trip sqlcdb.LockTripForSignUpRow, today string) error {
 	return nil
 }
 
-// legOpen reports the same rule as checkSignUpOpen for an unlocked trip read.
+// legOpen reports the same rule as checkSignUpOpen for an unlocked trip read,
+// apart from the cruise's publication, which the caller checks.
 func legOpen(t *sqlcdb.Trip, today string) bool {
-	return t.Status == sqlcdb.TripStatusPlanned && t.EnrollToken.Valid && !deadlinePassed(t.SignUpDeadline, today)
+	return t.PublishedAt.Valid && t.Status == sqlcdb.TripStatusPlanned && t.EnrollToken.Valid &&
+		!deadlinePassed(t.SignUpDeadline, today)
 }
 
 // signUpOf returns the user's sign-up for a leg: their trip enrollment or,
@@ -210,7 +215,7 @@ func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) 
 	if err != nil {
 		return nil, err
 	}
-	trip, err := h.q.GetTrip(ctx, in.ID)
+	trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
@@ -223,7 +228,15 @@ func (h *EnrollmentHandler) getTripSignUp(ctx context.Context, in *tripIDParam) 
 		slog.Error("count accepted for trip sign-up", "trip_id", trip.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to count accepted crew")
 	}
-	out := dto.LegSignUp{TripID: trip.ID, Open: legOpen(&trip, h.today()), AcceptedCount: accepted}
+	open := legOpen(&trip, h.today())
+	if open && canSeeHidden(ctx) {
+		// A caller who cannot see hidden records only reads a leg of a
+		// published cruise; others may be looking at a hidden one.
+		if open, err = h.cruisePublished(ctx, trip.CruiseID); err != nil {
+			return nil, err
+		}
+	}
+	out := dto.LegSignUp{TripID: trip.ID, Open: open, AcceptedCount: accepted}
 	e, found, err := signUpOf(ctx, h.q, trip.ID, user.UserID)
 	if err != nil {
 		slog.Error("get user leg sign-up", "trip_id", trip.ID, "user_id", user.UserID, "err", err)
@@ -254,7 +267,7 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 	if err != nil {
 		return nil, err
 	}
-	out, txErr := (enrollmentOperations{runTx: h.runTx}).signUp(ctx, in.ID, user.UserID, h.today())
+	out, txErr := (enrollmentOperations{runTx: h.runTx}).signUp(ctx, in.ID, user.UserID, h.today(), canSeeHidden(ctx))
 	if txErr != nil {
 		if errors.Is(txErr, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("trip not found")
@@ -275,6 +288,9 @@ func (h *EnrollmentHandler) signUpForTrip(ctx context.Context, in *tripIDParam) 
 func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUpNoteInput) (*enrollmentBodyOutput, error) {
 	user, err := signedIn(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireVisibleTrip(ctx, h.q, in.TripID); err != nil {
 		return nil, err
 	}
 	var note types.NullString
@@ -305,6 +321,9 @@ func (h *EnrollmentHandler) updateTripSignUpNote(ctx context.Context, in *signUp
 func (h *EnrollmentHandler) withdrawTripSignUp(ctx context.Context, in *tripIDParam) (*noContentOutput, error) {
 	user, err := signedIn(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireVisibleTrip(ctx, h.q, in.ID); err != nil {
 		return nil, err
 	}
 	reason, err := withdrawSignUp(ctx, h.q, in.ID, user.UserID)
@@ -345,10 +364,11 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 	if err != nil {
 		return nil, err
 	}
-	if err := h.verifyCruise(ctx, in.CruiseID); err != nil {
+	cruise, err := h.getCruise(ctx, in.CruiseID)
+	if err != nil {
 		return nil, err
 	}
-	trips, err := h.q.ListCruiseTrips(ctx, in.CruiseID)
+	trips, err := h.q.ListCruiseTrips(ctx, sqlcdb.ListCruiseTripsParams{CruiseID: in.CruiseID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		slog.Error("list cruise trips for sign-ups", "cruise_id", in.CruiseID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to list legs")
@@ -359,8 +379,9 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 		return nil, huma.Error500InternalServerError("failed to count accepted crew")
 	}
 	mine, err := h.q.ListUserCruiseTripEnrollments(ctx, sqlcdb.ListUserCruiseTripEnrollmentsParams{
-		CruiseID: in.CruiseID,
-		UserID:   user.UserID,
+		CruiseID:      in.CruiseID,
+		UserID:        user.UserID,
+		IncludeHidden: canSeeHidden(ctx),
 	})
 	if err != nil {
 		slog.Error("list user cruise sign-ups", "cruise_id", in.CruiseID, "user_id", user.UserID, "err", err)
@@ -386,7 +407,7 @@ func (h *EnrollmentHandler) listCruiseLegSignUps(ctx context.Context, in *cruise
 	out := make([]dto.LegSignUp, len(trips))
 	for i := range trips {
 		t := &trips[i]
-		out[i] = dto.LegSignUp{TripID: t.ID, Open: legOpen(t, today), AcceptedCount: accepted[t.ID]}
+		out[i] = dto.LegSignUp{TripID: t.ID, Open: cruise.PublishedAt.Valid && legOpen(t, today), AcceptedCount: accepted[t.ID]}
 		if e, ok := byTrip[t.ID]; ok {
 			out[i].Enrollment = &e
 			if err := setWaitlistPosition(ctx, h.q, &e, &out[i].WaitlistPosition); err != nil {
@@ -413,14 +434,34 @@ func (h *EnrollmentHandler) listCruiseTripEnrollments(ctx context.Context, in *c
 	return &tripEnrollmentsOutput{Body: dto.CruiseTripEnrollmentsFromDB(rows)}, nil
 }
 
-// verifyCruise confirms the cruise exists.
+// verifyCruise confirms the cruise exists and the caller may see it.
 func (h *EnrollmentHandler) verifyCruise(ctx context.Context, cruiseID int64) error {
-	if _, err := h.q.GetCruise(ctx, cruiseID); err != nil {
+	_, err := h.getCruise(ctx, cruiseID)
+	return err
+}
+
+// getCruise reads the cruise, answering 404 unless the caller may see it.
+func (h *EnrollmentHandler) getCruise(ctx context.Context, cruiseID int64) (sqlcdb.Cruise, error) {
+	cruise, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: cruiseID, IncludeHidden: canSeeHidden(ctx)})
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return huma.Error404NotFound("cruise not found")
+			return cruise, huma.Error404NotFound("cruise not found")
 		}
 		slog.Error("verify cruise for sign-ups", "cruise_id", cruiseID, "err", err)
-		return huma.Error500InternalServerError("failed to verify cruise")
+		return cruise, huma.Error500InternalServerError("failed to verify cruise")
 	}
-	return nil
+	return cruise, nil
+}
+
+// cruisePublished reports whether the cruise is published.
+func (h *EnrollmentHandler) cruisePublished(ctx context.Context, cruiseID int64) (bool, error) {
+	_, err := h.q.GetCruise(ctx, sqlcdb.GetCruiseParams{ID: cruiseID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		slog.Error("check cruise publication", "cruise_id", cruiseID, "err", err)
+		return false, huma.Error500InternalServerError("failed to get sign-up")
+	}
+	return true, nil
 }

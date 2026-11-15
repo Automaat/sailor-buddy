@@ -78,9 +78,11 @@ func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (
 }
 
 // getVoyageForCaptain loads a voyage and authorizes the caller as an admin or
-// its assigned captain.
+// its assigned captain. A hidden voyage stays writable by its assigned
+// captain, as publication does not change who may edit a record; any other
+// caller who cannot see it gets 404, not 403.
 func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.Voyage, error) {
-	voyage, err := q.GetVoyage(ctx, id)
+	voyage, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: true})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
@@ -88,8 +90,19 @@ func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcd
 		slog.Error("get voyage", "voyage_id", id, "err", err)
 		return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
 	}
-	if err := requireAdminOrCaptain(ctx, q, voyage.CaptainPersonID); err != nil {
-		return sqlcdb.Voyage{}, err
+	if authErr := requireAdminOrCaptain(ctx, q, voyage.CaptainPersonID); authErr != nil {
+		status, ok := errors.AsType[huma.StatusError](authErr)
+		if canSeeHidden(ctx) || !ok || status.GetStatus() != http.StatusForbidden {
+			return sqlcdb.Voyage{}, authErr
+		}
+		if _, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
+			}
+			slog.Error("get voyage", "voyage_id", id, "err", err)
+			return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
+		}
+		return sqlcdb.Voyage{}, authErr
 	}
 	return voyage, nil
 }
@@ -188,7 +201,8 @@ func listVoyagePage(ctx context.Context, q sqlcdb.Querier, in *pageParams) ([]sq
 		year = types.NullInt64{Int64: *key.Year, Valid: true}
 	}
 	return q.ListVoyages(ctx, sqlcdb.ListVoyagesParams{
-		AfterID: afterID(ok, key.ID), AfterYear: year, AfterEmbarkDate: afterNullText(key.Date),
+		IncludeHidden: canSeeHidden(ctx),
+		AfterID:       afterID(ok, key.ID), AfterYear: year, AfterEmbarkDate: afterNullText(key.Date),
 		RowLimit: fetchLimit(in.Limit), RowOffset: in.Offset,
 	})
 }
@@ -212,7 +226,7 @@ func (h *VoyageHandler) list(ctx context.Context, in *pageParams) (*voyageListOu
 		logCRUD("list voyages", scopeAttrs(scope), err)
 		return nil, huma.Error500InternalServerError("failed to list voyages")
 	}
-	total, err := h.q.CountVoyages(ctx)
+	total, err := h.q.CountVoyages(ctx, canSeeHidden(ctx))
 	if err != nil {
 		logCRUD("list voyages", scopeAttrs(scope), err)
 		return nil, huma.Error500InternalServerError("failed to list voyages")
@@ -222,7 +236,7 @@ func (h *VoyageHandler) list(ctx context.Context, in *pageParams) (*voyageListOu
 
 func (h *VoyageHandler) get(ctx context.Context, in *voyageIDParam) (*voyageOutput, error) {
 	scope, _ := memberScope(ctx)
-	row, err := h.q.GetVoyage(ctx, in.ID)
+	row, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
@@ -266,7 +280,7 @@ func (h *VoyageHandler) update(ctx context.Context, in *updateVoyageInput) (*noC
 	}
 	params := updateVoyageParams(in.Body)
 	params.ID = in.ID
-	if _, err := h.q.GetVoyage(ctx, in.ID); err != nil {
+	if _, err := h.q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: in.ID, IncludeHidden: true}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, huma.Error404NotFound("voyage not found")
 		}

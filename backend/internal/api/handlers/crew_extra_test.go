@@ -143,6 +143,7 @@ func TestCrewHandler_Delete(t *testing.T) {
 
 func TestCrewHandler_ListTripCrew_DBError(t *testing.T) {
 	m := &mockQuerier{
+		getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
 		listTripCrewFn: func(context.Context, types.NullInt64) ([]sqlcdb.ListTripCrewAssignmentsRow, error) {
 			return nil, errors.New("fail")
 		},
@@ -156,6 +157,7 @@ func TestCrewHandler_ListTripCrew_DBError(t *testing.T) {
 func TestCrewHandler_ListVoyageCrew(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		m := &mockQuerier{
+			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			listVoyageCrewFn: func(context.Context, types.NullInt64) ([]sqlcdb.ListVoyageCrewAssignmentsRow, error) {
 				return []sqlcdb.ListVoyageCrewAssignmentsRow{{ID: 1, CrewMemberID: 2, Role: "skipper", FullName: "Jan"}}, nil
 			},
@@ -168,6 +170,7 @@ func TestCrewHandler_ListVoyageCrew(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		m := &mockQuerier{
+			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
 			listVoyageCrewFn: func(context.Context, types.NullInt64) ([]sqlcdb.ListVoyageCrewAssignmentsRow, error) {
 				return nil, errors.New("fail")
 			},
