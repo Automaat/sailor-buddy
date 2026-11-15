@@ -154,36 +154,26 @@ func (q *Queries) ListCruiseSeries(ctx context.Context, arg ListCruiseSeriesPara
 }
 
 const listCruiseSeriesEditions = `-- name: ListCruiseSeriesEditions :many
-SELECT
-    c.id,
-    c.name,
-    c.edition,
-    c.published_at,
-    COUNT(v.id)::BIGINT AS voyage_count,
-    COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
-    COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours
+SELECT c.id, c.name, c.edition, c.published_at
 FROM cruises c
-LEFT JOIN voyages v ON v.cruise_id = c.id
-    AND ($1::BOOLEAN OR v.published_at IS NOT NULL)
-WHERE c.series_id = $2
-  AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
-GROUP BY c.id
+WHERE c.series_id = $1
+  AND ($2::BOOLEAN OR c.published_at IS NOT NULL)
 ORDER BY (
     SELECT MIN(NULLIF(l.embark_date, '')) FROM (
         SELECT t.embark_date FROM trips t
         WHERE t.cruise_id = c.id
-          AND ($1::BOOLEAN OR t.published_at IS NOT NULL)
+          AND ($2::BOOLEAN OR t.published_at IS NOT NULL)
         UNION ALL
         SELECT lv.embark_date FROM voyages lv
         WHERE lv.cruise_id = c.id
-          AND ($1::BOOLEAN OR lv.published_at IS NOT NULL)
+          AND ($2::BOOLEAN OR lv.published_at IS NOT NULL)
     ) l
 ) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 `
 
 type ListCruiseSeriesEditionsParams struct {
-	IncludeHidden bool            `json:"include_hidden"`
 	SeriesID      types.NullInt64 `json:"series_id"`
+	IncludeHidden bool            `json:"include_hidden"`
 }
 
 type ListCruiseSeriesEditionsRow struct {
@@ -191,45 +181,31 @@ type ListCruiseSeriesEditionsRow struct {
 	Name        string           `json:"name"`
 	Edition     types.NullString `json:"edition"`
 	PublishedAt types.NullTime   `json:"published_at"`
-	VoyageCount int64            `json:"voyage_count"`
-	TotalMiles  float64          `json:"total_miles"`
-	TotalHours  float64          `json:"total_hours"`
 }
 
-// Editions of a series newest first by their first leg's embark date, each
-// with the miles and hours summed over its voyages. An edition without a
-// dated leg (NULL, or the empty string the leg forms send) is still being
-// planned, so it sorts before every dated one. Without include_hidden only
-// published editions are listed, and only their published legs set the
-// order and the voyage totals.
+// Editions of a series newest first by their first leg's embark date. An
+// edition without a dated leg (NULL, or the empty string the leg forms send)
+// is still being planned, so it sorts before every dated one. Without
+// include_hidden only published editions are listed, and only their
+// published legs set the order.
 //
-//	SELECT
-//	    c.id,
-//	    c.name,
-//	    c.edition,
-//	    c.published_at,
-//	    COUNT(v.id)::BIGINT AS voyage_count,
-//	    COALESCE(SUM(v.miles), 0)::DOUBLE PRECISION AS total_miles,
-//	    COALESCE(SUM(v.hours_total), 0)::DOUBLE PRECISION AS total_hours
+//	SELECT c.id, c.name, c.edition, c.published_at
 //	FROM cruises c
-//	LEFT JOIN voyages v ON v.cruise_id = c.id
-//	    AND ($1::BOOLEAN OR v.published_at IS NOT NULL)
-//	WHERE c.series_id = $2
-//	  AND ($1::BOOLEAN OR c.published_at IS NOT NULL)
-//	GROUP BY c.id
+//	WHERE c.series_id = $1
+//	  AND ($2::BOOLEAN OR c.published_at IS NOT NULL)
 //	ORDER BY (
 //	    SELECT MIN(NULLIF(l.embark_date, '')) FROM (
 //	        SELECT t.embark_date FROM trips t
 //	        WHERE t.cruise_id = c.id
-//	          AND ($1::BOOLEAN OR t.published_at IS NOT NULL)
+//	          AND ($2::BOOLEAN OR t.published_at IS NOT NULL)
 //	        UNION ALL
 //	        SELECT lv.embark_date FROM voyages lv
 //	        WHERE lv.cruise_id = c.id
-//	          AND ($1::BOOLEAN OR lv.published_at IS NOT NULL)
+//	          AND ($2::BOOLEAN OR lv.published_at IS NOT NULL)
 //	    ) l
 //	) DESC NULLS FIRST, c.edition DESC NULLS LAST, c.id DESC
 func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSeriesEditionsParams) ([]ListCruiseSeriesEditionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCruiseSeriesEditions, arg.IncludeHidden, arg.SeriesID)
+	rows, err := q.db.QueryContext(ctx, listCruiseSeriesEditions, arg.SeriesID, arg.IncludeHidden)
 	if err != nil {
 		return nil, err
 	}
@@ -242,9 +218,6 @@ func (q *Queries) ListCruiseSeriesEditions(ctx context.Context, arg ListCruiseSe
 			&i.Name,
 			&i.Edition,
 			&i.PublishedAt,
-			&i.VoyageCount,
-			&i.TotalMiles,
-			&i.TotalHours,
 		); err != nil {
 			return nil, err
 		}

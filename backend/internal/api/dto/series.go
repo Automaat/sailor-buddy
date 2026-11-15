@@ -25,16 +25,12 @@ type CruiseSeriesBody struct {
 	Kind        string  `json:"kind,omitempty" enum:"sea,inland" default:"sea" doc:"Kind of every edition: sea (morski) or inland (śródlądowy)"`
 }
 
-// CruiseSeriesEdition is one cruise of a series with the miles and hours
-// summed over its voyages.
+// CruiseSeriesEdition is one cruise (edition) of a series.
 type CruiseSeriesEdition struct {
 	CruiseID    int64      `json:"cruise_id"`
 	Name        string     `json:"name"`
 	Edition     *string    `json:"edition,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty" doc:"When the edition was published; absent while it is a hidden draft"`
-	VoyageCount int64      `json:"voyage_count"`
-	TotalMiles  float64    `json:"total_miles"`
-	TotalHours  float64    `json:"total_hours"`
 }
 
 // CruiseSeriesFromDB maps a database row to the API model.
@@ -70,9 +66,6 @@ func CruiseSeriesEditionsFromDB(rows []sqlcdb.ListCruiseSeriesEditionsRow) []Cru
 			Name:        r.Name,
 			Edition:     strPtr(r.Edition),
 			PublishedAt: timePtr(r.PublishedAt),
-			VoyageCount: r.VoyageCount,
-			TotalMiles:  r.TotalMiles,
-			TotalHours:  r.TotalHours,
 		}
 	}
 	return out
