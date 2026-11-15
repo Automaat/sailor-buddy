@@ -626,6 +626,10 @@ type Querier interface {
 	//
 	//  SELECT id, voyage_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE id = $1
 	GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion, error)
+	//GetVoyageOpinionByMember
+	//
+	//  SELECT id, voyage_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE voyage_id = $1 AND crew_member_id = $2
+	GetVoyageOpinionByMember(ctx context.Context, arg GetVoyageOpinionByMemberParams) (VoyageOpinion, error)
 	//GetVoyagesByYear
 	//
 	//  SELECT
@@ -1245,6 +1249,13 @@ type Querier interface {
 	//  WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
 	//  FOR NO KEY UPDATE OF c
 	LockVoyageCruiseForPublish(ctx context.Context, id int64) (int64, error)
+	// Row-locks the voyage for a captain write, which rechecks the captain on
+	// the locked row: a reassignment committed first is seen, a later one waits
+	// for the write. FOR NO KEY UPDATE serializes captain writes on one voyage
+	// and still lets foreign-key checks (KEY SHARE) of its ports through.
+	//
+	//  SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages WHERE id = $1 FOR NO KEY UPDATE
+	LockVoyageForCaptain(ctx context.Context, id int64) (Voyage, error)
 	// On a leg or voyage both people are on, the kept person's assignment stays.
 	// It takes the duplicate's patent number when it has none, and counts as
 	// added by an accepted sign-up only when both entries did, so a hand-added

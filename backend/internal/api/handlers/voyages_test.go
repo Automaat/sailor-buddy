@@ -18,7 +18,7 @@ func voyageTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 		m.getCruiseFn = func(_ context.Context, id int64) (sqlcdb.Cruise, error) { return sqlcdb.Cruise{ID: id}, nil }
 	}
 	_, api := humatest.New(t)
-	RegisterVoyageRoutes(api, m)
+	registerVoyageRoutes(api, &VoyageHandler{q: m, runTx: directTxRunner(m)})
 	return api
 }
 

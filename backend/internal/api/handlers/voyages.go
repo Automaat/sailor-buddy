@@ -16,37 +16,36 @@ import (
 )
 
 type VoyageHandler struct {
-	q sqlcdb.Querier
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
-func NewVoyageHandler(q sqlcdb.Querier) *VoyageHandler {
-	return &VoyageHandler{q: q}
+func NewVoyageHandler(q sqlcdb.Querier, db *sql.DB) *VoyageHandler {
+	return &VoyageHandler{q: q, runTx: retryDeadlock(sqlTxRunner(db))}
 }
 
 func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput) (*noContentOutput, error) {
-	voyage, err := getVoyageForCaptain(ctx, h.q, in.ID)
-	if err != nil {
-		return nil, err
+	err := captainVoyageWrite(ctx, h.q, h.runTx, in.ID, func(q sqlcdb.Querier, voyage sqlcdb.Voyage) error {
+		return q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
+			HoursTotal:   valOrZeroFloat(in.Body.HoursTotal),
+			HoursSail:    valOrZeroFloat(in.Body.HoursSail),
+			HoursEngine:  valOrZeroFloat(in.Body.HoursEngine),
+			HoursOver6bf: valOrZeroFloat(in.Body.HoursOver6bf),
+			Miles:        valOrZeroFloat(in.Body.Miles),
+			Days:         valOrZeroInt(in.Body.Days),
+			TidalWaters:  valOrZeroInt(in.Body.TidalWaters),
+			CaptainNotes: nullString(in.Body.CaptainNotes),
+			YachtID:      nullInt64(in.Body.YachtID),
+			TrackUrl:     nullString(trimmedPtr(in.Body.TrackUrl)),
+			VoyageCard:   nullString(trimmedPtr(in.Body.VoyageCard)),
+			ID:           voyage.ID,
+		})
+	})
+	if isForeignKeyViolation(err, "voyages_yacht_id_fkey") {
+		return nil, yachtNotFound()
 	}
-	if err := h.q.UpdateVoyageLog(ctx, sqlcdb.UpdateVoyageLogParams{
-		HoursTotal:   valOrZeroFloat(in.Body.HoursTotal),
-		HoursSail:    valOrZeroFloat(in.Body.HoursSail),
-		HoursEngine:  valOrZeroFloat(in.Body.HoursEngine),
-		HoursOver6bf: valOrZeroFloat(in.Body.HoursOver6bf),
-		Miles:        valOrZeroFloat(in.Body.Miles),
-		Days:         valOrZeroInt(in.Body.Days),
-		TidalWaters:  valOrZeroInt(in.Body.TidalWaters),
-		CaptainNotes: nullString(in.Body.CaptainNotes),
-		YachtID:      nullInt64(in.Body.YachtID),
-		TrackUrl:     nullString(trimmedPtr(in.Body.TrackUrl)),
-		VoyageCard:   nullString(trimmedPtr(in.Body.VoyageCard)),
-		ID:           voyage.ID,
-	}); err != nil {
-		if isForeignKeyViolation(err, "voyages_yacht_id_fkey") {
-			return nil, yachtNotFound()
-		}
-		slog.Error("update voyage log", "voyage_id", in.ID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to update voyage log")
+	if err != nil {
+		return nil, voyageMutationError(err, "update voyage log", "failed to update voyage log", []any{"voyage_id", in.ID})
 	}
 	return &noContentOutput{}, nil
 }
@@ -56,23 +55,24 @@ func (h *VoyageHandler) updateLog(ctx context.Context, in *updateVoyageLogInput)
 // here even though the club yacht list is otherwise admin-managed; picking it
 // for the voyage is a separate log or voyage update.
 func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (*yachtOutput, error) {
-	if _, err := getVoyageForCaptain(ctx, h.q, in.ID); err != nil {
-		return nil, err
-	}
-	yacht, err := h.q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
-		CreatedBy:      types.NullInt64{Int64: middleware.GetUser(ctx).UserID, Valid: true},
-		Name:           in.Body.Name,
-		RegistrationNo: nullString(in.Body.RegistrationNo),
-		YachtType:      nullString(in.Body.YachtType),
-		Berths:         nullInt64(in.Body.Berths),
-		LengthM:        nullFloat64(in.Body.LengthM),
-		BuildYear:      nullInt64(in.Body.BuildYear),
-		Engine:         nullString(in.Body.Engine),
-		OwnerName:      nullString(in.Body.OwnerName),
+	var yacht sqlcdb.Yacht
+	err := captainVoyageWrite(ctx, h.q, h.runTx, in.ID, func(q sqlcdb.Querier, _ sqlcdb.Voyage) error {
+		var err error
+		yacht, err = q.CreateYacht(ctx, sqlcdb.CreateYachtParams{
+			CreatedBy:      types.NullInt64{Int64: middleware.GetUser(ctx).UserID, Valid: true},
+			Name:           in.Body.Name,
+			RegistrationNo: nullString(in.Body.RegistrationNo),
+			YachtType:      nullString(in.Body.YachtType),
+			Berths:         nullInt64(in.Body.Berths),
+			LengthM:        nullFloat64(in.Body.LengthM),
+			BuildYear:      nullInt64(in.Body.BuildYear),
+			Engine:         nullString(in.Body.Engine),
+			OwnerName:      nullString(in.Body.OwnerName),
+		})
+		return err
 	})
 	if err != nil {
-		slog.Error("add voyage yacht", "voyage_id", in.ID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to add yacht")
+		return nil, voyageMutationError(err, "add voyage yacht", "failed to add yacht", []any{"voyage_id", in.ID})
 	}
 	return &yachtOutput{Body: dto.YachtFromDB(yacht)}, nil
 }
@@ -82,7 +82,40 @@ func (h *VoyageHandler) addYacht(ctx context.Context, in *addVoyageYachtInput) (
 // captain, as publication does not change who may edit a record; any other
 // caller who cannot see it gets 404, not 403.
 func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcdb.Voyage, error) {
-	voyage, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: true})
+	return authorizeVoyageCaptain(ctx, q, id, func(ctx context.Context, id int64) (sqlcdb.Voyage, error) {
+		return q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: true})
+	})
+}
+
+// captainVoyageWrite runs write in a transaction for an admin or the
+// voyage's captain. It refuses other callers before the transaction, then
+// row-locks the voyage and authorizes again against the locked row, so a
+// captain reassigned before the lock writes nothing and a reassignment
+// after it waits for the write to commit. write gets the transaction's
+// querier and the locked voyage.
+func captainVoyageWrite(ctx context.Context, q sqlcdb.Querier, runTx txRunner, id int64, write func(sqlcdb.Querier, sqlcdb.Voyage) error) error {
+	if _, err := getVoyageForCaptain(ctx, q, id); err != nil {
+		return err
+	}
+	return lockedCaptainWrite(ctx, runTx, id, write)
+}
+
+// lockedCaptainWrite is captainVoyageWrite without the check before the
+// transaction, for a caller that ran getVoyageForCaptain itself.
+func lockedCaptainWrite(ctx context.Context, runTx txRunner, id int64, write func(sqlcdb.Querier, sqlcdb.Voyage) error) error {
+	return runTx(ctx, func(tq sqlcdb.Querier) error {
+		voyage, err := authorizeVoyageCaptain(ctx, tq, id, tq.LockVoyageForCaptain)
+		if err != nil {
+			return err
+		}
+		return write(tq, voyage)
+	})
+}
+
+// authorizeVoyageCaptain loads a voyage with load and authorizes the caller
+// as getVoyageForCaptain describes.
+func authorizeVoyageCaptain(ctx context.Context, q sqlcdb.Querier, id int64, load func(context.Context, int64) (sqlcdb.Voyage, error)) (sqlcdb.Voyage, error) {
+	voyage, err := load(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
@@ -147,8 +180,11 @@ type updateVoyageLogInput struct {
 // RegisterVoyageRoutes wires the club voyage operations onto the API. Reads are
 // open to any member; mutations require an admin, except the post-cruise log
 // and its yacht picker, which the voyage's captain may also use.
-func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier) {
-	h := NewVoyageHandler(q)
+func RegisterVoyageRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
+	registerVoyageRoutes(api, NewVoyageHandler(q, db))
+}
+
+func registerVoyageRoutes(api huma.API, h *VoyageHandler) {
 	tag := []string{"Voyages"}
 
 	huma.Register(api, huma.Operation{

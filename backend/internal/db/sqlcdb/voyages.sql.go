@@ -548,6 +548,56 @@ func (q *Queries) LockVoyageCruiseForPublish(ctx context.Context, id int64) (int
 	return id_2, err
 }
 
+const lockVoyageForCaptain = `-- name: LockVoyageForCaptain :one
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages WHERE id = $1 FOR NO KEY UPDATE
+`
+
+// Row-locks the voyage for a captain write, which rechecks the captain on
+// the locked row: a reassignment committed first is seen, a later one waits
+// for the write. FOR NO KEY UPDATE serializes captain writes on one voyage
+// and still lets foreign-key checks (KEY SHARE) of its ports through.
+//
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages WHERE id = $1 FOR NO KEY UPDATE
+func (q *Queries) LockVoyageForCaptain(ctx context.Context, id int64) (Voyage, error) {
+	row := q.db.QueryRowContext(ctx, lockVoyageForCaptain, id)
+	var i Voyage
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedBy,
+		&i.CruiseID,
+		&i.Name,
+		&i.Year,
+		&i.EmbarkDate,
+		&i.DisembarkDate,
+		&i.Countries,
+		&i.StartPort,
+		&i.EndPort,
+		&i.CaptainName,
+		&i.YachtID,
+		&i.HoursTotal,
+		&i.HoursSail,
+		&i.HoursEngine,
+		&i.HoursOver6bf,
+		&i.Miles,
+		&i.Days,
+		&i.TidalWaters,
+		&i.CostTotal,
+		&i.CostPerPerson,
+		&i.ImageLogoUrl,
+		&i.ImagePhotoUrl,
+		&i.ImageRouteUrl,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CaptainNotes,
+		&i.TrackUrl,
+		&i.VoyageCard,
+		&i.CaptainPersonID,
+		&i.PublishedAt,
+	)
+	return i, err
+}
+
 const publishVoyage = `-- name: PublishVoyage :one
 UPDATE voyages SET
     published_at = COALESCE(published_at, CURRENT_TIMESTAMP),

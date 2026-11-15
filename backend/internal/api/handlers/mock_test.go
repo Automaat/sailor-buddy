@@ -49,6 +49,7 @@ type mockQuerier struct {
 	listVoyagePortsFn  func(ctx context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error)
 	suggestPortsFn     func(ctx context.Context, arg sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error)
 	deleteVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error
+	setPortPositionFn  func(ctx context.Context, arg sqlcdb.SetVoyagePortPositionParams) error
 
 	// crew assignments
 	updateTripCrewRoleFn    func(ctx context.Context, arg sqlcdb.UpdateTripCrewAssignmentRoleParams) (sqlcdb.UpdateTripCrewAssignmentRoleRow, error)
@@ -98,6 +99,7 @@ type mockQuerier struct {
 	listVoyageVoyageOpinionsFn func(ctx context.Context, voyageID int64) ([]sqlcdb.ListVoyageVoyageOpinionsRow, error)
 	getVoyageOpinionFn         func(ctx context.Context, id int64) (sqlcdb.VoyageOpinion, error)
 	deleteVoyageOpinionFn      func(ctx context.Context, id int64) error
+	getOpinionByMemberFn       func(ctx context.Context, arg sqlcdb.GetVoyageOpinionByMemberParams) (sqlcdb.VoyageOpinion, error)
 
 	// cruise series
 	listCruiseSeriesFn         func(ctx context.Context, arg sqlcdb.ListCruiseSeriesParams) ([]sqlcdb.CruiseSeries, error)
@@ -283,6 +285,12 @@ func (m *mockQuerier) GetVoyage(ctx context.Context, arg sqlcdb.GetVoyageParams)
 	return m.getVoyageFn(ctx, arg.ID)
 }
 
+// LockVoyageForCaptain reads the voyage through getVoyageFn: the mock has no
+// concurrent writers, so the lock has nothing to serialize.
+func (m *mockQuerier) LockVoyageForCaptain(ctx context.Context, id int64) (sqlcdb.Voyage, error) {
+	return m.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id, IncludeHidden: true})
+}
+
 func (m *mockQuerier) CreateVoyage(ctx context.Context, arg sqlcdb.CreateVoyageParams) (sqlcdb.Voyage, error) {
 	if m.createVoyageFn == nil {
 		panic("unexpected call to CreateVoyage")
@@ -346,6 +354,13 @@ func (m *mockQuerier) SuggestPorts(ctx context.Context, arg sqlcdb.SuggestPortsP
 		panic("unexpected call to SuggestPorts")
 	}
 	return m.suggestPortsFn(ctx, arg)
+}
+
+func (m *mockQuerier) SetVoyagePortPosition(ctx context.Context, arg sqlcdb.SetVoyagePortPositionParams) error {
+	if m.setPortPositionFn == nil {
+		panic("unexpected call to SetVoyagePortPosition")
+	}
+	return m.setPortPositionFn(ctx, arg)
 }
 
 func (m *mockQuerier) DeleteVoyagePort(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) error {
@@ -550,6 +565,13 @@ func (m *mockQuerier) DeleteVoyageOpinion(ctx context.Context, id int64) error {
 		panic("unexpected call to DeleteVoyageOpinion")
 	}
 	return m.deleteVoyageOpinionFn(ctx, id)
+}
+
+func (m *mockQuerier) GetVoyageOpinionByMember(ctx context.Context, arg sqlcdb.GetVoyageOpinionByMemberParams) (sqlcdb.VoyageOpinion, error) {
+	if m.getOpinionByMemberFn == nil {
+		panic("unexpected call to GetVoyageOpinionByMember")
+	}
+	return m.getOpinionByMemberFn(ctx, arg)
 }
 
 // --- yachts ---

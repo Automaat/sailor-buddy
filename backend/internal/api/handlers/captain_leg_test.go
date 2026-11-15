@@ -221,6 +221,9 @@ func TestVoyageCaptain_OpinionsAndPorts(t *testing.T) {
 				getVoyageCrewByMemberFn: func(context.Context, sqlcdb.GetVoyageCrewAssignmentByMemberParams) (sqlcdb.GetVoyageCrewAssignmentByMemberRow, error) {
 					return assignment, nil
 				},
+				getOpinionByMemberFn: func(context.Context, sqlcdb.GetVoyageOpinionByMemberParams) (sqlcdb.VoyageOpinion, error) {
+					return sqlcdb.VoyageOpinion{}, sql.ErrNoRows
+				},
 				upsertVoyageOpinionFn: func(_ context.Context, arg sqlcdb.UpsertVoyageOpinionParams) (sqlcdb.VoyageOpinion, error) {
 					wrote = append(wrote, "generate")
 					return sqlcdb.VoyageOpinion{ID: 7, VoyageID: arg.VoyageID, CrewMemberID: arg.CrewMemberID, FileFormat: arg.FileFormat}, nil

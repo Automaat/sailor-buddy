@@ -14,12 +14,12 @@ import (
 )
 
 type VoyagePortHandler struct {
-	q  sqlcdb.Querier
-	db *sql.DB
+	q     sqlcdb.Querier
+	runTx txRunner
 }
 
 func NewVoyagePortHandler(q sqlcdb.Querier, db *sql.DB) *VoyagePortHandler {
-	return &VoyagePortHandler{q: q, db: db}
+	return &VoyagePortHandler{q: q, runTx: retryDeadlock(sqlTxRunner(db))}
 }
 
 // --- huma operation input/output types ---
@@ -80,7 +80,10 @@ type portSuggestionsOutput struct {
 // port name suggestions. Reads are open to any member; mutations require an
 // admin or the voyage captain.
 func RegisterVoyagePortRoutes(api huma.API, q sqlcdb.Querier, db *sql.DB) {
-	h := NewVoyagePortHandler(q, db)
+	registerVoyagePortRoutes(api, NewVoyagePortHandler(q, db))
+}
+
+func registerVoyagePortRoutes(api huma.API, h *VoyagePortHandler) {
 	tag := []string{"Voyage ports"}
 
 	huma.Register(api, huma.Operation{
@@ -139,72 +142,66 @@ func (h *VoyagePortHandler) suggest(ctx context.Context, in *suggestPortsInput) 
 }
 
 func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*voyagePortOutput, error) {
-	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
-		return nil, err
-	}
-	port, err := h.q.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
-		VoyageID:  in.VoyageID,
-		Name:      in.Body.Name,
-		Latitude:  nullFloat64(in.Body.Latitude),
-		Longitude: nullFloat64(in.Body.Longitude),
-		Anchorage: in.Body.Anchorage,
-		Position:  valOrZeroInt(in.Body.Position),
+	var port sqlcdb.VoyagePort
+	err := captainVoyageWrite(ctx, h.q, h.runTx, in.VoyageID, func(q sqlcdb.Querier, _ sqlcdb.Voyage) error {
+		var err error
+		port, err = q.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
+			VoyageID:  in.VoyageID,
+			Name:      in.Body.Name,
+			Latitude:  nullFloat64(in.Body.Latitude),
+			Longitude: nullFloat64(in.Body.Longitude),
+			Anchorage: in.Body.Anchorage,
+			Position:  valOrZeroInt(in.Body.Position),
+		})
+		return err
 	})
 	if err != nil {
-		slog.Error("add voyage port", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to add voyage port")
+		return nil, voyageMutationError(err, "add voyage port", "failed to add voyage port", []any{"voyage_id", in.VoyageID})
 	}
 	return &voyagePortOutput{Body: dto.VoyagePortFromDB(port)}, nil
 }
 
 func (h *VoyagePortHandler) remove(ctx context.Context, in *removeVoyagePortInput) (*noContentOutput, error) {
-	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
-		return nil, err
-	}
-	if err := h.q.DeleteVoyagePort(ctx, sqlcdb.DeleteVoyagePortParams{
-		ID:       in.PortID,
-		VoyageID: in.VoyageID,
-	}); err != nil {
-		slog.Error("remove voyage port", "port_id", in.PortID, "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to remove voyage port")
+	err := captainVoyageWrite(ctx, h.q, h.runTx, in.VoyageID, func(q sqlcdb.Querier, _ sqlcdb.Voyage) error {
+		return q.DeleteVoyagePort(ctx, sqlcdb.DeleteVoyagePortParams{
+			ID:       in.PortID,
+			VoyageID: in.VoyageID,
+		})
+	})
+	if err != nil {
+		return nil, voyageMutationError(err, "remove voyage port", "failed to remove voyage port",
+			[]any{"port_id", in.PortID, "voyage_id", in.VoyageID})
 	}
 	return &noContentOutput{}, nil
 }
 
+// reorder renumbers the voyage's ports in one transaction, so a mid-list
+// failure cannot leave them half-renumbered. The voyage lock keeps the port
+// set read for the check from changing before the writes.
 func (h *VoyagePortHandler) reorder(ctx context.Context, in *reorderVoyagePortsInput) (*voyagePortListOutput, error) {
-	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
-		return nil, err
-	}
-	current, err := h.q.ListVoyagePorts(ctx, in.VoyageID)
-	if err != nil {
-		slog.Error("list voyage ports for reorder", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
-	}
-	if !portIDsMatch(current, in.Body.PortIDs) {
-		return nil, huma.Error422UnprocessableEntity("port_ids must list each port of the voyage exactly once")
-	}
-	// All position writes share one transaction so a mid-list failure cannot
-	// leave the ports in a half-renumbered state.
-	tx, err := h.db.BeginTx(ctx, nil)
-	if err != nil {
-		slog.Error("reorder voyage ports begin", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
-	}
-	defer func() { _ = tx.Rollback() }()
-	qtx := sqlcdb.New(tx)
-	for i, portID := range in.Body.PortIDs {
-		if err := qtx.SetVoyagePortPosition(ctx, sqlcdb.SetVoyagePortPositionParams{
-			ID:       portID,
-			VoyageID: in.VoyageID,
-			Position: int64(i),
-		}); err != nil {
-			slog.Error("reorder voyage port", "port_id", portID, "voyage_id", in.VoyageID, "err", err)
-			return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
+	var current []sqlcdb.VoyagePort
+	err := captainVoyageWrite(ctx, h.q, h.runTx, in.VoyageID, func(q sqlcdb.Querier, _ sqlcdb.Voyage) error {
+		var err error
+		current, err = q.ListVoyagePorts(ctx, in.VoyageID)
+		if err != nil {
+			return &QueryError{Op: "ListVoyagePorts", Err: err}
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		slog.Error("reorder voyage ports commit", "voyage_id", in.VoyageID, "err", err)
-		return nil, huma.Error500InternalServerError("failed to reorder voyage ports")
+		if !portIDsMatch(current, in.Body.PortIDs) {
+			return huma.Error422UnprocessableEntity("port_ids must list each port of the voyage exactly once")
+		}
+		for i, portID := range in.Body.PortIDs {
+			if err := q.SetVoyagePortPosition(ctx, sqlcdb.SetVoyagePortPositionParams{
+				ID:       portID,
+				VoyageID: in.VoyageID,
+				Position: int64(i),
+			}); err != nil {
+				return &QueryError{Op: "SetVoyagePortPosition", Err: err}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, voyageMutationError(err, "reorder voyage ports", "failed to reorder voyage ports", []any{"voyage_id", in.VoyageID})
 	}
 	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(reorderPorts(current, in.Body.PortIDs))}, nil
 }

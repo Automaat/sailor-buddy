@@ -123,6 +123,32 @@ func (q *Queries) GetVoyageOpinion(ctx context.Context, id int64) (VoyageOpinion
 	return i, err
 }
 
+const getVoyageOpinionByMember = `-- name: GetVoyageOpinionByMember :one
+SELECT id, voyage_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE voyage_id = $1 AND crew_member_id = $2
+`
+
+type GetVoyageOpinionByMemberParams struct {
+	VoyageID     int64 `json:"voyage_id"`
+	CrewMemberID int64 `json:"crew_member_id"`
+}
+
+// GetVoyageOpinionByMember
+//
+//	SELECT id, voyage_id, crew_member_id, file_path, file_format, created_at FROM voyage_opinions WHERE voyage_id = $1 AND crew_member_id = $2
+func (q *Queries) GetVoyageOpinionByMember(ctx context.Context, arg GetVoyageOpinionByMemberParams) (VoyageOpinion, error) {
+	row := q.db.QueryRowContext(ctx, getVoyageOpinionByMember, arg.VoyageID, arg.CrewMemberID)
+	var i VoyageOpinion
+	err := row.Scan(
+		&i.ID,
+		&i.VoyageID,
+		&i.CrewMemberID,
+		&i.FilePath,
+		&i.FileFormat,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listVoyageVoyageOpinions = `-- name: ListVoyageVoyageOpinions :many
 SELECT vo.id, vo.voyage_id, vo.crew_member_id, vo.file_path, vo.file_format, vo.created_at, cm.full_name
 FROM voyage_opinions vo

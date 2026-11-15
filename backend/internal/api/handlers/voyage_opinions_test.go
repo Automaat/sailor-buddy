@@ -20,7 +20,7 @@ func opinionTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 func opinionTestAPIIn(t *testing.T, m *mockQuerier, dir string) humatest.TestAPI {
 	t.Helper()
 	_, api := humatest.New(t)
-	RegisterVoyageOpinionRoutes(api, m, testUploadRoot(t, dir))
+	registerVoyageOpinionRoutes(api, &VoyageOpinionHandler{q: m, runTx: directTxRunner(m), uploads: testUploadRoot(t, dir)})
 	return api
 }
 

@@ -111,7 +111,7 @@ func keysetCases() []keysetCase {
 		},
 		{
 			name: "voyages", table: "voyages", path: "/voyages",
-			register: func(api huma.API, q sqlcdb.Querier, _ *sql.DB) { RegisterVoyageRoutes(api, q) },
+			register: RegisterVoyageRoutes,
 			seed: func(t *testing.T, conn *sql.DB, _ int64) {
 				t.Helper()
 				execSeed(t, conn, "INSERT INTO cruises (name, published_at) VALUES ('Parent', now())")

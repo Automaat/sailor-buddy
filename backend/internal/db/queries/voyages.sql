@@ -16,6 +16,13 @@ WHERE v.id = sqlc.arg(id)
   AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)));
 
+-- name: LockVoyageForCaptain :one
+-- Row-locks the voyage for a captain write, which rechecks the captain on
+-- the locked row: a reassignment committed first is seen, a later one waits
+-- for the write. FOR NO KEY UPDATE serializes captain writes on one voyage
+-- and still lets foreign-key checks (KEY SHARE) of its ports through.
+SELECT * FROM voyages WHERE id = $1 FOR NO KEY UPDATE;
+
 -- name: ListVoyages :many
 -- A set after_id starts the page after the cursor's sort key. The keyset
 -- tuple sorts descending like the ORDER BY: a NULL year or embark_date first.

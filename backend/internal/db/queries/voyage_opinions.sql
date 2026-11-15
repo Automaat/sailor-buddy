@@ -18,6 +18,9 @@ ORDER BY cm.full_name;
 -- name: GetVoyageOpinion :one
 SELECT * FROM voyage_opinions WHERE id = $1;
 
+-- name: GetVoyageOpinionByMember :one
+SELECT * FROM voyage_opinions WHERE voyage_id = $1 AND crew_member_id = $2;
+
 -- name: DeleteVoyageOpinion :exec
 DELETE FROM voyage_opinions WHERE id = $1;
 
