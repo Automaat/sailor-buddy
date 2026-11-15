@@ -534,75 +534,91 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 
 const listUserCruiseIDs = `-- name: ListUserCruiseIDs :many
 WITH me AS (
-    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
+    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $2
 ),
 my_crew AS (
     SELECT cm.id AS crew_id FROM crew_members cm, me
     WHERE cm.user_id = me.me_id
        OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+),
+took_part AS (
+    SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
+    WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+    UNION ALL
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
+    WHERE te.user_id = me.me_id AND te.status = 'accepted'
+    UNION ALL
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
+    JOIN crew_members cm ON cm.id = t.captain_person_id, me
+    WHERE cm.user_id = me.me_id
+    UNION ALL
+    SELECT v.cruise_id, v.published_at IS NOT NULL FROM voyages v
+    JOIN crew_members cm ON cm.id = v.captain_person_id, me
+    WHERE cm.user_id = me.me_id
+    UNION ALL
+    SELECT t.cruise_id, t.published_at IS NOT NULL FROM crew_assignments ca
+    JOIN trips t ON t.id = ca.trip_id
+    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+    UNION ALL
+    SELECT v.cruise_id, v.published_at IS NOT NULL FROM crew_assignments ca
+    JOIN voyages v ON v.id = ca.voyage_id
+    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
 )
-SELECT ce.cruise_id FROM cruise_enrollments ce, me
-WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
-UNION
-SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
-WHERE te.user_id = me.me_id AND te.status = 'accepted'
-UNION
-SELECT t.cruise_id FROM trips t
-JOIN crew_members cm ON cm.id = t.captain_person_id, me
-WHERE cm.user_id = me.me_id
-UNION
-SELECT v.cruise_id FROM voyages v
-JOIN crew_members cm ON cm.id = v.captain_person_id, me
-WHERE cm.user_id = me.me_id
-UNION
-SELECT t.cruise_id FROM crew_assignments ca
-JOIN trips t ON t.id = ca.trip_id
-JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-UNION
-SELECT v.cruise_id FROM crew_assignments ca
-JOIN voyages v ON v.id = ca.voyage_id
-JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-ORDER BY cruise_id
+SELECT DISTINCT tp.cruise_id FROM took_part tp
+JOIN cruises c ON c.id = tp.cruise_id
+WHERE $1::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
+ORDER BY tp.cruise_id
 `
+
+type ListUserCruiseIDsParams struct {
+	IncludeHidden bool  `json:"include_hidden"`
+	UserID        int64 `json:"user_id"`
+}
 
 // Cruises the user took part in: an accepted cruise or trip enrollment, a
 // leg captained by the account's person, or a crew-list entry linked to the
 // account, or one without an account that carries its email. Another
 // account's person never matches by email: it keeps the email that account
-// had when the person was created.
+// had when the person was created. Without include_hidden, a hidden cruise
+// and a cruise reached only through a hidden leg are left out.
 //
 //	WITH me AS (
-//	    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $1
+//	    SELECT u.id AS me_id, u.email AS me_email FROM users u WHERE u.id = $2
 //	),
 //	my_crew AS (
 //	    SELECT cm.id AS crew_id FROM crew_members cm, me
 //	    WHERE cm.user_id = me.me_id
 //	       OR (cm.user_id IS NULL AND cm.email IS NOT NULL AND lower(cm.email) = lower(me.me_email))
+//	),
+//	took_part AS (
+//	    SELECT ce.cruise_id, TRUE AS leg_published FROM cruise_enrollments ce, me
+//	    WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
+//	    UNION ALL
+//	    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
+//	    WHERE te.user_id = me.me_id AND te.status = 'accepted'
+//	    UNION ALL
+//	    SELECT t.cruise_id, t.published_at IS NOT NULL FROM trips t
+//	    JOIN crew_members cm ON cm.id = t.captain_person_id, me
+//	    WHERE cm.user_id = me.me_id
+//	    UNION ALL
+//	    SELECT v.cruise_id, v.published_at IS NOT NULL FROM voyages v
+//	    JOIN crew_members cm ON cm.id = v.captain_person_id, me
+//	    WHERE cm.user_id = me.me_id
+//	    UNION ALL
+//	    SELECT t.cruise_id, t.published_at IS NOT NULL FROM crew_assignments ca
+//	    JOIN trips t ON t.id = ca.trip_id
+//	    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
+//	    UNION ALL
+//	    SELECT v.cruise_id, v.published_at IS NOT NULL FROM crew_assignments ca
+//	    JOIN voyages v ON v.id = ca.voyage_id
+//	    JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
 //	)
-//	SELECT ce.cruise_id FROM cruise_enrollments ce, me
-//	WHERE ce.user_id = me.me_id AND ce.status = 'accepted'
-//	UNION
-//	SELECT t.cruise_id FROM trip_enrollments te JOIN trips t ON t.id = te.trip_id, me
-//	WHERE te.user_id = me.me_id AND te.status = 'accepted'
-//	UNION
-//	SELECT t.cruise_id FROM trips t
-//	JOIN crew_members cm ON cm.id = t.captain_person_id, me
-//	WHERE cm.user_id = me.me_id
-//	UNION
-//	SELECT v.cruise_id FROM voyages v
-//	JOIN crew_members cm ON cm.id = v.captain_person_id, me
-//	WHERE cm.user_id = me.me_id
-//	UNION
-//	SELECT t.cruise_id FROM crew_assignments ca
-//	JOIN trips t ON t.id = ca.trip_id
-//	JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-//	UNION
-//	SELECT v.cruise_id FROM crew_assignments ca
-//	JOIN voyages v ON v.id = ca.voyage_id
-//	JOIN my_crew mc ON mc.crew_id = ca.crew_member_id
-//	ORDER BY cruise_id
-func (q *Queries) ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listUserCruiseIDs, userID)
+//	SELECT DISTINCT tp.cruise_id FROM took_part tp
+//	JOIN cruises c ON c.id = tp.cruise_id
+//	WHERE $1::BOOLEAN OR (tp.leg_published AND c.published_at IS NOT NULL)
+//	ORDER BY tp.cruise_id
+func (q *Queries) ListUserCruiseIDs(ctx context.Context, arg ListUserCruiseIDsParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listUserCruiseIDs, arg.IncludeHidden, arg.UserID)
 	if err != nil {
 		return nil, err
 	}

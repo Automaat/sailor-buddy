@@ -177,8 +177,8 @@ func TestAuthHandler_MyCruises(t *testing.T) {
 			_, api := humatest.New(t)
 			var asked int64
 			registerAuthRoutes(api, authHandlerFor(&mockQuerier{
-				listUserCruiseIDsFn: func(_ context.Context, userID int64) ([]int64, error) {
-					asked = userID
+				listUserCruiseIDsFn: func(_ context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error) {
+					asked = arg.UserID
 					return tt.ids, nil
 				},
 			}))

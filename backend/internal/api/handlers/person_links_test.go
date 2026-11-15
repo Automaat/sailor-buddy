@@ -147,7 +147,7 @@ func (f *linkFixture) userIDOf(personID int64) types.NullInt64 {
 
 func (f *linkFixture) cruisesOf(userID int64) []int64 {
 	f.t.Helper()
-	ids, err := f.q.ListUserCruiseIDs(context.Background(), userID)
+	ids, err := f.q.ListUserCruiseIDs(context.Background(), sqlcdb.ListUserCruiseIDsParams{UserID: userID, IncludeHidden: true})
 	if err != nil {
 		f.t.Fatalf("list cruises: %v", err)
 	}

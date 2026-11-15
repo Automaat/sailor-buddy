@@ -157,7 +157,7 @@ type mockQuerier struct {
 	getUserByIDFn          func(ctx context.Context, id int64) (sqlcdb.User, error)
 	updateUserProfileFn    func(ctx context.Context, arg sqlcdb.UpdateUserProfileParams) (sqlcdb.User, error)
 	updateUserRoleFn       func(ctx context.Context, arg sqlcdb.UpdateUserRoleParams) error
-	listUserCruiseIDsFn    func(ctx context.Context, userID int64) ([]int64, error)
+	listUserCruiseIDsFn    func(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error)
 	updateUserCaptainFn    func(ctx context.Context, arg sqlcdb.UpdateUserCaptainParams) error
 	updateUserMembershipFn func(ctx context.Context, arg sqlcdb.UpdateUserMembershipParams) error
 	listUsersFn            func(ctx context.Context) ([]sqlcdb.User, error)
@@ -923,11 +923,11 @@ func (m *mockQuerier) CountTripLinkedEnrollments(ctx context.Context, tripID int
 	return m.countTripLinkedFn(ctx, tripID)
 }
 
-func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, userID int64) ([]int64, error) {
+func (m *mockQuerier) ListUserCruiseIDs(ctx context.Context, arg sqlcdb.ListUserCruiseIDsParams) ([]int64, error) {
 	if m.listUserCruiseIDsFn == nil {
 		panic("unexpected call to ListUserCruiseIDs")
 	}
-	return m.listUserCruiseIDsFn(ctx, userID)
+	return m.listUserCruiseIDsFn(ctx, arg)
 }
 
 func (m *mockQuerier) LockTripForSignUp(ctx context.Context, id int64) (sqlcdb.LockTripForSignUpRow, error) {

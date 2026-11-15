@@ -578,3 +578,35 @@ func waitForLockWait(t *testing.T, conn *sql.DB) {
 	}
 	t.Fatal("no session waited on the held cruise lock")
 }
+
+// TestMyCruisesHidesHiddenRecords: /auth/me/cruises leaves out a hidden
+// cruise and a cruise reached only through a hidden leg, except for the
+// captain group and admins.
+func TestMyCruisesHidesHiddenRecords(t *testing.T) {
+	conn := securityDatabase(t)
+	h, _ := securityRouter(t, conn)
+	f := seedVisibility(t, conn)
+	standalone := insertID(t, conn, `INSERT INTO cruises(name,published_at) VALUES('Standalone',now()) RETURNING id`)
+	hiddenLeg := insertID(t, conn, `INSERT INTO voyages(name,cruise_id) VALUES('Draft leg of standalone',$1) RETURNING id`, standalone)
+	for _, persona := range []string{"approved", "captain"} {
+		for _, v := range []int64{f.hiddenCruiseVoyage, hiddenLeg} {
+			if _, err := conn.Exec(`INSERT INTO crew_assignments(voyage_id,crew_member_id,role)
+				SELECT $1, cm.id, 'zalogant' FROM crew_members cm JOIN users u ON u.id = cm.user_id
+				WHERE u.firebase_uid = $2 ON CONFLICT DO NOTHING`, v, persona); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	want := map[string][]int64{
+		"approved": {f.cruise},
+		"captain":  {f.hiddenCruise, standalone},
+	}
+	for persona, ids := range want {
+		var got dto.MyCruises
+		mustDecode(t, mustGet(t, h, persona, "/api/auth/me/cruises"), &got)
+		slices.Sort(ids)
+		if !slices.Equal(got.CruiseIDs, ids) {
+			t.Errorf("%s cruise ids = %v, want %v", persona, got.CruiseIDs, ids)
+		}
+	}
+}
