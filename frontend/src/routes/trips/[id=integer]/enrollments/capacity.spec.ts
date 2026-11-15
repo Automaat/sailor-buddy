@@ -6,6 +6,8 @@ vi.mock('#lib/api/routes.js', () => ({
 	getTrip: vi.fn(),
 	getTripSignUp: vi.fn(),
 	listTripEnrollments: vi.fn(),
+	listAssignableCrew: vi.fn(),
+	createTripEnrollment: vi.fn(),
 	updateTripEnrollmentStatus: vi.fn(),
 	deleteTripEnrollment: vi.fn()
 }));
@@ -17,6 +19,7 @@ import { ApiError } from '#lib/api/client.js';
 import {
 	getTrip,
 	getTripSignUp,
+	listAssignableCrew,
 	listTripEnrollments,
 	updateTripEnrollmentStatus,
 	deleteTripEnrollment
@@ -42,9 +45,10 @@ function row(id: number, status: string, day: number) {
 	return {
 		id,
 		trip_id: 50,
+		crew_member_id: 200 + id,
 		user_id: 100 + id,
-		user_name: `Osoba ${id}`,
-		user_email: `osoba${id}@example.com`,
+		person_name: `Osoba ${id}`,
+		email: `osoba${id}@example.com`,
 		status,
 		created_at: `2026-01-0${day}T00:00:00Z`,
 		updated_at: `2026-01-0${day}T00:00:00Z`
@@ -69,6 +73,7 @@ beforeEach(() => {
 		.mockResolvedValue(makeTrip({ id: 50, name: 'Jacht A', max_crew: 2 }));
 	fn(getTripSignUp).mockReset().mockResolvedValue({ trip_id: 50, open: true, accepted_count: 2 });
 	fn(listTripEnrollments).mockReset().mockResolvedValue(fullLeg());
+	fn(listAssignableCrew).mockReset().mockResolvedValue([]);
 	fn(updateTripEnrollmentStatus).mockReset().mockResolvedValue(undefined);
 	fn(deleteTripEnrollment).mockReset().mockResolvedValue(undefined);
 	vi.spyOn(window, 'confirm').mockReturnValue(true);

@@ -81,7 +81,7 @@ func TestSignUp_AgainstDatabase(t *testing.T) {
 	if err := json.Unmarshal(resp.Body.Bytes(), &all); err != nil {
 		t.Fatalf("decode enrollments: %v; body=%s", err, resp.Body)
 	}
-	if len(all) != 1 || all[0].UserEmail != "guest@example.com" {
+	if len(all) != 1 || all[0].Email == nil || *all[0].Email != "guest@example.com" {
 		t.Fatalf("enrollments = %+v, want the guest's sign-up", all)
 	}
 

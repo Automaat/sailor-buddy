@@ -3,12 +3,15 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
 
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -54,62 +57,77 @@ func TestCrewHandler_Create(t *testing.T) {
 	})
 }
 
-func TestCrewHandler_AssignTripCrew(t *testing.T) {
-	t.Run("trip not found", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripFn: func(context.Context, int64) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{}, sql.ErrNoRows
-			},
-		}
-		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1, "role": "first_mate"})
-		if resp.Code != http.StatusNotFound {
-			t.Fatalf("got %d, want 404", resp.Code)
-		}
-	})
+// TestCrewHandler_TripCrewHasNoAddRoute checks a planned leg's crew cannot
+// be added by hand: it comes only from accepted sign-ups.
+func TestCrewHandler_TripCrewHasNoAddRoute(t *testing.T) {
+	resp := crewTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/trips/9/crew",
+		map[string]any{"crew_member_id": 1, "role": "first_mate"})
+	if resp.Code != http.StatusMethodNotAllowed && resp.Code != http.StatusNotFound {
+		t.Fatalf("POST /trips/9/crew = %d, want 405 or 404", resp.Code)
+	}
+}
 
-	t.Run("success", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{ID: id}, nil
-			},
-			getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{ID: id}, nil
-			},
-			createTripCrewFn: func(_ context.Context, arg sqlcdb.CreateTripCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
-				return sqlcdb.CrewAssignment{ID: 1, CrewMemberID: arg.CrewMemberID, Role: arg.Role, TripID: types.NullInt64{Int64: 9, Valid: true}}, nil
-			},
+func TestCrewHandler_UpdateTripCrewRole(t *testing.T) {
+	row := func(arg sqlcdb.UpdateTripCrewAssignmentRoleParams) sqlcdb.UpdateTripCrewAssignmentRoleRow {
+		return sqlcdb.UpdateTripCrewAssignmentRoleRow{
+			ID: arg.ID, TripID: types.NullInt64{Int64: arg.TripID, Valid: true}, CrewMemberID: 4,
+			Role: arg.Role, FullName: "Ola Nowak",
 		}
-		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1, "role": "first_mate"})
-		if resp.Code != http.StatusCreated {
-			t.Fatalf("got %d, want 201; body=%s", resp.Code, resp.Body)
-		}
-	})
-
-	t.Run("crew member of another owner rejected", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{ID: id}, nil
-			},
-			getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{}, sql.ErrNoRows
-			},
-		}
-		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1, "role": "first_mate"})
-		if resp.Code != http.StatusNotFound {
-			t.Fatalf("got %d, want 404; body=%s", resp.Code, resp.Body)
-		}
-	})
-
-	t.Run("missing role", func(t *testing.T) {
-		resp := crewTestAPI(t, &mockQuerier{}).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1})
-		if resp.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("got %d, want 422", resp.Code)
-		}
-	})
+	}
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		body     map[string]any
+		found    bool
+		want     int
+		wantRole string
+	}{
+		{name: "admin sets a trimmed role", ctx: userCtx(context.Background()), body: map[string]any{"role": "  oficer "}, found: true, want: http.StatusOK, wantRole: "oficer"},
+		{name: "blank role", ctx: userCtx(context.Background()), body: map[string]any{"role": "   "}, found: true, want: http.StatusUnprocessableEntity},
+		{name: "empty role", ctx: userCtx(context.Background()), body: map[string]any{"role": ""}, found: true, want: http.StatusUnprocessableEntity},
+		{name: "missing role", ctx: userCtx(context.Background()), body: map[string]any{}, found: true, want: http.StatusUnprocessableEntity},
+		{name: "too long role", ctx: userCtx(context.Background()), body: map[string]any{"role": strings.Repeat("ż", dto.MaxCrewRoleLen+1)}, found: true, want: http.StatusUnprocessableEntity},
+		{name: "entry of another trip", ctx: userCtx(context.Background()), body: map[string]any{"role": "oficer"}, want: http.StatusNotFound},
+		{name: "member", ctx: userCtxRole(context.Background(), "member"), body: map[string]any{"role": "oficer"}, found: true, want: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []sqlcdb.UpdateTripCrewAssignmentRoleParams
+			m := &mockQuerier{
+				updateTripCrewRoleFn: func(_ context.Context, arg sqlcdb.UpdateTripCrewAssignmentRoleParams) (sqlcdb.UpdateTripCrewAssignmentRoleRow, error) {
+					got = append(got, arg)
+					if !tt.found {
+						return sqlcdb.UpdateTripCrewAssignmentRoleRow{}, sql.ErrNoRows
+					}
+					return row(arg), nil
+				},
+			}
+			resp := crewTestAPI(t, m).PatchCtx(tt.ctx, "/trips/9/crew/3", tt.body)
+			if resp.Code != tt.want {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, tt.want, resp.Body)
+			}
+			if tt.want != http.StatusOK && tt.want != http.StatusNotFound {
+				if len(got) != 0 {
+					t.Fatalf("refused change wrote %+v", got)
+				}
+				return
+			}
+			want := sqlcdb.UpdateTripCrewAssignmentRoleParams{Role: "oficer", ID: 3, TripID: 9}
+			if len(got) != 1 || got[0] != want {
+				t.Fatalf("update = %+v, want [%+v]", got, want)
+			}
+			if tt.want != http.StatusOK {
+				return
+			}
+			var out dto.CrewAssignment
+			if err := json.Unmarshal(resp.Body.Bytes(), &out); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if out.ID != 3 || out.Role != tt.wantRole || out.FullName != "Ola Nowak" {
+				t.Fatalf("response = %+v, want entry 3 of Ola Nowak as %s", out, tt.wantRole)
+			}
+		})
+	}
 }
 
 func TestCrewHandler_AssignVoyageCrew(t *testing.T) {

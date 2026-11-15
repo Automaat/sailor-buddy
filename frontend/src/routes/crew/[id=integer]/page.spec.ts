@@ -68,6 +68,8 @@ function mergeOf(
 		shared_opinions: 0,
 		captained_trips: 0,
 		captained_voyages: 0,
+		trip_enrollments: 0,
+		shared_trip_enrollments: 0,
 		...counts
 	};
 }

@@ -202,6 +202,16 @@ account is never linked to an existing person automatically, not even by a
 matching e-mail: linking waits for admin approval. `GetCrewMemberByUserID`
 returns an account's person.
 
+A leg sign-up (`trip_enrollments`) belongs to a person (`crew_member_id`,
+unique per leg), not to an account, so a person without an account can be
+signed up by an admin. The account behind a sign-up is its person's
+`user_id`; it is not stored on the sign-up, so linking or unlinking an
+account and merging people keep sign-ups consistent. "The caller's
+sign-up" is the one of the caller's person. Cruise-level enrollments
+(`cruise_enrollments`) stay keyed by account; where both are counted, a
+cruise enrollment counts as its account's person. Deleting a person deletes
+its sign-ups, as it deletes its crew entries.
+
 Every trip and voyage is a leg of a club event: `cruise_id` is required on
 voyage bodies and on trip updates (`422 cruise not found` for an unknown id).
 `POST /api/trips` without `cruise_id` creates a standalone etap: one
@@ -212,8 +222,8 @@ leg enrollments cannot be moved to another cruise (`409`).
 A trip or voyage create or update, and a voyage log, with a `yacht_id` that
 does not exist (or that is deleted during the save) returns
 `422 yacht not found`.
-Assigning crew or a cruise enrollment to a trip that was completed or
-deleted at the same moment returns `409`.
+Assigning a cruise enrollment to a trip that was completed or deleted at
+the same moment returns `409`.
 
 Trip lifecycle: a `trip` is `planned`, then either `cancelled` or `completed`.
 Completing a trip atomically converts it into a `voyage` (a logged, finished
@@ -264,7 +274,7 @@ require the caller to be an `admin` (marked **admin** below).
 |--------|------|-------------|
 | GET | `/api/auth/me` | Current user: `{id, email, name, first_name, last_name, phone, onboarded, avatar_url, role, is_captain, membership, patent_type, patent_number, person_id}`; `person_id` is the account's person |
 | PUT | `/api/auth/me` | Save the caller's profile and finish onboarding (see below) |
-| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise or trip enrollment, leg captained by the account's person, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
+| GET | `/api/auth/me/cruises` | `{cruise_ids}` of cruises the caller took part in: accepted cruise enrollment or trip enrollment of the caller's person, leg captained by the account's person, or crew-list entry linked to the account (or, for a person without an account, carrying its email) |
 | GET | `/api/dashboard` | Caller's sea time; club totals for admins |
 
 `PUT /api/auth/me` body — `first_name` and `last_name` required (non-blank);
@@ -390,14 +400,18 @@ returns `404`
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
 | GET | `/api/trips/{tripID}/crew` | member | List trip crew | 200 |
-| POST | `/api/trips/{tripID}/crew` | **admin** | Assign crew member; `404` when the person is gone, `409` when already on the crew | 201 |
+| PATCH | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Change the role → `CrewAssignment` | 200 |
 | DELETE | `/api/trips/{tripID}/crew/{assignmentID}` | **admin** | Remove assignment | 204 |
 
-Assignment body — `crew_member_id` and `role` required:
+A planned leg's crew comes only from accepted sign-ups (see Crew from
+accepted sign-ups): there is no route to add someone by hand. To put a
+person on the crew, sign them up (`POST /api/trips/{tripID}/enrollments`,
+also for a person without an account) and accept the sign-up. A completed
+leg's crew is on its voyage, where hand assignment stays.
 
-```json
-{ "crew_member_id": 12, "role": "first_mate", "patent_number": null }
-```
+Role body: `{ "role": "oficer" }`. The role is trimmed and must be 1–100
+characters (`422` otherwise); only the role changes. `404 crew assignment
+not found` when the trip has no such entry.
 
 ### Trip enrollment (self-service)
 
@@ -405,9 +419,10 @@ Assignment body — `crew_member_id` and `role` required:
 |--------|------|------|-------------|
 | POST | `/api/trips/{tripID}/enroll-token` | **admin** | Generate share token → `{token}` |
 | DELETE | `/api/trips/{tripID}/enroll-token` | **admin** | Clear share token, 204 |
-| GET | `/api/trips/{tripID}/enrollments` | **admin** | List enrollments |
+| GET | `/api/trips/{tripID}/enrollments` | **admin** | List enrollments → `[TripEnrollmentDetail]` |
+| POST | `/api/trips/{tripID}/enrollments` | **admin** | Sign a person up → `TripEnrollmentDetail`, 201 |
 | PUT | `/api/trips/{tripID}/enrollments/{id}/status` | **admin** | Set status, 204; `409` when accepting on a full leg (see Leg capacity) |
-| PUT | `/api/trips/{tripID}/enrollments/{id}/payment-status` | **admin** | Set payment status → `Enrollment`, 200 |
+| PUT | `/api/trips/{tripID}/enrollments/{id}/payment-status` | **admin** | Set payment status → `TripEnrollmentDetail`, 200 |
 | DELETE | `/api/trips/{tripID}/enrollments/{id}` | **admin** | Delete enrollment, 204 |
 | GET | `/api/enroll/{token}` | public | Resolve token → trip or cruise |
 | POST | `/api/enroll/{token}` | member | Enroll self via a trip token, 201; a cruise token returns `422` |
@@ -416,9 +431,9 @@ Assignment body — `crew_member_id` and `role` required:
 `GET /api/enroll/{token}` returns `{"kind": "trip" \| "cruise", ...}` —
 the token may resolve to either. `404 invalid enrollment link` if unknown.
 Both kinds carry `trip_accepted`: `[{trip_id, accepted_count}]` for the
-token's trip or each child trip of the cruise. It counts distinct users with
-an accepted trip enrollment or an accepted cruise enrollment assigned to the
-trip; the enroll page shows free places as `max_crew` minus that count (a
+token's trip or each child trip of the cruise. It counts distinct people
+with an accepted trip enrollment or whose account has an accepted cruise
+enrollment assigned to the trip; the enroll page shows free places as `max_crew` minus that count (a
 `max_crew` of 0 or null means no limit) and hides them when the count is
 missing.
 For a cruise, `cruise` carries the edition-wide fields: `countries`,
@@ -453,6 +468,23 @@ that token, then its legs, and returns `404 invalid enrollment link` when it
 no longer does. A clear or regenerate that comes second waits for the
 sign-up to commit.
 
+A trip enrollment carries `crew_member_id` (its person). `user_id` is the
+person's account and is omitted for a person without one. The admin list
+(`TripEnrollmentDetail`) adds `person_name` and `email`: the person's
+e-mail, or the account's when the person has none, omitted when neither has
+one.
+
+Admin sign-up: `POST /api/trips/{tripID}/enrollments` with
+`{ "crew_member_id": 12, "note": "optional" }` signs up any person,
+including one without an account. It is an admin action, so switched-off
+sign-ups, a passed `sign_up_deadline` and a hidden leg do not stop it, but
+the leg must be `planned` (`409 sign-up closed: the leg is not planned`).
+It starts `pending` or `waitlisted` by the same rule as a self sign-up (see
+Leg capacity), under the same leg lock. `409` when the person already has a
+sign-up for the leg, `422 person not found` for an unknown person (or one
+deleted or merged away meanwhile), `404` for an unknown trip. Accepting it
+puts the person on the crew list like any accepted sign-up.
+
 Payment status: every trip enrollment carries `payment_status`, set by hand
 by an admin after checking transfers: `unpaid` (default for a new sign-up),
 `deposit` (first payment received) or `paid` (paid in full). No amounts are
@@ -464,9 +496,10 @@ enrollments omit `payment_status`.
 ### Leg sign-up (one click)
 
 A signed-in user signs up for a leg (trip) of a cruise without a share
-token. A sign-up is a `trip_enrollments` row. Any signed-in account may sign
-up, including `gosc` and users who have not finished onboarding; requests
-without a valid token get `401` from the auth middleware.
+token. A sign-up is a `trip_enrollments` row of the caller's person. Any
+signed-in account may sign up, including `gosc` and users who have not
+finished onboarding; requests without a valid token get `401` from the auth
+middleware.
 
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
@@ -475,7 +508,7 @@ without a valid token get `401` from the auth middleware.
 | PUT | `/api/trips/{tripID}/sign-up/note` | member | Set the note on the caller's sign-up → `Enrollment` | 200 |
 | DELETE | `/api/trips/{tripID}/sign-up` | member | Withdraw the caller's pending or waitlisted sign-up | 204 |
 | GET | `/api/cruises/{cruiseID}/leg-sign-ups` | member | `LegSignUp` for every trip of the cruise | 200 |
-| GET | `/api/cruises/{cruiseID}/trip-enrollments` | **admin** | Every leg sign-up of the cruise with the user, by leg then sign-up time | 200 |
+| GET | `/api/cruises/{cruiseID}/trip-enrollments` | **admin** | Every leg sign-up of the cruise as `TripEnrollmentDetail`, by leg then sign-up time | 200 |
 
 `LegSignUp` is `{trip_id, open, accepted_count, enrollment?,
 waitlist_position?}`: `open` is true while the leg is `planned`, its
@@ -514,23 +547,26 @@ Status values: `pending`, `accepted`, `rejected`, `waitlisted`.
 ### Leg capacity and waiting list
 
 A leg's `max_crew` caps its accepted crew; `max_crew` unset or `0` means no
-limit. Accepted crew counts distinct users with an accepted trip enrollment
-or an accepted cruise enrollment assigned to the leg, as `accepted_count`.
+limit. Accepted crew counts distinct people with an accepted trip
+enrollment, or whose account has an accepted cruise enrollment assigned to
+the leg, as `accepted_count`. A person without an account takes one place
+like anyone else.
 
 - Accept: `PUT /api/trips/{tripID}/enrollments/{id}/status` with
   `accepted` returns `409 leg is full: all N places are taken` when other
-  users' accepted crew already fills `max_crew`, and changes nothing. The
+  people's accepted crew already fills `max_crew`, and changes nothing. The
   trip row is locked for the change, so concurrent accepts for the last
   place serialize and the later one gets `409`. Other status changes,
   including from `accepted`, always apply. `404` when the enrollment does
   not exist or belongs to another trip.
 - Waitlist threshold: a new leg sign-up (`POST .../sign-up`,
   `POST /api/enroll/{token}/legs`, `POST /api/enroll/{token}` with a trip
-  token) starts `waitlisted` when accepted plus pending users already hold
+  token, and an admin's `POST /api/trips/{tripID}/enrollments`) starts
+  `waitlisted` when accepted plus pending people already hold
   `max_crew` places, or when anyone is already waitlisted on the leg, so a
   newcomer never gets ahead of an earlier sign-up. Otherwise it starts
   `pending`. Pending sign-ups count because they are the queue an admin
-  reviews first; rejected and waitlisted ones hold no place. All three
+  reviews first; rejected and waitlisted ones hold no place. All these
   paths lock the leg, so concurrent sign-ups count one another.
 - Position: `waitlist_position` (1, 2, ...) orders a leg's waitlisted trip
   enrollments by sign-up time, then id. Payment does not change it.
@@ -547,18 +583,23 @@ enrollment belongs to another cruise.
 
 ### Crew from accepted sign-ups
 
-Accepting a sign-up for a leg, a trip enrollment or a cruise enrollment
-assigned to the leg, puts the user's person on the leg's crew list
-(`/api/trips/{tripID}/crew`) with role `zalogant`, in the same transaction
-as the status change. A person already on the list keeps their entry. The
-entry carries `crew_assignments.added_by_acceptance`, which is not exposed
-in the API. Setting the sign-up to any other status, deleting it, or moving
-an accepted cruise enrollment off the leg removes that entry once the user
-holds no other accepted sign-up for the leg. Crew the admin added by hand
-stays. A refused accept (`409`) changes nothing. Pending and waitlisted
-sign-ups add no crew. Acceptance waits for a concurrent merge or delete of
-the user's person; when the person still changed under it, or it kept
-losing deadlocks to merges, it answers a retryable `409`.
+This is the only way onto a planned leg's crew list. Accepting a sign-up
+for a leg, a trip enrollment or a cruise enrollment assigned to the leg,
+puts the sign-up's person (for a cruise enrollment, its account's person)
+on the leg's crew list (`/api/trips/{tripID}/crew`) with role `zalogant`,
+in the same transaction as the status change; an admin may change the role
+afterwards (`PATCH /api/trips/{tripID}/crew/{assignmentID}`). A person
+already on the list keeps their entry. The entry carries
+`crew_assignments.added_by_acceptance`, which is not exposed in the API.
+Setting the sign-up to any other status, deleting it, or moving an accepted
+cruise enrollment off the leg removes that entry once the person holds no
+other accepted sign-up for the leg. Entries added by hand before crew came
+only from sign-ups stay, and `DELETE /api/trips/{tripID}/crew/
+{assignmentID}` removes any entry. A refused accept (`409`) changes
+nothing. Pending and waitlisted sign-ups add no crew. Acceptance and
+sign-ups wait for a concurrent merge or delete of the person; when an
+account's person still changed under them, or they kept losing deadlocks to
+merges, they answer a retryable `409`.
 
 Every status change, leg move and delete of a sign-up locks the legs it
 touches before the enrollment row, so concurrent changes for one leg apply
@@ -841,6 +882,10 @@ account owner overwrite its person's name, phone and patent number.
 `POST /api/crew/{id}/merge` with `{ "duplicate_id": 12 }` keeps person
 `{id}` and removes the duplicate, in one transaction:
 
+- Leg sign-ups move to the kept person. Where both signed up for the same
+  leg, one sign-up stays: the stronger status (`accepted` > `pending` >
+  `waitlisted` > `rejected`), the kept person's on a tie, with the more
+  advanced `payment_status` of the two (`paid` > `deposit` > `unpaid`).
 - Crew assignments (legs and voyages), voyage opinions and leg and voyage
   captaincies (`captain_person_id`) and "To ja" requests move to the kept person. Where both are on the same leg or voyage, the kept person's
   assignment stays (it takes the duplicate's patent number if it has none)
@@ -855,17 +900,19 @@ account owner overwrite its person's name, phone and patent number.
   different accounts → `409`, nothing changes. `users` rows are never
   merged.
 - The merge locks the moving account, both people, then every leg and
-  voyage either person is on or captains (the person-then-leg order of leg
+  voyage either person is on, signed up for or captains (the person-then-leg order of leg
   completion and person deletion), so a concurrent profile save, leg
   completion or new crew assignment waits for it. Sign-up acceptance locks
   the leg, then the account's person; whichever side loses a deadlock
   between the two is retried up to three times. Go callers of
   `MergePeople` should retry on `40P01` too.
 - An acceptance that waited for the merge adds the kept person, which now
-  holds the account. Hand-assigning the duplicate, or any person deleted
-  meanwhile, to a leg or voyage → `404`. Hand-assigning the kept person
-  where the merge moves the duplicate's entry → `409`, as for any person
-  already on the crew list; a deadlock with the merge is retried first.
+  holds the sign-up and the account. Hand-assigning the duplicate, or any
+  person deleted meanwhile, to a voyage → `404`; an admin sign-up of such a
+  person → `422`. Hand-assigning the kept person where the merge moves the
+  duplicate's entry → `409`, as for any person already on the crew list,
+  and likewise an admin sign-up where the merge moves the duplicate's
+  sign-up; a deadlock with the merge is retried first.
 - Where both are on the same leg, the kept entry counts as added by an
   accepted sign-up (`added_by_acceptance`) only when both entries did.
 - The same ID twice, or merged `other_names` over the 20 × 200 limit →
@@ -873,7 +920,8 @@ account owner overwrite its person's name, phone and patent number.
 
 Both endpoints return `{ person, duplicate, trip_assignments,
 voyage_assignments, shared_assignments, opinions, shared_opinions,
-captained_trips, captained_voyages }`: the
+captained_trips, captained_voyages, trip_enrollments,
+shared_trip_enrollments }`: the
 kept person after the merge, the duplicate, and the duplicate's row counts
 (`shared_*` are the ones that collapse). The preview changes nothing and
 fails the same way. Inside Go, `handlers.MergePeople` runs the merge on a

@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
 	list: vi.fn(),
 	post: vi.fn(),
 	put: vi.fn(),
+	patch: vi.fn(),
 	del: vi.fn(),
 	download: vi.fn(),
 	upload: vi.fn()
@@ -87,10 +88,13 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		args: ['/trips/{tripID}/crew', { path: { tripID: 5 } }]
 	},
 	{
-		name: 'assignTripCrew',
-		run: () => routes.assignTripCrew(5, body),
-		verb: 'post',
-		args: ['/trips/{tripID}/crew', { path: { tripID: 5 }, body }]
+		name: 'updateTripCrewRole',
+		run: () => routes.updateTripCrewRole(5, 9, 'oficer'),
+		verb: 'patch',
+		args: [
+			'/trips/{tripID}/crew/{assignmentID}',
+			{ path: { tripID: 5, assignmentID: 9 }, body: { role: 'oficer' } }
+		]
 	},
 	{
 		name: 'removeTripCrew',
@@ -115,6 +119,15 @@ const cases: Array<{ name: string; run: () => unknown; verb: Verb; args: unknown
 		run: () => routes.listTripEnrollments(5),
 		verb: 'get',
 		args: ['/trips/{tripID}/enrollments', { path: { tripID: 5 } }]
+	},
+	{
+		name: 'createTripEnrollment',
+		run: () => routes.createTripEnrollment(5, { crew_member_id: 7, note: 'x' }),
+		verb: 'post',
+		args: [
+			'/trips/{tripID}/enrollments',
+			{ path: { tripID: 5 }, body: { crew_member_id: 7, note: 'x' } }
+		]
 	},
 	{
 		name: 'updateTripEnrollmentStatus',

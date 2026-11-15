@@ -1,16 +1,32 @@
 -- name: CreateTripEnrollment :one
 -- status is 'pending', or 'waitlisted' when the leg's places are taken.
-INSERT INTO trip_enrollments (trip_id, user_id, note, status)
+INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
 VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: ListTripEnrollments :many
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+-- A trip's sign-ups with their person. user_id and account_email are the
+-- person's account, NULL for a person without one.
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
        te.created_at, te.updated_at,
-       u.name AS user_name, u.email AS user_email
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
 FROM trip_enrollments te
-JOIN users u ON u.id = te.user_id
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
 WHERE te.trip_id = $1
-ORDER BY te.created_at;
+ORDER BY te.created_at, te.id;
+
+-- name: GetTripEnrollmentDetail :one
+-- One sign-up of a trip with its person, as in ListTripEnrollments. No row
+-- when the trip has no such sign-up.
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+       te.created_at, te.updated_at,
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
+FROM trip_enrollments te
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
+WHERE te.id = $1 AND te.trip_id = $2;
 
 -- name: UpdateTripEnrollmentStatus :exec
 UPDATE trip_enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;
@@ -23,11 +39,21 @@ WHERE id = $1 AND trip_id = $2
 FOR UPDATE;
 
 -- name: UpdateTripEnrollmentPaymentStatus :one
--- Sets the manual payment status of one sign-up of a trip. The review
--- status is left unchanged. No row when the trip has no such enrollment.
-UPDATE trip_enrollments SET payment_status = $1, updated_at = CURRENT_TIMESTAMP
-WHERE id = $2 AND trip_id = $3
-RETURNING *;
+-- Sets the manual payment status of one sign-up of a trip and returns it
+-- with its person, as in ListTripEnrollments. The review status is left
+-- unchanged. No row when the trip has no such enrollment.
+WITH updated AS (
+    UPDATE trip_enrollments SET payment_status = sqlc.arg(payment_status), updated_at = CURRENT_TIMESTAMP
+    WHERE trip_enrollments.id = sqlc.arg(id) AND trip_enrollments.trip_id = sqlc.arg(trip_id)
+    RETURNING *
+)
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
+       te.created_at, te.updated_at,
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
+FROM updated te
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id;
 
 -- name: DeleteTripEnrollment :exec
 DELETE FROM trip_enrollments WHERE id = $1;
@@ -40,21 +66,25 @@ FROM trip_enrollments
 WHERE trip_id = $1;
 
 -- name: GetUserTripEnrollment :one
+-- The user's sign-up for a trip: the one of the account's person.
 SELECT * FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2;
+WHERE trip_id = sqlc.arg(trip_id)
+  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = sqlc.arg(user_id)::BIGINT);
 
 -- name: DeleteTripEnrollmentsForTrip :exec
 DELETE FROM trip_enrollments WHERE trip_id = $1;
 
 -- name: CountAcceptedByCruiseTrip :many
--- Accepted crew per trip of a cruise: distinct users with an accepted direct
--- trip enrollment or an accepted cruise enrollment assigned to the trip.
+-- Accepted crew per trip of a cruise: distinct people with an accepted
+-- direct trip enrollment, or whose account has an accepted cruise
+-- enrollment assigned to the trip.
 SELECT t.id AS trip_id,
     (SELECT COUNT(*) FROM (
-        SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
+        SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = t.id AND te.status = 'accepted'
         UNION
-        SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = t.id AND ce.status = 'accepted'
-    ) accepted_users)::BIGINT AS accepted
+        SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+        WHERE ce.trip_id = t.id AND ce.status = 'accepted'
+    ) accepted_people)::BIGINT AS accepted
 FROM trips t
 WHERE t.cruise_id = $1
 ORDER BY t.id;
@@ -62,35 +92,40 @@ ORDER BY t.id;
 -- name: CountAcceptedForTrip :one
 -- Accepted crew of one trip, counted the same way as CountAcceptedByCruiseTrip.
 SELECT COUNT(*)::BIGINT AS accepted FROM (
-    SELECT te.user_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
+    SELECT te.crew_member_id FROM trip_enrollments te WHERE te.trip_id = $1 AND te.status = 'accepted'
     UNION
-    SELECT ce.user_id FROM cruise_enrollments ce WHERE ce.trip_id = $1 AND ce.status = 'accepted'
-) accepted_users;
+    SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+    WHERE ce.trip_id = $1 AND ce.status = 'accepted'
+) accepted_people;
 
 -- name: CountOtherAcceptedForTrip :one
--- Accepted crew of one trip other than the given user, counted the same way
--- as CountAcceptedForTrip. Accepting that user's sign-up takes one more place.
+-- Accepted crew of one trip other than the given person, counted the same
+-- way as CountAcceptedForTrip. Accepting that person's sign-up takes one
+-- more place.
 SELECT COUNT(*)::BIGINT AS accepted FROM (
-    SELECT te.user_id FROM trip_enrollments te
-    WHERE te.trip_id = $1 AND te.status = 'accepted' AND te.user_id <> $2
+    SELECT te.crew_member_id FROM trip_enrollments te
+    WHERE te.trip_id = sqlc.arg(trip_id)::BIGINT AND te.status = 'accepted'
+      AND te.crew_member_id <> sqlc.arg(crew_member_id)::BIGINT
     UNION
-    SELECT ce.user_id FROM cruise_enrollments ce
-    WHERE ce.trip_id = $1 AND ce.status = 'accepted' AND ce.user_id <> $2
-) accepted_users;
+    SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
+    WHERE ce.trip_id = sqlc.arg(trip_id)::BIGINT AND ce.status = 'accepted'
+      AND cm.id <> sqlc.arg(crew_member_id)::BIGINT
+) accepted_people;
 
 -- name: CountTripPlaceUse :one
--- How one trip's places are used. taken counts distinct users with an
--- accepted or pending direct trip enrollment or cruise enrollment assigned
--- to the trip; waitlisted counts its waitlisted trip enrollments. A new
--- sign-up is waitlisted once taken reaches max_crew or anyone is waiting.
+-- How one trip's places are used. taken counts distinct people with an
+-- accepted or pending direct trip enrollment, or whose account has such a
+-- cruise enrollment assigned to the trip; waitlisted counts its waitlisted
+-- trip enrollments. A new sign-up is waitlisted once taken reaches max_crew
+-- or anyone is waiting.
 SELECT
     (SELECT COUNT(*) FROM (
-        SELECT te.user_id FROM trip_enrollments te
+        SELECT te.crew_member_id FROM trip_enrollments te
         WHERE te.trip_id = sqlc.arg(trip_id)::BIGINT AND te.status IN ('accepted', 'pending')
         UNION
-        SELECT ce.user_id FROM cruise_enrollments ce
+        SELECT cm.id FROM cruise_enrollments ce JOIN crew_members cm ON cm.user_id = ce.user_id
         WHERE ce.trip_id = sqlc.arg(trip_id)::BIGINT AND ce.status IN ('accepted', 'pending')
-    ) taken_users)::BIGINT AS taken,
+    ) taken_people)::BIGINT AS taken,
     (SELECT COUNT(*) FROM trip_enrollments w
      WHERE w.trip_id = sqlc.arg(trip_id)::BIGINT AND w.status = 'waitlisted')::BIGINT AS waitlisted;
 
@@ -105,22 +140,24 @@ WHERE me.id = $1
   AND (w.created_at, w.id) <= (me.created_at, me.id);
 
 -- name: CreateTripEnrollmentIfAbsent :one
--- Inserts a trip enrollment unless the user already has one for the trip;
+-- Inserts a trip enrollment unless the person already has one for the trip;
 -- returns no row (sql.ErrNoRows) when the enrollment already exists. status
 -- is 'pending', or 'waitlisted' when the leg's places are taken.
-INSERT INTO trip_enrollments (trip_id, user_id, note, status)
+INSERT INTO trip_enrollments (trip_id, crew_member_id, note, status)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (trip_id, user_id) DO NOTHING
+ON CONFLICT (trip_id, crew_member_id) DO NOTHING
 RETURNING *;
 
 -- name: ListUserCruiseTripEnrollments :many
--- A user's trip (leg) enrollments across the trips of one cruise, in leg order.
--- Without include_hidden, enrollments in hidden legs are left out; the
--- caller has already checked the cruise itself is visible.
+-- A user's trip (leg) enrollments, those of the account's person, across
+-- the trips of one cruise, in leg order. Without include_hidden,
+-- enrollments in hidden legs are left out; the caller has already checked
+-- the cruise itself is visible.
 SELECT te.*
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
-WHERE t.cruise_id = sqlc.arg(cruise_id) AND te.user_id = sqlc.arg(user_id)
+WHERE t.cruise_id = sqlc.arg(cruise_id)
+  AND te.crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = sqlc.arg(user_id)::BIGINT)
   AND (sqlc.arg(include_hidden)::BOOLEAN OR t.published_at IS NOT NULL)
 ORDER BY t.embark_date ASC, t.id ASC;
 
@@ -161,10 +198,11 @@ WHERE t.id = $1
 FOR NO KEY UPDATE OF t;
 
 -- name: UpdateUserTripEnrollmentNote :one
--- Sets the note on the caller's own sign-up for a trip. No row when the
--- user has no sign-up for it.
-UPDATE trip_enrollments SET note = $3, updated_at = CURRENT_TIMESTAMP
-WHERE trip_id = $1 AND user_id = $2
+-- Sets the note on the caller's own sign-up for a trip, the one of the
+-- account's person. No row when the user has no sign-up for it.
+UPDATE trip_enrollments SET note = sqlc.narg(note), updated_at = CURRENT_TIMESTAMP
+WHERE trip_id = sqlc.arg(trip_id)
+  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = sqlc.arg(user_id)::BIGINT)
 RETURNING *;
 
 -- name: WithdrawUserTripEnrollment :one
@@ -172,17 +210,55 @@ RETURNING *;
 -- the waiting list and no payment is recorded on it. No row when the user
 -- has no such sign-up for it.
 DELETE FROM trip_enrollments
-WHERE trip_id = $1 AND user_id = $2 AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
+WHERE trip_id = sqlc.arg(trip_id)
+  AND crew_member_id = (SELECT cm.id FROM crew_members cm WHERE cm.user_id = sqlc.arg(user_id)::BIGINT)
+  AND status IN ('pending', 'waitlisted') AND payment_status = 'unpaid'
 RETURNING id;
 
 -- name: ListCruiseTripEnrollments :many
--- Every trip (leg) enrollment of a cruise with the enrolled user, grouped by
--- leg in leg order, then by sign-up time.
-SELECT te.id, te.trip_id, te.user_id, te.note, te.status, te.payment_status,
+-- Every trip (leg) enrollment of a cruise with its person, as in
+-- ListTripEnrollments, grouped by leg in leg order, then by sign-up time.
+SELECT te.id, te.trip_id, te.crew_member_id, cm.user_id, te.note, te.status, te.payment_status,
        te.created_at, te.updated_at,
-       u.name AS user_name, u.email AS user_email
+       cm.full_name AS person_name,
+       cm.email AS person_email, u.email AS account_email
 FROM trip_enrollments te
 JOIN trips t ON t.id = te.trip_id
-JOIN users u ON u.id = te.user_id
+JOIN crew_members cm ON cm.id = te.crew_member_id
+LEFT JOIN users u ON u.id = cm.user_id
 WHERE t.cruise_id = $1
 ORDER BY t.embark_date ASC, t.id ASC, te.created_at ASC, te.id ASC;
+
+-- name: MergeSharedTripEnrollmentPayments :exec
+-- On a leg both people signed up for, both sign-ups take the more advanced
+-- payment status of the two (unpaid < deposit < paid), so the one a merge
+-- keeps (DeleteSharedTripEnrollments) loses no recorded payment.
+UPDATE trip_enrollments w SET
+    payment_status = (ARRAY['unpaid', 'deposit', 'paid'])[GREATEST(
+        COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], k.payment_status), 1),
+        COALESCE(array_position(ARRAY['unpaid', 'deposit', 'paid'], d.payment_status), 1))],
+    updated_at = CURRENT_TIMESTAMP
+FROM trip_enrollments k
+JOIN trip_enrollments d ON d.trip_id = k.trip_id
+WHERE k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND w.id IN (k.id, d.id)
+  AND k.payment_status <> d.payment_status;
+
+-- name: DeleteSharedTripEnrollments :execrows
+-- On a leg both people signed up for, a merge keeps the sign-up with the
+-- stronger status (accepted > pending > waitlisted > rejected), the kept
+-- person's on a tie, and deletes the other one.
+DELETE FROM trip_enrollments x
+USING trip_enrollments k, trip_enrollments d
+WHERE k.crew_member_id = sqlc.arg(kept_id)::BIGINT
+  AND d.crew_member_id = sqlc.arg(duplicate_id)::BIGINT
+  AND d.trip_id = k.trip_id
+  AND x.id = CASE
+      WHEN COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], d.status), 0)
+         > COALESCE(array_position(ARRAY['rejected', 'waitlisted', 'pending', 'accepted'], k.status), 0)
+      THEN k.id ELSE d.id END;
+
+-- name: MoveTripEnrollments :execrows
+UPDATE trip_enrollments SET crew_member_id = sqlc.arg(kept_id)::BIGINT
+WHERE crew_member_id = sqlc.arg(duplicate_id)::BIGINT;

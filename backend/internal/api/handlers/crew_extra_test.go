@@ -216,50 +216,6 @@ func TestCrewHandler_RemoveVoyageCrew(t *testing.T) {
 	})
 }
 
-func TestCrewHandler_AssignTripCrew_Errors(t *testing.T) {
-	t.Run("verify trip db error", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripFn: func(context.Context, int64) (sqlcdb.Trip, error) {
-				return sqlcdb.Trip{}, errors.New("fail")
-			},
-		}
-		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1, "role": "mate"})
-		if resp.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want 500", resp.Code)
-		}
-	})
-
-	t.Run("verify crew member db error", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripFn: func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
-			getCrewMemberFn: func(context.Context, int64) (sqlcdb.CrewMember, error) {
-				return sqlcdb.CrewMember{}, errors.New("fail")
-			},
-		}
-		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1, "role": "mate"})
-		if resp.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want 500", resp.Code)
-		}
-	})
-
-	t.Run("create assignment db error", func(t *testing.T) {
-		m := &mockQuerier{
-			getTripFn:       func(_ context.Context, id int64) (sqlcdb.Trip, error) { return sqlcdb.Trip{ID: id}, nil },
-			getCrewMemberFn: func(_ context.Context, id int64) (sqlcdb.CrewMember, error) { return sqlcdb.CrewMember{ID: id}, nil },
-			createTripCrewFn: func(context.Context, sqlcdb.CreateTripCrewAssignmentParams) (sqlcdb.CrewAssignment, error) {
-				return sqlcdb.CrewAssignment{}, errors.New("fail")
-			},
-		}
-		resp := crewTestAPI(t, m).PostCtx(userCtx(context.Background()), "/trips/9/crew",
-			map[string]any{"crew_member_id": 1, "role": "mate"})
-		if resp.Code != http.StatusInternalServerError {
-			t.Fatalf("got %d, want 500", resp.Code)
-		}
-	})
-}
-
 func TestCrewHandler_AssignVoyageCrew_Errors(t *testing.T) {
 	t.Run("voyage not found", func(t *testing.T) {
 		m := &mockQuerier{

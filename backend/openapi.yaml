@@ -352,6 +352,24 @@ components:
       required:
         - full_name
       type: object
+    CrewRoleBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/CrewRoleBody.json
+          format: uri
+          readOnly: true
+          type: string
+        role:
+          description: Crew role, such as zalogant; trimmed, must not be blank
+          maxLength: 100
+          minLength: 1
+          type: string
+      required:
+        - role
+      type: object
     Cruise:
       additionalProperties: false
       properties:
@@ -495,6 +513,10 @@ components:
         created_at:
           format: date-time
           type: string
+        crew_member_id:
+          description: Person the leg sign-up belongs to. Leg sign-ups only
+          format: int64
+          type: integer
         cruise_id:
           format: int64
           type: integer
@@ -523,6 +545,7 @@ components:
         user_email:
           type: string
         user_id:
+          description: "Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none"
           format: int64
           type: integer
         user_name:
@@ -537,7 +560,6 @@ components:
         - user_name
         - user_email
         - id
-        - user_id
         - status
         - created_at
         - updated_at
@@ -957,6 +979,10 @@ components:
         created_at:
           format: date-time
           type: string
+        crew_member_id:
+          description: Person the leg sign-up belongs to. Leg sign-ups only
+          format: int64
+          type: integer
         cruise_id:
           format: int64
           type: integer
@@ -981,11 +1007,11 @@ components:
           format: date-time
           type: string
         user_id:
+          description: "Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none"
           format: int64
           type: integer
       required:
         - id
-        - user_id
         - status
         - created_at
         - updated_at
@@ -1784,8 +1810,16 @@ components:
           description: Duplicate's opinions for voyages the kept person already has one for; the kept person's stays
           format: int64
           type: integer
+        shared_trip_enrollments:
+          description: Duplicate's sign-ups for legs the kept person also signed up for; one sign-up per leg stays
+          format: int64
+          type: integer
         trip_assignments:
           description: Leg crew assignments of the duplicate
+          format: int64
+          type: integer
+        trip_enrollments:
+          description: Leg sign-ups of the duplicate
           format: int64
           type: integer
         voyage_assignments:
@@ -1802,6 +1836,8 @@ components:
         - shared_opinions
         - captained_trips
         - captained_voyages
+        - trip_enrollments
+        - shared_trip_enrollments
       type: object
     PersonMergeBody:
       additionalProperties: false
@@ -2272,15 +2308,51 @@ components:
         - cruise_id
         - name
       type: object
+    TripEnrollmentCreateBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TripEnrollmentCreateBody.json
+          format: uri
+          readOnly: true
+          type: string
+        crew_member_id:
+          description: Person to sign up; may have no account
+          format: int64
+          minimum: 1
+          type: integer
+        note:
+          description: Optional note on the sign-up
+          maxLength: 2000
+          type: string
+      required:
+        - crew_member_id
+      type: object
     TripEnrollmentDetail:
       additionalProperties: false
       properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TripEnrollmentDetail.json
+          format: uri
+          readOnly: true
+          type: string
         created_at:
           format: date-time
           type: string
+        crew_member_id:
+          description: Person the leg sign-up belongs to. Leg sign-ups only
+          format: int64
+          type: integer
         cruise_id:
           format: int64
           type: integer
+        email:
+          description: The person's e-mail, or the account's when the person has none; omitted when neither has one
+          type: string
         id:
           format: int64
           type: integer
@@ -2293,6 +2365,9 @@ components:
             - deposit
             - paid
           type: string
+        person_name:
+          description: Full name of the person
+          type: string
         status:
           type: string
         trip_id:
@@ -2301,18 +2376,13 @@ components:
         updated_at:
           format: date-time
           type: string
-        user_email:
-          type: string
         user_id:
+          description: "Account of the enrollment: always set on a cruise enrollment; on a leg sign-up, the person's account, omitted when the person has none"
           format: int64
           type: integer
-        user_name:
-          type: string
       required:
-        - user_name
-        - user_email
+        - person_name
         - id
-        - user_id
         - status
         - created_at
         - updated_at
@@ -3222,7 +3292,7 @@ paths:
         - Crew
   /crew/{crewID}/merge:
     post:
-      description: Moves the duplicate's crew assignments and voyage opinions to this person, adds its names to the other names, fills empty contact fields, moves its account link and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have an opinion for the same voyage, this person's stays. 409 when both are linked to different accounts; 422 when both IDs are the same or the merged other names exceed the limit.
+      description: Moves the duplicate's crew assignments, voyage opinions and leg sign-ups to this person, adds its names to the other names, fills empty contact fields, moves its account link and deletes it, all in one transaction. Where both are on the same leg or voyage, or both have an opinion for the same voyage, this person's stays. Where both signed up for the same leg, the sign-up with the stronger status stays (accepted, pending, waitlisted, rejected; this person's on a tie) with the more advanced payment status of the two. 409 when both are linked to different accounts; 422 when both IDs are the same or the merged other names exceed the limit.
       operationId: merge-crew-member
       parameters:
         - description: Kept person ID
@@ -3257,7 +3327,7 @@ paths:
         - Crew
   /crew/{crewID}/merge-preview:
     get:
-      description: Shows the kept person as it would be after the merge and how many crew assignments and voyage opinions would move. Changes nothing. Fails like the merge itself.
+      description: Shows the kept person as it would be after the merge and how many crew assignments, voyage opinions and leg sign-ups would move. Changes nothing. Fails like the merge itself.
       operationId: preview-crew-merge
       parameters:
         - description: Kept person ID
@@ -3738,7 +3808,7 @@ paths:
         - Cruises
   /cruises/{cruiseID}/trip-enrollments:
     get:
-      description: Trip enrollments of all the cruise's legs with the enrolled user, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
+      description: Trip enrollments of all the cruise's legs with their person, ordered by leg (embark date, then id) and sign-up time. 404 when the cruise does not exist.
       operationId: list-cruise-trip-enrollments
       parameters:
         - description: Cruise ID
@@ -4898,39 +4968,6 @@ paths:
       summary: List a trip's crew
       tags:
         - Crew
-    post:
-      operationId: assign-trip-crew
-      parameters:
-        - description: Trip ID
-          in: path
-          name: tripID
-          required: true
-          schema:
-            description: Trip ID
-            format: int64
-            type: integer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CrewAssignmentBody"
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CrewAssignment"
-          description: Created
-        default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ErrorModel"
-          description: Error
-      summary: Assign a crew member to a trip (admin)
-      tags:
-        - Crew
   /trips/{tripID}/crew/{assignmentID}:
     delete:
       operationId: remove-trip-crew
@@ -4961,6 +4998,48 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Remove a crew assignment from a trip (admin)
+      tags:
+        - Crew
+    patch:
+      description: Sets only the role of one crew entry of the trip. The crew of a planned leg comes from accepted sign-ups, each a zalogant at first. 422 when the trimmed role is empty or too long; 404 when the trip has no such entry.
+      operationId: update-trip-crew-role
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+        - description: Assignment ID
+          in: path
+          name: assignmentID
+          required: true
+          schema:
+            description: Assignment ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewRoleBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrewAssignment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Change a trip crew member's role (admin)
       tags:
         - Crew
   /trips/{tripID}/enroll-token:
@@ -5046,6 +5125,40 @@ paths:
       summary: List a trip's enrollments
       tags:
         - Enrollment
+    post:
+      description: "Creates a sign-up for any person, including one without an account, as an admin action: it does not need sign-ups switched on, the sign-up deadline or publication. It starts pending, or waitlisted when accepted plus pending sign-ups already hold all of the leg's max_crew places or anyone is waiting, as a self sign-up does. Accepting it puts the person on the crew list. 404 when the trip does not exist; 409 when the leg is not planned or the person already has a sign-up for it; 422 when the person does not exist."
+      operationId: create-trip-enrollment
+      parameters:
+        - description: Trip ID
+          in: path
+          name: tripID
+          required: true
+          schema:
+            description: Trip ID
+            format: int64
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripEnrollmentCreateBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripEnrollmentDetail"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Sign a person up for a leg (admin)
+      tags:
+        - Enrollment
   /trips/{tripID}/enrollments/{id}:
     delete:
       operationId: delete-trip-enrollment
@@ -5080,7 +5193,7 @@ paths:
         - Enrollment
   /trips/{tripID}/enrollments/{id}/payment-status:
     put:
-      description: Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. 404 when the trip has no such enrollment.
+      description: Records whether the sign-up is unpaid, has its first payment (deposit) or is paid in full. The review status is left unchanged. Returns the sign-up with its person. 404 when the trip has no such enrollment.
       operationId: update-trip-enrollment-payment-status
       parameters:
         - description: Trip ID
@@ -5110,7 +5223,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Enrollment"
+                $ref: "#/components/schemas/TripEnrollmentDetail"
           description: OK
         default:
           content:
@@ -5123,7 +5236,7 @@ paths:
         - Enrollment
   /trips/{tripID}/enrollments/{id}/status:
     put:
-      description: "Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. Accepting puts the user's person on the leg's crew list as zalogant; any other status removes the entry the acceptance added, while crew added by hand stays. 404 when the enrollment does not exist or belongs to another trip."
+      description: "Accepting needs a free place: 409 when the leg's accepted crew already fills max_crew (no limit when max_crew is unset or 0). Other status changes always apply. Promotion from the waiting list is this manual accept. Accepting puts the sign-up's person on the leg's crew list as zalogant; any other status removes the entry the acceptance added, while crew added by hand stays. 404 when the enrollment does not exist or belongs to another trip."
       operationId: update-trip-enrollment-status
       parameters:
         - description: Trip ID
