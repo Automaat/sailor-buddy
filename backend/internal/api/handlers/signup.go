@@ -145,12 +145,18 @@ func deadlinePassed(deadline types.NullString, today string) bool {
 	return deadline.Valid && deadline.String != "" && today > deadline.String
 }
 
-// today is the club's current calendar date; tests pin h.now.
-func (h *EnrollmentHandler) today() string {
-	if h.now != nil {
-		return clubToday(h.now())
+// clubTodayAt is the club's calendar date at now(), or at the current time
+// when now is nil.
+func clubTodayAt(now func() time.Time) string {
+	if now != nil {
+		return clubToday(now())
 	}
 	return clubToday(time.Now())
+}
+
+// today is the club's current calendar date; tests pin h.now.
+func (h *EnrollmentHandler) today() string {
+	return clubTodayAt(h.now)
 }
 
 // checkSignUpOpen is the single rule for whether a locked leg takes new

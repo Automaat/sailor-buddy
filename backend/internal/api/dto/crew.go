@@ -48,15 +48,18 @@ type CrewMemberBody struct {
 
 // CrewAssignment is a crew member's assignment to a trip or voyage.
 type CrewAssignment struct {
-	ID           int64     `json:"id"`
-	TripID       *int64    `json:"trip_id,omitempty"`
-	VoyageID     *int64    `json:"voyage_id,omitempty"`
-	CrewMemberID int64     `json:"crew_member_id"`
-	Role         string    `json:"role"`
-	PatentNumber *string   `json:"patent_number,omitempty"`
-	FullName     string    `json:"full_name"`
-	Email        *string   `json:"email,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID                    int64     `json:"id"`
+	TripID                *int64    `json:"trip_id,omitempty"`
+	VoyageID              *int64    `json:"voyage_id,omitempty"`
+	CrewMemberID          int64     `json:"crew_member_id"`
+	Role                  string    `json:"role"`
+	PatentNumber          *string   `json:"patent_number,omitempty"`
+	FullName              string    `json:"full_name"`
+	Email                 *string   `json:"email,omitempty"`
+	Phone                 *string   `json:"phone,omitempty" doc:"Leg crew list only, for admins and the leg's captain"`
+	EmergencyContactName  *string   `json:"emergency_contact_name,omitempty" doc:"Leg crew list only, for admins and the leg's captain"`
+	EmergencyContactPhone *string   `json:"emergency_contact_phone,omitempty" doc:"Leg crew list only, for admins and the leg's captain"`
+	CreatedAt             time.Time `json:"created_at"`
 }
 
 // MaxCrewRoleLen caps a crew role, in characters.
@@ -117,19 +120,27 @@ func CrewAssignmentFromDB(a sqlcdb.CrewAssignment) CrewAssignment {
 	}
 }
 
-// TripCrewMemberFromDB maps one joined trip-crew row.
+// TripCrewMemberFromDB maps one joined trip-crew row. The phone and
+// emergency contact stay only when the row says the caller may read them.
 func TripCrewMemberFromDB(r sqlcdb.ListTripCrewAssignmentsRow) CrewAssignment {
-	return CrewAssignment{
-		ID:           r.ID,
-		TripID:       intPtr(r.TripID),
-		VoyageID:     intPtr(r.VoyageID),
-		CrewMemberID: r.CrewMemberID,
-		Role:         r.Role,
-		PatentNumber: strPtr(r.PatentNumber),
-		FullName:     r.FullName,
-		Email:        strPtr(r.Email),
-		CreatedAt:    timeVal(r.CreatedAt),
+	a := CrewAssignment{
+		ID:                    r.ID,
+		TripID:                intPtr(r.TripID),
+		VoyageID:              intPtr(r.VoyageID),
+		CrewMemberID:          r.CrewMemberID,
+		Role:                  r.Role,
+		PatentNumber:          strPtr(r.PatentNumber),
+		FullName:              r.FullName,
+		Email:                 strPtr(r.Email),
+		Phone:                 strPtr(r.Phone),
+		EmergencyContactName:  strPtr(r.EmergencyContactName),
+		EmergencyContactPhone: strPtr(r.EmergencyContactPhone),
+		CreatedAt:             timeVal(r.CreatedAt),
 	}
+	if !r.ContactsVisible {
+		a.Phone, a.EmergencyContactName, a.EmergencyContactPhone = nil, nil, nil
+	}
+	return a
 }
 
 // TripCrewFromDB maps the joined trip-crew rows, returning a non-nil slice.

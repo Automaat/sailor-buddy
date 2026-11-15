@@ -74,7 +74,7 @@
 	}
 </script>
 
-<div class="rounded-2xl bg-white p-6 shadow-sm">
+<div class="rounded-2xl bg-white p-6 shadow-sm" data-testid="voyage-opinions">
 	<h2 class="mb-3 font-semibold text-[var(--navy)]">Opinie z rejsu</h2>
 	{#if sectionError}<div role="alert" class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
 			{sectionError}

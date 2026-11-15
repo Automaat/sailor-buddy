@@ -40,6 +40,8 @@ import {
 	addVoyageYacht,
 	createYacht,
 	deleteVoyage,
+	deleteVoyageOpinion,
+	generateVoyageOpinion,
 	getCruise,
 	getVoyage,
 	listAssignableCrew,
@@ -568,5 +570,105 @@ describe('voyage page publication', () => {
 		expect(screen.queryByText('Ukryte')).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Opublikuj' })).not.toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Ukryj' })).not.toBeInTheDocument();
+	});
+});
+
+describe('voyage page for the voyage captain', () => {
+	const anna = {
+		id: 11,
+		voyage_id: 5,
+		crew_member_id: 3,
+		full_name: 'Anna Nowak',
+		role: 'zalogant',
+		created_at: '2026-01-01T00:00:00Z'
+	};
+	const opinion = {
+		id: 21,
+		voyage_id: 5,
+		crew_member_id: 3,
+		full_name: 'Anna Nowak',
+		file_format: 'pdf',
+		created_at: '2026-01-01T00:00:00Z'
+	};
+
+	beforeEach(() => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, captain_person_id: 70 }));
+		vi.mocked(listVoyageCrew).mockResolvedValue([anna]);
+		vi.mocked(listVoyageOpinions).mockResolvedValue([opinion]);
+		vi.mocked(listAssignableCrew).mockResolvedValue([
+			{ id: 4, full_name: 'Piotr Maj', has_account: false }
+		] as Awaited<ReturnType<typeof listAssignableCrew>>);
+	});
+
+	it('shows the crew read-only', async () => {
+		await renderPage();
+
+		const crew = await screen.findByTestId('voyage-crew');
+		expect(within(crew).getByRole('heading', { name: 'Załoga (1)' })).toBeInTheDocument();
+		expect(within(crew).getByText('Anna Nowak')).toBeInTheDocument();
+		expect(within(crew).getByText('zalogant')).toBeInTheDocument();
+		expect(within(crew).queryByRole('combobox')).not.toBeInTheDocument();
+		expect(within(crew).queryByRole('button', { name: 'Dodaj' })).not.toBeInTheDocument();
+		expect(within(crew).queryByRole('button', { name: 'Usuń' })).not.toBeInTheDocument();
+	});
+
+	it('generates an opinion for a crew member', async () => {
+		vi.mocked(generateVoyageOpinion).mockResolvedValue(opinion);
+		await renderPage();
+
+		const opinions = await screen.findByTestId('voyage-opinions');
+		await fireEvent.change(within(opinions).getByLabelText('Załogant'), {
+			target: { value: '3' }
+		});
+		await fireEvent.click(within(opinions).getByRole('button', { name: 'Generuj' }));
+
+		await waitFor(() =>
+			expect(generateVoyageOpinion).toHaveBeenCalledWith(5, { crew_member_id: 3, format: 'pdf' })
+		);
+	});
+
+	it('deletes an opinion after confirmation', async () => {
+		vi.mocked(deleteVoyageOpinion).mockResolvedValue(undefined);
+		const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+		await renderPage();
+
+		const opinions = await screen.findByTestId('voyage-opinions');
+		await fireEvent.click(within(opinions).getByRole('button', { name: 'Usuń' }));
+
+		await waitFor(() => expect(deleteVoyageOpinion).toHaveBeenCalledWith(5, 21));
+		await waitFor(() =>
+			expect(within(opinions).getByText('Brak wygenerowanych opinii.')).toBeInTheDocument()
+		);
+		confirmSpy.mockRestore();
+	});
+
+	it('names a failed crew list to the captain', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(listVoyageCrew).mockRejectedValueOnce(new Error('500'));
+		vi.mocked(listAssignableCrew).mockRejectedValueOnce(new Error('500'));
+		await renderPage();
+
+		expect(await screen.findByText(/Nie udało się wczytać: załoga\./)).toBeInTheDocument();
+		expect(screen.queryByText(/lista osób/)).not.toBeInTheDocument();
+	});
+
+	it('shows an admin the crew form', async () => {
+		mockAuth.isAdmin = true;
+		mockAuth.user = { id: 1, role: 'admin', person_id: 99 };
+		await renderPage();
+
+		const crew = await screen.findByTestId('voyage-crew');
+		expect(within(crew).getByRole('button', { name: 'Dodaj' })).toBeInTheDocument();
+		expect(within(crew).getByRole('button', { name: 'Usuń' })).toBeInTheDocument();
+		expect(screen.getByTestId('voyage-opinions')).toBeInTheDocument();
+	});
+
+	it('shows another member neither the crew nor the opinions form', async () => {
+		mockAuth.user = { id: 8, role: 'member', person_id: 71 };
+		await renderPage();
+
+		await screen.findByText('Odwiedzone porty (0)');
+		expect(screen.queryByTestId('voyage-crew')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('voyage-opinions')).not.toBeInTheDocument();
 	});
 });

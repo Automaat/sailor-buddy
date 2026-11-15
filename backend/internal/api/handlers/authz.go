@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -52,31 +53,58 @@ func requireAdminOrCaptainGroup(ctx context.Context) error {
 
 // requireAdminOrCaptain allows admins and the account linked to the record's
 // captain person. Captains log post-cruise data (hours, miles, ports, notes)
-// for their own voyages; a captain person without an account grants no
-// rights, and everything else stays admin-only.
+// and write opinions for their own voyages, and complete their own legs once
+// they end; a captain person without an account grants no rights, and
+// everything else stays admin-only.
 func requireAdminOrCaptain(ctx context.Context, q sqlcdb.Querier, captainPersonID types.NullInt64) error {
 	u := middleware.GetUser(ctx)
 	if u == nil {
-		return huma.Error403Forbidden("admin or voyage captain only")
+		return huma.Error403Forbidden("admin or captain only")
 	}
 	if u.Role == "admin" {
 		return nil
 	}
-	if !captainPersonID.Valid {
-		return huma.Error403Forbidden("admin or voyage captain only")
+	ok, err := isCaptain(ctx, q, captainPersonID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return huma.Error403Forbidden("admin or captain only")
+	}
+	return nil
+}
+
+// isCaptain reports whether the caller's account is linked to the captain
+// person. A missing captain, a captain without an account or a person gone
+// meanwhile is nobody's.
+func isCaptain(ctx context.Context, q sqlcdb.Querier, captainPersonID types.NullInt64) (bool, error) {
+	u := middleware.GetUser(ctx)
+	if u == nil || !captainPersonID.Valid {
+		return false, nil
 	}
 	captain, err := q.GetCrewMember(ctx, captainPersonID.Int64)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return huma.Error403Forbidden("admin or voyage captain only")
+			return false, nil
 		}
 		slog.Error("get captain person", "person_id", captainPersonID.Int64, "err", err)
-		return huma.Error500InternalServerError("failed to verify captain")
+		return false, huma.Error500InternalServerError("failed to verify captain")
 	}
-	if captain.UserID.Valid && captain.UserID.Int64 == u.UserID {
-		return nil
+	return captain.UserID.Valid && captain.UserID.Int64 == u.UserID, nil
+}
+
+// hideForbidden turns a 403 for a hidden record into 404 for a caller who
+// cannot see it, so a refusal does not reveal the draft. visible answers
+// whether the record is published; other errors pass through.
+func hideForbidden(ctx context.Context, authErr error, visible func() error) error {
+	status, ok := errors.AsType[huma.StatusError](authErr)
+	if canSeeHidden(ctx) || !ok || status.GetStatus() != http.StatusForbidden {
+		return authErr
 	}
-	return huma.Error403Forbidden("admin or voyage captain only")
+	if err := visible(); err != nil {
+		return err
+	}
+	return authErr
 }
 
 // requireVisibleTrip answers 404 unless the trip exists and the caller may

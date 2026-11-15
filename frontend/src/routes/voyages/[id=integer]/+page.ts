@@ -19,19 +19,21 @@ export const load: PageLoad = async ({ params }) => {
 		backLabel: 'Zrealizowane rejsy'
 	});
 	const loadErrors: string[] = [];
-	// Crew, opinions and the people list feed admin-only sections; the page
-	// shows their failures only to an admin.
+	// Crew and opinions feed sections only admins and the voyage captain see,
+	// the people list an admin-only form; the page shows each failure only to
+	// those who see its section.
+	const crewLoadErrors: string[] = [];
 	const adminLoadErrors: string[] = [];
 	const [crew, opinions, ports, allCrewMembers, cruise] = await Promise.all([
 		settle(
 			listVoyageCrew(id).then((c) => c ?? []),
 			[],
-			noteFailure(adminLoadErrors, 'załoga')
+			noteFailure(crewLoadErrors, 'załoga')
 		),
 		settle(
 			listVoyageOpinions(id).then((o) => o ?? []),
 			[],
-			noteFailure(adminLoadErrors, 'opinie')
+			noteFailure(crewLoadErrors, 'opinie')
 		),
 		settle(
 			listVoyagePorts(id).then((p) => p ?? []),
@@ -51,6 +53,7 @@ export const load: PageLoad = async ({ params }) => {
 		ports,
 		allCrewMembers,
 		loadErrors,
+		crewLoadErrors,
 		adminLoadErrors
 	};
 };

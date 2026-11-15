@@ -91,18 +91,9 @@ func getVoyageForCaptain(ctx context.Context, q sqlcdb.Querier, id int64) (sqlcd
 		return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
 	}
 	if authErr := requireAdminOrCaptain(ctx, q, voyage.CaptainPersonID); authErr != nil {
-		status, ok := errors.AsType[huma.StatusError](authErr)
-		if canSeeHidden(ctx) || !ok || status.GetStatus() != http.StatusForbidden {
-			return sqlcdb.Voyage{}, authErr
-		}
-		if _, err := q.GetVoyage(ctx, sqlcdb.GetVoyageParams{ID: id}); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return sqlcdb.Voyage{}, huma.Error404NotFound("voyage not found")
-			}
-			slog.Error("get voyage", "voyage_id", id, "err", err)
-			return sqlcdb.Voyage{}, huma.Error500InternalServerError("failed to get voyage")
-		}
-		return sqlcdb.Voyage{}, authErr
+		return sqlcdb.Voyage{}, hideForbidden(ctx, authErr, func() error {
+			return requireVisibleVoyage(ctx, q, id)
+		})
 	}
 	return voyage, nil
 }

@@ -142,7 +142,10 @@ func TestVoyageOpinion_Generate(t *testing.T) {
 	})
 
 	t.Run("member forbidden", func(t *testing.T) {
-		resp := opinionTestAPI(t, &mockQuerier{}).PostCtx(userCtxRole(context.Background(), "member"),
+		m := &mockQuerier{
+			getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+		}
+		resp := opinionTestAPI(t, m).PostCtx(userCtxRole(context.Background(), "member"),
 			"/voyages/3/opinions", map[string]any{"crew_member_id": 4, "format": "docx"})
 		if resp.Code != http.StatusForbidden {
 			t.Fatalf("got %d, want 403", resp.Code)
