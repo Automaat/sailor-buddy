@@ -2949,6 +2949,86 @@ export interface components {
             /** Format: int64 */
             yacht_id?: number;
         };
+        TripDetail: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/TripDetail.json
+             */
+            readonly $schema?: string;
+            captain_name?: string;
+            /**
+             * Format: int64
+             * @description Person (crew record) who captains the trip
+             */
+            captain_person_id?: number;
+            /**
+             * Format: double
+             * @description Member price per person (czlonek, sympatyk)
+             */
+            cost_per_person?: number;
+            /**
+             * Format: double
+             * @description Non-member (gosc) price per person
+             */
+            cost_per_person_non_member?: number;
+            /** Format: double */
+            cost_total?: number;
+            countries?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: int64 */
+            created_by?: number;
+            /** Format: int64 */
+            cruise_id: number;
+            /**
+             * @description Currency of every price on the trip
+             * @enum {string}
+             */
+            currency: "PLN" | "EUR";
+            /**
+             * Format: double
+             * @description Refundable deposit (kaucja) per person
+             */
+            deposit?: number;
+            description?: string;
+            disembark_date?: string;
+            embark_date?: string;
+            end_port?: string;
+            enroll_token?: string;
+            /** Format: int64 */
+            id: number;
+            image_logo_url?: string;
+            image_photo_url?: string;
+            image_route_url?: string;
+            /** Format: int64 */
+            max_crew?: number;
+            name: string;
+            /**
+             * Format: date-time
+             * @description When the trip was published; absent while it is a hidden draft
+             */
+            published_at?: string;
+            /**
+             * Format: date
+             * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+             */
+            sign_up_deadline?: string;
+            start_port?: string;
+            /** @enum {string} */
+            status: "planned" | "cancelled";
+            /** Format: date-time */
+            updated_at: string;
+            /** @description Yacht the leg sails; absent when yacht_id is unset */
+            yacht?: components["schemas"]["YachtSummary"];
+            /**
+             * Format: double
+             * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
+             */
+            yacht_fund?: number;
+            /** Format: int64 */
+            yacht_id?: number;
+        };
         TripEnrollmentCreateBody: {
             /**
              * Format: uri
@@ -5459,7 +5539,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Trip"];
+                    "application/json": components["schemas"]["TripDetail"];
                 };
             };
             /** @description Error */

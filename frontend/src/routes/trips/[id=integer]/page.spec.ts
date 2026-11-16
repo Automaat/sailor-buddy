@@ -876,6 +876,70 @@ describe('trip page publication', () => {
 	});
 });
 
+describe('trip page yacht', () => {
+	const details = () => screen.getByRole('heading', { name: 'Szczegóły' }).parentElement!;
+
+	afterEach(() => {
+		(auth as unknown as { user: Record<string, unknown> }).user = { id: 2, role: 'member' };
+	});
+
+	it('shows a member the yacht type and name', async () => {
+		serve(
+			makeTrip({ id: 50, yacht_id: 3, yacht: { id: 3, name: 'Zawisza', yacht_type: 'Bavaria 46' } })
+		);
+		await renderPage();
+
+		const term = await within(details()).findByText('Jacht');
+		expect(term.tagName).toBe('DT');
+		expect(term.nextElementSibling).toHaveTextContent(/^Bavaria 46 Zawisza$/);
+	});
+
+	it('shows the name alone when the yacht has no type', async () => {
+		serve(makeTrip({ id: 50, yacht_id: 3, yacht: { id: 3, name: 'Zawisza' } }));
+		await renderPage();
+
+		const term = await within(details()).findByText('Jacht');
+		expect(term.nextElementSibling).toHaveTextContent(/^Zawisza$/);
+	});
+
+	it('has no yacht row without a yacht', async () => {
+		serve(makeTrip({ id: 50 }));
+		await renderPage();
+
+		await screen.findByRole('heading', { name: 'Szczegóły' });
+		expect(screen.queryByText('Jacht')).not.toBeInTheDocument();
+	});
+
+	it('shows the details with only a yacht set', async () => {
+		serve(
+			makeTrip({
+				id: 50,
+				embark_date: undefined,
+				disembark_date: undefined,
+				yacht_id: 3,
+				yacht: { id: 3, name: 'Zawisza' }
+			})
+		);
+		await renderPage();
+
+		expect(await within(details()).findByText('Jacht')).toBeInTheDocument();
+	});
+
+	it('keeps the yacht after publishing, whose reply carries none', async () => {
+		mockAuth.isAdmin = true;
+		(auth as unknown as { user: Record<string, unknown> }).user = { id: 1, role: 'admin' };
+		serve(makeTrip({ id: 50, yacht_id: 3, yacht: { id: 3, name: 'Zawisza' } }));
+		vi.mocked(publishTrip).mockResolvedValue(
+			makeTrip({ id: 50, yacht_id: 3, published_at: '2026-03-01T10:00:00Z' })
+		);
+		await renderPage();
+
+		await fireEvent.click(await screen.findByRole('button', { name: 'Opublikuj' }));
+		expect(await screen.findByRole('button', { name: 'Ukryj' })).toBeInTheDocument();
+		expect(within(details()).getByText('Jacht').nextElementSibling).toHaveTextContent(/^Zawisza$/);
+	});
+});
+
 describe('trip page long text', () => {
 	it('lets a long unbroken name shrink in the header and the crew list', async () => {
 		const long = 'W'.repeat(120);
