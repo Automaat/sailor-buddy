@@ -16,7 +16,7 @@ Anyone may register. Reading club data requires a verified Firebase email and an
 | Verified administrator | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Any planned leg |
 | Suspended | No | Anonymous preview only | No | No | No | No | No | No |
 
-Club records include directory contact and patent details, trainings, cruise/trip/voyage data, group-chat links, and sailing summaries. A voyage names its yacht (name and type) for every reader of the voyage. Training records remain private to their owner. An unverified account cannot obtain a group-chat URL by authenticating to the public enrollment preview. Anonymous previews retain their existing limited fields.
+Club records include directory contact and patent details, trainings, cruise/trip/voyage data, group-chat links, and sailing summaries. A leg or voyage names its yacht (name and type) for every reader of it. Training records remain private to their owner. An unverified account cannot obtain a group-chat URL by authenticating to the public enrollment preview. Anonymous previews retain their existing limited fields.
 
 ## Yacht list
 

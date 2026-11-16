@@ -162,10 +162,11 @@ held on the `users.role` column:
   drafts (see Hidden drafts below) and the club yacht list.
 - **Yacht list** (`GET /yachts`, `GET /yachts/{id}`) — the captains'
   working tool: admins and the captain group (`users.is_captain`) only; a
-  member gets `403 admin or captain group only`. Members see a voyage's
-  yacht as the `yacht` summary (`id`, `name`, `yacht_type`) in
-  `GET /voyages/{id}`. A voyage's captain outside the group lists the
-  yachts for the voyage log through `GET /voyages/{id}/yachts`.
+  member gets `403 admin or captain group only`. Members see a leg's or a
+  voyage's yacht as the `yacht` summary (`id`, `name`, `yacht_type`) in
+  `GET /trips/{id}` and `GET /voyages/{id}`. A voyage's captain outside the
+  group lists the yachts for the voyage log through
+  `GET /voyages/{id}/yachts`.
 - **Mutations** (`POST`/`PUT`/`DELETE`, plus `complete`/`cancel`/enroll-token)
   on shared club data — require the caller to be an `admin`; a member gets
   `403 admin only`.
@@ -345,7 +346,7 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
 |--------|------|------|-------------|---------|
 | GET | `/api/trips` | member | List trips | 200 |
 | POST | `/api/trips` | **admin** | Create trip; without `cruise_id` it gets its own wrapper cruise | 201 |
-| GET | `/api/trips/{id}` | member | Get trip | 200 |
+| GET | `/api/trips/{id}` | member | Get trip, with the `yacht` summary (`id`, `name`, `yacht_type`) when `yacht_id` is set | 200 |
 | PUT | `/api/trips/{id}` | **admin** | Update trip | 204 |
 | DELETE | `/api/trips/{id}` | **admin** | Delete trip | 204 |
 | POST | `/api/trips/{id}/complete` | **admin** or leg captain | Complete trip → create voyage; the leg captain only after the disembark date | 201 (voyage) |
