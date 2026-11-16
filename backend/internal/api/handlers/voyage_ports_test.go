@@ -262,6 +262,10 @@ func TestVoyagePorts_AddAppliesPortRules(t *testing.T) {
 	}{
 		{"normalized name, appended", map[string]any{"name": "  Nowa \u00a0 Wieś\u200b "}, "Nowa Wieś", types.NullInt64{}},
 		{"explicit position", map[string]any{"name": "Hel", "position": 4}, "Hel", types.NullInt64{Int64: 4, Valid: true}},
+		{"largest position", map[string]any{"name": "Hel", "position": 10000}, "Hel", types.NullInt64{Int64: 10000, Valid: true}},
+		{"position too large", map[string]any{"name": "Hel", "position": 10001}, "", types.NullInt64{}},
+		{"position at int64 max", map[string]any{"name": "Hel", "position": int64(9223372036854775807)}, "", types.NullInt64{}},
+		{"negative position", map[string]any{"name": "Hel", "position": -1}, "", types.NullInt64{}},
 		{"longest name", map[string]any{"name": strings.Repeat("ł", 100)}, strings.Repeat("ł", 100), types.NullInt64{}},
 		{"blank name", map[string]any{"name": " \u200b "}, "", types.NullInt64{}},
 		{"too long name", map[string]any{"name": strings.Repeat("ł", 101)}, "", types.NullInt64{}},

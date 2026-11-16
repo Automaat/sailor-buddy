@@ -3422,7 +3422,7 @@ export interface components {
             name: string;
             /**
              * Format: int64
-             * @description Order in the visited sequence; omit to add the port after the last one
+             * @description Order in the visited sequence, at most 10000 so the next append cannot overflow; omit to add the port after the last one
              */
             position?: number;
         };
