@@ -15,7 +15,7 @@ type Cruise struct {
 	Name          string     `json:"name"`
 	SeriesID      *int64     `json:"series_id,omitempty" doc:"Series this cruise is an edition of"`
 	Edition       *string    `json:"edition,omitempty" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
-	Countries     *string    `json:"countries,omitempty"`
+	Countries     []string   `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
 	Description   *string    `json:"description,omitempty"`
 	ImageLogoUrl  *string    `json:"image_logo_url,omitempty"`
 	ImagePhotoUrl *string    `json:"image_photo_url,omitempty"`
@@ -32,18 +32,18 @@ type Cruise struct {
 
 // CruiseBody is the create/update request payload for a cruise.
 type CruiseBody struct {
-	Name          string   `json:"name" minLength:"1" doc:"Cruise name"`
-	SeriesID      *int64   `json:"series_id,omitempty" doc:"Series this cruise is an edition of; omit or null for none"`
-	Edition       *string  `json:"edition,omitempty" maxLength:"50" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
-	Countries     *string  `json:"countries,omitempty"`
-	Description   *string  `json:"description,omitempty"`
-	ImageLogoUrl  *string  `json:"image_logo_url,omitempty"`
-	ImagePhotoUrl *string  `json:"image_photo_url,omitempty"`
-	ImageRouteUrl *string  `json:"image_route_url,omitempty"`
-	Included      []string `json:"included,omitempty" maxItems:"30" doc:"What every leg's price covers; blank entries are dropped, each at most 200 characters"`
-	NotIncluded   []string `json:"not_included,omitempty" maxItems:"30" doc:"What no leg's price covers; blank entries are dropped, each at most 200 characters"`
-	TravelNotes   *string  `json:"travel_notes,omitempty" maxLength:"5000" doc:"How to get there: flights, transport, meeting point; blank clears it"`
-	MinAge        *int64   `json:"min_age,omitempty" minimum:"0" maximum:"99" doc:"Minimum crew age, shown as information only; the app does not check it"`
+	Name          string       `json:"name" minLength:"1" doc:"Cruise name"`
+	SeriesID      *int64       `json:"series_id,omitempty" doc:"Series this cruise is an edition of; omit or null for none"`
+	Edition       *string      `json:"edition,omitempty" maxLength:"50" doc:"Edition label within the series, e.g. 2025 or 2026/27"`
+	Countries     CountryCodes `json:"countries,omitempty" maxItems:"30" uniqueItems:"true" doc:"ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none"`
+	Description   *string      `json:"description,omitempty"`
+	ImageLogoUrl  *string      `json:"image_logo_url,omitempty"`
+	ImagePhotoUrl *string      `json:"image_photo_url,omitempty"`
+	ImageRouteUrl *string      `json:"image_route_url,omitempty"`
+	Included      []string     `json:"included,omitempty" maxItems:"30" doc:"What every leg's price covers; blank entries are dropped, each at most 200 characters"`
+	NotIncluded   []string     `json:"not_included,omitempty" maxItems:"30" doc:"What no leg's price covers; blank entries are dropped, each at most 200 characters"`
+	TravelNotes   *string      `json:"travel_notes,omitempty" maxLength:"5000" doc:"How to get there: flights, transport, meeting point; blank clears it"`
+	MinAge        *int64       `json:"min_age,omitempty" minimum:"0" maximum:"99" doc:"Minimum crew age, shown as information only; the app does not check it"`
 }
 
 // CruiseFromDB maps a database row to the API model.
@@ -54,7 +54,7 @@ func CruiseFromDB(c sqlcdb.Cruise) Cruise {
 		Name:          c.Name,
 		SeriesID:      intPtr(c.SeriesID),
 		Edition:       strPtr(c.Edition),
-		Countries:     strPtr(c.Countries),
+		Countries:     countryCodes(c.Countries),
 		Description:   strPtr(c.Description),
 		ImageLogoUrl:  strPtr(c.ImageLogoUrl),
 		ImagePhotoUrl: strPtr(c.ImagePhotoUrl),

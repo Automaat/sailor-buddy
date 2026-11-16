@@ -47,3 +47,18 @@ sql:
               import: "github.com/marcinskalski/sailor-buddy/backend/internal/types"
               package: "types"
               type: "NullTime"
+          - column: "cruises.countries"
+            go_type:
+              import: "github.com/marcinskalski/sailor-buddy/backend/internal/types"
+              package: "types"
+              type: "TextArray"
+          - column: "trips.countries"
+            go_type:
+              import: "github.com/marcinskalski/sailor-buddy/backend/internal/types"
+              package: "types"
+              type: "TextArray"
+          - column: "voyages.countries"
+            go_type:
+              import: "github.com/marcinskalski/sailor-buddy/backend/internal/types"
+              package: "types"
+              type: "TextArray"

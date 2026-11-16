@@ -19,7 +19,7 @@ type Voyage struct {
 	Year            *int64     `json:"year,omitempty"`
 	EmbarkDate      *string    `json:"embark_date,omitempty"`
 	DisembarkDate   *string    `json:"disembark_date,omitempty"`
-	Countries       *string    `json:"countries,omitempty"`
+	Countries       []string   `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
 	StartPort       *string    `json:"start_port,omitempty"`
 	EndPort         *string    `json:"end_port,omitempty"`
 	CaptainName     *string    `json:"captain_name,omitempty"`
@@ -55,32 +55,32 @@ type VoyageDetail struct {
 
 // VoyageBody is the create/update request payload for a voyage.
 type VoyageBody struct {
-	Name            string   `json:"name" minLength:"1" doc:"Voyage name"`
-	Year            *int64   `json:"year,omitempty"`
-	EmbarkDate      *string  `json:"embark_date,omitempty"`
-	DisembarkDate   *string  `json:"disembark_date,omitempty"`
-	Countries       *string  `json:"countries,omitempty"`
-	StartPort       *string  `json:"start_port,omitempty"`
-	EndPort         *string  `json:"end_port,omitempty"`
-	CaptainName     *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
-	CaptainPersonID *int64   `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage; any person may be chosen"`
-	YachtID         *int64   `json:"yacht_id,omitempty"`
-	HoursTotal      *float64 `json:"hours_total,omitempty"`
-	HoursSail       *float64 `json:"hours_sail,omitempty"`
-	HoursEngine     *float64 `json:"hours_engine,omitempty"`
-	HoursOver6bf    *float64 `json:"hours_over_6bf,omitempty"`
-	Miles           *float64 `json:"miles,omitempty"`
-	Days            *int64   `json:"days,omitempty"`
-	TidalWaters     *int64   `json:"tidal_waters,omitempty"`
-	CostTotal       *float64 `json:"cost_total,omitempty"`
-	CostPerPerson   *float64 `json:"cost_per_person,omitempty"`
-	ImageLogoUrl    *string  `json:"image_logo_url,omitempty"`
-	ImagePhotoUrl   *string  `json:"image_photo_url,omitempty"`
-	ImageRouteUrl   *string  `json:"image_route_url,omitempty"`
-	Description     *string  `json:"description,omitempty"`
-	TrackUrl        *string  `json:"track_url,omitempty" maxLength:"2048" doc:"Link to the track recording (http or https)"`
-	VoyageCard      *string  `json:"voyage_card,omitempty" doc:"Voyage card (Karta rejsu): who holds it or where it is"`
-	CruiseID        int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this voyage was a leg of"`
+	Name            string       `json:"name" minLength:"1" doc:"Voyage name"`
+	Year            *int64       `json:"year,omitempty"`
+	EmbarkDate      *string      `json:"embark_date,omitempty"`
+	DisembarkDate   *string      `json:"disembark_date,omitempty"`
+	Countries       CountryCodes `json:"countries,omitempty" maxItems:"30" uniqueItems:"true" doc:"ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none"`
+	StartPort       *string      `json:"start_port,omitempty"`
+	EndPort         *string      `json:"end_port,omitempty"`
+	CaptainName     *string      `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
+	CaptainPersonID *int64       `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage; any person may be chosen"`
+	YachtID         *int64       `json:"yacht_id,omitempty"`
+	HoursTotal      *float64     `json:"hours_total,omitempty"`
+	HoursSail       *float64     `json:"hours_sail,omitempty"`
+	HoursEngine     *float64     `json:"hours_engine,omitempty"`
+	HoursOver6bf    *float64     `json:"hours_over_6bf,omitempty"`
+	Miles           *float64     `json:"miles,omitempty"`
+	Days            *int64       `json:"days,omitempty"`
+	TidalWaters     *int64       `json:"tidal_waters,omitempty"`
+	CostTotal       *float64     `json:"cost_total,omitempty"`
+	CostPerPerson   *float64     `json:"cost_per_person,omitempty"`
+	ImageLogoUrl    *string      `json:"image_logo_url,omitempty"`
+	ImagePhotoUrl   *string      `json:"image_photo_url,omitempty"`
+	ImageRouteUrl   *string      `json:"image_route_url,omitempty"`
+	Description     *string      `json:"description,omitempty"`
+	TrackUrl        *string      `json:"track_url,omitempty" maxLength:"2048" doc:"Link to the track recording (http or https)"`
+	VoyageCard      *string      `json:"voyage_card,omitempty" doc:"Voyage card (Karta rejsu): who holds it or where it is"`
+	CruiseID        int64        `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this voyage was a leg of"`
 }
 
 // Resolve rejects a track link that is not an absolute http(s) URL.
@@ -148,7 +148,7 @@ func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 		Year:            intPtr(v.Year),
 		EmbarkDate:      strPtr(v.EmbarkDate),
 		DisembarkDate:   strPtr(v.DisembarkDate),
-		Countries:       strPtr(v.Countries),
+		Countries:       countryCodes(v.Countries),
 		StartPort:       strPtr(v.StartPort),
 		EndPort:         strPtr(v.EndPort),
 		CaptainName:     strPtr(v.CaptainName),

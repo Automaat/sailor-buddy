@@ -105,7 +105,7 @@ type CreateTripParams struct {
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
+	Countries              types.TextArray   `json:"countries"`
 	StartPort              types.NullString  `json:"start_port"`
 	EndPort                types.NullString  `json:"end_port"`
 	CaptainName            types.NullString  `json:"captain_name"`
@@ -282,7 +282,7 @@ type GetTripByEnrollTokenRow struct {
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
+	Countries              types.TextArray   `json:"countries"`
 	StartPort              types.NullString  `json:"start_port"`
 	EndPort                types.NullString  `json:"end_port"`
 	Description            types.NullString  `json:"description"`
@@ -853,7 +853,7 @@ type UpdateTripParams struct {
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
+	Countries              types.TextArray   `json:"countries"`
 	StartPort              types.NullString  `json:"start_port"`
 	EndPort                types.NullString  `json:"end_port"`
 	CaptainName            types.NullString  `json:"captain_name"`

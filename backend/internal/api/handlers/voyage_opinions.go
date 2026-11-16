@@ -327,7 +327,7 @@ func opinionDocData(voyage sqlcdb.Voyage, assignment sqlcdb.GetVoyageCrewAssignm
 		YachtType:      yachtType,
 		StartPort:      voyage.StartPort.String,
 		EndPort:        voyage.EndPort.String,
-		Countries:      voyage.Countries.String,
+		Countries:      voyage.Countries,
 		Miles:          voyage.Miles,
 		HoursTotal:     voyage.HoursTotal,
 		HoursSail:      voyage.HoursSail,

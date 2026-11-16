@@ -1,6 +1,9 @@
 package docgen
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -16,7 +19,7 @@ func testData() OpinionData {
 		YachtType:      "s/y",
 		StartPort:      "Split",
 		EndPort:        "Dubrovnik",
-		Countries:      "Chorwacja",
+		Countries:      []string{"HR", "ME"},
 		Miles:          250.5,
 		HoursTotal:     120,
 		HoursSail:      80,
@@ -46,6 +49,7 @@ func TestRenderHTML(t *testing.T) {
 		"250.5",
 		"Adam Nowak",
 		"Nie / No",
+		"Chorwacja, Czarnogóra",
 	}
 	for _, check := range checks {
 		if !strings.Contains(content, check) {
@@ -78,4 +82,26 @@ func TestGenerateDOCX(t *testing.T) {
 	if out[0] != 'P' || out[1] != 'K' {
 		t.Fatal("output is not a valid zip/docx file")
 	}
+	if body := docxBody(t, out); !strings.Contains(body, "Chorwacja, Czarnogóra") {
+		t.Error("expected the DOCX to print the countries' Polish names")
+	}
+}
+
+// docxBody returns the document part of a DOCX file.
+func docxBody(t *testing.T, docx []byte) string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(docx), int64(len(docx)))
+	if err != nil {
+		t.Fatalf("open docx: %v", err)
+	}
+	f, err := zr.Open("word/document.xml")
+	if err != nil {
+		t.Fatalf("open document.xml: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	body, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatalf("read document.xml: %v", err)
+	}
+	return string(body)
 }

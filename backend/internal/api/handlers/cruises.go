@@ -222,7 +222,7 @@ func (h *CruiseHandler) create(ctx context.Context, in *createCruiseInput) (*cru
 	cruise, err := h.q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
 		CreatedBy:     types.NullInt64{Int64: user.UserID, Valid: true},
 		Name:          in.Body.Name,
-		Countries:     nullString(in.Body.Countries),
+		Countries:     in.Body.Countries.Stored(),
 		Description:   nullString(in.Body.Description),
 		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
 		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),
@@ -261,7 +261,7 @@ func (h *CruiseHandler) update(ctx context.Context, in *updateCruiseInput) (*noC
 	}
 	if err := h.q.UpdateCruise(ctx, sqlcdb.UpdateCruiseParams{
 		Name:          in.Body.Name,
-		Countries:     nullString(in.Body.Countries),
+		Countries:     in.Body.Countries.Stored(),
 		Description:   nullString(in.Body.Description),
 		ImageLogoUrl:  nullString(in.Body.ImageLogoUrl),
 		ImagePhotoUrl: nullString(in.Body.ImagePhotoUrl),

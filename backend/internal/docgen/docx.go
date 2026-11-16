@@ -34,7 +34,7 @@ func GenerateDOCX(data OpinionData) ([]byte, error) {
 		"DisembarkDate":  data.DisembarkDate,
 		"StartPort":      data.StartPort,
 		"EndPort":        data.EndPort,
-		"Countries":      data.Countries,
+		"Countries":      data.CountryNames(),
 		"Miles":          fmt.Sprintf("%.1f", data.Miles),
 		"Days":           strconv.FormatInt(data.Days, 10),
 		"HoursTotal":     fmt.Sprintf("%.1f", data.HoursTotal),

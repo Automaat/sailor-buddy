@@ -362,7 +362,7 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
   "name": "Adriatic Week",
   "embark_date": "2026-06-01",
   "disembark_date": "2026-06-08",
-  "countries": "Croatia",
+  "countries": ["HR", "ME"],
   "start_port": "Split",
   "end_port": "Split",
   "captain_name": "Anna Kowalska",
@@ -382,6 +382,12 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
   "cruise_id": null
 }
 ```
+
+`countries` is a list of ISO 3166-1 alpha-2 codes from `GET /api/countries`
+(see Countries), in display order. An unknown, lower-case or repeated code,
+or more than 30, returns `422` naming the bad item (`body.countries[1]`).
+Omitting it or sending `[]` means no countries; responses always carry the
+list, `[]` when empty. Completing a trip copies its countries to the voyage.
 
 `sign_up_deadline` is the last day (`YYYY-MM-DD`, Europe/Warsaw, inclusive)
 the leg takes sign-ups; omit it for no deadline. A deadline after
@@ -774,6 +780,19 @@ Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 
 `404 crew member not assigned to this voyage` if the member has no assignment.
 
+### Countries
+
+| Method | Path | Auth | Description | Success |
+|--------|------|------|-------------|---------|
+| GET | `/api/countries` | member | Every country `countries` accepts | 200 |
+
+A bare array, ordered by code, of `{ "code": "NO", "name": "Norwegia" }`:
+the 249 ISO 3166-1 alpha-2 codes with their Polish names. It is the one
+list of countries: the API validates `countries` on cruises, trips and
+voyages against it, the frontend picks and names countries from it, and
+the opinion document prints its names. The list lives in
+`internal/countries/countries.json`, generated from CLDR.
+
 ### Cruises
 
 A **cruise** is a club event (an edition, edycja) that groups child trips
@@ -818,7 +837,8 @@ and the captain group.
 | PUT | `/api/cruises/{id}/enrollments/{enrollmentID}/trip` | **admin** | Assign enrollment to a trip; `409` when an accepted one moves to a full leg | 204 |
 | DELETE | `/api/cruises/{id}/enrollments/{enrollmentID}` | **admin** | Delete enrollment, 204 | 204 |
 
-Cruise body — `name` required, plus `countries`, `description`,
+Cruise body — `name` required, plus `countries` (country codes, as on
+trips), `description`,
 `image_*_url`, `included` / `not_included`, `series_id`, `edition` (see
 Cruise series), `travel_notes` and `min_age`. `POST /api/cruises` creates
 an edition of a series: it also requires `series_id` and a non-blank
