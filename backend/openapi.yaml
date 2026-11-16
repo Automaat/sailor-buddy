@@ -1327,6 +1327,10 @@ components:
         cruise_name:
           description: The edition's name; the label of a leg without a series
           type: string
+        cruise_published_at:
+          description: When the leg's cruise was published; absent while it is a hidden draft
+          format: date-time
+          type: string
         disembark_date:
           type: string
         edition:
@@ -1340,6 +1344,10 @@ components:
           format: int64
           type: integer
         name:
+          type: string
+        published_at:
+          description: When the leg was published; absent while it is a hidden draft
+          format: date-time
           type: string
         relation:
           description: "The caller's strongest link to the leg: captain, then crew, then sign-up"
@@ -2028,6 +2036,10 @@ components:
     SeaTimeVoyage:
       additionalProperties: false
       properties:
+        cruise_published_at:
+          description: When the voyage's cruise was published; absent while it is a hidden draft
+          format: date-time
+          type: string
         days:
           format: int64
           type: integer
@@ -2045,6 +2057,10 @@ components:
           format: double
           type: number
         name:
+          type: string
+        published_at:
+          description: When the voyage was published; absent while it is a hidden draft
+          format: date-time
           type: string
         role:
           description: captain when the user is the voyage's assigned captain, else crew

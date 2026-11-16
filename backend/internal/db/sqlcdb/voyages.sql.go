@@ -336,8 +336,10 @@ SELECT
     v.id, v.name, v.year, v.embark_date, v.disembark_date,
     y.name AS yacht_name,
     COALESCE(cp.user_id = $1::BIGINT, FALSE)::BOOLEAN AS as_captain,
-    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days,
+    v.published_at, c.published_at AS cruise_published_at
 FROM voyages v
+JOIN cruises c ON c.id = v.cruise_id
 LEFT JOIN yachts y ON y.id = v.yacht_id
 LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
 WHERE (cp.user_id = $1::BIGINT
@@ -346,8 +348,7 @@ WHERE (cp.user_id = $1::BIGINT
        JOIN crew_members cm ON cm.id = ca.crew_member_id
        WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
    ))
-  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
-      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
 ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
 `
 
@@ -357,30 +358,35 @@ type ListUserSeaTimeVoyagesParams struct {
 }
 
 type ListUserSeaTimeVoyagesRow struct {
-	ID            int64            `json:"id"`
-	Name          string           `json:"name"`
-	Year          types.NullInt64  `json:"year"`
-	EmbarkDate    types.NullString `json:"embark_date"`
-	DisembarkDate types.NullString `json:"disembark_date"`
-	YachtName     types.NullString `json:"yacht_name"`
-	AsCaptain     bool             `json:"as_captain"`
-	HoursTotal    float64          `json:"hours_total"`
-	HoursSail     float64          `json:"hours_sail"`
-	HoursEngine   float64          `json:"hours_engine"`
-	Miles         float64          `json:"miles"`
-	Days          int64            `json:"days"`
+	ID                int64            `json:"id"`
+	Name              string           `json:"name"`
+	Year              types.NullInt64  `json:"year"`
+	EmbarkDate        types.NullString `json:"embark_date"`
+	DisembarkDate     types.NullString `json:"disembark_date"`
+	YachtName         types.NullString `json:"yacht_name"`
+	AsCaptain         bool             `json:"as_captain"`
+	HoursTotal        float64          `json:"hours_total"`
+	HoursSail         float64          `json:"hours_sail"`
+	HoursEngine       float64          `json:"hours_engine"`
+	Miles             float64          `json:"miles"`
+	Days              int64            `json:"days"`
+	PublishedAt       types.NullTime   `json:"published_at"`
+	CruisePublishedAt types.NullTime   `json:"cruise_published_at"`
 }
 
 // Voyages the user sailed: as the captain through the account's person or
 // through a crew record linked to their account. One row per voyage; captain
-// wins on overlap. Without include_hidden only visible voyages count.
+// wins on overlap. Without include_hidden only visible voyages count; both
+// publication times are returned so the client can mark hidden voyages.
 //
 //	SELECT
 //	    v.id, v.name, v.year, v.embark_date, v.disembark_date,
 //	    y.name AS yacht_name,
 //	    COALESCE(cp.user_id = $1::BIGINT, FALSE)::BOOLEAN AS as_captain,
-//	    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+//	    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days,
+//	    v.published_at, c.published_at AS cruise_published_at
 //	FROM voyages v
+//	JOIN cruises c ON c.id = v.cruise_id
 //	LEFT JOIN yachts y ON y.id = v.yacht_id
 //	LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
 //	WHERE (cp.user_id = $1::BIGINT
@@ -389,8 +395,7 @@ type ListUserSeaTimeVoyagesRow struct {
 //	       JOIN crew_members cm ON cm.id = ca.crew_member_id
 //	       WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
 //	   ))
-//	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
-//	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+//	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
 //	ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
 func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, arg ListUserSeaTimeVoyagesParams) ([]ListUserSeaTimeVoyagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUserSeaTimeVoyages, arg.UserID, arg.IncludeHidden)
@@ -414,6 +419,8 @@ func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, arg ListUserSeaTim
 			&i.HoursEngine,
 			&i.Miles,
 			&i.Days,
+			&i.PublishedAt,
+			&i.CruisePublishedAt,
 		); err != nil {
 			return nil, err
 		}

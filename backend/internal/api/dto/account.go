@@ -3,6 +3,7 @@ package dto
 import (
 	"cmp"
 	"slices"
+	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -61,19 +62,21 @@ type UpdateProfileBody struct {
 
 // MyLeg is one of the caller's upcoming legs and how they take part in it.
 type MyLeg struct {
-	ID            int64   `json:"id"`
-	Name          string  `json:"name"`
-	CruiseID      int64   `json:"cruise_id"`
-	CruiseName    string  `json:"cruise_name" doc:"The edition's name; the label of a leg without a series"`
-	SeriesID      *int64  `json:"series_id,omitempty"`
-	SeriesName    *string `json:"series_name,omitempty"`
-	Edition       *string `json:"edition,omitempty" doc:"The edition label within its series, such as 2026"`
-	EmbarkDate    *string `json:"embark_date,omitempty"`
-	DisembarkDate *string `json:"disembark_date,omitempty"`
-	StartPort     *string `json:"start_port,omitempty"`
-	EndPort       *string `json:"end_port,omitempty"`
-	Relation      string  `json:"relation" enum:"captain,crew,sign_up" doc:"The caller's strongest link to the leg: captain, then crew, then sign-up"`
-	SignUpStatus  *string `json:"sign_up_status,omitempty" enum:"accepted,pending,waitlisted" doc:"Status of the caller's sign-up; set only when relation is sign_up"`
+	ID                int64      `json:"id"`
+	Name              string     `json:"name"`
+	CruiseID          int64      `json:"cruise_id"`
+	CruiseName        string     `json:"cruise_name" doc:"The edition's name; the label of a leg without a series"`
+	SeriesID          *int64     `json:"series_id,omitempty"`
+	SeriesName        *string    `json:"series_name,omitempty"`
+	Edition           *string    `json:"edition,omitempty" doc:"The edition label within its series, such as 2026"`
+	EmbarkDate        *string    `json:"embark_date,omitempty"`
+	DisembarkDate     *string    `json:"disembark_date,omitempty"`
+	StartPort         *string    `json:"start_port,omitempty"`
+	EndPort           *string    `json:"end_port,omitempty"`
+	PublishedAt       *time.Time `json:"published_at,omitempty" doc:"When the leg was published; absent while it is a hidden draft"`
+	CruisePublishedAt *time.Time `json:"cruise_published_at,omitempty" doc:"When the leg's cruise was published; absent while it is a hidden draft"`
+	Relation          string     `json:"relation" enum:"captain,crew,sign_up" doc:"The caller's strongest link to the leg: captain, then crew, then sign-up"`
+	SignUpStatus      *string    `json:"sign_up_status,omitempty" enum:"accepted,pending,waitlisted" doc:"Status of the caller's sign-up; set only when relation is sign_up"`
 }
 
 // MyLegs lists the caller's upcoming legs.
@@ -88,18 +91,20 @@ func MyLegsFromDB(rows []sqlcdb.ListUserUpcomingLegsRow) MyLegs {
 	for i := range rows {
 		r := &rows[i]
 		leg := MyLeg{
-			ID:            r.ID,
-			Name:          r.Name,
-			CruiseID:      r.CruiseID,
-			CruiseName:    r.CruiseName,
-			SeriesID:      intPtr(r.SeriesID),
-			SeriesName:    strPtr(r.SeriesName),
-			Edition:       strPtr(r.Edition),
-			EmbarkDate:    strPtr(r.EmbarkDate),
-			DisembarkDate: strPtr(r.DisembarkDate),
-			StartPort:     strPtr(r.StartPort),
-			EndPort:       strPtr(r.EndPort),
-			Relation:      r.Relation,
+			ID:                r.ID,
+			Name:              r.Name,
+			CruiseID:          r.CruiseID,
+			CruiseName:        r.CruiseName,
+			SeriesID:          intPtr(r.SeriesID),
+			SeriesName:        strPtr(r.SeriesName),
+			Edition:           strPtr(r.Edition),
+			EmbarkDate:        strPtr(r.EmbarkDate),
+			DisembarkDate:     strPtr(r.DisembarkDate),
+			StartPort:         strPtr(r.StartPort),
+			EndPort:           strPtr(r.EndPort),
+			PublishedAt:       timePtr(r.PublishedAt),
+			CruisePublishedAt: timePtr(r.CruisePublishedAt),
+			Relation:          r.Relation,
 		}
 		if r.Relation != "captain" && r.Relation != "crew" {
 			status := r.Relation
@@ -141,16 +146,18 @@ func (s *SeaTime) add(r *sqlcdb.ListUserSeaTimeVoyagesRow) {
 
 // SeaTimeVoyage is one voyage in the caller's sea-time log.
 type SeaTimeVoyage struct {
-	ID            int64   `json:"id"`
-	Name          string  `json:"name"`
-	Year          *int64  `json:"year,omitempty"`
-	EmbarkDate    *string `json:"embark_date,omitempty"`
-	DisembarkDate *string `json:"disembark_date,omitempty"`
-	YachtName     *string `json:"yacht_name,omitempty"`
-	Role          string  `json:"role" enum:"captain,crew" doc:"captain when the user is the voyage's assigned captain, else crew"`
-	Miles         float64 `json:"miles"`
-	HoursTotal    float64 `json:"hours_total"`
-	Days          int64   `json:"days"`
+	ID                int64      `json:"id"`
+	Name              string     `json:"name"`
+	Year              *int64     `json:"year,omitempty"`
+	EmbarkDate        *string    `json:"embark_date,omitempty"`
+	DisembarkDate     *string    `json:"disembark_date,omitempty"`
+	YachtName         *string    `json:"yacht_name,omitempty"`
+	Role              string     `json:"role" enum:"captain,crew" doc:"captain when the user is the voyage's assigned captain, else crew"`
+	Miles             float64    `json:"miles"`
+	HoursTotal        float64    `json:"hours_total"`
+	Days              int64      `json:"days"`
+	PublishedAt       *time.Time `json:"published_at,omitempty" doc:"When the voyage was published; absent while it is a hidden draft"`
+	CruisePublishedAt *time.Time `json:"cruise_published_at,omitempty" doc:"When the voyage's cruise was published; absent while it is a hidden draft"`
 }
 
 // PersonalSeaTime is the caller's own club sea time.
@@ -193,16 +200,18 @@ func PersonalSeaTimeFromDB(rows []sqlcdb.ListUserSeaTimeVoyagesRow) PersonalSeaT
 			out.AsCrew.add(r)
 		}
 		out.Voyages[i] = SeaTimeVoyage{
-			ID:            r.ID,
-			Name:          r.Name,
-			Year:          intPtr(r.Year),
-			EmbarkDate:    strPtr(r.EmbarkDate),
-			DisembarkDate: strPtr(r.DisembarkDate),
-			YachtName:     strPtr(r.YachtName),
-			Role:          role,
-			Miles:         r.Miles,
-			HoursTotal:    r.HoursTotal,
-			Days:          r.Days,
+			ID:                r.ID,
+			Name:              r.Name,
+			Year:              intPtr(r.Year),
+			EmbarkDate:        strPtr(r.EmbarkDate),
+			DisembarkDate:     strPtr(r.DisembarkDate),
+			YachtName:         strPtr(r.YachtName),
+			Role:              role,
+			Miles:             r.Miles,
+			HoursTotal:        r.HoursTotal,
+			Days:              r.Days,
+			PublishedAt:       timePtr(r.PublishedAt),
+			CruisePublishedAt: timePtr(r.CruisePublishedAt),
 		}
 		j, ok := yearIdx[r.Year]
 		if !ok {

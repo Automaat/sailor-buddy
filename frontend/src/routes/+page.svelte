@@ -3,15 +3,24 @@
 	import { plural } from '#lib/plural.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { myLegEditionLabel, myLegRelationBadge, myLegRelationLabel } from '#lib/myLegs.js';
+	import { canSeeHidden, isHidden, isLegHidden } from '#lib/publication.js';
+	import HiddenBadge from '#lib/components/HiddenBadge.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import type { SeaTime, YearStats } from '#lib/api/types.js';
 
 	let { data } = $props();
 	const legs = $derived(data.legs);
 	const stats = $derived(data.stats);
+	const showHidden = $derived(canSeeHidden(auth));
 
 	const roleLabels = { captain: 'Kapitan', crew: 'Załoga' } as const;
 </script>
+
+{#snippet hiddenMark(entry: { published_at?: string; cruise_published_at?: string })}
+	{#if showHidden && isLegHidden(entry, { published_at: entry.cruise_published_at })}
+		<HiddenBadge reason={isHidden(entry) ? undefined : 'Ukryte, bo wydarzenie jest ukryte'} />
+	{/if}
+{/snippet}
 
 {#snippet totals(t: SeaTime)}
 	<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -109,13 +118,16 @@
 									<h3 class="min-w-0 font-semibold [overflow-wrap:anywhere] text-[var(--navy)]">
 										{leg.name}
 									</h3>
-									<span
-										class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {myLegRelationBadge(
-											leg
-										)}"
-									>
-										{myLegRelationLabel(leg)}
-									</span>
+									<div class="flex shrink-0 items-center gap-2">
+										{@render hiddenMark(leg)}
+										<span
+											class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {myLegRelationBadge(
+												leg
+											)}"
+										>
+											{myLegRelationLabel(leg)}
+										</span>
+									</div>
 								</div>
 								<p class="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--text-muted)]">
 									{myLegEditionLabel(leg)}
@@ -174,6 +186,7 @@
 								>
 									<span>
 										<span class="font-medium text-[var(--navy)]">{v.name}</span>
+										{@render hiddenMark(v)}
 										<span class="block text-xs text-[var(--text-muted)]">
 											{#if v.embark_date}
 												{formatDateRangeWithDays(v.embark_date, v.disembark_date)}

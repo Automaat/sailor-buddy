@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -47,9 +48,15 @@ func clubMock(m *mockQuerier) *mockQuerier {
 func TestDashboardHandler_Get(t *testing.T) {
 	year := func(y int64) types.NullInt64 { return types.NullInt64{Int64: y, Valid: true} }
 	rows := []sqlcdb.ListUserSeaTimeVoyagesRow{
-		{ID: 2, Name: "Bornholm", Year: year(2025), AsCaptain: false, Miles: 120, HoursTotal: 30, HoursSail: 20, HoursEngine: 10, Days: 4},
-		{ID: 1, Name: "Gotland", Year: year(2024), AsCaptain: true, Miles: 200, HoursTotal: 50, HoursSail: 40, HoursEngine: 10, Days: 6},
-		{ID: 3, Name: "Zatoka", Year: year(2024), AsCaptain: false, Miles: 10, HoursTotal: 3, HoursSail: 3, Days: 1},
+		{
+			ID: 2, Name: "Bornholm", Year: year(2025), AsCaptain: false, Miles: 120, HoursTotal: 30, HoursSail: 20, HoursEngine: 10, Days: 4,
+			PublishedAt: published, CruisePublishedAt: published,
+		},
+		{
+			ID: 1, Name: "Gotland", Year: year(2024), AsCaptain: true, Miles: 200, HoursTotal: 50, HoursSail: 40, HoursEngine: 10, Days: 6,
+			CruisePublishedAt: published,
+		},
+		{ID: 3, Name: "Zatoka", Year: year(2024), AsCaptain: false, Miles: 10, HoursTotal: 3, HoursSail: 3, Days: 1, PublishedAt: published},
 	}
 
 	t.Run("member gets own totals split by role and no club section", func(t *testing.T) {
@@ -78,7 +85,14 @@ func TestDashboardHandler_Get(t *testing.T) {
 			t.Errorf("by_year = %+v", p.ByYear)
 		}
 		if len(p.Voyages) != 3 || p.Voyages[0].ID != 2 || p.Voyages[0].Role != "crew" || p.Voyages[1].Role != "captain" {
-			t.Errorf("voyages = %+v", p.Voyages)
+			t.Fatalf("voyages = %+v", p.Voyages)
+		}
+		for i, want := range [][2]bool{{true, true}, {false, true}, {true, false}} {
+			v := p.Voyages[i]
+			if (v.PublishedAt != nil) != want[0] || (v.CruisePublishedAt != nil) != want[1] {
+				t.Errorf("voyage %d published_at %v, cruise_published_at %v; want set %v, %v",
+					v.ID, v.PublishedAt, v.CruisePublishedAt, want[0], want[1])
+			}
 		}
 		if d.Club != nil {
 			t.Errorf("member got club section %+v", d.Club)
@@ -163,7 +177,8 @@ func TestDashboardHandler_Get(t *testing.T) {
 // TestDashboardSeaTime_DB checks the sea-time query against a real schema:
 // voyages captained by the user's person and linked-crew voyages count, an
 // overlap counts once, and unlinked crew records and captain persons do not
-// count.
+// count. A hidden voyage, or one of a hidden cruise, counts only for callers
+// who see hidden records, and carries both publication times.
 func TestDashboardSeaTime_DB(t *testing.T) {
 	conn := lockTestDB(t)
 	ctx := context.Background()
@@ -188,6 +203,12 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	if _, err := q.PublishCruise(ctx, cruise.ID); err != nil {
 		t.Fatalf("publish cruise: %v", err)
 	}
+	hiddenCruise, err := q.CreateCruise(ctx, sqlcdb.CreateCruiseParams{
+		Name: "Draft", Included: json.RawMessage("[]"), NotIncluded: json.RawMessage("[]"),
+	})
+	if err != nil {
+		t.Fatalf("create hidden cruise: %v", err)
+	}
 	yacht, err := q.CreateYacht(ctx, sqlcdb.CreateYachtParams{Name: "Zjawa"})
 	if err != nil {
 		t.Fatalf("create yacht: %v", err)
@@ -202,21 +223,26 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	aliceCrew := mkCrew("Alice", nullID(alice))
 	strangerCrew := mkCrew("Alice (no account)", types.NullInt64{})
 
-	mkVoyage := func(name string, year int64, miles float64, captain types.NullInt64) int64 {
+	createVoyage := func(cruiseID int64, name string, year int64, miles float64, captain types.NullInt64, publishedAt types.NullTime) int64 {
 		v, err := q.CreateVoyage(ctx, sqlcdb.CreateVoyageParams{
-			CruiseID: cruise.ID, Name: name, Year: nullID(year), YachtID: nullID(yacht.ID),
+			CruiseID: cruiseID, Name: name, Year: nullID(year), YachtID: nullID(yacht.ID),
 			Miles: miles, HoursTotal: miles / 5, HoursSail: miles / 10, HoursEngine: miles / 10, Days: 2,
-			CaptainPersonID: captain, PublishedAt: published,
+			CaptainPersonID: captain, PublishedAt: publishedAt,
 		})
 		if err != nil {
 			t.Fatalf("create voyage: %v", err)
 		}
 		return v.ID
 	}
+	mkVoyage := func(name string, year int64, miles float64, captain types.NullInt64) int64 {
+		return createVoyage(cruise.ID, name, year, miles, captain, published)
+	}
 	captained := mkVoyage("Captained and crewed", 2024, 100, nullID(aliceCrew))
 	crewed := mkVoyage("Crewed", 2025, 50, types.NullInt64{})
 	mkVoyage("Unlinked crew", 2025, 400, types.NullInt64{})
 	mkVoyage("Captained by a person without an account", 2025, 30, nullID(strangerCrew))
+	hiddenVoyage := createVoyage(cruise.ID, "Hidden", 2026, 7, nullID(aliceCrew), types.NullTime{})
+	voyageOfHiddenCruise := createVoyage(hiddenCruise.ID, "Of a hidden cruise", 2026, 3, nullID(aliceCrew), published)
 
 	assign := func(voyage, crew int64) {
 		if _, err := q.CreateVoyageCrewAssignment(ctx, sqlcdb.CreateVoyageCrewAssignmentParams{
@@ -252,12 +278,34 @@ func TestDashboardSeaTime_DB(t *testing.T) {
 	if d.Club != nil {
 		t.Error("member got club section")
 	}
+	for _, v := range p.Voyages {
+		if v.PublishedAt == nil || v.CruisePublishedAt == nil {
+			t.Errorf("member voyage %d published_at %v, cruise_published_at %v; want both set",
+				v.ID, v.PublishedAt, v.CruisePublishedAt)
+		}
+	}
+
+	type publication struct{ voyage, cruise bool }
+	wantPublication := map[int64]publication{
+		hiddenVoyage: {false, true}, voyageOfHiddenCruise: {true, false},
+		crewed: {true, true}, captained: {true, true},
+	}
+	for name, ctx := range map[string]context.Context{"admin": callerCtx(alice, "admin"), "captain group": captainGroupCtx(alice)} {
+		d = getDashboard(t, api, ctx)
+		got := map[int64]publication{}
+		for _, v := range d.Personal.Voyages {
+			got[v.ID] = publication{v.PublishedAt != nil, v.CruisePublishedAt != nil}
+		}
+		if !maps.Equal(got, wantPublication) {
+			t.Errorf("%s voyages publication = %v, want %v", name, got, wantPublication)
+		}
+	}
 
 	d = getDashboard(t, api, callerCtx(bob, "admin"))
 	if d.Personal.Total.VoyageCount != 0 || len(d.Personal.Voyages) != 0 {
 		t.Errorf("bob personal = %+v, want empty", d.Personal)
 	}
-	if d.Club == nil || d.Club.Total.VoyageCount != 4 || d.Club.Total.TotalMiles != 580 {
-		t.Errorf("admin club = %+v, want 4 voyages / 580 Mm", d.Club)
+	if d.Club == nil || d.Club.Total.VoyageCount != 6 || d.Club.Total.TotalMiles != 590 {
+		t.Errorf("admin club = %+v, want 6 voyages / 590 Mm", d.Club)
 	}
 }

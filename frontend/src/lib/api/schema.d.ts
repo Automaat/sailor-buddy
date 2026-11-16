@@ -2243,6 +2243,11 @@ export interface components {
             cruise_id: number;
             /** @description The edition's name; the label of a leg without a series */
             cruise_name: string;
+            /**
+             * Format: date-time
+             * @description When the leg's cruise was published; absent while it is a hidden draft
+             */
+            cruise_published_at?: string;
             disembark_date?: string;
             /** @description The edition label within its series, such as 2026 */
             edition?: string;
@@ -2251,6 +2256,11 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+            /**
+             * Format: date-time
+             * @description When the leg was published; absent while it is a hidden draft
+             */
+            published_at?: string;
             /**
              * @description The caller's strongest link to the leg: captain, then crew, then sign-up
              * @enum {string}
@@ -2690,6 +2700,11 @@ export interface components {
             voyage_count: number;
         };
         SeaTimeVoyage: {
+            /**
+             * Format: date-time
+             * @description When the voyage's cruise was published; absent while it is a hidden draft
+             */
+            cruise_published_at?: string;
             /** Format: int64 */
             days: number;
             disembark_date?: string;
@@ -2701,6 +2716,11 @@ export interface components {
             /** Format: double */
             miles: number;
             name: string;
+            /**
+             * Format: date-time
+             * @description When the voyage was published; absent while it is a hidden draft
+             */
+            published_at?: string;
             /**
              * @description captain when the user is the voyage's assigned captain, else crew
              * @enum {string}

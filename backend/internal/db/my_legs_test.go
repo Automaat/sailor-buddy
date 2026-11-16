@@ -160,6 +160,11 @@ func TestListUserUpcomingLegs(t *testing.T) {
 			if r.ID == accepted && (r.SeriesName.Valid || r.Edition.Valid || r.CruiseName != "Bałtyk") {
 				t.Errorf("standalone leg labels = %+v, want cruise Bałtyk without a series", r)
 			}
+			wantLeg, wantCruise := r.ID != hiddenLeg, r.ID != legOfHiddenCruise
+			if r.PublishedAt.Valid != wantLeg || r.CruisePublishedAt.Valid != wantCruise {
+				t.Errorf("leg %d published %v, cruise published %v; want %v, %v",
+					r.ID, r.PublishedAt.Valid, r.CruisePublishedAt.Valid, wantLeg, wantCruise)
+			}
 		}
 		return out
 	}
