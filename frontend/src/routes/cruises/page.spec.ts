@@ -13,7 +13,7 @@ describe('old Rejsy list', () => {
 				thrown = e;
 			}
 			expect(isRedirect(thrown)).toBe(true);
-			expect(thrown).toMatchObject({ status: 308, location: '/series' });
+			expect(thrown).toMatchObject({ status: 308, location: '/rejsy' });
 		}
 	);
 });

@@ -96,13 +96,16 @@ GROUP BY year ORDER BY year;
 -- name: ListUserSeaTimeVoyages :many
 -- Voyages the user sailed: as the captain through the account's person or
 -- through a crew record linked to their account. One row per voyage; captain
--- wins on overlap. Without include_hidden only visible voyages count.
+-- wins on overlap. Without include_hidden only visible voyages count; both
+-- publication times are returned so the client can mark hidden voyages.
 SELECT
     v.id, v.name, v.year, v.embark_date, v.disembark_date,
     y.name AS yacht_name,
     COALESCE(cp.user_id = sqlc.arg(user_id)::BIGINT, FALSE)::BOOLEAN AS as_captain,
-    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+    v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days,
+    v.published_at, c.published_at AS cruise_published_at
 FROM voyages v
+JOIN cruises c ON c.id = v.cruise_id
 LEFT JOIN yachts y ON y.id = v.yacht_id
 LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
 WHERE (cp.user_id = sqlc.arg(user_id)::BIGINT
@@ -111,8 +114,7 @@ WHERE (cp.user_id = sqlc.arg(user_id)::BIGINT
        JOIN crew_members cm ON cm.id = ca.crew_member_id
        WHERE ca.voyage_id = v.id AND cm.user_id = sqlc.arg(user_id)::BIGINT
    ))
-  AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
-      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+  AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
 ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC;
 
 -- name: LockVoyageCruiseForPublish :one

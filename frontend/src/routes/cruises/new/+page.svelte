@@ -12,7 +12,7 @@
 	let { data } = $props();
 
 	const series = $derived(data.series);
-	const seriesHref = $derived(`/series/${data.series.id}`);
+	const seriesHref = $derived(`/rejsy/${data.series.id}`);
 
 	$effect(() => {
 		if (auth.user && !auth.isAdmin) {
@@ -61,7 +61,7 @@
 				included: parseList(run.included),
 				not_included: parseList(run.notIncluded)
 			});
-			if (run === draft) void goto(`/series/${seriesId}`);
+			if (run === draft) void goto(`/rejsy/${seriesId}`);
 		} catch (err) {
 			run.error = err instanceof Error ? err.message : 'Nie udało się utworzyć edycji';
 		} finally {

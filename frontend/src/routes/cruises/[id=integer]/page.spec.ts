@@ -114,15 +114,15 @@ beforeEach(() => {
 
 describe('cruise page back link', () => {
 	it.each([
-		['the Rejsy list for a cruise without a series', undefined, null, 'Rejsy', '/series'],
+		['the Rejsy list for a cruise without a series', undefined, null, 'Rejsy', '/rejsy'],
 		[
 			'its series for an edition',
 			3,
 			makeSeries({ id: 3, name: 'May I Sail' }),
 			'May I Sail',
-			'/series/3'
+			'/rejsy/3'
 		],
-		['its series by id when the series fails to load', 3, null, 'Seria', '/series/3']
+		['its series by id when the series fails to load', 3, null, 'Seria', '/rejsy/3']
 	])('leads to %s', async (_, seriesId, row, label, href) => {
 		mockGet.mockResolvedValue(cruise({ series_id: seriesId }));
 		fn(getSeries).mockImplementation(() =>
@@ -267,7 +267,7 @@ describe('cruise page admin flows', () => {
 
 		expect(await screen.findByRole('link', { name: 'May I Sail' })).toHaveAttribute(
 			'href',
-			'/series/3'
+			'/rejsy/3'
 		);
 		expect(screen.getByText('Ala Kowalska')).toBeInTheDocument();
 		expect(screen.getByText('Nieznany')).toBeInTheDocument();
@@ -373,8 +373,8 @@ describe('cruise page admin flows', () => {
 	});
 
 	it.each([
-		['the Rejsy list for a cruise without a series', undefined, '/series'],
-		["its series' page for an edition", 3, '/series/3']
+		['the Rejsy list for a cruise without a series', undefined, '/rejsy'],
+		["its series' page for an edition", 3, '/rejsy/3']
 	])('deletes the cruise after confirmation and opens %s', async (_, seriesId, href) => {
 		vi.spyOn(window, 'confirm').mockReturnValue(true);
 		mockGet.mockResolvedValue(cruise({ series_id: seriesId }));
@@ -490,7 +490,7 @@ describe('cruise page load errors', () => {
 			body: {
 				message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
 				title: 'Nie znaleziono wydarzenia',
-				backHref: '/series'
+				backHref: '/rejsy'
 			}
 		});
 	});

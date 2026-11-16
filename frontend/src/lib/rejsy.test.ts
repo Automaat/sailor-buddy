@@ -137,7 +137,7 @@ describe('legFormParent', () => {
 	const cruises = [{ id: 5, name: 'Bałtyk 2027' }];
 
 	it.each([
-		['the Rejsy list without a preselected edition', 0, '/series', 'Rejsy'],
+		['the Rejsy list without a preselected edition', 0, '/rejsy', 'Rejsy'],
 		['the preselected edition', 5, '/cruises/5', 'Bałtyk 2027'],
 		['the edition by id when the list lacks it', 9, '/cruises/9', 'Wydarzenie']
 	])('leads back to %s', (_, cruiseId, href, label) => {

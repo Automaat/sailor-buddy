@@ -16,7 +16,7 @@ export const load: PageLoad = async ({ params }) => {
 		found(getVoyage(id), {
 			title: 'Nie znaleziono rejsu',
 			message: 'Ten zrealizowany rejs nie istnieje lub nie masz do niego dostępu.',
-			backHref: '/series',
+			backHref: '/rejsy',
 			backLabel: 'Wszystkie rejsy'
 		}),
 		listYachts().then((r) => r ?? []),

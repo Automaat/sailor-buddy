@@ -136,7 +136,8 @@ RETURNING *;
 -- waitlisted. A leg is upcoming while it is not cancelled and its
 -- disembark date (embark date when it has none) is today or later, or it
 -- has no dates. Without include_hidden a leg counts only while it and its
--- cruise are published. Bounded: a person has few upcoming legs.
+-- cruise are published; both publication times are returned so the client
+-- can mark hidden legs. Bounded: a person has few upcoming legs.
 WITH me AS (
     SELECT cm.id AS person_id FROM crew_members cm WHERE cm.user_id = sqlc.arg(user_id)::BIGINT
 ),
@@ -163,7 +164,9 @@ strongest AS (
 )
 SELECT
     t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+    t.published_at,
     c.id AS cruise_id, c.name AS cruise_name, c.edition,
+    c.published_at AS cruise_published_at,
     s.id AS series_id, s.name AS series_name,
     (CASE st.strength
         WHEN 1 THEN 'captain' WHEN 2 THEN 'crew' WHEN 3 THEN 'accepted'

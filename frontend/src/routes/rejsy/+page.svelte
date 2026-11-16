@@ -122,7 +122,7 @@
 			{#each series as s (s.id)}
 				<li class="min-w-0">
 					<a
-						href="/series/{s.id}"
+						href="/rejsy/{s.id}"
 						class="block h-full rounded-2xl bg-white px-6 py-4 shadow-sm transition-shadow hover:shadow-md max-sm:px-4"
 					>
 						<div class="flex flex-wrap items-center gap-2">

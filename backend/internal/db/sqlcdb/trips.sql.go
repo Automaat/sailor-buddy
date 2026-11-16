@@ -497,7 +497,9 @@ strongest AS (
 )
 SELECT
     t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+    t.published_at,
     c.id AS cruise_id, c.name AS cruise_name, c.edition,
+    c.published_at AS cruise_published_at,
     s.id AS series_id, s.name AS series_name,
     (CASE st.strength
         WHEN 1 THEN 'captain' WHEN 2 THEN 'crew' WHEN 3 THEN 'accepted'
@@ -522,18 +524,20 @@ type ListUserUpcomingLegsParams struct {
 }
 
 type ListUserUpcomingLegsRow struct {
-	ID            int64            `json:"id"`
-	Name          string           `json:"name"`
-	EmbarkDate    types.NullString `json:"embark_date"`
-	DisembarkDate types.NullString `json:"disembark_date"`
-	StartPort     types.NullString `json:"start_port"`
-	EndPort       types.NullString `json:"end_port"`
-	CruiseID      int64            `json:"cruise_id"`
-	CruiseName    string           `json:"cruise_name"`
-	Edition       types.NullString `json:"edition"`
-	SeriesID      types.NullInt64  `json:"series_id"`
-	SeriesName    types.NullString `json:"series_name"`
-	Relation      string           `json:"relation"`
+	ID                int64            `json:"id"`
+	Name              string           `json:"name"`
+	EmbarkDate        types.NullString `json:"embark_date"`
+	DisembarkDate     types.NullString `json:"disembark_date"`
+	StartPort         types.NullString `json:"start_port"`
+	EndPort           types.NullString `json:"end_port"`
+	PublishedAt       types.NullTime   `json:"published_at"`
+	CruiseID          int64            `json:"cruise_id"`
+	CruiseName        string           `json:"cruise_name"`
+	Edition           types.NullString `json:"edition"`
+	CruisePublishedAt types.NullTime   `json:"cruise_published_at"`
+	SeriesID          types.NullInt64  `json:"series_id"`
+	SeriesName        types.NullString `json:"series_name"`
+	Relation          string           `json:"relation"`
 }
 
 // The user's upcoming legs: legs their person captains, is on the crew of or
@@ -543,7 +547,8 @@ type ListUserUpcomingLegsRow struct {
 // waitlisted. A leg is upcoming while it is not cancelled and its
 // disembark date (embark date when it has none) is today or later, or it
 // has no dates. Without include_hidden a leg counts only while it and its
-// cruise are published. Bounded: a person has few upcoming legs.
+// cruise are published; both publication times are returned so the client
+// can mark hidden legs. Bounded: a person has few upcoming legs.
 //
 //	WITH me AS (
 //	    SELECT cm.id AS person_id FROM crew_members cm WHERE cm.user_id = $3::BIGINT
@@ -571,7 +576,9 @@ type ListUserUpcomingLegsRow struct {
 //	)
 //	SELECT
 //	    t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+//	    t.published_at,
 //	    c.id AS cruise_id, c.name AS cruise_name, c.edition,
+//	    c.published_at AS cruise_published_at,
 //	    s.id AS series_id, s.name AS series_name,
 //	    (CASE st.strength
 //	        WHEN 1 THEN 'captain' WHEN 2 THEN 'crew' WHEN 3 THEN 'accepted'
@@ -603,9 +610,11 @@ func (q *Queries) ListUserUpcomingLegs(ctx context.Context, arg ListUserUpcoming
 			&i.DisembarkDate,
 			&i.StartPort,
 			&i.EndPort,
+			&i.PublishedAt,
 			&i.CruiseID,
 			&i.CruiseName,
 			&i.Edition,
+			&i.CruisePublishedAt,
 			&i.SeriesID,
 			&i.SeriesName,
 			&i.Relation,

@@ -995,14 +995,17 @@ type Querier interface {
 	ListUserCruiseTripEnrollments(ctx context.Context, arg ListUserCruiseTripEnrollmentsParams) ([]TripEnrollment, error)
 	// Voyages the user sailed: as the captain through the account's person or
 	// through a crew record linked to their account. One row per voyage; captain
-	// wins on overlap. Without include_hidden only visible voyages count.
+	// wins on overlap. Without include_hidden only visible voyages count; both
+	// publication times are returned so the client can mark hidden voyages.
 	//
 	//  SELECT
 	//      v.id, v.name, v.year, v.embark_date, v.disembark_date,
 	//      y.name AS yacht_name,
 	//      COALESCE(cp.user_id = $1::BIGINT, FALSE)::BOOLEAN AS as_captain,
-	//      v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days
+	//      v.hours_total, v.hours_sail, v.hours_engine, v.miles, v.days,
+	//      v.published_at, c.published_at AS cruise_published_at
 	//  FROM voyages v
+	//  JOIN cruises c ON c.id = v.cruise_id
 	//  LEFT JOIN yachts y ON y.id = v.yacht_id
 	//  LEFT JOIN crew_members cp ON cp.id = v.captain_person_id
 	//  WHERE (cp.user_id = $1::BIGINT
@@ -1011,8 +1014,7 @@ type Querier interface {
 	//         JOIN crew_members cm ON cm.id = ca.crew_member_id
 	//         WHERE ca.voyage_id = v.id AND cm.user_id = $1::BIGINT
 	//     ))
-	//    AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
-	//        SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
+	//    AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
 	//  ORDER BY v.year DESC NULLS LAST, v.embark_date DESC NULLS LAST, v.id DESC
 	ListUserSeaTimeVoyages(ctx context.Context, arg ListUserSeaTimeVoyagesParams) ([]ListUserSeaTimeVoyagesRow, error)
 	// The user's upcoming legs: legs their person captains, is on the crew of or
@@ -1022,7 +1024,8 @@ type Querier interface {
 	// waitlisted. A leg is upcoming while it is not cancelled and its
 	// disembark date (embark date when it has none) is today or later, or it
 	// has no dates. Without include_hidden a leg counts only while it and its
-	// cruise are published. Bounded: a person has few upcoming legs.
+	// cruise are published; both publication times are returned so the client
+	// can mark hidden legs. Bounded: a person has few upcoming legs.
 	//
 	//  WITH me AS (
 	//      SELECT cm.id AS person_id FROM crew_members cm WHERE cm.user_id = $3::BIGINT
@@ -1050,7 +1053,9 @@ type Querier interface {
 	//  )
 	//  SELECT
 	//      t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+	//      t.published_at,
 	//      c.id AS cruise_id, c.name AS cruise_name, c.edition,
+	//      c.published_at AS cruise_published_at,
 	//      s.id AS series_id, s.name AS series_name,
 	//      (CASE st.strength
 	//          WHEN 1 THEN 'captain' WHEN 2 THEN 'crew' WHEN 3 THEN 'accepted'

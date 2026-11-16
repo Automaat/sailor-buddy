@@ -1,22 +1,13 @@
-import { getSeries, listSeriesEditions } from '#lib/api/routes.js';
-import { found, type NotFoundCopy } from '#lib/api/load.js';
+import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 
-const notFoundCopy: NotFoundCopy = {
-	title: 'Nie znaleziono serii',
-	message: 'Ta seria nie istnieje lub nie masz do niej dostępu.',
-	backHref: '/series',
-	backLabel: 'Wszystkie rejsy'
-};
+/**
+ * Rendered on the server, unlike the rest of the app (`ssr = false` in the
+ * root layout), so a bookmarked or shared link gets an HTTP 308.
+ */
+export const ssr = true;
 
-export const load: PageLoad = async ({ params }) => {
-	const id = Number(params.id);
-	const [series, editions] = await Promise.all([
-		found(getSeries(id), notFoundCopy),
-		found(
-			listSeriesEditions(id).then((r) => r ?? []),
-			notFoundCopy
-		)
-	]);
-	return { series, editions };
+/** A series page moved to /rejsy/{id}; old links keep working. */
+export const load: PageLoad = ({ params, url }) => {
+	redirect(308, `/rejsy/${params.id}${url.search}`);
 };

@@ -34,8 +34,8 @@
 	const series = $derived(data.series);
 	const parentLink = $derived(
 		data.cruise.series_id
-			? { href: `/series/${data.cruise.series_id}`, label: data.series?.name ?? 'Seria' }
-			: { href: '/series', label: 'Rejsy' }
+			? { href: `/rejsy/${data.cruise.series_id}`, label: data.series?.name ?? 'Seria' }
+			: { href: '/rejsy', label: 'Rejsy' }
 	);
 	let trips = $derived(data.trips);
 	let voyages = $derived(data.voyages);
@@ -140,7 +140,7 @@
 		}
 		if (!confirm('Usunąć wydarzenie?')) return;
 		const cruiseId = id;
-		const backHref = cruise.series_id ? `/series/${cruise.series_id}` : '/series';
+		const backHref = cruise.series_id ? `/rejsy/${cruise.series_id}` : '/rejsy';
 		deleteError = '';
 		try {
 			await deleteCruise(cruiseId);
