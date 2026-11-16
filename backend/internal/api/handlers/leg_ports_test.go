@@ -277,3 +277,53 @@ func TestLegPortsRead(t *testing.T) {
 		})
 	}
 }
+
+// TestLegBodyResolvers checks that one trip or voyage request with a bad
+// port and a bad country code is refused with both errors: the body's own
+// Resolve checks ports and countries, so neither check hides the other,
+// including in the trip bodies that embed TripFields.
+func TestLegBodyResolvers(t *testing.T) {
+	body := map[string]any{
+		"cruise_id":  1,
+		"name":       "Rejs",
+		"start_port": map[string]any{"name": "Hel", "latitude": 54.6},
+		"end_port":   map[string]any{"name": strings.Repeat("ś", 101)},
+		"countries":  []string{"NO", "XX"},
+	}
+	want := []string{"body.start_port.latitude", "body.end_port.name", "body.countries[1]"}
+	m := &mockQuerier{}
+	calls := []struct {
+		name string
+		call func() (int, string)
+	}{
+		{"create trip", func() (int, string) {
+			r := tripTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/trips", body)
+			return r.Code, r.Body.String()
+		}},
+		{"update trip", func() (int, string) {
+			r := tripTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/trips/3", body)
+			return r.Code, r.Body.String()
+		}},
+		{"create voyage", func() (int, string) {
+			r := voyageTestAPI(t, m).PostCtx(callerCtx(1, "admin"), "/voyages", body)
+			return r.Code, r.Body.String()
+		}},
+		{"update voyage", func() (int, string) {
+			r := voyageTestAPI(t, m).PutCtx(callerCtx(1, "admin"), "/voyages/3", body)
+			return r.Code, r.Body.String()
+		}},
+	}
+	for _, c := range calls {
+		t.Run(c.name, func(t *testing.T) {
+			code, resp := c.call()
+			if code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422; body=%s", code, resp)
+			}
+			for _, loc := range want {
+				if !strings.Contains(resp, `"location":"`+loc+`"`) {
+					t.Errorf("no error at %s: %s", loc, resp)
+				}
+			}
+		})
+	}
+}
