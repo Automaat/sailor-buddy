@@ -194,6 +194,10 @@ type Trip struct {
 	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 	CaptainPersonID        types.NullInt64   `json:"captain_person_id"`
 	PublishedAt            types.NullTime    `json:"published_at"`
+	StartPortLatitude      types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude     types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude        types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude       types.NullFloat64 `json:"end_port_longitude"`
 }
 
 type TripEnrollment struct {
@@ -228,38 +232,42 @@ type User struct {
 }
 
 type Voyage struct {
-	ID              int64             `json:"id"`
-	CreatedBy       types.NullInt64   `json:"created_by"`
-	CruiseID        int64             `json:"cruise_id"`
-	Name            string            `json:"name"`
-	Year            types.NullInt64   `json:"year"`
-	EmbarkDate      types.NullString  `json:"embark_date"`
-	DisembarkDate   types.NullString  `json:"disembark_date"`
-	Countries       types.NullString  `json:"countries"`
-	StartPort       types.NullString  `json:"start_port"`
-	EndPort         types.NullString  `json:"end_port"`
-	CaptainName     types.NullString  `json:"captain_name"`
-	YachtID         types.NullInt64   `json:"yacht_id"`
-	HoursTotal      float64           `json:"hours_total"`
-	HoursSail       float64           `json:"hours_sail"`
-	HoursEngine     float64           `json:"hours_engine"`
-	HoursOver6bf    float64           `json:"hours_over_6bf"`
-	Miles           float64           `json:"miles"`
-	Days            int64             `json:"days"`
-	TidalWaters     int64             `json:"tidal_waters"`
-	CostTotal       types.NullFloat64 `json:"cost_total"`
-	CostPerPerson   types.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl    types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl   types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl   types.NullString  `json:"image_route_url"`
-	Description     types.NullString  `json:"description"`
-	CreatedAt       types.NullTime    `json:"created_at"`
-	UpdatedAt       types.NullTime    `json:"updated_at"`
-	CaptainNotes    types.NullString  `json:"captain_notes"`
-	TrackUrl        types.NullString  `json:"track_url"`
-	VoyageCard      types.NullString  `json:"voyage_card"`
-	CaptainPersonID types.NullInt64   `json:"captain_person_id"`
-	PublishedAt     types.NullTime    `json:"published_at"`
+	ID                 int64             `json:"id"`
+	CreatedBy          types.NullInt64   `json:"created_by"`
+	CruiseID           int64             `json:"cruise_id"`
+	Name               string            `json:"name"`
+	Year               types.NullInt64   `json:"year"`
+	EmbarkDate         types.NullString  `json:"embark_date"`
+	DisembarkDate      types.NullString  `json:"disembark_date"`
+	Countries          types.NullString  `json:"countries"`
+	StartPort          types.NullString  `json:"start_port"`
+	EndPort            types.NullString  `json:"end_port"`
+	CaptainName        types.NullString  `json:"captain_name"`
+	YachtID            types.NullInt64   `json:"yacht_id"`
+	HoursTotal         float64           `json:"hours_total"`
+	HoursSail          float64           `json:"hours_sail"`
+	HoursEngine        float64           `json:"hours_engine"`
+	HoursOver6bf       float64           `json:"hours_over_6bf"`
+	Miles              float64           `json:"miles"`
+	Days               int64             `json:"days"`
+	TidalWaters        int64             `json:"tidal_waters"`
+	CostTotal          types.NullFloat64 `json:"cost_total"`
+	CostPerPerson      types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl       types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl      types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl      types.NullString  `json:"image_route_url"`
+	Description        types.NullString  `json:"description"`
+	CreatedAt          types.NullTime    `json:"created_at"`
+	UpdatedAt          types.NullTime    `json:"updated_at"`
+	CaptainNotes       types.NullString  `json:"captain_notes"`
+	TrackUrl           types.NullString  `json:"track_url"`
+	VoyageCard         types.NullString  `json:"voyage_card"`
+	CaptainPersonID    types.NullInt64   `json:"captain_person_id"`
+	PublishedAt        types.NullTime    `json:"published_at"`
+	StartPortLatitude  types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude    types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude   types.NullFloat64 `json:"end_port_longitude"`
 }
 
 type VoyageOpinion struct {

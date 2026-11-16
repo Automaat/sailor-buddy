@@ -71,8 +71,8 @@ type MyLeg struct {
 	Edition           *string    `json:"edition,omitempty" doc:"The edition label within its series, such as 2026"`
 	EmbarkDate        *string    `json:"embark_date,omitempty"`
 	DisembarkDate     *string    `json:"disembark_date,omitempty"`
-	StartPort         *string    `json:"start_port,omitempty"`
-	EndPort           *string    `json:"end_port,omitempty"`
+	StartPort         *Port      `json:"start_port,omitempty"`
+	EndPort           *Port      `json:"end_port,omitempty"`
 	PublishedAt       *time.Time `json:"published_at,omitempty" doc:"When the leg was published; absent while it is a hidden draft"`
 	CruisePublishedAt *time.Time `json:"cruise_published_at,omitempty" doc:"When the leg's cruise was published; absent while it is a hidden draft"`
 	Relation          string     `json:"relation" enum:"captain,crew,sign_up" doc:"The caller's strongest link to the leg: captain, then crew, then sign-up"`
@@ -100,8 +100,8 @@ func MyLegsFromDB(rows []sqlcdb.ListUserUpcomingLegsRow) MyLegs {
 			Edition:           strPtr(r.Edition),
 			EmbarkDate:        strPtr(r.EmbarkDate),
 			DisembarkDate:     strPtr(r.DisembarkDate),
-			StartPort:         strPtr(r.StartPort),
-			EndPort:           strPtr(r.EndPort),
+			StartPort:         portFromDB(r.StartPort, r.StartPortLatitude, r.StartPortLongitude),
+			EndPort:           portFromDB(r.EndPort, r.EndPortLatitude, r.EndPortLongitude),
 			PublishedAt:       timePtr(r.PublishedAt),
 			CruisePublishedAt: timePtr(r.CruisePublishedAt),
 			Relation:          r.Relation,

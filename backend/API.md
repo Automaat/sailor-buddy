@@ -363,8 +363,8 @@ demote the last admin`). Role body: `{ "role": "admin" }`.
   "embark_date": "2026-06-01",
   "disembark_date": "2026-06-08",
   "countries": "Croatia",
-  "start_port": "Split",
-  "end_port": "Split",
+  "start_port": { "name": "Split", "latitude": 43.508, "longitude": 16.44 },
+  "end_port": { "name": "Split" },
   "captain_name": "Anna Kowalska",
   "yacht_id": 3,
   "cost_total": 4200.0,
@@ -693,8 +693,18 @@ concurrent adds to one voyage take turns, so they get distinct positions.
 Port names, here and in a trip's or voyage's `start_port` and `end_port`,
 lose surrounding blanks (whitespace and invisible characters) and keep one
 space between words; a name longer than 100 characters after that is 422.
-A blank `start_port` or `end_port` is stored as no port; a blank port
-`name` is 422.
+A blank port `name` is 422.
+
+A trip's or voyage's `start_port` and `end_port` are port objects
+`{ "name", "latitude", "longitude" }`, in requests and in every response
+that carries them (trips, voyages, enroll links, `/auth/me/legs`,
+`/standalone-legs`). `name` is required in the object; the coordinates are
+optional, come together and follow the visited-port ranges, each error
+reported at its field (`body.start_port.latitude`). Omit the port, or send
+a blank `name` without coordinates, for no port; coordinates with a blank
+name are 422. A response omits a port the leg does not have and the
+coordinates of a port entered by name only. Completing a trip copies both
+ports, coordinates included, to the voyage.
 
 ### Port search
 
@@ -724,9 +734,10 @@ get names only from published trips and voyages of published cruises.
  { "name": "Zatoka Pucka", "uses": 1 }]
 ```
 
-`latitude`/`longitude` come from the latest visited port of that name with
-a location; start and end ports have none, so a name never entered as a
-visited port with a location has none. `uses` counts every entry.
+`latitude`/`longitude` come from the latest entry of that name with a
+location, from any source: a visited port by when it was added, a start or
+end port by when its trip or voyage was last saved. A name never entered
+with a location has none. `uses` counts every entry.
 
 **Geocoding** (`/geocode`) proxies
 [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) and returns

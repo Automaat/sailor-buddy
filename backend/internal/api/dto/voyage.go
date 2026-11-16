@@ -20,8 +20,8 @@ type Voyage struct {
 	EmbarkDate      *string    `json:"embark_date,omitempty"`
 	DisembarkDate   *string    `json:"disembark_date,omitempty"`
 	Countries       *string    `json:"countries,omitempty"`
-	StartPort       *string    `json:"start_port,omitempty"`
-	EndPort         *string    `json:"end_port,omitempty"`
+	StartPort       *Port      `json:"start_port,omitempty"`
+	EndPort         *Port      `json:"end_port,omitempty"`
 	CaptainName     *string    `json:"captain_name,omitempty"`
 	CaptainPersonID *int64     `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage"`
 	CaptainNotes    *string    `json:"captain_notes,omitempty"`
@@ -60,8 +60,8 @@ type VoyageBody struct {
 	EmbarkDate      *string  `json:"embark_date,omitempty"`
 	DisembarkDate   *string  `json:"disembark_date,omitempty"`
 	Countries       *string  `json:"countries,omitempty"`
-	StartPort       *string  `json:"start_port,omitempty" doc:"Port name, at most 100 characters; blank means no port"`
-	EndPort         *string  `json:"end_port,omitempty" doc:"Port name, at most 100 characters; blank means no port"`
+	StartPort       *Port    `json:"start_port,omitempty" doc:"Where the voyage started; omit for no port"`
+	EndPort         *Port    `json:"end_port,omitempty" doc:"Where the voyage ended; omit for no port"`
 	CaptainName     *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
 	CaptainPersonID *int64   `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage; any person may be chosen"`
 	YachtID         *int64   `json:"yacht_id,omitempty"`
@@ -83,12 +83,9 @@ type VoyageBody struct {
 	CruiseID        int64    `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this voyage was a leg of"`
 }
 
-// Resolve rejects a track link that is not an absolute http(s) URL and a
-// start or end port name that the location name rule rejects.
+// Resolve rejects a track link that is not an absolute http(s) URL.
 func (b *VoyageBody) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
-	errs := trackURLErrors(b.TrackUrl, prefix)
-	errs = append(errs, portNameErrors(prefix, "start_port", b.StartPort)...)
-	return append(errs, portNameErrors(prefix, "end_port", b.EndPort)...)
+	return trackURLErrors(b.TrackUrl, prefix)
 }
 
 // VoyageLogBody is the post-cruise log a voyage's captain (or an admin)
@@ -152,8 +149,8 @@ func VoyageFromDB(v sqlcdb.Voyage) Voyage {
 		EmbarkDate:      strPtr(v.EmbarkDate),
 		DisembarkDate:   strPtr(v.DisembarkDate),
 		Countries:       strPtr(v.Countries),
-		StartPort:       strPtr(v.StartPort),
-		EndPort:         strPtr(v.EndPort),
+		StartPort:       portFromDB(v.StartPort, v.StartPortLatitude, v.StartPortLongitude),
+		EndPort:         portFromDB(v.EndPort, v.EndPortLatitude, v.EndPortLongitude),
 		CaptainName:     strPtr(v.CaptainName),
 		CaptainPersonID: intPtr(v.CaptainPersonID),
 		CaptainNotes:    strPtr(v.CaptainNotes),

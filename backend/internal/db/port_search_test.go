@@ -203,7 +203,7 @@ func TestSuggestPorts(t *testing.T) {
 	insertPortSearchPort(t, conn, hiddenVoyage, "Władysławowo", 54.79, 18.41)
 	insertPortSearchPort(t, conn, hiddenByCruise, "Svendborg", 55.06, 10.61)
 
-	// Start and end ports of trips and voyages, which carry no coordinates.
+	// Start and end ports of trips and voyages, entered without coordinates.
 	insertPortSearchLeg(t, conn, "trips", publishedCruise, true, "Kołobrzeg", "Hel")
 	insertPortSearchLeg(t, conn, "trips", publishedCruise, true, "", "Stara Ustka")
 	insertPortSearchLeg(t, conn, "voyages", publishedCruise, true, "Ustka Port Jachtowy Wschodni", "Łeba")

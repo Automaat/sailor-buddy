@@ -85,6 +85,28 @@ func NewPort(name string, lat, lon *float64) (Port, error) {
 	return p, nil
 }
 
+// ParseOptionalPort applies the name and coordinate rules to a port that
+// may be absent, such as a leg's start or end port. A blank name without
+// coordinates is no port, which ok reports as false; coordinates need a
+// name.
+func ParseOptionalPort(name string, lat, lon *float64) (p Port, ok bool, err error) {
+	n, err := ParseName(name)
+	if err != nil {
+		return Port{}, false, err
+	}
+	if n == "" {
+		if lat == nil && lon == nil {
+			return Port{}, false, nil
+		}
+		return Port{}, false, ErrNameRequired
+	}
+	p, err = NewPort(n, lat, lon)
+	if err != nil {
+		return Port{}, false, err
+	}
+	return p, true, nil
+}
+
 // LatLon returns the port's coordinates as optional values, both nil for a
 // port known by name only.
 func (p Port) LatLon() (lat, lon *float64) {
@@ -135,15 +157,6 @@ func ParseName(s string) (string, error) {
 		return "", ErrNameTooLong
 	}
 	return n, nil
-}
-
-// ParseOptionalName applies ParseName to an optional port name, such as a
-// leg's start or end port. An absent name gives "", which means no port.
-func ParseOptionalName(s *string) (string, error) {
-	if s == nil {
-		return "", nil
-	}
-	return ParseName(*s)
 }
 
 // ParseQuery checks a typed search for a port or town: it must hold at

@@ -25,6 +25,7 @@ func TestAuthHandler_MyLegs(t *testing.T) {
 			Edition:    types.NullString{String: "2027", Valid: true},
 			EmbarkDate: types.NullString{String: "2027-05-01", Valid: true}, DisembarkDate: types.NullString{String: "2027-05-08", Valid: true},
 			StartPort: types.NullString{String: "Palermo", Valid: true}, EndPort: types.NullString{String: "Trapani", Valid: true},
+			StartPortLatitude: types.NullFloat64{Float64: 38.12, Valid: true}, StartPortLongitude: types.NullFloat64{Float64: 13.36, Valid: true},
 			PublishedAt: published, CruisePublishedAt: published, Relation: "captain",
 		},
 		{ID: 8, Name: "Etap 2", CruiseID: 3, CruiseName: "Sycylia 2027", CruisePublishedAt: published, Relation: "crew"},
@@ -35,8 +36,8 @@ func TestAuthHandler_MyLegs(t *testing.T) {
 	const at = `"2025-01-01T00:00:00Z"`
 	want := `{"legs":[` +
 		`{"id":7,"name":"Etap 1","cruise_id":3,"cruise_name":"Sycylia 2027","series_id":2,"series_name":"Sycylia",` +
-		`"edition":"2027","embark_date":"2027-05-01","disembark_date":"2027-05-08","start_port":"Palermo",` +
-		`"end_port":"Trapani","published_at":` + at + `,"cruise_published_at":` + at + `,"relation":"captain"},` +
+		`"edition":"2027","embark_date":"2027-05-01","disembark_date":"2027-05-08","start_port":{"name":"Palermo",` +
+		`"latitude":38.12,"longitude":13.36},"end_port":{"name":"Trapani"},"published_at":` + at + `,"cruise_published_at":` + at + `,"relation":"captain"},` +
 		`{"id":8,"name":"Etap 2","cruise_id":3,"cruise_name":"Sycylia 2027","cruise_published_at":` + at + `,"relation":"crew"},` +
 		`{"id":9,"name":"Bałtyk","cruise_id":4,"cruise_name":"Bałtyk","published_at":` + at + `,` +
 		`"relation":"sign_up","sign_up_status":"accepted"},` +

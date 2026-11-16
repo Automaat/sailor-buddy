@@ -13,13 +13,13 @@ import (
 
 const cancelTrip = `-- name: CancelTrip :one
 UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 // CancelTrip
 //
 //	UPDATE trips SET status = 'cancelled', enroll_token = NULL, updated_at = CURRENT_TIMESTAMP
-//	WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+//	WHERE id = $1 AND status = 'planned' RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) CancelTrip(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, cancelTrip, id)
 	var i Trip
@@ -53,6 +53,10 @@ func (q *Queries) CancelTrip(ctx context.Context, id int64) (Trip, error) {
 		&i.SignUpDeadline,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -92,11 +96,12 @@ INSERT INTO trips (
     created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
     captain_name, yacht_id, cost_total, cost_per_person, max_crew,
     image_logo_url, image_photo_url, image_route_url, description, status, captain_person_id,
-    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
+    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline,
+    start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-    $20, $21, $22, $23, $24
-) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+    $20, $21, $22, $23, $24, $25, $26, $27, $28
+) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 type CreateTripParams struct {
@@ -124,6 +129,10 @@ type CreateTripParams struct {
 	YachtFund              types.NullFloat64 `json:"yacht_fund"`
 	Deposit                types.NullFloat64 `json:"deposit"`
 	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
+	StartPortLatitude      types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude     types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude        types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude       types.NullFloat64 `json:"end_port_longitude"`
 }
 
 // CreateTrip
@@ -132,11 +141,12 @@ type CreateTripParams struct {
 //	    created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
 //	    captain_name, yacht_id, cost_total, cost_per_person, max_crew,
 //	    image_logo_url, image_photo_url, image_route_url, description, status, captain_person_id,
-//	    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
+//	    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline,
+//	    start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 //	) VALUES (
 //	    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-//	    $20, $21, $22, $23, $24
-//	) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+//	    $20, $21, $22, $23, $24, $25, $26, $27, $28
+//	) RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, createTrip,
 		arg.CreatedBy,
@@ -163,6 +173,10 @@ func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, e
 		arg.YachtFund,
 		arg.Deposit,
 		arg.SignUpDeadline,
+		arg.StartPortLatitude,
+		arg.StartPortLongitude,
+		arg.EndPortLatitude,
+		arg.EndPortLongitude,
 	)
 	var i Trip
 	err := row.Scan(
@@ -195,6 +209,10 @@ func (q *Queries) CreateTrip(ctx context.Context, arg CreateTripParams) (Trip, e
 		&i.SignUpDeadline,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -212,7 +230,7 @@ func (q *Queries) DeleteTrip(ctx context.Context, id int64) error {
 }
 
 const getTrip = `-- name: GetTrip :one
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips t
 WHERE t.id = $1
   AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
@@ -226,7 +244,7 @@ type GetTripParams struct {
 // include_hidden is true for callers who may read hidden drafts; others get
 // no row unless the trip and its cruise are both published.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips t
 //	WHERE t.id = $1
 //	  AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
 //	      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
@@ -263,12 +281,17 @@ func (q *Queries) GetTrip(ctx context.Context, arg GetTripParams) (Trip, error) 
 		&i.SignUpDeadline,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
 
 const getTripByEnrollToken = `-- name: GetTripByEnrollToken :one
 SELECT t.id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port,
+       t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
        t.description, t.max_crew, t.captain_name, t.image_photo_url,
        t.cost_per_person, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit,
        t.sign_up_deadline
@@ -285,6 +308,10 @@ type GetTripByEnrollTokenRow struct {
 	Countries              types.NullString  `json:"countries"`
 	StartPort              types.NullString  `json:"start_port"`
 	EndPort                types.NullString  `json:"end_port"`
+	StartPortLatitude      types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude     types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude        types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude       types.NullFloat64 `json:"end_port_longitude"`
 	Description            types.NullString  `json:"description"`
 	MaxCrew                types.NullInt64   `json:"max_crew"`
 	CaptainName            types.NullString  `json:"captain_name"`
@@ -300,6 +327,7 @@ type GetTripByEnrollTokenRow struct {
 // No row while the trip or its cruise is hidden.
 //
 //	SELECT t.id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port,
+//	       t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
 //	       t.description, t.max_crew, t.captain_name, t.image_photo_url,
 //	       t.cost_per_person, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit,
 //	       t.sign_up_deadline
@@ -317,6 +345,10 @@ func (q *Queries) GetTripByEnrollToken(ctx context.Context, enrollToken types.Nu
 		&i.Countries,
 		&i.StartPort,
 		&i.EndPort,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 		&i.Description,
 		&i.MaxCrew,
 		&i.CaptainName,
@@ -332,14 +364,14 @@ func (q *Queries) GetTripByEnrollToken(ctx context.Context, enrollToken types.Nu
 }
 
 const getTripForUpdate = `-- name: GetTripForUpdate :one
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips WHERE id = $1 FOR UPDATE
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips WHERE id = $1 FOR UPDATE
 `
 
 // Row-locks the trip for the rest of the transaction. Trip completion takes
 // it first, so a concurrent leg enrollment waits on its trip lock and
 // then sees the trip gone instead of deadlocking with the deletes.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips WHERE id = $1 FOR UPDATE
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips WHERE id = $1 FOR UPDATE
 func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, getTripForUpdate, id)
 	var i Trip
@@ -373,12 +405,16 @@ func (q *Queries) GetTripForUpdate(ctx context.Context, id int64) (Trip, error) 
 		&i.SignUpDeadline,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
 
 const listTrips = `-- name: ListTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips t
 WHERE ($1::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
   AND ($2::BIGINT IS NULL
@@ -402,7 +438,7 @@ type ListTripsParams struct {
 // Without include_hidden a trip is listed only while it and its cruise are
 // published.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips t
 //	WHERE ($1::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
 //	      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
 //	  AND ($2::BIGINT IS NULL
@@ -456,6 +492,10 @@ func (q *Queries) ListTrips(ctx context.Context, arg ListTripsParams) ([]Trip, e
 			&i.SignUpDeadline,
 			&i.CaptainPersonID,
 			&i.PublishedAt,
+			&i.StartPortLatitude,
+			&i.StartPortLongitude,
+			&i.EndPortLatitude,
+			&i.EndPortLongitude,
 		); err != nil {
 			return nil, err
 		}
@@ -497,6 +537,7 @@ strongest AS (
 )
 SELECT
     t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+    t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
     t.published_at,
     c.id AS cruise_id, c.name AS cruise_name, c.edition,
     c.published_at AS cruise_published_at,
@@ -524,20 +565,24 @@ type ListUserUpcomingLegsParams struct {
 }
 
 type ListUserUpcomingLegsRow struct {
-	ID                int64            `json:"id"`
-	Name              string           `json:"name"`
-	EmbarkDate        types.NullString `json:"embark_date"`
-	DisembarkDate     types.NullString `json:"disembark_date"`
-	StartPort         types.NullString `json:"start_port"`
-	EndPort           types.NullString `json:"end_port"`
-	PublishedAt       types.NullTime   `json:"published_at"`
-	CruiseID          int64            `json:"cruise_id"`
-	CruiseName        string           `json:"cruise_name"`
-	Edition           types.NullString `json:"edition"`
-	CruisePublishedAt types.NullTime   `json:"cruise_published_at"`
-	SeriesID          types.NullInt64  `json:"series_id"`
-	SeriesName        types.NullString `json:"series_name"`
-	Relation          string           `json:"relation"`
+	ID                 int64             `json:"id"`
+	Name               string            `json:"name"`
+	EmbarkDate         types.NullString  `json:"embark_date"`
+	DisembarkDate      types.NullString  `json:"disembark_date"`
+	StartPort          types.NullString  `json:"start_port"`
+	EndPort            types.NullString  `json:"end_port"`
+	StartPortLatitude  types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude    types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude   types.NullFloat64 `json:"end_port_longitude"`
+	PublishedAt        types.NullTime    `json:"published_at"`
+	CruiseID           int64             `json:"cruise_id"`
+	CruiseName         string            `json:"cruise_name"`
+	Edition            types.NullString  `json:"edition"`
+	CruisePublishedAt  types.NullTime    `json:"cruise_published_at"`
+	SeriesID           types.NullInt64   `json:"series_id"`
+	SeriesName         types.NullString  `json:"series_name"`
+	Relation           string            `json:"relation"`
 }
 
 // The user's upcoming legs: legs their person captains, is on the crew of or
@@ -576,6 +621,7 @@ type ListUserUpcomingLegsRow struct {
 //	)
 //	SELECT
 //	    t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+//	    t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
 //	    t.published_at,
 //	    c.id AS cruise_id, c.name AS cruise_name, c.edition,
 //	    c.published_at AS cruise_published_at,
@@ -610,6 +656,10 @@ func (q *Queries) ListUserUpcomingLegs(ctx context.Context, arg ListUserUpcoming
 			&i.DisembarkDate,
 			&i.StartPort,
 			&i.EndPort,
+			&i.StartPortLatitude,
+			&i.StartPortLongitude,
+			&i.EndPortLatitude,
+			&i.EndPortLongitude,
 			&i.PublishedAt,
 			&i.CruiseID,
 			&i.CruiseName,
@@ -720,7 +770,7 @@ UPDATE trips SET
     published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
     updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 WHERE id = $1
-RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 // Publishes the trip, keeping an earlier published_at.
@@ -729,7 +779,7 @@ RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countrie
 //	    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
 //	    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 //	WHERE id = $1
-//	RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+//	RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) PublishTrip(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, publishTrip, id)
 	var i Trip
@@ -763,6 +813,10 @@ func (q *Queries) PublishTrip(ctx context.Context, id int64) (Trip, error) {
 		&i.SignUpDeadline,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -789,7 +843,7 @@ UPDATE trips SET
     published_at = NULL,
     updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 WHERE id = $1
-RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 // UnpublishTrip
@@ -798,7 +852,7 @@ RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countrie
 //	    published_at = NULL,
 //	    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 //	WHERE id = $1
-//	RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at
+//	RETURNING id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) UnpublishTrip(ctx context.Context, id int64) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, unpublishTrip, id)
 	var i Trip
@@ -832,6 +886,10 @@ func (q *Queries) UnpublishTrip(ctx context.Context, id int64) (Trip, error) {
 		&i.SignUpDeadline,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -845,6 +903,8 @@ UPDATE trips SET
     cruise_id = $16, captain_person_id = $17,
     currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
     sign_up_deadline = $22,
+    start_port_latitude = $24, start_port_longitude = $25,
+    end_port_latitude = $26, end_port_longitude = $27,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $23
 `
@@ -873,6 +933,10 @@ type UpdateTripParams struct {
 	Deposit                types.NullFloat64 `json:"deposit"`
 	SignUpDeadline         types.NullString  `json:"sign_up_deadline"`
 	ID                     int64             `json:"id"`
+	StartPortLatitude      types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude     types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude        types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude       types.NullFloat64 `json:"end_port_longitude"`
 }
 
 // UpdateTrip
@@ -885,6 +949,8 @@ type UpdateTripParams struct {
 //	    cruise_id = $16, captain_person_id = $17,
 //	    currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
 //	    sign_up_deadline = $22,
+//	    start_port_latitude = $24, start_port_longitude = $25,
+//	    end_port_latitude = $26, end_port_longitude = $27,
 //	    updated_at = CURRENT_TIMESTAMP
 //	WHERE id = $23
 func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
@@ -912,6 +978,10 @@ func (q *Queries) UpdateTrip(ctx context.Context, arg UpdateTripParams) error {
 		arg.Deposit,
 		arg.SignUpDeadline,
 		arg.ID,
+		arg.StartPortLatitude,
+		arg.StartPortLongitude,
+		arg.EndPortLatitude,
+		arg.EndPortLongitude,
 	)
 	return err
 }

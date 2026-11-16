@@ -159,8 +159,8 @@ components:
         embark_date:
           type: string
         end_port:
-          description: Port name, at most 100 characters; blank means no port
-          type: string
+          $ref: "#/components/schemas/Port"
+          description: Where the trip ends; omit for no port
         image_logo_url:
           type: string
         image_photo_url:
@@ -179,8 +179,8 @@ components:
           format: date
           type: string
         start_port:
-          description: Port name, at most 100 characters; blank means no port
-          type: string
+          $ref: "#/components/schemas/Port"
+          description: Where the trip starts; omit for no port
         yacht_fund:
           description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
           format: double
@@ -815,7 +815,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         id:
           format: int64
           type: integer
@@ -831,7 +831,7 @@ components:
           format: date
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         status:
           enum:
             - planned
@@ -951,7 +951,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         id:
           format: int64
           type: integer
@@ -967,7 +967,7 @@ components:
           format: date
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         yacht_fund:
           description: Estimated yacht fund (kasa jachtowa) per person
           format: double
@@ -1341,7 +1341,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         id:
           format: int64
           type: integer
@@ -1371,7 +1371,7 @@ components:
             - waitlisted
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
       required:
         - id
         - name
@@ -1954,6 +1954,27 @@ components:
         - by_year
         - voyages
       type: object
+    Port:
+      additionalProperties: false
+      properties:
+        latitude:
+          description: Latitude; omit with longitude for a name-only port
+          format: double
+          maximum: 90
+          minimum: -90
+          type: number
+        longitude:
+          description: Longitude; omit with latitude for a name-only port
+          format: double
+          maximum: 180
+          minimum: -180
+          type: number
+        name:
+          description: Port / town name, at most 100 characters; surrounding blanks are dropped and inner runs of blanks become one space. In a request, a blank name without coordinates means no port
+          type: string
+      required:
+        - name
+      type: object
     PortSuggestion:
       additionalProperties: false
       properties:
@@ -2118,7 +2139,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         id:
           description: The trip, voyage or cruise ID, per kind
           format: int64
@@ -2137,7 +2158,7 @@ components:
           format: date-time
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
       required:
         - kind
         - id
@@ -2282,7 +2303,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         enroll_token:
           type: string
         id:
@@ -2308,7 +2329,7 @@ components:
           format: date
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         status:
           enum:
             - planned
@@ -2401,8 +2422,8 @@ components:
         embark_date:
           type: string
         end_port:
-          description: Port name, at most 100 characters; blank means no port
-          type: string
+          $ref: "#/components/schemas/Port"
+          description: Where the trip ends; omit for no port
         image_logo_url:
           type: string
         image_photo_url:
@@ -2421,8 +2442,8 @@ components:
           format: date
           type: string
         start_port:
-          description: Port name, at most 100 characters; blank means no port
-          type: string
+          $ref: "#/components/schemas/Port"
+          description: Where the trip starts; omit for no port
         yacht_fund:
           description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
           format: double
@@ -2490,7 +2511,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         enroll_token:
           type: string
         id:
@@ -2516,7 +2537,7 @@ components:
           format: date
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         status:
           enum:
             - planned
@@ -2722,7 +2743,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         hours_engine:
           format: double
           type: number
@@ -2754,7 +2775,7 @@ components:
           format: date-time
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         tidal_waters:
           format: int64
           type: integer
@@ -2825,8 +2846,8 @@ components:
         embark_date:
           type: string
         end_port:
-          description: Port name, at most 100 characters; blank means no port
-          type: string
+          $ref: "#/components/schemas/Port"
+          description: Where the voyage ended; omit for no port
         hours_engine:
           format: double
           type: number
@@ -2853,8 +2874,8 @@ components:
           minLength: 1
           type: string
         start_port:
-          description: Port name, at most 100 characters; blank means no port
-          type: string
+          $ref: "#/components/schemas/Port"
+          description: Where the voyage started; omit for no port
         tidal_waters:
           format: int64
           type: integer
@@ -2920,7 +2941,7 @@ components:
         embark_date:
           type: string
         end_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         hours_engine:
           format: double
           type: number
@@ -2952,7 +2973,7 @@ components:
           format: date-time
           type: string
         start_port:
-          type: string
+          $ref: "#/components/schemas/Port"
         tidal_waters:
           format: int64
           type: integer
