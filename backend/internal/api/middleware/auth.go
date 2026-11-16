@@ -22,13 +22,18 @@ const UserCtxKey ctxKey = "user"
 
 // optionalAuthPath reports whether a request may proceed without
 // authentication. Only the enrollment preview (GET /api/enroll/{token}, a
-// single token segment) is public — it is shared with people who do not yet
-// have an account, so a missing or invalid token resolves to an anonymous
-// request instead of a 401. Matching the exact route shape keeps any future
-// /api/enroll/* subroute authenticated by default.
+// single token segment) and the country list it names countries with (GET
+// /api/countries, static reference data) are public — the preview is shared
+// with people who do not yet have an account, so a missing or invalid token
+// resolves to an anonymous request instead of a 401. Matching the exact
+// route shape keeps any future /api/enroll/* subroute authenticated by
+// default.
 func optionalAuthPath(r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
+	}
+	if r.URL.Path == "/api/countries" {
+		return true
 	}
 	token, ok := strings.CutPrefix(r.URL.Path, "/api/enroll/")
 	return ok && token != "" && !strings.Contains(token, "/")

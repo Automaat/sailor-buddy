@@ -120,7 +120,8 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - Countries on cruises, trips and voyages are a `TEXT[]` of ISO 3166-1
   alpha-2 codes (`{}` for none, never NULL). The one list of codes and
   Polish names is `backend/internal/countries/countries.json`: the API
-  serves it (`GET /countries`) and rejects other codes (`dto.CountryCodes`),
+  serves it (`GET /countries`, public so the enroll preview can name
+  countries) and rejects other codes (`dto.CountryCodes`),
   docgen prints its names, and the frontend picks and names countries only
   through `src/lib/location/countries.ts` and `CountryPicker.svelte`. Do not
   add a second country list.

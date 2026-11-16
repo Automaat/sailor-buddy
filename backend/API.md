@@ -39,6 +39,7 @@ Public endpoints (no token):
 | `GET /healthz` | Liveness probe, returns `200` with empty body |
 | `GET /readyz` | Readiness probe: pings Postgres (2 s timeout), returns `200`, or `503` when the database is unreachable |
 | `GET /api/enroll/{token}` | Enrollment preview — resolves a share token without auth |
+| `GET /api/countries` | Country codes and Polish names (see Countries), so the preview can name countries |
 
 There is no `/auth/register` endpoint — account provisioning happens
 automatically on the first authenticated request.
@@ -784,7 +785,7 @@ Generate body — `crew_member_id` required, `format` must be `pdf` or `docx`:
 
 | Method | Path | Auth | Description | Success |
 |--------|------|------|-------------|---------|
-| GET | `/api/countries` | member | Every country `countries` accepts | 200 |
+| GET | `/api/countries` | public | Every country `countries` accepts | 200 |
 
 A bare array, ordered by code, of `{ "code": "NO", "name": "Norwegia" }`:
 the 249 ISO 3166-1 alpha-2 codes with their Polish names. It is the one
