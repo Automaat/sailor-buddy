@@ -683,6 +683,8 @@ Voyage body — `name` required; also accepts `year` and the sailing-log fields
 Port body — `name` required; `latitude` and `longitude` are optional but come
 together (one without the other is 422). A name-only port is listed in the
 route but not drawn on the map. `anchorage: true` marks an anchorage.
+Without `position` the server adds the port after the voyage's last one;
+concurrent adds to one voyage take turns, so they get distinct positions.
 
 Port names, here and in a trip's or voyage's `start_port` and `end_port`,
 lose surrounding blanks (whitespace and invisible characters) and keep one

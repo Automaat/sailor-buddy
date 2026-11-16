@@ -14,7 +14,11 @@ import (
 const addVoyagePort = `-- name: AddVoyagePort :one
 INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
 SELECT $1::BIGINT, $2::TEXT, $3::DOUBLE PRECISION,
-    $4::DOUBLE PRECISION, $5::BIGINT, $6::BOOLEAN
+    $4::DOUBLE PRECISION,
+    COALESCE($5::BIGINT, (
+        SELECT COALESCE(MAX(p.position) + 1, 0) FROM voyage_ports p
+        WHERE p.voyage_id = $1::BIGINT)),
+    $6::BOOLEAN
 WHERE $7::BOOLEAN OR EXISTS (
     SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
     WHERE v.id = $1::BIGINT AND cm.user_id = $8::BIGINT)
@@ -26,7 +30,7 @@ type AddVoyagePortParams struct {
 	Name          string            `json:"name"`
 	Latitude      types.NullFloat64 `json:"latitude"`
 	Longitude     types.NullFloat64 `json:"longitude"`
-	Position      int64             `json:"position"`
+	Position      types.NullInt64   `json:"position"`
 	Anchorage     bool              `json:"anchorage"`
 	CallerIsAdmin bool              `json:"caller_is_admin"`
 	CallerID      int64             `json:"caller_id"`
@@ -34,11 +38,17 @@ type AddVoyagePortParams struct {
 
 // Adds a port for an admin or the account linked to the voyage's captain
 // person, else inserts no row. The check runs in the statement, so a
-// captain change committed before it refuses the write.
+// captain change committed before it refuses the write. Without a position
+// the port goes after the voyage's last port; run LockVoyagePorts first in
+// the same transaction, so concurrent appends do not share a position.
 //
 //	INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
 //	SELECT $1::BIGINT, $2::TEXT, $3::DOUBLE PRECISION,
-//	    $4::DOUBLE PRECISION, $5::BIGINT, $6::BOOLEAN
+//	    $4::DOUBLE PRECISION,
+//	    COALESCE($5::BIGINT, (
+//	        SELECT COALESCE(MAX(p.position) + 1, 0) FROM voyage_ports p
+//	        WHERE p.voyage_id = $1::BIGINT)),
+//	    $6::BOOLEAN
 //	WHERE $7::BOOLEAN OR EXISTS (
 //	    SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
 //	    WHERE v.id = $1::BIGINT AND cm.user_id = $8::BIGINT)
@@ -192,6 +202,21 @@ func (q *Queries) ListVoyagePorts(ctx context.Context, voyageID int64) ([]Voyage
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockVoyagePorts = `-- name: LockVoyagePorts :exec
+SELECT pg_advisory_xact_lock(hashtextextended('voyage-ports:' || $1::BIGINT, 0))
+`
+
+// Serializes port writes on one voyage until the transaction ends, so
+// writers appending a port take turns and each sees the ports the one
+// before added. An advisory lock, not a row lock on the voyage, so a
+// captain change does not wait for it.
+//
+//	SELECT pg_advisory_xact_lock(hashtextextended('voyage-ports:' || $1::BIGINT, 0))
+func (q *Queries) LockVoyagePorts(ctx context.Context, voyageID int64) error {
+	_, err := q.db.ExecContext(ctx, lockVoyagePorts, voyageID)
+	return err
 }
 
 const setVoyagePortPosition = `-- name: SetVoyagePortPosition :execrows

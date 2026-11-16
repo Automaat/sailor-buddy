@@ -5,13 +5,26 @@ VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 -- name: ListVoyagePorts :many
 SELECT * FROM voyage_ports WHERE voyage_id = $1 ORDER BY position, id;
 
+-- name: LockVoyagePorts :exec
+-- Serializes port writes on one voyage until the transaction ends, so
+-- writers appending a port take turns and each sees the ports the one
+-- before added. An advisory lock, not a row lock on the voyage, so a
+-- captain change does not wait for it.
+SELECT pg_advisory_xact_lock(hashtextextended('voyage-ports:' || sqlc.arg(voyage_id)::BIGINT, 0));
+
 -- name: AddVoyagePort :one
 -- Adds a port for an admin or the account linked to the voyage's captain
 -- person, else inserts no row. The check runs in the statement, so a
--- captain change committed before it refuses the write.
+-- captain change committed before it refuses the write. Without a position
+-- the port goes after the voyage's last port; run LockVoyagePorts first in
+-- the same transaction, so concurrent appends do not share a position.
 INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
 SELECT sqlc.arg(voyage_id)::BIGINT, sqlc.arg(name)::TEXT, sqlc.narg(latitude)::DOUBLE PRECISION,
-    sqlc.narg(longitude)::DOUBLE PRECISION, sqlc.arg(position)::BIGINT, sqlc.arg(anchorage)::BOOLEAN
+    sqlc.narg(longitude)::DOUBLE PRECISION,
+    COALESCE(sqlc.narg(position)::BIGINT, (
+        SELECT COALESCE(MAX(p.position) + 1, 0) FROM voyage_ports p
+        WHERE p.voyage_id = sqlc.arg(voyage_id)::BIGINT)),
+    sqlc.arg(anchorage)::BOOLEAN
 WHERE sqlc.arg(caller_is_admin)::BOOLEAN OR EXISTS (
     SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
     WHERE v.id = sqlc.arg(voyage_id)::BIGINT AND cm.user_id = sqlc.arg(caller_id)::BIGINT)

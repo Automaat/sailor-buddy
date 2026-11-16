@@ -21,11 +21,17 @@ type Querier interface {
 	AddAcceptedTripCrewAssignment(ctx context.Context, arg AddAcceptedTripCrewAssignmentParams) error
 	// Adds a port for an admin or the account linked to the voyage's captain
 	// person, else inserts no row. The check runs in the statement, so a
-	// captain change committed before it refuses the write.
+	// captain change committed before it refuses the write. Without a position
+	// the port goes after the voyage's last port; run LockVoyagePorts first in
+	// the same transaction, so concurrent appends do not share a position.
 	//
 	//  INSERT INTO voyage_ports (voyage_id, name, latitude, longitude, position, anchorage)
 	//  SELECT $1::BIGINT, $2::TEXT, $3::DOUBLE PRECISION,
-	//      $4::DOUBLE PRECISION, $5::BIGINT, $6::BOOLEAN
+	//      $4::DOUBLE PRECISION,
+	//      COALESCE($5::BIGINT, (
+	//          SELECT COALESCE(MAX(p.position) + 1, 0) FROM voyage_ports p
+	//          WHERE p.voyage_id = $1::BIGINT)),
+	//      $6::BOOLEAN
 	//  WHERE $7::BOOLEAN OR EXISTS (
 	//      SELECT 1 FROM voyages v JOIN crew_members cm ON cm.id = v.captain_person_id
 	//      WHERE v.id = $1::BIGINT AND cm.user_id = $8::BIGINT)
@@ -1300,6 +1306,13 @@ type Querier interface {
 	//  WHERE c.id = (SELECT v.cruise_id FROM voyages v WHERE v.id = $1)
 	//  FOR NO KEY UPDATE OF c
 	LockVoyageCruiseForPublish(ctx context.Context, id int64) (int64, error)
+	// Serializes port writes on one voyage until the transaction ends, so
+	// writers appending a port take turns and each sees the ports the one
+	// before added. An advisory lock, not a row lock on the voyage, so a
+	// captain change does not wait for it.
+	//
+	//  SELECT pg_advisory_xact_lock(hashtextextended('voyage-ports:' || $1::BIGINT, 0))
+	LockVoyagePorts(ctx context.Context, voyageID int64) error
 	// On a leg or voyage both people are on, the kept person's assignment stays.
 	// It takes the duplicate's patent number when it has none, and counts as
 	// added by an accepted sign-up only when both entries did, so a hand-added

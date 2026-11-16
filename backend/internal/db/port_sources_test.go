@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -194,4 +195,104 @@ func explainPlan(t *testing.T, conn *sql.DB, seqScan bool, planMode, query strin
 		t.Fatalf("read plan: %v", err)
 	}
 	return plan.String()
+}
+
+// TestAddVoyagePort_Appends checks that a port added without a position
+// goes after the voyage's last port, and that two writers appending at once
+// get distinct positions: the second waits on the voyage's port lock the
+// first holds, then sees the first one's port. A captain change on the
+// voyage does not wait for that lock.
+func TestAddVoyagePort_Appends(t *testing.T) {
+	conn := testDB(t)
+	resetSchema(t, conn)
+	if err := Migrate(t.Context(), conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	cruiseID := insertPortSearchCruise(t, conn, true)
+	voyageID := insertPortSearchVoyage(t, conn, cruiseID, true)
+	add := func(q sqlcdb.Querier, name string, position types.NullInt64) int64 {
+		t.Helper()
+		if err := q.LockVoyagePorts(t.Context(), voyageID); err != nil {
+			t.Fatalf("lock voyage: %v", err)
+		}
+		p, err := q.AddVoyagePort(t.Context(), sqlcdb.AddVoyagePortParams{
+			VoyageID: voyageID, Name: name, Position: position, CallerIsAdmin: true,
+		})
+		if err != nil {
+			t.Fatalf("add %q: %v", name, err)
+		}
+		return p.Position
+	}
+
+	q := sqlcdb.New(conn)
+	if got := add(q, "Hel", types.NullInt64{}); got != 0 {
+		t.Fatalf("first port position = %d, want 0", got)
+	}
+	if got := add(q, "Jastarnia", types.NullInt64{Int64: 5, Valid: true}); got != 5 {
+		t.Fatalf("explicit position = %d, want 5", got)
+	}
+	if got := add(q, "Puck", types.NullInt64{}); got != 6 {
+		t.Fatalf("appended position = %d, want 6", got)
+	}
+
+	first, err := conn.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("begin first: %v", err)
+	}
+	defer func() { _ = first.Rollback() }()
+	second, err := conn.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("begin second: %v", err)
+	}
+	defer func() { _ = second.Rollback() }()
+
+	if got := add(sqlcdb.New(first), "Gdynia", types.NullInt64{}); got != 7 {
+		t.Fatalf("first writer position = %d, want 7", got)
+	}
+	var secondPID int
+	mustScan(t, second.QueryRow(`SELECT pg_backend_pid()`), &secondPID)
+	done := make(chan int64, 1)
+	go func() {
+		q := sqlcdb.New(second)
+		if err := q.LockVoyagePorts(context.Background(), voyageID); err != nil {
+			done <- -1
+			return
+		}
+		p, err := q.AddVoyagePort(context.Background(), sqlcdb.AddVoyagePortParams{
+			VoyageID: voyageID, Name: "Gdańsk", CallerIsAdmin: true,
+		})
+		if err != nil {
+			done <- -1
+			return
+		}
+		done <- p.Position
+	}()
+	waitForLockWaiter(t, conn, secondPID)
+	reassign, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if _, err := conn.ExecContext(reassign, `UPDATE voyages SET captain_name = 'Nowy' WHERE id = $1`, voyageID); err != nil {
+		t.Fatalf("update voyage while its ports are locked: %v", err)
+	}
+	if err := first.Commit(); err != nil {
+		t.Fatalf("commit first: %v", err)
+	}
+	if got := <-done; got != 8 {
+		t.Fatalf("second writer position = %d, want 8", got)
+	}
+}
+
+// waitForLockWaiter waits until backend pid waits on a lock.
+func waitForLockWaiter(t *testing.T, conn *sql.DB, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting bool
+		mustScan(t, conn.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+			WHERE pid = $1 AND wait_event_type = 'Lock')`, pid), &waiting)
+		if waiting {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("backend %d never waited on the voyage's port lock", pid)
 }

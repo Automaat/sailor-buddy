@@ -3322,7 +3322,7 @@ export interface components {
             name: string;
             /**
              * Format: int64
-             * @description Order in the visited sequence
+             * @description Order in the visited sequence; omit to add the port after the last one
              */
             position?: number;
         };

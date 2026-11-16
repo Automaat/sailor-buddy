@@ -21,9 +21,8 @@
 
 	async function addPort(body: VoyagePortBody) {
 		const voyageId = id;
-		// Derive the next position from the max so it stays unique after deletions.
-		const nextPosition = ports.length > 0 ? Math.max(...ports.map((p) => p.position)) + 1 : 0;
-		const port = await addVoyagePort(voyageId, { ...body, position: nextPosition });
+		// The server appends a port sent without a position after the last one.
+		const port = await addVoyagePort(voyageId, body);
 		if (leftVoyage(voyageId)) return;
 		ports = [...ports, port];
 	}

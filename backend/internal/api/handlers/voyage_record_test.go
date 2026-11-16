@@ -264,7 +264,7 @@ func TestVoyagePorts_AddNameOnlyAnchorage(t *testing.T) {
 			got = &arg
 			return sqlcdb.VoyagePort{
 				ID: 9, VoyageID: arg.VoyageID, Name: arg.Name, Latitude: arg.Latitude,
-				Longitude: arg.Longitude, Anchorage: arg.Anchorage, Position: arg.Position,
+				Longitude: arg.Longitude, Anchorage: arg.Anchorage, Position: arg.Position.Int64,
 			}, nil
 		},
 	}
@@ -276,7 +276,7 @@ func TestVoyagePorts_AddNameOnlyAnchorage(t *testing.T) {
 	if got == nil {
 		t.Fatal("no write recorded")
 	}
-	if got.Latitude.Valid || got.Longitude.Valid || !got.Anchorage || got.Position != 2 {
+	if got.Latitude.Valid || got.Longitude.Valid || !got.Anchorage || got.Position != (types.NullInt64{Int64: 2, Valid: true}) {
 		t.Fatalf("unexpected port params: %+v", got)
 	}
 	var raw map[string]any

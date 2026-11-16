@@ -31,7 +31,7 @@ type VoyagePortBody struct {
 	Latitude  *float64 `json:"latitude,omitempty" minimum:"-90" maximum:"90" doc:"Latitude; omit with longitude for a name-only port"`
 	Longitude *float64 `json:"longitude,omitempty" minimum:"-180" maximum:"180" doc:"Longitude; omit with latitude for a name-only port"`
 	Anchorage bool     `json:"anchorage,omitempty" doc:"An anchorage rather than a harbour"`
-	Position  *int64   `json:"position,omitempty" minimum:"0" doc:"Order in the visited sequence"`
+	Position  *int64   `json:"position,omitempty" minimum:"0" doc:"Order in the visited sequence; omit to add the port after the last one"`
 }
 
 // Port applies the location rules to the port's name and coordinates.

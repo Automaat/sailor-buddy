@@ -143,6 +143,9 @@ func (h *VoyagePortHandler) suggest(ctx context.Context, in *suggestPortsInput) 
 	return &portSuggestionsOutput{Body: dto.PortSuggestionsFromDB(rows)}, nil
 }
 
+// add stores a visited port. It takes the voyage's port lock first, so a
+// port added without a position goes after the last one even while another
+// writer appends to the same voyage.
 func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*voyagePortOutput, error) {
 	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
@@ -153,15 +156,26 @@ func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*v
 	}
 	lat, lon := portCoordinates(p)
 	callerID, admin := captainCaller(ctx)
-	port, err := h.q.AddVoyagePort(ctx, sqlcdb.AddVoyagePortParams{
-		VoyageID:      in.VoyageID,
-		Name:          p.Name,
-		Latitude:      lat,
-		Longitude:     lon,
-		Anchorage:     in.Body.Anchorage,
-		Position:      valOrZeroInt(in.Body.Position),
-		CallerIsAdmin: admin,
-		CallerID:      callerID,
+	var port sqlcdb.VoyagePort
+	err = h.runTx(ctx, func(q sqlcdb.Querier) error {
+		if err := q.LockVoyagePorts(ctx, in.VoyageID); err != nil {
+			return &QueryError{Op: "LockVoyagePorts", Err: err}
+		}
+		var err error
+		port, err = q.AddVoyagePort(ctx, sqlcdb.AddVoyagePortParams{
+			VoyageID:      in.VoyageID,
+			Name:          p.Name,
+			Latitude:      lat,
+			Longitude:     lon,
+			Anchorage:     in.Body.Anchorage,
+			Position:      nullInt64(in.Body.Position),
+			CallerIsAdmin: admin,
+			CallerID:      callerID,
+		})
+		if err != nil {
+			return &QueryError{Op: "AddVoyagePort", Err: err}
+		}
+		return nil
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, refusedCaptainWrite(ctx, h.q, in.VoyageID, errAdminOrCaptainOnly())

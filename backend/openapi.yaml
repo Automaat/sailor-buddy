@@ -3017,7 +3017,7 @@ components:
           minLength: 1
           type: string
         position:
-          description: Order in the visited sequence
+          description: Order in the visited sequence; omit to add the port after the last one
           format: int64
           minimum: 0
           type: integer
