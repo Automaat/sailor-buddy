@@ -16,6 +16,18 @@ UPDATE voyage_ports SET name = btrim(regexp_replace(name, '\s+', ' ', 'g'))
 WHERE name <> btrim(regexp_replace(name, '\s+', ' ', 'g'))
   AND btrim(regexp_replace(name, '\s+', ' ', 'g')) <> '';
 
+-- A port added without a position now goes after the voyage's last one
+-- (max + 1), and the API caps explicit positions. Positions written before
+-- had no cap, so renumber each voyage's ports 0..n in their current order
+-- (position, then id, as they are listed): a position near the BIGINT limit
+-- would otherwise make every later append overflow.
+UPDATE voyage_ports p SET position = r.seq
+FROM (
+    SELECT id, row_number() OVER (PARTITION BY voyage_id ORDER BY position, id) - 1 AS seq
+    FROM voyage_ports
+) r
+WHERE p.id = r.id AND p.position <> r.seq;
+
 -- port_search_prefix turns a query into a LIKE pattern for names that start
 -- with it. LIKE, unlike starts_with, can use a trigram index; the query's
 -- own wildcards and escape character match literally.

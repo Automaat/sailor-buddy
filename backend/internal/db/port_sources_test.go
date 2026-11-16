@@ -59,8 +59,27 @@ func TestMigrate_PortSources(t *testing.T) {
 		portIDs[name] = id
 	}
 
+	// Positions written before the API capped them, out of order and with a
+	// tie: the migration keeps the listed order and renumbers from 0.
+	orderVoyage := insertPortSearchVoyage(t, conn, cruiseID, true)
+	var positioned []int64
+	for _, pos := range []int64{9223372036854775807, 5, 5, -3} {
+		var id int64
+		mustScan(t, conn.QueryRow(`INSERT INTO voyage_ports (voyage_id, name, position) VALUES ($1, 'p', $2) RETURNING id`,
+			orderVoyage, pos), &id)
+		positioned = append(positioned, id)
+	}
+	wantOrder := []int64{positioned[3], positioned[1], positioned[2], positioned[0]}
+
 	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+	for i, id := range wantOrder {
+		var pos int64
+		mustScan(t, conn.QueryRow(`SELECT position FROM voyage_ports WHERE id = $1`, id), &pos)
+		if pos != int64(i) {
+			t.Errorf("port %d position = %d, want %d", id, pos, i)
+		}
 	}
 	for _, l := range inserted {
 		var start, end types.NullString
