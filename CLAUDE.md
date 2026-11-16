@@ -150,6 +150,14 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   name, optional phone and patent, then back to the original page. The
   profile page edits the same fields (`ProfileFields.svelte`).
 - Trainings are the exception — a per-member log scoped by `user_id`.
+- Ports: a trip's or voyage's `start_port`/`end_port` is a port object
+  `{name, latitude?, longitude?}` (`dto.Port`, rules in
+  `internal/location`), like a visited port (`voyage_ports`). Forms edit
+  one with `PortField` (`src/lib/location/`): club suggestions while
+  typing, a `/geocode` lookup only on Enter or "Szukaj". `PortPicker` uses
+  it for its search box. Send `portBody(draft)`, which omits an empty
+  field. Render every "A → B" with `formatRoute`
+  (`src/lib/location/route.ts`).
 - crew_members is the people list ("Osoby"); people may lack accounts, but
   every account has exactly one person (`crew_members.user_id` unique),
   created on first sign-in. Never auto-link an account to an existing person.

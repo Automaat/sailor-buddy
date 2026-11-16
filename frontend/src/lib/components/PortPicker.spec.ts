@@ -53,7 +53,7 @@ describe('PortPicker', () => {
 		render(PortPicker, { props: { ports: [], onAdd } });
 
 		await typeQuery('Split');
-		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' }));
 		const result = await screen.findByRole('button', { name: 'Split' });
 		await fireEvent.click(result);
 
@@ -166,7 +166,7 @@ describe('PortPicker', () => {
 		render(PortPicker, { props: { ports: [] } });
 		await typeQuery('Jastarn');
 		await screen.findByText('Wcześniej odwiedzone');
-		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' }));
 		expect(await screen.findByText('Wyniki wyszukiwania')).toBeInTheDocument();
 		expect(
 			screen.getByText('Jastarnia, Puck County, Pomeranian Voivodeship, Poland')
@@ -195,7 +195,7 @@ describe('PortPicker', () => {
 		geocodeMock.mockRejectedValue(err);
 		render(PortPicker, { props: { ports: [] } });
 		await typeQuery('Split');
-		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' }));
 		expect(await screen.findByText(message)).toBeInTheDocument();
 	});
 
@@ -203,7 +203,7 @@ describe('PortPicker', () => {
 		geocodeMock.mockResolvedValue([]);
 		render(PortPicker, { props: { ports: [] } });
 		await typeQuery('Zzzz');
-		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' }));
 		expect(await screen.findByText('Brak wyników')).toBeInTheDocument();
 	});
 
@@ -212,7 +212,7 @@ describe('PortPicker', () => {
 		const { container } = render(PortPicker, { props: { ports: [] } });
 		await waitFor(() => expect(container.querySelector('.leaflet-container')).not.toBeNull());
 		await typeQuery('Hel');
-		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' }));
 		await waitFor(() => expect(geocodeMock).toHaveBeenCalledTimes(1));
 		expect(geocodeMock).toHaveBeenCalledWith('Hel', { lat: 54, lon: 15 });
 	});
@@ -274,7 +274,7 @@ describe('PortPicker', () => {
 	it('disables Szukaj for a query shorter than two characters', async () => {
 		render(PortPicker, { props: { ports: [] } });
 		await typeQuery('S');
-		expect(screen.getByRole('button', { name: 'Szukaj' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' })).toBeDisabled();
 		await fireEvent.keyDown(screen.getByLabelText('Odwiedzone porty'), { key: 'Enter' });
 		expect(geocodeMock).not.toHaveBeenCalled();
 	});
@@ -283,7 +283,7 @@ describe('PortPicker', () => {
 		geocodeMock.mockResolvedValue([{ name: 'Split', latitude: 43.5, longitude: 16.4 }]);
 		render(PortPicker, { props: { ports: [] } });
 		await typeQuery('Split');
-		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Szukaj miejsca: Odwiedzone porty' }));
 		await screen.findByRole('button', { name: 'Split' });
 
 		await typeQuery('Hvar');

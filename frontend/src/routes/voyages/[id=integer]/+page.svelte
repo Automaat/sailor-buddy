@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatDateRangeWithDays } from '#lib/dates.js';
+	import { formatRoute } from '#lib/location/route.js';
 	import { deleteVoyage, publishVoyage, unpublishVoyage } from '#lib/api/routes.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import BackLink from '#lib/components/BackLink.svelte';
@@ -17,6 +18,7 @@
 	// The cruise changes in place when publishing the voyage publishes it too.
 	let cruise = $derived(data.cruise);
 	let voyage = $derived(data.voyage);
+	const route = $derived(formatRoute(voyage.start_port, voyage.end_port));
 	// The log replaces the yacht in place; publishing returns the voyage without it.
 	let yacht = $derived(data.voyage.yacht ?? null);
 	let crew = $derived(data.crew);
@@ -103,8 +105,8 @@
 				{/if}
 			</div>
 			<p class="mt-1 text-[var(--text-muted)]">
-				{#if voyage.start_port && voyage.end_port}
-					{voyage.start_port} → {voyage.end_port}
+				{#if route}
+					{route}
 				{/if}
 				{#if voyage.countries}
 					· {voyage.countries}{/if}

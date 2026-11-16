@@ -98,6 +98,24 @@ describe('enroll page — profile summary', () => {
 });
 
 describe('enroll page — cruise legs', () => {
+	it('shows each leg route with the shared missing-port rule', async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({
+				trips: [
+					{
+						...trip(11, 'Bodø – Tromsø', '2025-07-01'),
+						start_port: { name: 'Bodø' },
+						end_port: { name: 'Tromsø' }
+					},
+					{ ...trip(12, 'Tromsø', '2025-07-10'), end_port: { name: 'Longyearbyen' } }
+				]
+			})
+		);
+		await renderPage();
+		expect(await screen.findByText(/· Bodø → Tromsø/)).toBeInTheDocument();
+		expect(screen.getByText(/· — → Longyearbyen/)).toBeInTheDocument();
+	});
+
 	it('numbers legs by embark date and marks cancelled legs unavailable', async () => {
 		await renderPage();
 		const a = await screen.findByText('Etap 1: Bodø – Tromsø');
@@ -244,6 +262,15 @@ describe('enroll page — single trip', () => {
 		expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('button', { name: 'Zapisz się' }));
 		await waitFor(() => expect(enrollMock).toHaveBeenCalledWith('tok', undefined));
+	});
+
+	it('shows the route of a trip with one port set', async () => {
+		resolveMock.mockResolvedValue({
+			...tripData,
+			trip: { ...tripData.trip, start_port: { name: 'Split', latitude: 43.5, longitude: 16.44 } }
+		});
+		await renderPage();
+		expect(await screen.findByText(/Split → —/)).toBeInTheDocument();
 	});
 
 	it('reports an existing trip enrollment', async () => {

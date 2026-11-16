@@ -10,6 +10,8 @@
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom } from '#lib/pricing.js';
+	import PortField from '#lib/location/PortField.svelte';
+	import { portBody, portDraft } from '#lib/location/port.js';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -40,8 +42,8 @@
 			disembark_date: trip.disembark_date ?? '',
 			sign_up_deadline: trip.sign_up_deadline ?? '',
 			countries: trip.countries ?? '',
-			start_port: trip.start_port ?? '',
-			end_port: trip.end_port ?? '',
+			start_port: portDraft(trip.start_port),
+			end_port: portDraft(trip.end_port),
 			cruise_id: trip.cruise_id,
 			captain_person_id: trip.captain_person_id ?? 0,
 			yacht_id: trip.yacht_id ?? 0,
@@ -67,6 +69,8 @@
 		try {
 			const payload = {
 				...form,
+				start_port: portBody(form.start_port),
+				end_port: portBody(form.end_port),
 				...priceBody(price),
 				yacht_id: form.yacht_id || undefined,
 				sign_up_deadline: form.sign_up_deadline || undefined,
@@ -158,22 +162,10 @@
 					</p>
 				</div>
 				<div>
-					<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-					<input
-						id="start_port"
-						type="text"
-						bind:value={form.start_port}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<PortField id="start_port" label="Port wyjścia" bind:value={form.start_port} />
 				</div>
 				<div>
-					<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-					<input
-						id="end_port"
-						type="text"
-						bind:value={form.end_port}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<PortField id="end_port" label="Port docelowy" bind:value={form.end_port} />
 				</div>
 				<div class="sm:col-span-2">
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>

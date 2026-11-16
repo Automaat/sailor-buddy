@@ -17,7 +17,9 @@ vi.mock('#lib/api/routes.js', () => ({
 	createYacht: vi.fn(),
 	listCruises: vi.fn(),
 	listMembers: vi.fn(),
-	listCrew: vi.fn()
+	listCrew: vi.fn(),
+	suggestPorts: vi.fn(),
+	geocode: vi.fn()
 }));
 
 import {
@@ -92,6 +94,48 @@ describe('trip edit page', () => {
 			image_route_url: '/uploads/route.png'
 		});
 		expect(goto).toHaveBeenCalledWith('/trips/5');
+	});
+
+	it('keeps the stored ports and their coordinates on a no-change save', async () => {
+		fn(getTrip).mockResolvedValue(
+			makeTrip({
+				id: 5,
+				cruise_id: 13,
+				name: 'Etap 1',
+				start_port: { name: 'Hel', latitude: 54.6, longitude: 18.8 },
+				end_port: { name: 'Visby' }
+			})
+		);
+		await renderPage();
+		expect(await screen.findByLabelText('Port wyjścia')).toHaveValue('Hel');
+		expect(screen.getByLabelText('Port docelowy')).toHaveValue('Visby');
+
+		const body = await save();
+
+		expect(body.start_port).toEqual({ name: 'Hel', latitude: 54.6, longitude: 18.8 });
+		expect(body.end_port).toEqual({ name: 'Visby' });
+	});
+
+	it('drops the coordinates of a renamed port and clears an emptied one', async () => {
+		fn(getTrip).mockResolvedValue(
+			makeTrip({
+				id: 5,
+				cruise_id: 13,
+				name: 'Etap 1',
+				start_port: { name: 'Hel', latitude: 54.6, longitude: 18.8 },
+				end_port: { name: 'Visby', latitude: 57.64, longitude: 18.29 }
+			})
+		);
+		await renderPage();
+		await fireEvent.input(await screen.findByLabelText('Port wyjścia'), {
+			target: { value: 'Jastarnia' }
+		});
+		await fireEvent.input(screen.getByLabelText('Port docelowy'), { target: { value: '' } });
+
+		const body = await save();
+
+		expect(body.start_port).toEqual({ name: 'Jastarnia' });
+		expect(body.end_port).toBeUndefined();
 	});
 
 	it('moves the trip to another cruise', async () => {

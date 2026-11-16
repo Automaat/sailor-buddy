@@ -172,7 +172,13 @@ describe('Rejsy page: Bez serii', () => {
 	it('lists standalone legs after the series, each opening its own page', async () => {
 		mockList.mockResolvedValue([makeSeries({ id: 4, name: 'May I Sail' })]);
 		mockStandalone.mockResolvedValue([
-			entry({ kind: 'trip', id: 5, name: 'Chorwacja', start_port: 'Split', end_port: 'Trogir' }),
+			entry({
+				kind: 'trip',
+				id: 5,
+				name: 'Chorwacja',
+				start_port: { name: 'Split' },
+				end_port: { name: 'Trogir' }
+			}),
 			entry({ kind: 'voyage', id: 6, name: 'Bałtyk 2019', cruise_name: 'Bałtyk 2019' }),
 			entry({ kind: 'cruise', id: 9, name: 'Bez etapów', cruise_id: 9, cruise_name: 'Bez etapów' })
 		]);

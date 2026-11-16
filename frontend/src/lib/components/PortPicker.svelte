@@ -5,9 +5,10 @@
 	import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 	import markerIcon from 'leaflet/dist/images/marker-icon.png';
 	import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-	import { ApiError } from '#lib/api/client.js';
-	import { geocode, suggestPorts, type GeocodeBias } from '#lib/api/routes.js';
-	import type { GeocodeResult, PortSuggestion, VoyagePortBody } from '#lib/api/types.js';
+	import type { GeocodeBias } from '#lib/api/routes.js';
+	import type { VoyagePortBody } from '#lib/api/types.js';
+	import PortField from '#lib/location/PortField.svelte';
+	import { hasCoordinates, normalizePortName, type PortDraft } from '#lib/location/port.js';
 
 	// Both VoyagePort and VoyagePortBody satisfy this, so the picker works for
 	// the completion modal (unsaved bodies) and the voyage page (persisted
@@ -32,22 +33,10 @@
 
 	let { ports, readonly = false, onAdd, onRemove, onReorder }: Props = $props();
 
-	let query = $state('');
+	let draft = $state<PortDraft>({ name: '' });
 	let anchorage = $state(false);
-	let results = $state<GeocodeResult[]>([]);
-	let searching = $state(false);
-	let searchError = $state('');
+	let error = $state('');
 	let busy = $state(false);
-	// Monotonic id of the latest search; stale responses are discarded.
-	let searchSeq = 0;
-
-	// Club ports matching the typed text, fetched while typing. Only this
-	// local endpoint runs as you type; the external geocoder does not.
-	const SUGGEST_DELAY_MS = 250;
-	let suggestions = $state<PortSuggestion[]>([]);
-	let suggestError = $state('');
-	let suggestSeq = 0;
-	let suggestTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// A point picked by clicking the map, saved under a name the user types.
 	let pin = $state<{ lat: number; lon: number } | null>(null);
@@ -83,7 +72,6 @@
 
 	onDestroy(() => {
 		destroyed = true;
-		clearTimeout(suggestTimer);
 		map?.remove();
 	});
 
@@ -91,7 +79,7 @@
 		if (readonly || busy || !map) return;
 		const at = map.wrapLatLng(e.latlng);
 		pin = { lat: roundCoord(at.lat), lon: roundCoord(at.lng) };
-		pinName = query.trim();
+		pinName = draft.name.trim();
 	}
 
 	// Five decimals locate a port to about a metre.
@@ -136,7 +124,7 @@
 		layer.clearLayers();
 		const points: [number, number][] = [];
 		ports.forEach((p, i) => {
-			if (!hasCoords(p)) return;
+			if (!hasCoordinates(p)) return;
 			const point: [number, number] = [p.latitude, p.longitude];
 			points.push(point);
 			L!
@@ -163,10 +151,6 @@
 		return el;
 	}
 
-	function hasCoords(p: PortLike): p is PortLike & { latitude: number; longitude: number } {
-		return typeof p.latitude === 'number' && typeof p.longitude === 'number';
-	}
-
 	$effect(() => {
 		// Track the full ports content so edits/reorders (not just length
 		// changes) trigger a redraw.
@@ -174,125 +158,30 @@
 		renderMarkers();
 	});
 
-	const canSearch = $derived(!busy && !searching && query.trim().length >= 2);
-
-	// Typing invalidates the previous search and refreshes the club
-	// suggestions after a short pause. Nominatim's usage policy forbids
-	// search-as-you-type, so a geocoder lookup runs on Enter or "Szukaj".
-	function onInput() {
-		searchSeq++;
-		searching = false;
-		searchError = '';
-		results = [];
-		scheduleSuggest();
-	}
-
-	function scheduleSuggest() {
-		clearTimeout(suggestTimer);
-		suggestSeq++;
-		suggestError = '';
-		const q = query.trim();
-		if (q.length < 2) {
-			suggestions = [];
-			return;
-		}
-		suggestTimer = setTimeout(() => void runSuggest(q), SUGGEST_DELAY_MS);
-	}
-
-	async function runSuggest(q: string) {
-		const seq = ++suggestSeq;
-		try {
-			const found = await suggestPorts(q);
-			if (seq !== suggestSeq || destroyed) return;
-			suggestions = found;
-		} catch {
-			if (seq !== suggestSeq || destroyed) return;
-			suggestions = [];
-			suggestError = 'Nie udało się pobrać wcześniej odwiedzonych portów';
-		}
-	}
-
-	function closeDropdown() {
-		clearTimeout(suggestTimer);
-		suggestSeq++;
-		searchSeq++;
-		searching = false;
-		suggestions = [];
-		suggestError = '';
-		results = [];
-		searchError = '';
-	}
-
-	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			closeDropdown();
-			return;
-		}
-		if (e.key !== 'Enter') return;
-		// The picker sits inside the trip-completion form; Enter must search,
-		// not submit it.
-		e.preventDefault();
-		if (canSearch) void runSearch();
-	}
-
-	async function runSearch() {
-		const q = query.trim();
-		if (q.length < 2) return;
-		const seq = ++searchSeq;
-		searching = true;
-		searchError = '';
-		try {
-			const found = await geocode(q, mapBias());
-			// Discard a response that a newer search has superseded.
-			if (seq !== searchSeq || destroyed) return;
-			results = found;
-			if (found.length === 0) searchError = 'Brak wyników';
-		} catch (e) {
-			if (seq !== searchSeq || destroyed) return;
-			searchError =
-				e instanceof ApiError && e.status === 503
-					? 'Wyszukiwarka jest chwilowo zajęta, spróbuj za chwilę'
-					: 'Nie udało się wyszukać miejsca';
-			results = [];
-		} finally {
-			if (seq === searchSeq) searching = false;
-		}
-	}
-
 	async function add(port: VoyagePortBody) {
 		busy = true;
-		searchError = '';
+		error = '';
 		try {
 			await onAdd?.(anchorage ? { ...port, anchorage: true } : port);
-			closeDropdown();
 			clearPin();
-			query = '';
+			draft = { name: '' };
 			anchorage = false;
 		} catch {
-			searchError = 'Nie udało się dodać portu';
+			error = 'Nie udało się dodać portu';
 		} finally {
 			busy = false;
 		}
 	}
 
-	function pick(r: GeocodeResult) {
-		return add({ name: r.name, latitude: r.latitude, longitude: r.longitude });
+	function addPicked(port: PortDraft) {
+		const name = normalizePortName(port.name);
+		return add(
+			hasCoordinates(port) ? { name, latitude: port.latitude, longitude: port.longitude } : { name }
+		);
 	}
-
-	function pickSuggestion(s: PortSuggestion) {
-		if (typeof s.latitude === 'number' && typeof s.longitude === 'number') {
-			return add({ name: s.name, latitude: s.latitude, longitude: s.longitude });
-		}
-		return add({ name: s.name });
-	}
-
-	const photonUsed = $derived(results.some((r) => r.source === 'photon'));
-	const dropdownOpen = $derived(
-		searching || results.length > 0 || !!searchError || suggestions.length > 0 || !!suggestError
-	);
 
 	function addNameOnly() {
-		const name = query.trim();
+		const name = normalizePortName(draft.name);
 		if (!name) return;
 		return add({ name });
 	}
@@ -302,7 +191,7 @@
 		try {
 			await onRemove?.(i);
 		} catch {
-			searchError = 'Nie udało się usunąć portu';
+			error = 'Nie udało się usunąć portu';
 		} finally {
 			busy = false;
 		}
@@ -343,7 +232,7 @@
 		try {
 			await onReorder?.(from, i);
 		} catch {
-			searchError = 'Nie udało się zmienić kolejności portów';
+			error = 'Nie udało się zmienić kolejności portów';
 		} finally {
 			busy = false;
 		}
@@ -357,7 +246,7 @@
 		try {
 			await onReorder?.(i, target);
 		} catch {
-			searchError = 'Nie udało się zmienić kolejności portów';
+			error = 'Nie udało się zmienić kolejności portów';
 		} finally {
 			busy = false;
 		}
@@ -366,110 +255,38 @@
 
 <div class="space-y-3">
 	{#if !readonly}
-		<div class="relative">
-			<label for="port-search" class="mb-1 block text-xs font-medium">Odwiedzone porty</label>
-			<div class="mb-1 flex flex-wrap items-center gap-3 text-xs">
-				<label class="flex items-center gap-1">
-					<input type="checkbox" bind:checked={anchorage} disabled={busy} />
-					⚓ Kotwicowisko
-				</label>
-				<button
-					type="button"
-					onclick={addNameOnly}
-					disabled={busy || !query.trim()}
-					class="text-[var(--ocean)] hover:underline disabled:opacity-40"
-				>
-					Dodaj bez lokalizacji na mapie
-				</button>
-			</div>
-			<div class="flex gap-2">
-				<input
-					id="port-search"
-					type="text"
-					bind:value={query}
-					oninput={onInput}
-					onkeydown={onKeydown}
-					disabled={busy}
-					placeholder="Wpisz nazwę miasta / portu i naciśnij Enter..."
-					class="w-full rounded-lg border px-3 py-1.5 text-sm"
-					autocomplete="off"
-				/>
-				<button
-					type="button"
-					onclick={runSearch}
-					disabled={!canSearch}
-					class="rounded-lg border px-3 py-1.5 text-sm text-[var(--ocean)] hover:bg-gray-50 disabled:opacity-40"
-				>
-					Szukaj
-				</button>
-			</div>
-			{#if dropdownOpen}
-				<div
-					class="absolute z-[1100] mt-1 max-h-96 w-full overflow-y-auto rounded-lg border bg-white shadow-lg"
-				>
-					{#if suggestions.length > 0}
-						<div
-							class="px-3 pt-2 text-xs font-semibold uppercase text-[var(--text-muted)]"
-							id="port-suggestions-heading"
+		<div>
+			<PortField
+				id="port-search"
+				label="Odwiedzone porty"
+				bind:value={draft}
+				disabled={busy}
+				placeholder="Wpisz nazwę miasta / portu i naciśnij Enter..."
+				labelClass="mb-1 block text-xs font-medium"
+				inputClass="w-full rounded-lg border px-3 py-1.5 text-sm"
+				showLocation={false}
+				bias={mapBias}
+				onpick={addPicked}
+			>
+				{#snippet controls()}
+					<div class="mb-1 flex flex-wrap items-center gap-3 text-xs">
+						<label class="flex items-center gap-1">
+							<input type="checkbox" bind:checked={anchorage} disabled={busy} />
+							⚓ Kotwicowisko
+						</label>
+						<button
+							type="button"
+							onclick={addNameOnly}
+							disabled={busy || !draft.name.trim()}
+							class="text-[var(--ocean)] hover:underline disabled:opacity-40"
 						>
-							Wcześniej odwiedzone
-						</div>
-						<div role="group" aria-labelledby="port-suggestions-heading">
-							{#each suggestions as sug, i (i)}
-								<button
-									type="button"
-									onclick={() => pickSuggestion(sug)}
-									disabled={busy}
-									class="flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
-								>
-									<span class="text-sm font-medium">{sug.name}</span>
-									<span class="text-xs text-[var(--text-muted)]">
-										{#if typeof sug.latitude !== 'number'}bez mapy ·
-										{/if}{sug.uses}×
-									</span>
-								</button>
-							{/each}
-						</div>
-					{:else if suggestError}
-						<div class="px-3 py-2 text-xs text-[var(--text-muted)]">{suggestError}</div>
-					{/if}
-					{#if searching}
-						<div class="border-t px-3 py-2 text-sm text-[var(--text-muted)]">Szukanie...</div>
-					{:else if searchError}
-						<div class="border-t px-3 py-2 text-sm text-[var(--text-muted)]">{searchError}</div>
-					{:else if results.length > 0}
-						<div
-							class="border-t px-3 pt-2 text-xs font-semibold uppercase text-[var(--text-muted)]"
-							id="port-results-heading"
-						>
-							Wyniki wyszukiwania
-						</div>
-						<div role="group" aria-labelledby="port-results-heading">
-							{#each results as r, i (i)}
-								<button
-									type="button"
-									onclick={() => pick(r)}
-									disabled={busy}
-									class="block w-full px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
-								>
-									<span class="block text-sm font-medium">{r.name}</span>
-									{#if r.label && r.label !== r.name}
-										<span class="block text-xs text-[var(--text-muted)]">{r.label}</span>
-									{/if}
-								</button>
-							{/each}
-						</div>
-						<p class="border-t px-3 py-1 text-[10px] text-[var(--text-muted)]">
-							Dane ©
-							<a
-								href="https://www.openstreetmap.org/copyright"
-								target="_blank"
-								rel="noopener noreferrer"
-								class="underline">współtwórcy OpenStreetMap</a
-							>{#if photonUsed}, wyszukiwanie: Photon (komoot){/if}
-						</p>
-					{/if}
-				</div>
+							Dodaj bez lokalizacji na mapie
+						</button>
+					</div>
+				{/snippet}
+			</PortField>
+			{#if error}
+				<p class="mt-1 text-xs text-red-600" role="alert">{error}</p>
 			{/if}
 			<p class="mt-1 text-xs text-[var(--text-muted)]">
 				Nie ma miejsca na liście? Kliknij na mapie, aby wskazać punkt.
@@ -554,7 +371,8 @@
 							{#if port.anchorage}<span title="Kotwicowisko" aria-label="Kotwicowisko">⚓</span
 								>{/if}
 							{port.name}
-							{#if !hasCoords(port)}<span class="text-xs text-[var(--text-muted)]">(bez mapy)</span
+							{#if !hasCoordinates(port)}<span class="text-xs text-[var(--text-muted)]"
+									>(bez mapy)</span
 								>{/if}
 						</span>
 					</span>

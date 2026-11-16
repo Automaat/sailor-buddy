@@ -20,6 +20,8 @@ export type VoyageDetail = Schemas['VoyageDetail'];
 export type VoyageBody = Schemas['VoyageBody'];
 export type CompleteTripPayload = Schemas['CompleteTripBody'];
 
+/** Port is a leg's start or end port: a name with optional coordinates. */
+export type Port = Schemas['Port'];
 export type VoyagePort = Schemas['VoyagePort'];
 export type VoyagePortBody = Schemas['VoyagePortBody'];
 export type GeocodeResult = Schemas['GeocodeResult'];

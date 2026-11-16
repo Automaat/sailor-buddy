@@ -92,6 +92,16 @@ beforeEach(() => {
 	vi.mocked(listVoyageYachts).mockResolvedValue([yacht({ yacht_type: 'Bavaria 46' })]);
 });
 
+describe('voyage page route', () => {
+	it('shows the route with only the end port', async () => {
+		vi.mocked(getVoyage).mockResolvedValue(
+			makeVoyage({ id: 5, end_port: { name: 'Visby', latitude: 57.64, longitude: 18.29 } })
+		);
+		await renderPage();
+		expect(await screen.findByText(/— → Visby/)).toBeInTheDocument();
+	});
+});
+
 describe('voyage page record', () => {
 	it('shows the yacht, track link, card and a name-only anchorage route', async () => {
 		vi.mocked(getVoyage).mockResolvedValue(

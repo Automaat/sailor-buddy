@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatDateRangeWithDays } from '#lib/dates.js';
+	import { formatRoute } from '#lib/location/route.js';
 	import { resolveEnroll, enroll, enrollLegs } from '#lib/api/routes.js';
 	import type { Enrollment, EnrollPageData } from '#lib/api/types.js';
 	import {
@@ -116,11 +117,12 @@
 	<div class="mx-auto max-w-lg">
 		<div class="rounded-2xl bg-white p-8 shadow-sm">
 			{#if data.kind === 'trip'}
+				{@const route = formatRoute(data.trip.start_port, data.trip.end_port)}
 				<p class="mb-1 text-xs uppercase tracking-wide text-[var(--text-muted)]">Rejs</p>
 				<h1 class="mb-1 text-2xl font-bold text-[var(--navy)]">{data.trip.name}</h1>
 				<p class="mb-4 text-sm text-[var(--text-muted)]">
-					{#if data.trip.start_port && data.trip.end_port}
-						{data.trip.start_port} → {data.trip.end_port}
+					{#if route}
+						{route}
 					{/if}
 					{#if data.trip.countries}
 						· {data.trip.countries}{/if}
@@ -206,6 +208,7 @@
 								{@const closed =
 									!cancelled && signUpClosedByDeadline(leg.trip.sign_up_deadline, today)}
 								{@const free = placesLeft(leg.trip.id, leg.trip.max_crew)}
+								{@const route = formatRoute(leg.trip.start_port, leg.trip.end_port)}
 								<label
 									class="flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm"
 									class:opacity-60={cancelled}
@@ -224,8 +227,8 @@
 										{#if leg.trip.embark_date}
 											<span class="block text-xs text-[var(--text-muted)]">
 												{formatDateRangeWithDays(leg.trip.embark_date, leg.trip.disembark_date)}
-												{#if leg.trip.start_port && leg.trip.end_port}
-													· {leg.trip.start_port} → {leg.trip.end_port}
+												{#if route}
+													· {route}
 												{/if}
 											</span>
 										{/if}

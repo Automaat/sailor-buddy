@@ -86,6 +86,29 @@ describe('trip page back link', () => {
 	});
 });
 
+describe('trip page route', () => {
+	it.each([
+		[
+			'both ports',
+			{ name: 'Hel', latitude: 54.6, longitude: 18.8 },
+			{ name: 'Visby' },
+			'Hel → Visby'
+		],
+		['only the start port', { name: 'Hel' }, undefined, 'Hel → —']
+	])('shows the route with %s', async (_, start_port, end_port, route) => {
+		serve(makeTrip({ id: 50, start_port, end_port }));
+		await renderPage();
+		expect(await screen.findByText(route)).toBeInTheDocument();
+	});
+
+	it('shows no route without ports', async () => {
+		serve(makeTrip({ id: 50, name: 'Bez portów' }));
+		await renderPage();
+		await screen.findByRole('heading', { name: /Bez portów/ });
+		expect(screen.queryByText(/→/)).toBeNull();
+	});
+});
+
 describe('trip page status', () => {
 	it('flags a past planned leg and prompts an admin to complete it', async () => {
 		mockAuth.isAdmin = true;

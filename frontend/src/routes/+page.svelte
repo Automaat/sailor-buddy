@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { daysLabel, formatDateRangeWithDays } from '#lib/dates.js';
+	import { formatRoute } from '#lib/location/route.js';
 	import { plural } from '#lib/plural.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import { myLegEditionLabel, myLegRelationBadge, myLegRelationLabel } from '#lib/myLegs.js';
@@ -109,6 +110,7 @@
 			{:else}
 				<ul class="grid grid-cols-1 gap-4 md:grid-cols-2">
 					{#each legs as leg (leg.id)}
+						{@const route = formatRoute(leg.start_port, leg.end_port)}
 						<li class="min-w-0">
 							<a
 								href="/trips/{leg.id}"
@@ -139,9 +141,9 @@
 										Termin do ustalenia
 									{/if}
 								</p>
-								{#if leg.start_port || leg.end_port}
+								{#if route}
 									<p class="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--text-muted)]">
-										{leg.start_port ?? '—'} → {leg.end_port ?? '—'}
+										{route}
 									</p>
 								{/if}
 							</a>

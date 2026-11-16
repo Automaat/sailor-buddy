@@ -3,6 +3,7 @@
 	import { createSeries } from '#lib/api/routes.js';
 	import { cruiseKindLabels, type CruiseKind } from '#lib/cruise.js';
 	import { formatDateRangeWithDays } from '#lib/dates.js';
+	import { formatRoute } from '#lib/location/route.js';
 	import { canSeeHidden } from '#lib/publication.js';
 	import {
 		isStandaloneHidden,
@@ -154,6 +155,7 @@
 			<ul class="grid grid-cols-1 gap-3 lg:grid-cols-2">
 				{#each standalone as entry (`${entry.kind}-${entry.id}`)}
 					{@const status = standaloneStatus(entry)}
+					{@const route = formatRoute(entry.start_port, entry.end_port)}
 					<li class="min-w-0" data-testid="standalone-entry">
 						<a
 							href={standaloneHref(entry)}
@@ -188,9 +190,9 @@
 									Termin do ustalenia
 								{/if}
 							</p>
-							{#if entry.start_port || entry.end_port}
+							{#if route}
 								<p class="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--text-muted)]">
-									{entry.start_port ?? '—'} → {entry.end_port ?? '—'}
+									{route}
 								</p>
 							{/if}
 						</a>
