@@ -22,10 +22,19 @@ vi.mock('#lib/api/routes.js', () => ({
 	listSeries: vi.fn(),
 	createTrip: vi.fn(),
 	listMembers: vi.fn(),
-	listCrew: vi.fn()
+	listCrew: vi.fn(),
+	suggestPorts: vi.fn(),
+	geocode: vi.fn()
 }));
 
-import { listCruises, listSeries, createTrip, listMembers, listCrew } from '#lib/api/routes.js';
+import {
+	listCruises,
+	listSeries,
+	createTrip,
+	listMembers,
+	listCrew,
+	suggestPorts
+} from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import NewTripPage from './+page.svelte';
 import { load } from './+page.js';
@@ -53,6 +62,7 @@ beforeEach(() => {
 	]);
 	fn(listSeries).mockResolvedValue([makeSeries({ id: 2, name: 'NNE' })]);
 	fn(createTrip).mockResolvedValue(makeTrip({ id: 77 }));
+	fn(suggestPorts).mockResolvedValue([]);
 });
 
 async function nameTrip(name = 'Etap 1') {
@@ -212,6 +222,37 @@ describe('new trip page event switch', () => {
 		await pick('14');
 
 		expect(pickedCountries()).toEqual(['Finlandia', 'Szwecja']);
+	});
+
+	it('saves a suggested start port with its coordinates and a typed end port by name', async () => {
+		fn(suggestPorts).mockResolvedValue([{ name: 'Hel', latitude: 54.6, longitude: 18.8, uses: 3 }]);
+		await renderPage();
+		await nameTrip();
+		await fireEvent.input(screen.getByLabelText('Port wyjścia'), { target: { value: 'he' } });
+		await fireEvent.click(await screen.findByRole('button', { name: /^Hel/ }));
+		expect(screen.getByLabelText('Port wyjścia')).toHaveValue('Hel');
+		await fireEvent.input(screen.getByLabelText('Port docelowy'), { target: { value: ' Visby ' } });
+
+		await submit();
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		expect(fn(createTrip).mock.calls[0][0]).toMatchObject({
+			start_port: { name: 'Hel', latitude: 54.6, longitude: 18.8 },
+			end_port: { name: 'Visby' }
+		});
+	});
+
+	it('omits ports left empty', async () => {
+		await renderPage();
+		await nameTrip();
+		await fireEvent.input(screen.getByLabelText('Port docelowy'), { target: { value: '  ' } });
+
+		await submit();
+
+		await waitFor(() => expect(createTrip).toHaveBeenCalled());
+		const body = JSON.parse(JSON.stringify(fn(createTrip).mock.calls[0][0]));
+		expect(body).not.toHaveProperty('start_port');
+		expect(body).not.toHaveProperty('end_port');
 	});
 
 	it('copies no dates, ports or prices from the event', async () => {

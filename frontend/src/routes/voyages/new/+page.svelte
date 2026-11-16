@@ -8,6 +8,8 @@
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
 	import { legFormParent } from '#lib/rejsy.js';
+	import PortField from '#lib/location/PortField.svelte';
+	import { portBody } from '#lib/location/port.js';
 	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
@@ -35,8 +37,8 @@
 			embark_date: '',
 			disembark_date: '',
 			countries: [] as string[],
-			start_port: '',
-			end_port: '',
+			start_port: { name: '' },
+			end_port: { name: '' },
 			cruise_id: cruiseID,
 			hours_total: 0,
 			hours_sail: 0,
@@ -69,6 +71,8 @@
 		try {
 			const payload = {
 				...form,
+				start_port: portBody(form.start_port),
+				end_port: portBody(form.end_port),
 				tidal_waters: form.tidal_waters ? 1 : 0,
 				yacht_id: form.yacht_id || undefined,
 				track_url: form.track_url.trim() || undefined,
@@ -145,22 +149,10 @@
 					/>
 				</div>
 				<div>
-					<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-					<input
-						id="start_port"
-						type="text"
-						bind:value={form.start_port}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<PortField id="start_port" label="Port wyjścia" bind:value={form.start_port} />
 				</div>
 				<div>
-					<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-					<input
-						id="end_port"
-						type="text"
-						bind:value={form.end_port}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<PortField id="end_port" label="Port docelowy" bind:value={form.end_port} />
 				</div>
 				<div>
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>

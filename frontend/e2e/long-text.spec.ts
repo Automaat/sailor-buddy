@@ -79,8 +79,8 @@ test.describe.serial('Long unbroken text', () => {
 			captain_person_id: captain.id,
 			description: long('Desc'),
 			countries: longCountries,
-			start_port: longPort('Start'),
-			end_port: longPort('End'),
+			start_port: { name: longPort('Start') },
+			end_port: { name: longPort('End') },
 			embark_date: '2027-07-01',
 			disembark_date: '2027-07-08',
 			max_crew: 8
@@ -91,8 +91,8 @@ test.describe.serial('Long unbroken text', () => {
 			captain_person_id: captain.id,
 			description: long('VDesc'),
 			countries: longCountries,
-			start_port: longPort('VStart'),
-			end_port: longPort('VEnd'),
+			start_port: { name: longPort('VStart') },
+			end_port: { name: longPort('VEnd') },
 			embark_date: '2025-06-01',
 			disembark_date: '2025-06-08',
 			year: 2025

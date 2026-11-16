@@ -60,51 +60,52 @@ WHERE id = sqlc.arg(id)::BIGINT AND voyage_id = sqlc.arg(voyage_id)::BIGINT
 -- trips and voyages. Names starting with the query come first, then by
 -- trigram similarity (typos), then by use count. Spellings of one name
 -- collapse into one row named after the most used spelling, with the
--- coordinates of the latest visited port that has them; start and end
--- ports carry none. Without include_hidden only ports of legs visible to
--- members (leg and its cruise published) count. Each source is a branch of
--- its own, so each can use the trigram index on its column.
+-- coordinates of the latest entry of that name that has them, from any
+-- source: a visited port by when it was added, a start or end port by when
+-- its leg was last saved. Without include_hidden only ports of legs visible
+-- to members (leg and its cruise published) count. Each source is a branch
+-- of its own, so each can use the trigram index on its column.
 WITH matched AS (
-    SELECT p.id, p.name, p.latitude, p.longitude
+    SELECT p.id, p.name, p.latitude, p.longitude, p.created_at AS at
     FROM voyage_ports p
     JOIN voyages v ON v.id = p.voyage_id
     JOIN cruises c ON c.id = v.cruise_id
     WHERE port_search_matches(p.name, sqlc.arg(query)::TEXT)
       AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
     UNION ALL
-    SELECT t.id, t.start_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+    SELECT t.id, t.start_port, t.start_port_latitude, t.start_port_longitude, t.updated_at
     FROM trips t
     JOIN cruises c ON c.id = t.cruise_id
     WHERE port_search_matches(t.start_port, sqlc.arg(query)::TEXT)
       AND (sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND c.published_at IS NOT NULL))
     UNION ALL
-    SELECT t.id, t.end_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+    SELECT t.id, t.end_port, t.end_port_latitude, t.end_port_longitude, t.updated_at
     FROM trips t
     JOIN cruises c ON c.id = t.cruise_id
     WHERE port_search_matches(t.end_port, sqlc.arg(query)::TEXT)
       AND (sqlc.arg(include_hidden)::BOOLEAN OR (t.published_at IS NOT NULL AND c.published_at IS NOT NULL))
     UNION ALL
-    SELECT v.id, v.start_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+    SELECT v.id, v.start_port, v.start_port_latitude, v.start_port_longitude, v.updated_at
     FROM voyages v
     JOIN cruises c ON c.id = v.cruise_id
     WHERE port_search_matches(v.start_port, sqlc.arg(query)::TEXT)
       AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
     UNION ALL
-    SELECT v.id, v.end_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+    SELECT v.id, v.end_port, v.end_port_latitude, v.end_port_longitude, v.updated_at
     FROM voyages v
     JOIN cruises c ON c.id = v.cruise_id
     WHERE port_search_matches(v.end_port, sqlc.arg(query)::TEXT)
       AND (sqlc.arg(include_hidden)::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
 ),
 spelled AS (
-    SELECT m.id, m.name, m.latitude, m.longitude,
+    SELECT m.id, m.name, m.latitude, m.longitude, m.at,
            port_search_norm(m.name) AS norm,
            COUNT(*) OVER (PARTITION BY m.name) AS spelling_uses
     FROM matched m
 ),
 grouped AS (
     SELECT norm,
-           (array_agg(name ORDER BY spelling_uses DESC, id DESC, name))[1] AS name,
+           (array_agg(name ORDER BY spelling_uses DESC, at DESC NULLS LAST, id DESC, name))[1] AS name,
            COUNT(*) AS uses
     FROM spelled
     GROUP BY norm
@@ -115,7 +116,7 @@ LEFT JOIN LATERAL (
     SELECT s.latitude, s.longitude
     FROM spelled s
     WHERE s.norm = g.norm AND s.latitude IS NOT NULL
-    ORDER BY s.id DESC
+    ORDER BY s.at DESC NULLS LAST, s.id DESC
     LIMIT 1
 ) coords ON TRUE
 ORDER BY starts_with(g.norm, port_search_norm(sqlc.arg(query)::TEXT)) DESC,

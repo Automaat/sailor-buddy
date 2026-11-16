@@ -10,6 +10,8 @@
 	import PriceFields from '#lib/components/PriceFields.svelte';
 	import { priceBody, priceFormFrom, type PriceForm } from '#lib/pricing.js';
 	import { legFormParent } from '#lib/rejsy.js';
+	import PortField from '#lib/location/PortField.svelte';
+	import { portBody, type PortDraft } from '#lib/location/port.js';
 	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
@@ -33,8 +35,8 @@
 			disembark_date: string;
 			sign_up_deadline: string;
 			countries: string[];
-			start_port: string;
-			end_port: string;
+			start_port: PortDraft;
+			end_port: PortDraft;
 			cruise_id: number;
 			captain_person_id: number;
 			max_crew: number;
@@ -58,8 +60,8 @@
 				disembark_date: '',
 				sign_up_deadline: '',
 				countries: [],
-				start_port: '',
-				end_port: '',
+				start_port: { name: '' },
+				end_port: { name: '' },
 				cruise_id: cruiseID,
 				captain_person_id: 0,
 				max_crew: 0,
@@ -131,6 +133,8 @@
 		try {
 			const payload = {
 				...run.form,
+				start_port: portBody(run.form.start_port),
+				end_port: portBody(run.form.end_port),
 				...priceBody(run.price),
 				cruise_id: standalone ? undefined : run.form.cruise_id,
 				sign_up_deadline: run.form.sign_up_deadline || undefined,
@@ -213,22 +217,10 @@
 				</p>
 			</div>
 			<div>
-				<label for="start_port" class="mb-1 block text-sm font-medium">Port wyjścia</label>
-				<input
-					id="start_port"
-					type="text"
-					bind:value={form.start_port}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
+				<PortField id="start_port" label="Port wyjścia" bind:value={form.start_port} />
 			</div>
 			<div>
-				<label for="end_port" class="mb-1 block text-sm font-medium">Port docelowy</label>
-				<input
-					id="end_port"
-					type="text"
-					bind:value={form.end_port}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
+				<PortField id="end_port" label="Port docelowy" bind:value={form.end_port} />
 			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>

@@ -8,6 +8,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/location"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 // VoyagePort is the API representation of a port visited during a voyage.
@@ -66,13 +67,56 @@ func locationError(prefix *huma.PathBuffer, err error, name string, lat, lon *fl
 	return &huma.ErrorDetail{Message: le.Message, Location: prefix.With(string(le.Field)), Value: value}
 }
 
-// portNameErrors rejects an optional port name, such as a leg's start or
-// end port, that the location name rule rejects.
-func portNameErrors(prefix *huma.PathBuffer, field string, name *string) []error {
-	if _, err := location.ParseOptionalName(name); err != nil {
-		return []error{&huma.ErrorDetail{Message: err.Error(), Location: prefix.With(field), Value: *name}}
+// Port is a leg's start or end port: a name with optional coordinates. A
+// port known by name only has none and is not drawn on a map.
+type Port struct {
+	Name      string   `json:"name" doc:"Port / town name, at most 100 characters; surrounding blanks are dropped and inner runs of blanks become one space. In a request, a blank name without coordinates means no port"`
+	Latitude  *float64 `json:"latitude,omitempty" minimum:"-90" maximum:"90" doc:"Latitude; omit with longitude for a name-only port"`
+	Longitude *float64 `json:"longitude,omitempty" minimum:"-180" maximum:"180" doc:"Longitude; omit with latitude for a name-only port"`
+}
+
+// Location applies the location rules to the port. ok is false for a blank
+// name without coordinates, which means no port.
+func (p *Port) Location() (port location.Port, ok bool, err error) {
+	return location.ParseOptionalPort(p.Name, p.Latitude, p.Longitude)
+}
+
+// portErrors rejects a start or end port that Location rejects: a too long
+// name, coordinates out of range or without their pair, or coordinates
+// without a name, reported at the port's field under prefix. Each body
+// checks its ports in its own Resolve: a resolver on Port would not run
+// inside a body that embeds a struct with its own Resolve, such as
+// TripFields.
+func portErrors(prefix *huma.PathBuffer, field string, p *Port) []error {
+	if p == nil {
+		return nil
+	}
+	if _, _, err := p.Location(); err != nil {
+		prefix.Push(field)
+		defer prefix.Pop()
+		return []error{locationError(prefix, err, p.Name, p.Latitude, p.Longitude)}
 	}
 	return nil
+}
+
+// portFromLocation maps a port to the API model.
+func portFromLocation(p location.Port) Port {
+	lat, lon := p.LatLon()
+	return Port{Name: p.Name, Latitude: lat, Longitude: lon}
+}
+
+// portFromDB maps a stored start or end port, nil when the leg has none.
+// Coordinates count only as a pair, as the table's checks store them.
+func portFromDB(name types.NullString, lat, lon types.NullFloat64) *Port {
+	if !name.Valid {
+		return nil
+	}
+	p := location.Port{Name: name.String}
+	if lat.Valid && lon.Valid {
+		p.Coordinates = &location.Coordinates{Latitude: lat.Float64, Longitude: lon.Float64}
+	}
+	out := portFromLocation(p)
+	return &out
 }
 
 // VoyagePortOrderBody carries port IDs in the desired visit order. The
@@ -120,8 +164,8 @@ type GeocodeResult struct {
 
 // PortSuggestion is a port name the club already entered: a voyage's
 // visited port, or a trip's or voyage's start or end port. Its coordinates
-// come from the latest visited port with this name that has them; a name
-// never entered with a location has none. Uses counts the entries with this
+// come from the latest entry with this name that has them, from any of
+// those sources; a name never entered with a location has none. Uses counts the entries with this
 // name, ignoring case and accents.
 type PortSuggestion struct {
 	Name      string   `json:"name"`

@@ -27,6 +27,7 @@ const API_BASE = process.env.API_BASE_URL || 'http://localhost:5173/api';
 
 const cruiseName = `Cruise ${RUN_ID}`;
 const tripName = `Trip ${RUN_ID}`;
+const startPortName = `Portowo ${RUN_ID}`;
 let tripId = 0;
 let cruiseId = 0;
 let seriesId = 0;
@@ -264,15 +265,32 @@ test.describe.serial('Single-club persona matrix', () => {
 		await expect(page.getByRole('heading', { name: cruiseName, exact: true })).toHaveCount(0);
 	});
 
-	test('admin: creates a planned trip', async ({ page }) => {
+	test('admin: creates a planned trip from a suggested start port', async ({ page }) => {
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		// A port the club visited before: the visited port of a completed standalone leg, whose name must not contain cruiseName or tripName. EXC:FILE011:documents-a-non-obvious-invariant
+		const seedLeg = (await apiRequest(idToken, 'POST', '/trips', {
+			name: `Seed ${RUN_ID}`
+		})) as { id: number };
+		const seedVoyage = (await apiRequest(idToken, 'POST', `/trips/${seedLeg.id}/complete`, {})) as {
+			id: number;
+		};
+		await apiRequest(idToken, 'POST', `/voyages/${seedVoyage.id}/ports`, {
+			name: startPortName,
+			latitude: 54.35,
+			longitude: 18.66
+		});
 		await loginViaUI(page, adminEmail, PASSWORD);
 
 		await page.goto(`/trips/new?cruise_id=${cruiseId}`);
 		await expect(page.getByLabel('Edycja *')).toHaveValue(String(cruiseId));
 		await expect(page.getByLabel('Edycja *')).toBeDisabled();
 		await page.getByLabel('Nazwa rejsu *').fill(tripName);
-		await page.getByLabel('Port wyjścia').fill('Gdańsk');
-		await page.getByLabel('Port docelowy').fill('Visby');
+		await page.getByRole('textbox', { name: 'Port wyjścia' }).fill(startPortName.slice(0, 9));
+		await page.getByRole('button', { name: new RegExp(`^${startPortName}`) }).click();
+		await expect(page.getByRole('textbox', { name: 'Port wyjścia' })).toHaveValue(startPortName);
+		await expect(page.getByText('54.35000, 18.66000')).toBeVisible();
+		await page.getByRole('textbox', { name: 'Port docelowy' }).fill('Visby');
+		await page.getByRole('textbox', { name: 'Port docelowy' }).press('Escape');
 		await expect(page.getByRole('button', { name: 'Usuń kraj: Norwegia' })).toBeVisible();
 		await page.getByRole('button', { name: 'Usuń kraj: Dania' }).click();
 		await page.getByRole('combobox', { name: 'Kraje' }).fill('szwe');
@@ -283,6 +301,13 @@ test.describe.serial('Single-club persona matrix', () => {
 		tripId = Number(page.url().split('/').pop());
 		await expect(page.getByText('Nadchodzący')).toBeVisible({ timeout: 10_000 });
 		await expect(page.getByRole('heading', { name: tripName })).toBeVisible();
+		await expect(page.getByText(`${startPortName} → Visby`)).toBeVisible();
+		const trip = (await apiRequest(idToken, 'GET', `/trips/${tripId}`)) as {
+			start_port?: unknown;
+			end_port?: unknown;
+		};
+		expect(trip.start_port).toEqual({ name: startPortName, latitude: 54.35, longitude: 18.66 });
+		expect(trip.end_port).toEqual({ name: 'Visby' });
 		await expect(page.getByText(/Norwegia, Szwecja/)).toBeVisible();
 	});
 
@@ -337,6 +362,14 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(/\/voyages\/\d+/, { timeout: 15_000 });
 		await expect(page.getByRole('heading', { name: tripName })).toBeVisible();
 		await expect(page.getByText('120')).toBeVisible();
+		await expect(page.getByText(`${startPortName} → Visby`)).toBeVisible();
+		const { idToken } = await signInTestUser(adminEmail, PASSWORD);
+		const voyage = (await apiRequest(
+			idToken,
+			'GET',
+			`/voyages/${page.url().split('/').pop()}`
+		)) as { start_port?: unknown };
+		expect(voyage.start_port).toEqual({ name: startPortName, latitude: 54.35, longitude: 18.66 });
 	});
 
 	test('fully sailed cruise opens from its series on Rejsy', async ({ page }) => {

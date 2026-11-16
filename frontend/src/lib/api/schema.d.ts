@@ -1581,8 +1581,8 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            /** @description Port name, at most 100 characters; blank means no port */
-            end_port?: string;
+            /** @description Where the trip ends; omit for no port */
+            end_port?: components["schemas"]["Port"];
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
@@ -1595,8 +1595,8 @@ export interface components {
              * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
              */
             sign_up_deadline?: string;
-            /** @description Port name, at most 100 characters; blank means no port */
-            start_port?: string;
+            /** @description Where the trip starts; omit for no port */
+            start_port?: components["schemas"]["Port"];
             /**
              * Format: double
              * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
@@ -1961,7 +1961,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             /** Format: int64 */
             id: number;
             image_photo_url?: string;
@@ -1973,7 +1973,7 @@ export interface components {
              * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
              */
             sign_up_deadline?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
             /** @enum {string} */
             status: "planned" | "cancelled";
             /**
@@ -2045,7 +2045,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             /** Format: int64 */
             id: number;
             image_photo_url?: string;
@@ -2057,7 +2057,7 @@ export interface components {
              * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
              */
             sign_up_deadline?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
             /**
              * Format: double
              * @description Estimated yacht fund (kasa jachtowa) per person
@@ -2292,7 +2292,7 @@ export interface components {
             /** @description The edition label within its series, such as 2026 */
             edition?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             /** Format: int64 */
             id: number;
             name: string;
@@ -2314,7 +2314,7 @@ export interface components {
              * @enum {string}
              */
             sign_up_status?: "accepted" | "pending" | "waitlisted";
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
         };
         MyLegs: {
             /**
@@ -2690,6 +2690,20 @@ export interface components {
             total: components["schemas"]["SeaTime"];
             voyages: components["schemas"]["SeaTimeVoyage"][] | null;
         };
+        Port: {
+            /**
+             * Format: double
+             * @description Latitude; omit with longitude for a name-only port
+             */
+            latitude?: number;
+            /**
+             * Format: double
+             * @description Longitude; omit with latitude for a name-only port
+             */
+            longitude?: number;
+            /** @description Port / town name, at most 100 characters; surrounding blanks are dropped and inner runs of blanks become one space. In a request, a blank name without coordinates means no port */
+            name: string;
+        };
         PortSuggestion: {
             /** Format: double */
             latitude?: number;
@@ -2793,7 +2807,7 @@ export interface components {
             cruise_published_at?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             /**
              * Format: int64
              * @description The trip, voyage or cruise ID, per kind
@@ -2810,7 +2824,7 @@ export interface components {
              * @description When the entry was published; absent while it is a hidden draft
              */
             published_at?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
         };
         TokenOutputBody: {
             /**
@@ -2904,7 +2918,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             enroll_token?: string;
             /** Format: int64 */
             id: number;
@@ -2924,7 +2938,7 @@ export interface components {
              * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
              */
             sign_up_deadline?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
             /** @enum {string} */
             status: "planned" | "cancelled";
             /** Format: date-time */
@@ -2989,8 +3003,8 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            /** @description Port name, at most 100 characters; blank means no port */
-            end_port?: string;
+            /** @description Where the trip ends; omit for no port */
+            end_port?: components["schemas"]["Port"];
             image_logo_url?: string;
             image_photo_url?: string;
             image_route_url?: string;
@@ -3003,8 +3017,8 @@ export interface components {
              * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
              */
             sign_up_deadline?: string;
-            /** @description Port name, at most 100 characters; blank means no port */
-            start_port?: string;
+            /** @description Where the trip starts; omit for no port */
+            start_port?: components["schemas"]["Port"];
             /**
              * Format: double
              * @description Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas
@@ -3059,7 +3073,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             enroll_token?: string;
             /** Format: int64 */
             id: number;
@@ -3079,7 +3093,7 @@ export interface components {
              * @description Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
              */
             sign_up_deadline?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
             /** @enum {string} */
             status: "planned" | "cancelled";
             /** Format: date-time */
@@ -3209,7 +3223,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             /** Format: double */
             hours_engine: number;
             /** Format: double */
@@ -3231,7 +3245,7 @@ export interface components {
              * @description When the voyage was published; absent while it is a hidden draft
              */
             published_at?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
             /** Format: int64 */
             tidal_waters: number;
             track_url?: string;
@@ -3273,8 +3287,8 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            /** @description Port name, at most 100 characters; blank means no port */
-            end_port?: string;
+            /** @description Where the voyage ended; omit for no port */
+            end_port?: components["schemas"]["Port"];
             /** Format: double */
             hours_engine?: number;
             /** Format: double */
@@ -3290,8 +3304,8 @@ export interface components {
             miles?: number;
             /** @description Voyage name */
             name: string;
-            /** @description Port name, at most 100 characters; blank means no port */
-            start_port?: string;
+            /** @description Where the voyage started; omit for no port */
+            start_port?: components["schemas"]["Port"];
             /** Format: int64 */
             tidal_waters?: number;
             /** @description Link to the track recording (http or https) */
@@ -3334,7 +3348,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
-            end_port?: string;
+            end_port?: components["schemas"]["Port"];
             /** Format: double */
             hours_engine: number;
             /** Format: double */
@@ -3356,7 +3370,7 @@ export interface components {
              * @description When the voyage was published; absent while it is a hidden draft
              */
             published_at?: string;
-            start_port?: string;
+            start_port?: components["schemas"]["Port"];
             /** Format: int64 */
             tidal_waters: number;
             track_url?: string;

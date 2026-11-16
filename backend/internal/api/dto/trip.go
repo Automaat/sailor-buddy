@@ -18,8 +18,8 @@ type Trip struct {
 	EmbarkDate             *string    `json:"embark_date,omitempty"`
 	DisembarkDate          *string    `json:"disembark_date,omitempty"`
 	Countries              []string   `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
-	StartPort              *string    `json:"start_port,omitempty"`
-	EndPort                *string    `json:"end_port,omitempty"`
+	StartPort              *Port      `json:"start_port,omitempty"`
+	EndPort                *Port      `json:"end_port,omitempty"`
 	CaptainName            *string    `json:"captain_name,omitempty"`
 	CaptainPersonID        *int64     `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip"`
 	YachtID                *int64     `json:"yacht_id,omitempty"`
@@ -54,8 +54,8 @@ type TripFields struct {
 	EmbarkDate             *string      `json:"embark_date,omitempty"`
 	DisembarkDate          *string      `json:"disembark_date,omitempty"`
 	Countries              CountryCodes `json:"countries,omitempty" maxItems:"30" uniqueItems:"true" doc:"ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none"`
-	StartPort              *string      `json:"start_port,omitempty" doc:"Port name, at most 100 characters; blank means no port"`
-	EndPort                *string      `json:"end_port,omitempty" doc:"Port name, at most 100 characters; blank means no port"`
+	StartPort              *Port        `json:"start_port,omitempty" doc:"Where the trip starts; omit for no port"`
+	EndPort                *Port        `json:"end_port,omitempty" doc:"Where the trip ends; omit for no port"`
 	CaptainName            *string      `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
 	CaptainPersonID        *int64       `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip; any person may be chosen"`
 	YachtID                *int64       `json:"yacht_id,omitempty"`
@@ -73,11 +73,11 @@ type TripFields struct {
 	SignUpDeadline         *string      `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline"`
 }
 
-// Resolve rejects a start or end port name that the location name rule
-// rejects and a country code that is not on the list.
+// Resolve rejects a start or end port that the location rules reject and
+// a country code that is not on the list.
 func (f *TripFields) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
-	errs := portNameErrors(prefix, "start_port", f.StartPort)
-	errs = append(errs, portNameErrors(prefix, "end_port", f.EndPort)...)
+	errs := portErrors(prefix, "start_port", f.StartPort)
+	errs = append(errs, portErrors(prefix, "end_port", f.EndPort)...)
 	return append(errs, countryCodeErrors(prefix, "countries", f.Countries)...)
 }
 
@@ -120,8 +120,8 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 		EmbarkDate:             strPtr(t.EmbarkDate),
 		DisembarkDate:          strPtr(t.DisembarkDate),
 		Countries:              countryCodes(t.Countries),
-		StartPort:              strPtr(t.StartPort),
-		EndPort:                strPtr(t.EndPort),
+		StartPort:              portFromDB(t.StartPort, t.StartPortLatitude, t.StartPortLongitude),
+		EndPort:                portFromDB(t.EndPort, t.EndPortLatitude, t.EndPortLongitude),
 		CaptainName:            strPtr(t.CaptainName),
 		CaptainPersonID:        intPtr(t.CaptainPersonID),
 		YachtID:                intPtr(t.YachtID),

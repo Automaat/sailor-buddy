@@ -36,39 +36,45 @@ INSERT INTO voyages (
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
     cost_total, cost_per_person,
     image_logo_url, image_photo_url, image_route_url, description, captain_person_id,
-    track_url, voyage_card, published_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+    track_url, voyage_card, published_at,
+    start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
+    $29, $30, $31, $32) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 type CreateVoyageParams struct {
-	CreatedBy       types.NullInt64   `json:"created_by"`
-	CruiseID        int64             `json:"cruise_id"`
-	Name            string            `json:"name"`
-	Year            types.NullInt64   `json:"year"`
-	EmbarkDate      types.NullString  `json:"embark_date"`
-	DisembarkDate   types.NullString  `json:"disembark_date"`
-	Countries       types.TextArray   `json:"countries"`
-	StartPort       types.NullString  `json:"start_port"`
-	EndPort         types.NullString  `json:"end_port"`
-	CaptainName     types.NullString  `json:"captain_name"`
-	YachtID         types.NullInt64   `json:"yacht_id"`
-	HoursTotal      float64           `json:"hours_total"`
-	HoursSail       float64           `json:"hours_sail"`
-	HoursEngine     float64           `json:"hours_engine"`
-	HoursOver6bf    float64           `json:"hours_over_6bf"`
-	Miles           float64           `json:"miles"`
-	Days            int64             `json:"days"`
-	TidalWaters     int64             `json:"tidal_waters"`
-	CostTotal       types.NullFloat64 `json:"cost_total"`
-	CostPerPerson   types.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl    types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl   types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl   types.NullString  `json:"image_route_url"`
-	Description     types.NullString  `json:"description"`
-	CaptainPersonID types.NullInt64   `json:"captain_person_id"`
-	TrackUrl        types.NullString  `json:"track_url"`
-	VoyageCard      types.NullString  `json:"voyage_card"`
-	PublishedAt     types.NullTime    `json:"published_at"`
+	CreatedBy          types.NullInt64   `json:"created_by"`
+	CruiseID           int64             `json:"cruise_id"`
+	Name               string            `json:"name"`
+	Year               types.NullInt64   `json:"year"`
+	EmbarkDate         types.NullString  `json:"embark_date"`
+	DisembarkDate      types.NullString  `json:"disembark_date"`
+	Countries          types.TextArray   `json:"countries"`
+	StartPort          types.NullString  `json:"start_port"`
+	EndPort            types.NullString  `json:"end_port"`
+	CaptainName        types.NullString  `json:"captain_name"`
+	YachtID            types.NullInt64   `json:"yacht_id"`
+	HoursTotal         float64           `json:"hours_total"`
+	HoursSail          float64           `json:"hours_sail"`
+	HoursEngine        float64           `json:"hours_engine"`
+	HoursOver6bf       float64           `json:"hours_over_6bf"`
+	Miles              float64           `json:"miles"`
+	Days               int64             `json:"days"`
+	TidalWaters        int64             `json:"tidal_waters"`
+	CostTotal          types.NullFloat64 `json:"cost_total"`
+	CostPerPerson      types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl       types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl      types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl      types.NullString  `json:"image_route_url"`
+	Description        types.NullString  `json:"description"`
+	CaptainPersonID    types.NullInt64   `json:"captain_person_id"`
+	TrackUrl           types.NullString  `json:"track_url"`
+	VoyageCard         types.NullString  `json:"voyage_card"`
+	PublishedAt        types.NullTime    `json:"published_at"`
+	StartPortLatitude  types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude    types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude   types.NullFloat64 `json:"end_port_longitude"`
 }
 
 // CreateVoyage
@@ -79,8 +85,10 @@ type CreateVoyageParams struct {
 //	    hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
 //	    cost_total, cost_per_person,
 //	    image_logo_url, image_photo_url, image_route_url, description, captain_person_id,
-//	    track_url, voyage_card, published_at
-//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+//	    track_url, voyage_card, published_at,
+//	    start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
+//	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
+//	    $29, $30, $31, $32) RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voyage, error) {
 	row := q.db.QueryRowContext(ctx, createVoyage,
 		arg.CreatedBy,
@@ -111,6 +119,10 @@ func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voy
 		arg.TrackUrl,
 		arg.VoyageCard,
 		arg.PublishedAt,
+		arg.StartPortLatitude,
+		arg.StartPortLongitude,
+		arg.EndPortLatitude,
+		arg.EndPortLongitude,
 	)
 	var i Voyage
 	err := row.Scan(
@@ -146,6 +158,10 @@ func (q *Queries) CreateVoyage(ctx context.Context, arg CreateVoyageParams) (Voy
 		&i.VoyageCard,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -211,7 +227,7 @@ func (q *Queries) GetDashboardStats(ctx context.Context, includeHidden bool) (Ge
 }
 
 const getVoyage = `-- name: GetVoyage :one
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM voyages v
 WHERE v.id = $1
   AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
@@ -225,7 +241,7 @@ type GetVoyageParams struct {
 // include_hidden is true for callers who may read hidden drafts; others get
 // no row unless the voyage and its cruise are both published.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM voyages v
 //	WHERE v.id = $1
 //	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
 //	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
@@ -265,6 +281,10 @@ func (q *Queries) GetVoyage(ctx context.Context, arg GetVoyageParams) (Voyage, e
 		&i.VoyageCard,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -436,7 +456,7 @@ func (q *Queries) ListUserSeaTimeVoyages(ctx context.Context, arg ListUserSeaTim
 }
 
 const listVoyages = `-- name: ListVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM voyages v
 WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
   AND ($2::BIGINT IS NULL
@@ -462,7 +482,7 @@ type ListVoyagesParams struct {
 // Without include_hidden a voyage is listed only while it and its cruise are
 // published.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM voyages v
 //	WHERE ($1::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
 //	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
 //	  AND ($2::BIGINT IS NULL
@@ -521,6 +541,10 @@ func (q *Queries) ListVoyages(ctx context.Context, arg ListVoyagesParams) ([]Voy
 			&i.VoyageCard,
 			&i.CaptainPersonID,
 			&i.PublishedAt,
+			&i.StartPortLatitude,
+			&i.StartPortLongitude,
+			&i.EndPortLatitude,
+			&i.EndPortLongitude,
 		); err != nil {
 			return nil, err
 		}
@@ -560,7 +584,7 @@ UPDATE voyages SET
     published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
     updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 WHERE id = $1
-RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 // Publishes the voyage, keeping an earlier published_at.
@@ -569,7 +593,7 @@ RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, co
 //	    published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
 //	    updated_at = CASE WHEN published_at IS NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 //	WHERE id = $1
-//	RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+//	RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) PublishVoyage(ctx context.Context, id int64) (Voyage, error) {
 	row := q.db.QueryRowContext(ctx, publishVoyage, id)
 	var i Voyage
@@ -606,6 +630,10 @@ func (q *Queries) PublishVoyage(ctx context.Context, id int64) (Voyage, error) {
 		&i.VoyageCard,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -615,7 +643,7 @@ UPDATE voyages SET
     published_at = NULL,
     updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 WHERE id = $1
-RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 `
 
 // UnpublishVoyage
@@ -624,7 +652,7 @@ RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, co
 //	    published_at = NULL,
 //	    updated_at = CASE WHEN published_at IS NOT NULL THEN CURRENT_TIMESTAMP ELSE updated_at END
 //	WHERE id = $1
-//	RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at
+//	RETURNING id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 func (q *Queries) UnpublishVoyage(ctx context.Context, id int64) (Voyage, error) {
 	row := q.db.QueryRowContext(ctx, unpublishVoyage, id)
 	var i Voyage
@@ -661,6 +689,10 @@ func (q *Queries) UnpublishVoyage(ctx context.Context, id int64) (Voyage, error)
 		&i.VoyageCard,
 		&i.CaptainPersonID,
 		&i.PublishedAt,
+		&i.StartPortLatitude,
+		&i.StartPortLongitude,
+		&i.EndPortLatitude,
+		&i.EndPortLongitude,
 	)
 	return i, err
 }
@@ -675,38 +707,44 @@ UPDATE voyages SET
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
     cruise_id = $23, captain_person_id = $24,
     track_url = $26, voyage_card = $27,
+    start_port_latitude = $28, start_port_longitude = $29,
+    end_port_latitude = $30, end_port_longitude = $31,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $25
 `
 
 type UpdateVoyageParams struct {
-	Name            string            `json:"name"`
-	Year            types.NullInt64   `json:"year"`
-	EmbarkDate      types.NullString  `json:"embark_date"`
-	DisembarkDate   types.NullString  `json:"disembark_date"`
-	Countries       types.TextArray   `json:"countries"`
-	StartPort       types.NullString  `json:"start_port"`
-	EndPort         types.NullString  `json:"end_port"`
-	CaptainName     types.NullString  `json:"captain_name"`
-	YachtID         types.NullInt64   `json:"yacht_id"`
-	HoursTotal      float64           `json:"hours_total"`
-	HoursSail       float64           `json:"hours_sail"`
-	HoursEngine     float64           `json:"hours_engine"`
-	HoursOver6bf    float64           `json:"hours_over_6bf"`
-	Miles           float64           `json:"miles"`
-	Days            int64             `json:"days"`
-	TidalWaters     int64             `json:"tidal_waters"`
-	CostTotal       types.NullFloat64 `json:"cost_total"`
-	CostPerPerson   types.NullFloat64 `json:"cost_per_person"`
-	ImageLogoUrl    types.NullString  `json:"image_logo_url"`
-	ImagePhotoUrl   types.NullString  `json:"image_photo_url"`
-	ImageRouteUrl   types.NullString  `json:"image_route_url"`
-	Description     types.NullString  `json:"description"`
-	CruiseID        int64             `json:"cruise_id"`
-	CaptainPersonID types.NullInt64   `json:"captain_person_id"`
-	ID              int64             `json:"id"`
-	TrackUrl        types.NullString  `json:"track_url"`
-	VoyageCard      types.NullString  `json:"voyage_card"`
+	Name               string            `json:"name"`
+	Year               types.NullInt64   `json:"year"`
+	EmbarkDate         types.NullString  `json:"embark_date"`
+	DisembarkDate      types.NullString  `json:"disembark_date"`
+	Countries          types.TextArray   `json:"countries"`
+	StartPort          types.NullString  `json:"start_port"`
+	EndPort            types.NullString  `json:"end_port"`
+	CaptainName        types.NullString  `json:"captain_name"`
+	YachtID            types.NullInt64   `json:"yacht_id"`
+	HoursTotal         float64           `json:"hours_total"`
+	HoursSail          float64           `json:"hours_sail"`
+	HoursEngine        float64           `json:"hours_engine"`
+	HoursOver6bf       float64           `json:"hours_over_6bf"`
+	Miles              float64           `json:"miles"`
+	Days               int64             `json:"days"`
+	TidalWaters        int64             `json:"tidal_waters"`
+	CostTotal          types.NullFloat64 `json:"cost_total"`
+	CostPerPerson      types.NullFloat64 `json:"cost_per_person"`
+	ImageLogoUrl       types.NullString  `json:"image_logo_url"`
+	ImagePhotoUrl      types.NullString  `json:"image_photo_url"`
+	ImageRouteUrl      types.NullString  `json:"image_route_url"`
+	Description        types.NullString  `json:"description"`
+	CruiseID           int64             `json:"cruise_id"`
+	CaptainPersonID    types.NullInt64   `json:"captain_person_id"`
+	ID                 int64             `json:"id"`
+	TrackUrl           types.NullString  `json:"track_url"`
+	VoyageCard         types.NullString  `json:"voyage_card"`
+	StartPortLatitude  types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude    types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude   types.NullFloat64 `json:"end_port_longitude"`
 }
 
 // UpdateVoyage
@@ -720,6 +758,8 @@ type UpdateVoyageParams struct {
 //	    image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
 //	    cruise_id = $23, captain_person_id = $24,
 //	    track_url = $26, voyage_card = $27,
+//	    start_port_latitude = $28, start_port_longitude = $29,
+//	    end_port_latitude = $30, end_port_longitude = $31,
 //	    updated_at = CURRENT_TIMESTAMP
 //	WHERE id = $25
 func (q *Queries) UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) error {
@@ -751,6 +791,10 @@ func (q *Queries) UpdateVoyage(ctx context.Context, arg UpdateVoyageParams) erro
 		arg.ID,
 		arg.TrackUrl,
 		arg.VoyageCard,
+		arg.StartPortLatitude,
+		arg.StartPortLongitude,
+		arg.EndPortLatitude,
+		arg.EndPortLongitude,
 	)
 	return err
 }

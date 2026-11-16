@@ -3,10 +3,11 @@ INSERT INTO trips (
     created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port,
     captain_name, yacht_id, cost_total, cost_per_person, max_crew,
     image_logo_url, image_photo_url, image_route_url, description, status, captain_person_id,
-    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline
+    currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline,
+    start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-    $20, $21, $22, $23, $24
+    $20, $21, $22, $23, $24, $25, $26, $27, $28
 ) RETURNING *;
 
 -- name: GetTrip :one
@@ -79,6 +80,8 @@ UPDATE trips SET
     cruise_id = $16, captain_person_id = $17,
     currency = $18, cost_per_person_non_member = $19, yacht_fund = $20, deposit = $21,
     sign_up_deadline = $22,
+    start_port_latitude = $24, start_port_longitude = $25,
+    end_port_latitude = $26, end_port_longitude = $27,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $23;
 
@@ -98,6 +101,7 @@ UPDATE trips SET enroll_token = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = 
 -- name: GetTripByEnrollToken :one
 -- No row while the trip or its cruise is hidden.
 SELECT t.id, t.name, t.embark_date, t.disembark_date, t.countries, t.start_port, t.end_port,
+       t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
        t.description, t.max_crew, t.captain_name, t.image_photo_url,
        t.cost_per_person, t.currency, t.cost_per_person_non_member, t.yacht_fund, t.deposit,
        t.sign_up_deadline
@@ -164,6 +168,7 @@ strongest AS (
 )
 SELECT
     t.id, t.name, t.embark_date, t.disembark_date, t.start_port, t.end_port,
+    t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
     t.published_at,
     c.id AS cruise_id, c.name AS cruise_name, c.edition,
     c.published_at AS cruise_published_at,

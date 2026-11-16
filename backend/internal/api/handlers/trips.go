@@ -197,14 +197,19 @@ func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOut
 		return nil, err
 	}
 	createdBy := types.NullInt64{Int64: user.UserID, Valid: true}
+	start, end := legPort(b.StartPort), legPort(b.EndPort)
 	params := sqlcdb.CreateTripParams{
 		CreatedBy:              createdBy,
 		Name:                   b.Name,
 		EmbarkDate:             nullString(b.EmbarkDate),
 		DisembarkDate:          nullString(b.DisembarkDate),
 		Countries:              b.Countries.Stored(),
-		StartPort:              nullPortName(b.StartPort),
-		EndPort:                nullPortName(b.EndPort),
+		StartPort:              start.name,
+		StartPortLatitude:      start.lat,
+		StartPortLongitude:     start.lon,
+		EndPort:                end.name,
+		EndPortLatitude:        end.lat,
+		EndPortLongitude:       end.lon,
 		CaptainName:            captainName,
 		CaptainPersonID:        captainID,
 		YachtID:                nullInt64(b.YachtID),
@@ -348,13 +353,18 @@ func (h *TripHandler) update(ctx context.Context, in *updateTripInput) (*noConte
 	if err := retainUploadImages(ctx, h.q, in.Body.ImageLogoUrl, in.Body.ImagePhotoUrl, in.Body.ImageRouteUrl); err != nil {
 		return nil, err
 	}
+	start, end := legPort(in.Body.StartPort), legPort(in.Body.EndPort)
 	if err := h.q.UpdateTrip(ctx, sqlcdb.UpdateTripParams{
 		Name:                   in.Body.Name,
 		EmbarkDate:             nullString(in.Body.EmbarkDate),
 		DisembarkDate:          nullString(in.Body.DisembarkDate),
 		Countries:              in.Body.Countries.Stored(),
-		StartPort:              nullPortName(in.Body.StartPort),
-		EndPort:                nullPortName(in.Body.EndPort),
+		StartPort:              start.name,
+		StartPortLatitude:      start.lat,
+		StartPortLongitude:     start.lon,
+		EndPort:                end.name,
+		EndPortLatitude:        end.lat,
+		EndPortLongitude:       end.lon,
 		CaptainName:            captainName,
 		CaptainPersonID:        captainID,
 		YachtID:                nullInt64(in.Body.YachtID),

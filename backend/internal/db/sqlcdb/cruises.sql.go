@@ -211,7 +211,7 @@ func (q *Queries) GetCruiseByEnrollToken(ctx context.Context, enrollToken types.
 }
 
 const listCruiseTrips = `-- name: ListCruiseTrips :many
-SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips t
 WHERE t.cruise_id = $1
   AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
@@ -226,7 +226,7 @@ type ListCruiseTripsParams struct {
 // Without include_hidden a leg is listed only while it and its cruise are
 // published.
 //
-//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at FROM trips t
+//	SELECT id, created_by, cruise_id, name, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, cost_total, cost_per_person, max_crew, image_logo_url, image_photo_url, image_route_url, description, status, enroll_token, created_at, updated_at, currency, cost_per_person_non_member, yacht_fund, deposit, sign_up_deadline, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM trips t
 //	WHERE t.cruise_id = $1
 //	  AND ($2::BOOLEAN OR (t.published_at IS NOT NULL AND EXISTS (
 //	      SELECT 1 FROM cruises c WHERE c.id = t.cruise_id AND c.published_at IS NOT NULL)))
@@ -270,6 +270,10 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, arg ListCruiseTripsParams
 			&i.SignUpDeadline,
 			&i.CaptainPersonID,
 			&i.PublishedAt,
+			&i.StartPortLatitude,
+			&i.StartPortLongitude,
+			&i.EndPortLatitude,
+			&i.EndPortLongitude,
 		); err != nil {
 			return nil, err
 		}
@@ -285,7 +289,7 @@ func (q *Queries) ListCruiseTrips(ctx context.Context, arg ListCruiseTripsParams
 }
 
 const listCruiseVoyages = `-- name: ListCruiseVoyages :many
-SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM voyages v
 WHERE v.cruise_id = $1
   AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
@@ -300,7 +304,7 @@ type ListCruiseVoyagesParams struct {
 // Without include_hidden a voyage is listed only while it and its cruise are
 // published.
 //
-//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at FROM voyages v
+//	SELECT id, created_by, cruise_id, name, year, embark_date, disembark_date, countries, start_port, end_port, captain_name, yacht_id, hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters, cost_total, cost_per_person, image_logo_url, image_photo_url, image_route_url, description, created_at, updated_at, captain_notes, track_url, voyage_card, captain_person_id, published_at, start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude FROM voyages v
 //	WHERE v.cruise_id = $1
 //	  AND ($2::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
 //	      SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
@@ -347,6 +351,10 @@ func (q *Queries) ListCruiseVoyages(ctx context.Context, arg ListCruiseVoyagesPa
 			&i.VoyageCard,
 			&i.CaptainPersonID,
 			&i.PublishedAt,
+			&i.StartPortLatitude,
+			&i.StartPortLongitude,
+			&i.EndPortLatitude,
+			&i.EndPortLongitude,
 		); err != nil {
 			return nil, err
 		}
@@ -433,22 +441,29 @@ func (q *Queries) ListCruises(ctx context.Context, arg ListCruisesParams) ([]Cru
 
 const listStandaloneLegs = `-- name: ListStandaloneLegs :many
 SELECT s.kind, s.id, s.name, s.cancelled, s.embark_date, s.disembark_date,
-       s.start_port, s.end_port, s.published_at,
+       s.start_port, s.end_port,
+       s.start_port_latitude, s.start_port_longitude, s.end_port_latitude, s.end_port_longitude,
+       s.published_at,
        s.cruise_id, s.cruise_name, s.cruise_published_at
 FROM (
     SELECT 'trip'::TEXT AS kind, t.id, t.name, (t.status = 'cancelled') AS cancelled,
-           t.embark_date, t.disembark_date, t.start_port, t.end_port, t.published_at,
+           t.embark_date, t.disembark_date, t.start_port, t.end_port,
+           t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
+           t.published_at,
            c.id AS cruise_id, c.name AS cruise_name, c.published_at AS cruise_published_at
     FROM trips t JOIN cruises c ON c.id = t.cruise_id
     WHERE c.series_id IS NULL
     UNION ALL
     SELECT 'voyage', v.id, v.name, FALSE,
-           v.embark_date, v.disembark_date, v.start_port, v.end_port, v.published_at,
+           v.embark_date, v.disembark_date, v.start_port, v.end_port,
+           v.start_port_latitude, v.start_port_longitude, v.end_port_latitude, v.end_port_longitude,
+           v.published_at,
            c.id, c.name, c.published_at
     FROM voyages v JOIN cruises c ON c.id = v.cruise_id
     WHERE c.series_id IS NULL
     UNION ALL
     SELECT 'cruise', c.id, c.name, FALSE,
+           NULL, NULL, NULL, NULL,
            NULL, NULL, NULL, NULL, c.published_at,
            c.id, c.name, c.published_at
     FROM cruises c
@@ -462,18 +477,22 @@ ORDER BY NULLIF(s.embark_date, '') DESC NULLS FIRST, s.cruise_id DESC, s.kind, s
 `
 
 type ListStandaloneLegsRow struct {
-	Kind              string           `json:"kind"`
-	ID                int64            `json:"id"`
-	Name              string           `json:"name"`
-	Cancelled         bool             `json:"cancelled"`
-	EmbarkDate        types.NullString `json:"embark_date"`
-	DisembarkDate     types.NullString `json:"disembark_date"`
-	StartPort         types.NullString `json:"start_port"`
-	EndPort           types.NullString `json:"end_port"`
-	PublishedAt       types.NullTime   `json:"published_at"`
-	CruiseID          int64            `json:"cruise_id"`
-	CruiseName        string           `json:"cruise_name"`
-	CruisePublishedAt types.NullTime   `json:"cruise_published_at"`
+	Kind               string            `json:"kind"`
+	ID                 int64             `json:"id"`
+	Name               string            `json:"name"`
+	Cancelled          bool              `json:"cancelled"`
+	EmbarkDate         types.NullString  `json:"embark_date"`
+	DisembarkDate      types.NullString  `json:"disembark_date"`
+	StartPort          types.NullString  `json:"start_port"`
+	EndPort            types.NullString  `json:"end_port"`
+	StartPortLatitude  types.NullFloat64 `json:"start_port_latitude"`
+	StartPortLongitude types.NullFloat64 `json:"start_port_longitude"`
+	EndPortLatitude    types.NullFloat64 `json:"end_port_latitude"`
+	EndPortLongitude   types.NullFloat64 `json:"end_port_longitude"`
+	PublishedAt        types.NullTime    `json:"published_at"`
+	CruiseID           int64             `json:"cruise_id"`
+	CruiseName         string            `json:"cruise_name"`
+	CruisePublishedAt  types.NullTime    `json:"cruise_published_at"`
 }
 
 // The "Bez serii" group: the trips and voyages of cruises without a series,
@@ -483,22 +502,29 @@ type ListStandaloneLegsRow struct {
 // a row is listed only while it and its cruise are published.
 //
 //	SELECT s.kind, s.id, s.name, s.cancelled, s.embark_date, s.disembark_date,
-//	       s.start_port, s.end_port, s.published_at,
+//	       s.start_port, s.end_port,
+//	       s.start_port_latitude, s.start_port_longitude, s.end_port_latitude, s.end_port_longitude,
+//	       s.published_at,
 //	       s.cruise_id, s.cruise_name, s.cruise_published_at
 //	FROM (
 //	    SELECT 'trip'::TEXT AS kind, t.id, t.name, (t.status = 'cancelled') AS cancelled,
-//	           t.embark_date, t.disembark_date, t.start_port, t.end_port, t.published_at,
+//	           t.embark_date, t.disembark_date, t.start_port, t.end_port,
+//	           t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
+//	           t.published_at,
 //	           c.id AS cruise_id, c.name AS cruise_name, c.published_at AS cruise_published_at
 //	    FROM trips t JOIN cruises c ON c.id = t.cruise_id
 //	    WHERE c.series_id IS NULL
 //	    UNION ALL
 //	    SELECT 'voyage', v.id, v.name, FALSE,
-//	           v.embark_date, v.disembark_date, v.start_port, v.end_port, v.published_at,
+//	           v.embark_date, v.disembark_date, v.start_port, v.end_port,
+//	           v.start_port_latitude, v.start_port_longitude, v.end_port_latitude, v.end_port_longitude,
+//	           v.published_at,
 //	           c.id, c.name, c.published_at
 //	    FROM voyages v JOIN cruises c ON c.id = v.cruise_id
 //	    WHERE c.series_id IS NULL
 //	    UNION ALL
 //	    SELECT 'cruise', c.id, c.name, FALSE,
+//	           NULL, NULL, NULL, NULL,
 //	           NULL, NULL, NULL, NULL, c.published_at,
 //	           c.id, c.name, c.published_at
 //	    FROM cruises c
@@ -527,6 +553,10 @@ func (q *Queries) ListStandaloneLegs(ctx context.Context, includeHidden bool) ([
 			&i.DisembarkDate,
 			&i.StartPort,
 			&i.EndPort,
+			&i.StartPortLatitude,
+			&i.StartPortLongitude,
+			&i.EndPortLatitude,
+			&i.EndPortLongitude,
 			&i.PublishedAt,
 			&i.CruiseID,
 			&i.CruiseName,

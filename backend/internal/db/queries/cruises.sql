@@ -116,22 +116,29 @@ WHERE cruise_id = $1 AND published_at IS NULL;
 -- being planned, so it sorts before every dated one. Without include_hidden
 -- a row is listed only while it and its cruise are published.
 SELECT s.kind, s.id, s.name, s.cancelled, s.embark_date, s.disembark_date,
-       s.start_port, s.end_port, s.published_at,
+       s.start_port, s.end_port,
+       s.start_port_latitude, s.start_port_longitude, s.end_port_latitude, s.end_port_longitude,
+       s.published_at,
        s.cruise_id, s.cruise_name, s.cruise_published_at
 FROM (
     SELECT 'trip'::TEXT AS kind, t.id, t.name, (t.status = 'cancelled') AS cancelled,
-           t.embark_date, t.disembark_date, t.start_port, t.end_port, t.published_at,
+           t.embark_date, t.disembark_date, t.start_port, t.end_port,
+           t.start_port_latitude, t.start_port_longitude, t.end_port_latitude, t.end_port_longitude,
+           t.published_at,
            c.id AS cruise_id, c.name AS cruise_name, c.published_at AS cruise_published_at
     FROM trips t JOIN cruises c ON c.id = t.cruise_id
     WHERE c.series_id IS NULL
     UNION ALL
     SELECT 'voyage', v.id, v.name, FALSE,
-           v.embark_date, v.disembark_date, v.start_port, v.end_port, v.published_at,
+           v.embark_date, v.disembark_date, v.start_port, v.end_port,
+           v.start_port_latitude, v.start_port_longitude, v.end_port_latitude, v.end_port_longitude,
+           v.published_at,
            c.id, c.name, c.published_at
     FROM voyages v JOIN cruises c ON c.id = v.cruise_id
     WHERE c.series_id IS NULL
     UNION ALL
     SELECT 'cruise', c.id, c.name, FALSE,
+           NULL, NULL, NULL, NULL,
            NULL, NULL, NULL, NULL, c.published_at,
            c.id, c.name, c.published_at
     FROM cruises c

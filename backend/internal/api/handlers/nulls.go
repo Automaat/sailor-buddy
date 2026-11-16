@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/location"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
@@ -12,15 +13,26 @@ func nullString(s *string) types.NullString {
 	return types.NullString{String: *s, Valid: true}
 }
 
-// nullPortName stores an optional port name, such as a leg's start or end
-// port, by the location name rule: a blank name is NULL. The DTO's Resolve
-// has already rejected a name that is too long.
-func nullPortName(s *string) types.NullString {
-	if s == nil {
-		return types.NullString{}
+// portColumns is a leg's start or end port as its table stores it: a
+// nullable name and nullable, paired coordinates.
+type portColumns struct {
+	name     types.NullString
+	lat, lon types.NullFloat64
+}
+
+// legPort stores an optional start or end port by the location rules: an
+// absent port, or a blank name without coordinates, is all NULL. The
+// body's Resolve has already rejected one the rules refuse.
+func legPort(p *dto.Port) portColumns {
+	if p == nil {
+		return portColumns{}
 	}
-	n := location.NormalizeName(*s)
-	return types.NullString{String: n, Valid: n != ""}
+	lp, ok, err := p.Location()
+	if err != nil || !ok {
+		return portColumns{}
+	}
+	lat, lon := portCoordinates(lp)
+	return portColumns{name: types.NullString{String: lp.Name, Valid: true}, lat: lat, lon: lon}
 }
 
 // portCoordinates returns a port's coordinates as nullable columns, both

@@ -5,8 +5,10 @@ INSERT INTO voyages (
     hours_total, hours_sail, hours_engine, hours_over_6bf, miles, days, tidal_waters,
     cost_total, cost_per_person,
     image_logo_url, image_photo_url, image_route_url, description, captain_person_id,
-    track_url, voyage_card, published_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28) RETURNING *;
+    track_url, voyage_card, published_at,
+    start_port_latitude, start_port_longitude, end_port_latitude, end_port_longitude
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
+    $29, $30, $31, $32) RETURNING *;
 
 -- name: GetVoyage :one
 -- include_hidden is true for callers who may read hidden drafts; others get
@@ -47,6 +49,8 @@ UPDATE voyages SET
     image_logo_url = $19, image_photo_url = $20, image_route_url = $21, description = $22,
     cruise_id = $23, captain_person_id = $24,
     track_url = $26, voyage_card = $27,
+    start_port_latitude = $28, start_port_longitude = $29,
+    end_port_latitude = $30, end_port_longitude = $31,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $25;
 

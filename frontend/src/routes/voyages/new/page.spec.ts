@@ -13,7 +13,9 @@ vi.mock('#lib/api/routes.js', () => ({
 	createYacht: vi.fn(),
 	createVoyage: vi.fn(),
 	listMembers: vi.fn(),
-	listCrew: vi.fn()
+	listCrew: vi.fn(),
+	suggestPorts: vi.fn(),
+	geocode: vi.fn()
 }));
 
 import {
@@ -22,7 +24,9 @@ import {
 	createVoyage,
 	createYacht,
 	listMembers,
-	listCrew
+	listCrew,
+	suggestPorts,
+	geocode
 } from '#lib/api/routes.js';
 import { goto } from '$app/navigation';
 import NewVoyagePage from './+page.svelte';
@@ -47,6 +51,8 @@ beforeEach(() => {
 	fn(listYachts).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([makeCruise({ id: 13, name: 'NNE 2025' })]);
 	fn(createVoyage).mockResolvedValue(makeVoyage({ id: 8 }));
+	fn(suggestPorts).mockResolvedValue([]);
+	fn(geocode).mockResolvedValue([]);
 });
 
 describe('new voyage page', () => {
@@ -57,6 +63,34 @@ describe('new voyage page', () => {
 		await renderPage(query ? `http://localhost/voyages/new${query}` : undefined);
 		expect(screen.getByTestId('back-link')).toHaveAttribute('href', href);
 		expect(screen.getByTestId('back-link')).toHaveAccessibleName(label);
+	});
+
+	it('saves a looked-up end port with its coordinates and omits an empty start port', async () => {
+		fn(geocode).mockResolvedValue([
+			{
+				name: 'Visby',
+				label: 'Visby, Gotland',
+				latitude: 57.64,
+				longitude: 18.29,
+				source: 'nominatim'
+			}
+		]);
+		await renderPage('http://localhost/voyages/new?cruise_id=13');
+		await waitFor(() => expect(screen.getByLabelText('Wydarzenie klubu *')).toHaveValue('13'));
+		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), {
+			target: { value: 'Rejs 2019' }
+		});
+		await fireEvent.input(screen.getByLabelText('Port docelowy'), { target: { value: 'Visby' } });
+		await fireEvent.keyDown(screen.getByLabelText('Port docelowy'), { key: 'Enter' });
+		await fireEvent.click(await screen.findByRole('button', { name: /^Visby/ }));
+		expect(createVoyage).not.toHaveBeenCalled();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Dodaj rejs' }));
+
+		await waitFor(() => expect(createVoyage).toHaveBeenCalled());
+		const body = JSON.parse(JSON.stringify(fn(createVoyage).mock.calls[0][0]));
+		expect(body.end_port).toEqual({ name: 'Visby', latitude: 57.64, longitude: 18.29 });
+		expect(body).not.toHaveProperty('start_port');
 	});
 
 	it('refuses to submit without a cruise', async () => {

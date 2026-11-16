@@ -3,6 +3,7 @@ package location
 import (
 	"errors"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -36,24 +37,34 @@ func TestParseName(t *testing.T) {
 	}
 }
 
-func TestParseOptionalName(t *testing.T) {
+func TestParseOptionalPort(t *testing.T) {
 	long := strings.Repeat("a", MaxNameLen+1)
 	tests := []struct {
-		name string
-		in   *string
-		want string
-		err  error
+		name     string
+		in       string
+		lat, lon *float64
+		want     *Port
+		err      error
 	}{
-		{"absent", nil, "", nil},
-		{"blank", new("  "), "", nil},
-		{"name", new(" Visby "), "Visby", nil},
-		{"too long", &long, "", ErrNameTooLong},
+		{"empty", "", nil, nil, nil, nil},
+		{"blank", " \u200b\t", nil, nil, nil, nil},
+		{"name only", " Visby ", nil, nil, &Port{Name: "Visby"}, nil},
+		{"located", "Hel", new(54.6), new(18.8), &Port{Name: "Hel", Coordinates: &Coordinates{54.6, 18.8}}, nil},
+		{"coordinates without a name", "  ", new(54.6), new(18.8), nil, ErrNameRequired},
+		{"one coordinate without a name", "", new(54.6), nil, nil, ErrNameRequired},
+		{"unpaired", "Hel", nil, new(18.8), nil, ErrUnpaired},
+		{"latitude out of range", "Hel", new(-90.5), new(18.8), nil, ErrLatitudeInvalid},
+		{"longitude out of range", "Hel", new(54.6), new(180.5), nil, ErrLongitudeInvalid},
+		{"too long", long, nil, nil, nil, ErrNameTooLong},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseOptionalName(tt.in)
-			if !errors.Is(err, tt.err) || got != tt.want {
-				t.Fatalf("ParseOptionalName = %q, %v; want %q, %v", got, err, tt.want, tt.err)
+			got, ok, err := ParseOptionalPort(tt.in, tt.lat, tt.lon)
+			if !errors.Is(err, tt.err) || ok != (tt.want != nil) {
+				t.Fatalf("ParseOptionalPort(%q) = %+v, %v, %v; want %+v, %v", tt.in, got, ok, err, tt.want, tt.err)
+			}
+			if tt.want != nil && !reflect.DeepEqual(got, *tt.want) {
+				t.Fatalf("ParseOptionalPort(%q) = %+v, want %+v", tt.in, got, *tt.want)
 			}
 		})
 	}

@@ -285,8 +285,8 @@ describe('dashboard upcoming legs', () => {
 				edition: '2027',
 				embark_date: '2027-05-01',
 				disembark_date: '2027-05-08',
-				start_port: 'Palermo',
-				end_port: 'Trapani',
+				start_port: { name: 'Palermo' },
+				end_port: { name: 'Trapani' },
 				relation: 'captain'
 			}),
 			leg({ id: 9, name: 'Bałtyk', cruise_name: 'Bałtyk 2027', relation: 'crew' }),

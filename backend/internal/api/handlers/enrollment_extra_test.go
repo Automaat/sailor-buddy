@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -100,6 +101,8 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		EmbarkDate:             types.NullString{String: "2025-07-01", Valid: true},
 		DisembarkDate:          types.NullString{String: "2025-07-10", Valid: true},
 		StartPort:              types.NullString{String: "Bodø", Valid: true},
+		StartPortLatitude:      types.NullFloat64{Float64: 67.28, Valid: true},
+		StartPortLongitude:     types.NullFloat64{Float64: 14.4, Valid: true},
 		EndPort:                types.NullString{String: "Tromsø", Valid: true},
 		CaptainName:            types.NullString{String: "Jan Kowalski", Valid: true},
 		CaptainPersonID:        types.NullInt64{Int64: 9, Valid: true},
@@ -156,8 +159,8 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		"status":                     "cancelled",
 		"embark_date":                "2025-07-01",
 		"disembark_date":             "2025-07-10",
-		"start_port":                 "Bodø",
-		"end_port":                   "Tromsø",
+		"start_port":                 map[string]any{"name": "Bodø", "latitude": 67.28, "longitude": 14.4},
+		"end_port":                   map[string]any{"name": "Tromsø"},
 		"captain_name":               "Jan Kowalski",
 		"max_crew":                   float64(8),
 		"currency":                   "EUR",
@@ -167,7 +170,7 @@ func TestEnrollment_GetByToken_CruiseLegsArePublicSummaries(t *testing.T) {
 		"deposit":                    float64(200),
 	}
 	for k, v := range want {
-		if got[k] != v {
+		if !reflect.DeepEqual(got[k], v) {
 			t.Errorf("trips[0][%q] = %v, want %v", k, got[k], v)
 		}
 	}

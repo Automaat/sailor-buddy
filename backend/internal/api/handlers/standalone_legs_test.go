@@ -33,7 +33,7 @@ func TestCruiseHandler_ListStandaloneLegs(t *testing.T) {
 			name: "admin reads hidden entries", ctx: userCtxRole(context.Background(), "admin"),
 			rows: rows, wantHidden: true,
 			wantBody: `[{"kind":"trip","id":5,"name":"Chorwacja","cancelled":true,"embark_date":"2026-07-01",` +
-				`"start_port":"Split","cruise_id":9,"cruise_name":"Chorwacja",` +
+				`"start_port":{"name":"Split"},"cruise_id":9,"cruise_name":"Chorwacja",` +
 				`"cruise_published_at":"2025-01-01T00:00:00Z"},` +
 				`{"kind":"cruise","id":3,"name":"Bez etapów","cancelled":false,"published_at":"2025-01-01T00:00:00Z",` +
 				`"cruise_id":3,"cruise_name":"Bez etapów","cruise_published_at":"2025-01-01T00:00:00Z"}]`,

@@ -84,8 +84,8 @@ type EnrollTrip struct {
 	EmbarkDate             *string  `json:"embark_date,omitempty"`
 	DisembarkDate          *string  `json:"disembark_date,omitempty"`
 	Countries              []string `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
-	StartPort              *string  `json:"start_port,omitempty"`
-	EndPort                *string  `json:"end_port,omitempty"`
+	StartPort              *Port    `json:"start_port,omitempty"`
+	EndPort                *Port    `json:"end_port,omitempty"`
 	Description            *string  `json:"description,omitempty"`
 	MaxCrew                *int64   `json:"max_crew,omitempty"`
 	CaptainName            *string  `json:"captain_name,omitempty"`
@@ -287,8 +287,8 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 		EmbarkDate:             strPtr(t.EmbarkDate),
 		DisembarkDate:          strPtr(t.DisembarkDate),
 		Countries:              countryCodes(t.Countries),
-		StartPort:              strPtr(t.StartPort),
-		EndPort:                strPtr(t.EndPort),
+		StartPort:              portFromDB(t.StartPort, t.StartPortLatitude, t.StartPortLongitude),
+		EndPort:                portFromDB(t.EndPort, t.EndPortLatitude, t.EndPortLongitude),
 		Description:            strPtr(t.Description),
 		MaxCrew:                intPtr(t.MaxCrew),
 		CaptainName:            strPtr(t.CaptainName),
@@ -329,8 +329,8 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 			EmbarkDate:             strPtr(t.EmbarkDate),
 			DisembarkDate:          strPtr(t.DisembarkDate),
 			Countries:              countryCodes(t.Countries),
-			StartPort:              strPtr(t.StartPort),
-			EndPort:                strPtr(t.EndPort),
+			StartPort:              portFromDB(t.StartPort, t.StartPortLatitude, t.StartPortLongitude),
+			EndPort:                portFromDB(t.EndPort, t.EndPortLatitude, t.EndPortLongitude),
 			Description:            strPtr(t.Description),
 			MaxCrew:                intPtr(t.MaxCrew),
 			CaptainName:            strPtr(t.CaptainName),

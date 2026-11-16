@@ -137,8 +137,8 @@ test.describe.serial('Phone layout', () => {
 			name: 'Etap pierwszy',
 			embark_date: '2027-07-01',
 			disembark_date: '2027-07-07',
-			start_port: 'Gdańsk',
-			end_port: 'Bornholm',
+			start_port: { name: 'Gdańsk', latitude: 54.35, longitude: 18.66 },
+			end_port: { name: 'Bornholm' },
 			captain_name: 'Kapitan Bardzo-Długie-Nazwisko',
 			max_crew: 8,
 			cost_total: 1234500,
@@ -149,8 +149,8 @@ test.describe.serial('Phone layout', () => {
 			name: 'Etap drugi',
 			embark_date: '2027-07-07',
 			disembark_date: '2027-07-14',
-			start_port: 'Bornholm',
-			end_port: 'Visby'
+			start_port: { name: 'Bornholm' },
+			end_port: { name: 'Visby' }
 		});
 		// New editions and legs start hidden; the member flows below need them published.
 		await post(token, `/cruises/${cruise.id}/publish`, { include_legs: true });
@@ -177,8 +177,8 @@ test.describe.serial('Phone layout', () => {
 			name: 'Samodzielny-rejs-bez-serii-z-bardzo-długą-nazwą-bez-spacji',
 			embark_date: '2027-08-01',
 			disembark_date: '2027-08-08',
-			start_port: 'Świnoujście',
-			end_port: 'Kopenhaga'
+			start_port: { name: 'Świnoujście' },
+			end_port: { name: 'Kopenhaga' }
 		});
 		await post(token, '/yachts', { name: 'Jacht', yacht_type: 'Slup', length_m: 12 });
 		await post(token, '/trainings', { name: 'Szkolenie', date: '2027-03-01' });

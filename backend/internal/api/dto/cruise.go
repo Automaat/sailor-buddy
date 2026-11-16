@@ -100,8 +100,8 @@ type StandaloneLeg struct {
 	Cancelled         bool       `json:"cancelled" doc:"True for a cancelled trip"`
 	EmbarkDate        *string    `json:"embark_date,omitempty"`
 	DisembarkDate     *string    `json:"disembark_date,omitempty"`
-	StartPort         *string    `json:"start_port,omitempty"`
-	EndPort           *string    `json:"end_port,omitempty"`
+	StartPort         *Port      `json:"start_port,omitempty"`
+	EndPort           *Port      `json:"end_port,omitempty"`
 	PublishedAt       *time.Time `json:"published_at,omitempty" doc:"When the entry was published; absent while it is a hidden draft"`
 	CruiseID          int64      `json:"cruise_id"`
 	CruiseName        string     `json:"cruise_name"`
@@ -120,8 +120,8 @@ func StandaloneLegsFromDB(rows []sqlcdb.ListStandaloneLegsRow) []StandaloneLeg {
 			Cancelled:         r.Cancelled,
 			EmbarkDate:        strPtr(r.EmbarkDate),
 			DisembarkDate:     strPtr(r.DisembarkDate),
-			StartPort:         strPtr(r.StartPort),
-			EndPort:           strPtr(r.EndPort),
+			StartPort:         portFromDB(r.StartPort, r.StartPortLatitude, r.StartPortLongitude),
+			EndPort:           portFromDB(r.EndPort, r.EndPortLatitude, r.EndPortLongitude),
 			PublishedAt:       timePtr(r.PublishedAt),
 			CruiseID:          r.CruiseID,
 			CruiseName:        r.CruiseName,

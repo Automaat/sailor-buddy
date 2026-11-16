@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatDateRangeWithDays } from '#lib/dates.js';
+	import { formatRoute } from '#lib/location/route.js';
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import {
 		deleteTrip,
@@ -40,6 +41,7 @@
 	// enroll-link toggle or a publish, and reset to the loaded value on
 	// navigation.
 	let trip = $derived(data.trip);
+	const route = $derived(formatRoute(trip.start_port, trip.end_port));
 	let crew = $derived(data.crew);
 	let signUp = $derived(data.signUp);
 	let loadErrors = $derived(data.loadErrors);
@@ -324,8 +326,8 @@
 				{/if}
 			</div>
 			<p class="mt-1 text-[var(--text-muted)]">
-				{#if trip.start_port && trip.end_port}
-					{trip.start_port} → {trip.end_port}
+				{#if route}
+					{route}
 				{/if}
 				{#if trip.countries?.length}
 					· {formatCountries(trip.countries, data.countries)}{/if}
