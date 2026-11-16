@@ -4,7 +4,7 @@ import type {
 	Cruise,
 	CruiseSeries,
 	Member,
-	Trip,
+	TripDetail,
 	VoyageDetail
 } from '#lib/api/types.js';
 
@@ -58,7 +58,7 @@ export function makeSeries(overrides: Partial<CruiseSeries> = {}): CruiseSeries 
 	};
 }
 
-export function makeTrip(overrides: Partial<Trip> = {}): Trip {
+export function makeTrip(overrides: Partial<TripDetail> = {}): TripDetail {
 	return {
 		id: 1,
 		cruise_id: 1,
