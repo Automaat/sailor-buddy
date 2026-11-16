@@ -49,6 +49,25 @@ func TestSuggestPorts_Visibility(t *testing.T) {
 	}
 }
 
+// TestSuggestPorts_NormalizesQuery sends the query to the database by the
+// port name rule, so it compares with stored names: no surrounding blanks
+// and one space between words.
+func TestSuggestPorts_NormalizesQuery(t *testing.T) {
+	var got string
+	m := &mockQuerier{suggestPortsFn: func(_ context.Context, arg sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error) {
+		got = arg.Query
+		return nil, nil
+	}}
+	resp := voyagePortTestAPI(t, m).GetCtx(userCtxRole(context.Background(), "member"),
+		"/ports/suggest?q=%E2%80%8B%20Nowa%20%C2%A0%20Wie%C5%9B%09")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body)
+	}
+	if got != "Nowa Wieś" {
+		t.Fatalf("query = %q, want %q", got, "Nowa Wieś")
+	}
+}
+
 func TestSuggestPorts_MapsRows(t *testing.T) {
 	m := &mockQuerier{suggestPortsFn: func(context.Context, sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error) {
 		return []sqlcdb.SuggestPortsRow{

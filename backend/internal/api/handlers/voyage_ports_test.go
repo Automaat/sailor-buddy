@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -16,8 +17,13 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
+// voyagePortTestAPI serves the voyage port routes from m. Unless the test
+// stubs it, taking a voyage's port lock succeeds.
 func voyagePortTestAPI(t *testing.T, m *mockQuerier) humatest.TestAPI {
 	t.Helper()
+	if m.lockVoyagePortsFn == nil {
+		m.lockVoyagePortsFn = func(context.Context, int64) error { return nil }
+	}
 	_, api := humatest.New(t)
 	registerVoyagePortRoutes(api, &VoyagePortHandler{q: m, runTx: directTxRunner(m)})
 	return api
@@ -56,7 +62,7 @@ func TestVoyagePorts_Add(t *testing.T) {
 		addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
 			return sqlcdb.VoyagePort{
 				ID: 9, VoyageID: arg.VoyageID, Name: arg.Name,
-				Latitude: arg.Latitude, Longitude: arg.Longitude, Position: arg.Position,
+				Latitude: arg.Latitude, Longitude: arg.Longitude, Position: arg.Position.Int64,
 			}, nil
 		},
 	}
@@ -239,5 +245,83 @@ func TestVoyagePorts_Add_MemberForbidden(t *testing.T) {
 		map[string]any{"name": "Hvar", "latitude": 43.17, "longitude": 16.44})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403; body=%s", resp.Code, resp.Body)
+	}
+}
+
+// TestVoyagePorts_AddAppliesPortRules checks that an added port goes
+// through the location rules: its name is normalized, a blank or too long
+// name and unpaired coordinates are refused before the write, and a port
+// without a position is appended by the server under the voyage's port
+// lock.
+func TestVoyagePorts_AddAppliesPortRules(t *testing.T) {
+	tests := []struct {
+		name         string
+		body         map[string]any
+		wantName     string
+		wantPosition types.NullInt64
+	}{
+		{"normalized name, appended", map[string]any{"name": "  Nowa \u00a0 Wieś\u200b "}, "Nowa Wieś", types.NullInt64{}},
+		{"explicit position", map[string]any{"name": "Hel", "position": 4}, "Hel", types.NullInt64{Int64: 4, Valid: true}},
+		{"largest position", map[string]any{"name": "Hel", "position": 10000}, "Hel", types.NullInt64{Int64: 10000, Valid: true}},
+		{"position too large", map[string]any{"name": "Hel", "position": 10001}, "", types.NullInt64{}},
+		{"position at int64 max", map[string]any{"name": "Hel", "position": int64(9223372036854775807)}, "", types.NullInt64{}},
+		{"negative position", map[string]any{"name": "Hel", "position": -1}, "", types.NullInt64{}},
+		{"longest name", map[string]any{"name": strings.Repeat("ł", 100)}, strings.Repeat("ł", 100), types.NullInt64{}},
+		{"blank name", map[string]any{"name": " \u200b "}, "", types.NullInt64{}},
+		{"too long name", map[string]any{"name": strings.Repeat("ł", 101)}, "", types.NullInt64{}},
+		{"unpaired coordinates", map[string]any{"name": "Hel", "longitude": 18.8}, "", types.NullInt64{}},
+		{"latitude out of range", map[string]any{"name": "Hel", "latitude": 90.5, "longitude": 18.8}, "", types.NullInt64{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []string
+			var got sqlcdb.AddVoyagePortParams
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				lockVoyagePortsFn: func(_ context.Context, id int64) error {
+					calls = append(calls, "lock")
+					if id != 5 {
+						t.Errorf("locked voyage %d, want 5", id)
+					}
+					return nil
+				},
+				addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
+					calls = append(calls, "add")
+					got = arg
+					return sqlcdb.VoyagePort{ID: 9, VoyageID: arg.VoyageID, Name: arg.Name, Position: 3}, nil
+				},
+			}
+			resp := voyagePortTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/5/ports", tt.body)
+			if tt.wantName == "" {
+				if resp.Code != http.StatusUnprocessableEntity || len(calls) != 0 {
+					t.Fatalf("status = %d, calls = %v; want 422 and no write; body=%s", resp.Code, calls, resp.Body)
+				}
+				return
+			}
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("status = %d, want 201; body=%s", resp.Code, resp.Body)
+			}
+			if !slices.Equal(calls, []string{"lock", "add"}) {
+				t.Fatalf("calls = %v, want [lock add]", calls)
+			}
+			if got.Name != tt.wantName || got.Position != tt.wantPosition || got.VoyageID != 5 {
+				t.Fatalf("add params = %+v, want name %q, position %+v", got, tt.wantName, tt.wantPosition)
+			}
+		})
+	}
+}
+
+// TestVoyagePorts_AddLockFails answers 500 without writing when the
+// voyage's port lock cannot be taken.
+func TestVoyagePorts_AddLockFails(t *testing.T) {
+	m := &mockQuerier{
+		getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+		lockVoyagePortsFn: func(context.Context, int64) error {
+			return errors.New("boom")
+		},
+	}
+	resp := voyagePortTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/5/ports", map[string]any{"name": "Hel"})
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", resp.Code, resp.Body)
 	}
 }

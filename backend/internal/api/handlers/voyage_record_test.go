@@ -264,7 +264,7 @@ func TestVoyagePorts_AddNameOnlyAnchorage(t *testing.T) {
 			got = &arg
 			return sqlcdb.VoyagePort{
 				ID: 9, VoyageID: arg.VoyageID, Name: arg.Name, Latitude: arg.Latitude,
-				Longitude: arg.Longitude, Anchorage: arg.Anchorage, Position: arg.Position,
+				Longitude: arg.Longitude, Anchorage: arg.Anchorage, Position: arg.Position.Int64,
 			}, nil
 		},
 	}
@@ -276,7 +276,7 @@ func TestVoyagePorts_AddNameOnlyAnchorage(t *testing.T) {
 	if got == nil {
 		t.Fatal("no write recorded")
 	}
-	if got.Latitude.Valid || got.Longitude.Valid || !got.Anchorage || got.Position != 2 {
+	if got.Latitude.Valid || got.Longitude.Valid || !got.Anchorage || got.Position != (types.NullInt64{Int64: 2, Valid: true}) {
 		t.Fatalf("unexpected port params: %+v", got)
 	}
 	var raw map[string]any
@@ -319,6 +319,19 @@ func TestTripComplete_RejectsHalfCoordinates(t *testing.T) {
 	})
 	if resp.Code != http.StatusUnprocessableEntity || !strings.Contains(resp.Body.String(), "latitude and longitude") {
 		t.Fatalf("status = %d, want 422 for paired coordinates; body=%s", resp.Code, resp.Body)
+	}
+}
+
+// TestTripComplete_RejectsBadPortNames refuses a completion whose ports
+// break the location name rule before any database call.
+func TestTripComplete_RejectsBadPortNames(t *testing.T) {
+	for _, name := range []string{" \u200b ", strings.Repeat("a", 101)} {
+		resp := tripTestAPI(t, &mockQuerier{}).PostCtx(callerCtx(1, "admin"), "/trips/1/complete", map[string]any{
+			"ports": []map[string]any{{"name": "Hel"}, {"name": name}},
+		})
+		if resp.Code != http.StatusUnprocessableEntity || !strings.Contains(resp.Body.String(), "ports[1].name") {
+			t.Fatalf("name %q: status = %d, want 422 at ports[1].name; body=%s", name, resp.Code, resp.Body)
+		}
 	}
 }
 

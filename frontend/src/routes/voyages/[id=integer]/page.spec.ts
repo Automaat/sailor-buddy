@@ -182,7 +182,7 @@ describe('voyage page record', () => {
 		await waitFor(() => expect(addVoyagePort).toHaveBeenCalled());
 		expect(vi.mocked(addVoyagePort).mock.calls[0]).toEqual([
 			5,
-			{ name: 'Zatoka Puck', anchorage: true, position: 0 }
+			{ name: 'Zatoka Puck', anchorage: true }
 		]);
 		expect(await screen.findByText('(bez mapy)')).toBeInTheDocument();
 	});

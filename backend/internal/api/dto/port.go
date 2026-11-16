@@ -1,11 +1,13 @@
 package dto
 
 import (
+	"errors"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/location"
 )
 
 // VoyagePort is the API representation of a port visited during a voyage.
@@ -25,23 +27,52 @@ type VoyagePort struct {
 // the ports supplied when a trip is completed into a voyage. Coordinates are
 // optional but come as a pair.
 type VoyagePortBody struct {
-	Name      string   `json:"name" minLength:"1" doc:"Port / town name"`
+	Name      string   `json:"name" minLength:"1" doc:"Port / town name, at most 100 characters; surrounding blanks are dropped and inner runs of blanks become one space"`
 	Latitude  *float64 `json:"latitude,omitempty" minimum:"-90" maximum:"90" doc:"Latitude; omit with longitude for a name-only port"`
 	Longitude *float64 `json:"longitude,omitempty" minimum:"-180" maximum:"180" doc:"Longitude; omit with latitude for a name-only port"`
 	Anchorage bool     `json:"anchorage,omitempty" doc:"An anchorage rather than a harbour"`
-	Position  *int64   `json:"position,omitempty" minimum:"0" doc:"Order in the visited sequence"`
+	Position  *int64   `json:"position,omitempty" minimum:"0" maximum:"10000" doc:"Order in the visited sequence, at most 10000 so the next append cannot overflow; omit to add the port after the last one"`
 }
 
-// Resolve rejects a port with only one of its two coordinates.
+// Port applies the location rules to the port's name and coordinates.
+func (b *VoyagePortBody) Port() (location.Port, error) {
+	return location.NewPort(b.Name, b.Latitude, b.Longitude)
+}
+
+// Resolve rejects a port that Port rejects: a blank or too long name, or
+// coordinates out of range or without their pair.
 func (b *VoyagePortBody) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
-	if (b.Latitude == nil) == (b.Longitude == nil) {
-		return nil
+	if _, err := b.Port(); err != nil {
+		return []error{locationError(prefix, err, b.Name, b.Latitude, b.Longitude)}
 	}
-	return []error{&huma.ErrorDetail{
-		Message:  "latitude and longitude must be given together",
-		Location: prefix.With("latitude"),
-		Value:    b.Latitude,
-	}}
+	return nil
+}
+
+// locationError reports a rejected port at the field the location rule
+// names, with the value it rejected.
+func locationError(prefix *huma.PathBuffer, err error, name string, lat, lon *float64) error {
+	le, ok := errors.AsType[*location.Error](err)
+	if !ok {
+		return err
+	}
+	var value any = name
+	switch le.Field {
+	case location.FieldLatitude:
+		value = lat
+	case location.FieldLongitude:
+		value = lon
+	case location.FieldName:
+	}
+	return &huma.ErrorDetail{Message: le.Message, Location: prefix.With(string(le.Field)), Value: value}
+}
+
+// portNameErrors rejects an optional port name, such as a leg's start or
+// end port, that the location name rule rejects.
+func portNameErrors(prefix *huma.PathBuffer, field string, name *string) []error {
+	if _, err := location.ParseOptionalName(name); err != nil {
+		return []error{&huma.ErrorDetail{Message: err.Error(), Location: prefix.With(field), Value: *name}}
+	}
+	return nil
 }
 
 // VoyagePortOrderBody carries port IDs in the desired visit order. The
@@ -87,15 +118,16 @@ type GeocodeResult struct {
 	Source    string  `json:"source" enum:"nominatim,photon" doc:"Search service that found the place"`
 }
 
-// PortSuggestion is a port name the club already entered on a voyage. Its
-// coordinates come from the latest such port that has them; a name only
-// ever entered without a location has none. Uses counts the ports with
-// this name, ignoring case and accents.
+// PortSuggestion is a port name the club already entered: a voyage's
+// visited port, or a trip's or voyage's start or end port. Its coordinates
+// come from the latest visited port with this name that has them; a name
+// never entered with a location has none. Uses counts the entries with this
+// name, ignoring case and accents.
 type PortSuggestion struct {
 	Name      string   `json:"name"`
 	Latitude  *float64 `json:"latitude,omitempty"`
 	Longitude *float64 `json:"longitude,omitempty"`
-	Uses      int64    `json:"uses" doc:"How many visited ports carry this name"`
+	Uses      int64    `json:"uses" doc:"How many visited, start and end ports carry this name"`
 }
 
 // PortSuggestionsFromDB maps suggestion rows, returning a non-nil slice so an

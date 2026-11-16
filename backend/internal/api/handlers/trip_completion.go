@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
@@ -124,17 +126,23 @@ func completeTripOnce(ctx context.Context, db *sql.DB, wrap func(sqlcdb.Querier)
 		return sqlcdb.Voyage{}, &QueryError{Op: "CreateVoyageFromTrip", Err: err}
 	}
 
-	for i, port := range req.Ports {
-		position := int64(i)
-		if port.Position != nil {
-			position = *port.Position
+	for i := range req.Ports {
+		body := &req.Ports[i]
+		port, err := body.Port()
+		if err != nil {
+			return sqlcdb.Voyage{}, huma.Error422UnprocessableEntity(err.Error())
 		}
+		position := int64(i)
+		if body.Position != nil {
+			position = *body.Position
+		}
+		lat, lon := portCoordinates(port)
 		if _, err := qtx.CreateVoyagePort(ctx, sqlcdb.CreateVoyagePortParams{
 			VoyageID:  voyage.ID,
 			Name:      port.Name,
-			Latitude:  nullFloat64(port.Latitude),
-			Longitude: nullFloat64(port.Longitude),
-			Anchorage: port.Anchorage,
+			Latitude:  lat,
+			Longitude: lon,
+			Anchorage: body.Anchorage,
 			Position:  position,
 		}); err != nil {
 			return sqlcdb.Voyage{}, &QueryError{Op: "CreateVoyagePort", Err: err}
