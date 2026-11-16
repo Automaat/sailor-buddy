@@ -117,6 +117,14 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
   a series' editions are sorted by their legs' dates and the UI does not
   show an edition's dates. `kind` (sea/inland) is on `cruise_series`; a
   cruise without a series is sea.
+- Countries on cruises, trips and voyages are a `TEXT[]` of ISO 3166-1
+  alpha-2 codes (`{}` for none, never NULL). The one list of codes and
+  Polish names is `backend/internal/countries/countries.json`: the API
+  serves it (`GET /countries`, public so the enroll preview can name
+  countries) and rejects other codes (`dto.CountryCodes`),
+  docgen prints its names, and the frontend picks and names countries only
+  through `src/lib/location/countries.ts` and `CountryPicker.svelte`. Do not
+  add a second country list.
 - Roles on `users.role` (`admin`|`member`); initial admin is provisioned privately with `bootstrap-admin`. Admins are the board (Zarząd) and the Opiekun. Club reads require a verified Firebase email
   (no approval step); `users.suspended` denies access, existing tokens included. Emergency contacts are
   restricted to admins and assigned captains; opinions to admins, subject,

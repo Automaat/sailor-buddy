@@ -4,6 +4,8 @@ import (
 	"bytes"
 	_ "embed"
 	"html/template"
+
+	"github.com/marcinskalski/sailor-buddy/backend/internal/countries"
 )
 
 type OpinionData struct {
@@ -16,7 +18,7 @@ type OpinionData struct {
 	YachtType      string
 	StartPort      string
 	EndPort        string
-	Countries      string
+	Countries      []string
 	Miles          float64
 	HoursTotal     float64
 	HoursSail      float64
@@ -27,6 +29,12 @@ type OpinionData struct {
 	CaptainName    string
 	Role           string
 	GeneratedDate  string
+}
+
+// CountryNames is the voyage's countries as the document prints them:
+// Polish names joined by ", ".
+func (d OpinionData) CountryNames() string {
+	return countries.Format(d.Countries)
 }
 
 //go:embed templates/voyage_opinion.html

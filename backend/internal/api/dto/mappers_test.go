@@ -2,6 +2,7 @@ package dto
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -191,14 +192,14 @@ func TestVoyageCrewFromDB(t *testing.T) {
 func TestCruiseFromDB(t *testing.T) {
 	c := sqlcdb.Cruise{
 		ID: 1, CreatedBy: nint(2), Name: "Baltic",
-		Countries: nstr("PL"), EnrollToken: nstr("tok"),
+		Countries: types.TextArray{"PL", "SE"}, EnrollToken: nstr("tok"),
 		CreatedAt: ntime(), UpdatedAt: ntime(),
 	}
 	got := CruiseFromDB(c)
 	if got.ID != 1 || got.Name != "Baltic" {
 		t.Fatalf("unexpected: %+v", got)
 	}
-	if got.Countries == nil || *got.Countries != "PL" {
+	if !slices.Equal(got.Countries, []string{"PL", "SE"}) {
 		t.Fatalf("countries = %v", got.Countries)
 	}
 	if got.EnrollToken == nil || *got.EnrollToken != "tok" {
@@ -206,7 +207,7 @@ func TestCruiseFromDB(t *testing.T) {
 	}
 
 	bare := CruiseFromDB(sqlcdb.Cruise{ID: 2, Name: "X"})
-	if bare.Countries != nil || bare.EnrollToken != nil {
+	if bare.Countries == nil || len(bare.Countries) != 0 || bare.EnrollToken != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }
@@ -563,14 +564,14 @@ func TestEnrollTripFromRow(t *testing.T) {
 
 func TestEnrollCruiseFromRow(t *testing.T) {
 	row := sqlcdb.GetCruiseByEnrollTokenRow{
-		ID: 1, Name: "Token Cruise", Countries: nstr("IT"),
+		ID: 1, Name: "Token Cruise", Countries: types.TextArray{"IT"},
 		TravelNotes: nstr("Tanie loty do Katanii"), MinAge: nint(18),
 	}
 	got := EnrollCruiseFromRow(row)
 	if got.ID != 1 || got.Name != "Token Cruise" {
 		t.Fatalf("unexpected: %+v", got)
 	}
-	if got.Countries == nil || *got.Countries != "IT" {
+	if !slices.Equal(got.Countries, []string{"IT"}) {
 		t.Fatalf("countries = %v", got.Countries)
 	}
 	if got.TravelNotes == nil || *got.TravelNotes != "Tanie loty do Katanii" {
@@ -581,7 +582,7 @@ func TestEnrollCruiseFromRow(t *testing.T) {
 	}
 
 	bare := EnrollCruiseFromRow(sqlcdb.GetCruiseByEnrollTokenRow{ID: 2, Name: "X"})
-	if bare.Countries != nil || bare.TravelNotes != nil || bare.MinAge != nil {
+	if bare.Countries == nil || len(bare.Countries) != 0 || bare.TravelNotes != nil || bare.MinAge != nil {
 		t.Fatalf("want nil optionals, got %+v", bare)
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/marcinskalski/sailor-buddy/backend/internal/cli"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/config"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 type devUser struct {
@@ -291,7 +292,7 @@ func seedClubData(ctx context.Context, database *sql.DB, createdBy int64) error 
 
 	// Future event-level cruise with two child trips (one per yacht).
 	bornholmID, err := upsertCruise(ctx, tx, createdBy,
-		"Bornholm 2026 Flotylla", "Polska, Dania",
+		"Bornholm 2026 Flotylla", types.TextArray{"PL", "DK"},
 		"Klubowa flotylla na Bornholm. Dwa jachty, otwarte zapisy.",
 	)
 	if err != nil {
@@ -299,20 +300,20 @@ func seedClubData(ctx context.Context, database *sql.DB, createdBy int64) error 
 	}
 	if err := upsertTrip(ctx, tx, createdBy, bornholmID, yachtKlubowa,
 		"Bornholm 2026 - S/Y Klubowa", "Kasia Admin",
-		"2026-08-01", "2026-08-09", "Polska, Dania", "Kolobrzeg", "Nexo",
+		"2026-08-01", "2026-08-09", types.TextArray{"PL", "DK"}, "Kolobrzeg", "Nexo",
 		"Jacht prowadzacy flotylli.", 8, 18000, 3000); err != nil {
 		return err
 	}
 	if err := upsertTrip(ctx, tx, createdBy, bornholmID, yachtMaestro,
 		"Bornholm 2026 - S/Y Maestro", "Marek Zaloga",
-		"2026-08-01", "2026-08-09", "Polska, Dania", "Kolobrzeg", "Nexo",
+		"2026-08-01", "2026-08-09", types.TextArray{"PL", "DK"}, "Kolobrzeg", "Nexo",
 		"Drugi jacht klubowej flotylli.", 8, 18000, 3000); err != nil {
 		return err
 	}
 
 	// Past event-level cruise with two completed voyages — shows the roll-up.
 	sztokholmID, err := upsertCruise(ctx, tx, createdBy,
-		"Sztokholm 2024", "Polska, Szwecja",
+		"Sztokholm 2024", types.TextArray{"PL", "SE"},
 		"Klubowa flotylla przez Baltyk do archipelagu sztokholmskiego.",
 	)
 	if err != nil {
@@ -320,7 +321,7 @@ func seedClubData(ctx context.Context, database *sql.DB, createdBy int64) error 
 	}
 	voyageID, err := upsertVoyage(ctx, tx, createdBy, sztokholmID, yachtKlubowa,
 		"Sztokholm 2024 - S/Y Klubowa", 2024,
-		"2024-07-06", "2024-07-13", "Polska, Szwecja", "Gdansk", "Sztokholm",
+		"2024-07-06", "2024-07-13", types.TextArray{"PL", "SE"}, "Gdansk", "Sztokholm",
 		82, 60, 22, 8, 380, 7, 0,
 		16800, 2800, "Jacht prowadzacy - przejscie przez Gotland.")
 	if err != nil {
@@ -328,7 +329,7 @@ func seedClubData(ctx context.Context, database *sql.DB, createdBy int64) error 
 	}
 	if _, err := upsertVoyage(ctx, tx, createdBy, sztokholmID, yachtMaestro,
 		"Sztokholm 2024 - S/Y Maestro", 2024,
-		"2024-07-06", "2024-07-13", "Polska, Szwecja", "Gdansk", "Sztokholm",
+		"2024-07-06", "2024-07-13", types.TextArray{"PL", "SE"}, "Gdansk", "Sztokholm",
 		86, 58, 28, 10, 395, 7, 0,
 		17400, 2900, "Drugi jacht klubowej flotylli."); err != nil {
 		return err
@@ -418,7 +419,7 @@ func seedCrewAssignments(ctx context.Context, tx *sql.Tx, crewIDs []int64, voyag
 }
 
 func upsertCruise(ctx context.Context, tx *sql.Tx, createdBy int64,
-	name, countries, description string,
+	name string, countries types.TextArray, description string,
 ) (int64, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
@@ -441,7 +442,8 @@ func upsertCruise(ctx context.Context, tx *sql.Tx, createdBy int64,
 
 func upsertTrip(ctx context.Context, tx *sql.Tx,
 	createdBy, cruiseID, yachtID int64,
-	name, captain, embark, disembark, countries, startPort, endPort, description string,
+	name, captain, embark, disembark string, countries types.TextArray,
+	startPort, endPort, description string,
 	maxCrew int64, costTotal, costPerPerson float64,
 ) error {
 	if _, err := tx.ExecContext(ctx, `
@@ -462,7 +464,7 @@ func upsertTrip(ctx context.Context, tx *sql.Tx,
 func upsertVoyage(ctx context.Context, tx *sql.Tx,
 	createdBy, cruiseID, yachtID int64,
 	name string, year int64,
-	embark, disembark, countries, startPort, endPort string,
+	embark, disembark string, countries types.TextArray, startPort, endPort string,
 	hoursTotal, hoursSail, hoursEngine, hoursOver6bf, miles float64,
 	days, tidalWaters int64,
 	costTotal, costPerPerson float64,

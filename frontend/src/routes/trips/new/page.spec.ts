@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { makeCruise, makePerson, makeSeries, makeTrip, unprefixedSpans } from '#lib/test-utils.js';
+import {
+	makeCruise,
+	makePerson,
+	makeSeries,
+	makeTrip,
+	pickCountry,
+	pickedCountries,
+	unprefixedSpans
+} from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 const authState = vi.hoisted(() => ({
@@ -9,6 +17,7 @@ const authState = vi.hoisted(() => ({
 }));
 vi.mock('#lib/stores/auth.svelte.js', () => ({ auth: authState }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	listCruises: vi.fn(),
 	listSeries: vi.fn(),
 	createTrip: vi.fn(),
@@ -39,7 +48,7 @@ beforeEach(() => {
 	fn(listMembers).mockResolvedValue([]);
 	fn(listCrew).mockResolvedValue([]);
 	fn(listCruises).mockResolvedValue([
-		makeCruise({ id: 13, name: 'NNE 2025', countries: 'Finlandia', series_id: 2, edition: '2025' }),
+		makeCruise({ id: 13, name: 'NNE 2025', countries: ['FI'], series_id: 2, edition: '2025' }),
 		makeCruise({ id: 20, name: 'Rejs na Hel' })
 	]);
 	fn(listSeries).mockResolvedValue([makeSeries({ id: 2, name: 'NNE' })]);
@@ -95,7 +104,7 @@ describe('new trip page', () => {
 		expect(screen.getByRole('option', { name: '2025 — NNE 2025' })).toBeInTheDocument();
 		expect(screen.queryByRole('option', { name: 'Rejs na Hel' })).not.toBeInTheDocument();
 		await fireEvent.change(screen.getByLabelText('Edycja *'), { target: { value: '13' } });
-		expect(screen.getByLabelText('Kraje')).toHaveValue('Finlandia');
+		expect(pickedCountries()).toEqual(['Finlandia']);
 
 		await submit();
 
@@ -135,7 +144,7 @@ describe('new trip page', () => {
 		expect(screen.getByLabelText('Seria')).toHaveValue('2');
 		expect(screen.getByLabelText('Seria')).toBeDisabled();
 		expect(screen.getByLabelText('Edycja *')).toBeDisabled();
-		expect(screen.getByLabelText('Kraje')).toHaveValue('Finlandia');
+		expect(pickedCountries()).toEqual(['Finlandia']);
 		await nameTrip();
 
 		await submit();
@@ -174,8 +183,8 @@ describe('new trip page captain', () => {
 describe('new trip page event switch', () => {
 	beforeEach(() => {
 		fn(listCruises).mockResolvedValue([
-			makeCruise({ id: 13, name: 'NNE', countries: 'Finlandia' }),
-			makeCruise({ id: 14, name: 'WRM', countries: 'Polska' })
+			makeCruise({ id: 13, name: 'NNE', countries: ['FI'] }),
+			makeCruise({ id: 14, name: 'WRM', countries: ['PL'] })
 		]);
 	});
 
@@ -187,22 +196,22 @@ describe('new trip page event switch', () => {
 		await renderPage();
 		await fireEvent.change(await screen.findByLabelText('Seria'), { target: { value: 'none' } });
 		await pick('13');
-		expect(screen.getByLabelText('Kraje')).toHaveValue('Finlandia');
+		expect(pickedCountries()).toEqual(['Finlandia']);
 
 		await pick('14');
 
-		expect(screen.getByLabelText('Kraje')).toHaveValue('Polska');
+		expect(pickedCountries()).toEqual(['Polska']);
 	});
 
 	it('keeps countries the admin edited', async () => {
 		await renderPage();
 		await fireEvent.change(await screen.findByLabelText('Seria'), { target: { value: 'none' } });
 		await pick('13');
-		await fireEvent.input(screen.getByLabelText('Kraje'), { target: { value: 'Szwecja' } });
+		await pickCountry('Szwecja');
 
 		await pick('14');
 
-		expect(screen.getByLabelText('Kraje')).toHaveValue('Szwecja');
+		expect(pickedCountries()).toEqual(['Finlandia', 'Szwecja']);
 	});
 
 	it('copies no dates, ports or prices from the event', async () => {
@@ -276,20 +285,20 @@ describe('new trip page load', () => {
 describe('new trip page same-route navigation', () => {
 	beforeEach(() => {
 		fn(listCruises).mockResolvedValue([
-			makeCruise({ id: 13, name: 'NNE', countries: 'Finlandia' }),
-			makeCruise({ id: 14, name: 'WRM', countries: 'Polska' })
+			makeCruise({ id: 13, name: 'NNE', countries: ['FI'] }),
+			makeCruise({ id: 14, name: 'WRM', countries: ['PL'] })
 		]);
 	});
 
 	it('starts a fresh draft for the second event', async () => {
 		const view = await renderPage('http://localhost/trips/new?cruise_id=13');
 		await fireEvent.input(screen.getByLabelText('Nazwa rejsu *'), { target: { value: 'Etap 1' } });
-		await fireEvent.input(screen.getByLabelText('Kraje'), { target: { value: 'Szwecja' } });
+		await pickCountry('Szwecja');
 
 		await view.rerender({ data: await runLoad('http://localhost/trips/new?cruise_id=14') });
 
 		expect(screen.getByLabelText('Edycja *')).toHaveValue('14');
-		expect(screen.getByLabelText('Kraje')).toHaveValue('Polska');
+		expect(pickedCountries()).toEqual(['Polska']);
 		expect(screen.getByLabelText('Nazwa rejsu *')).toHaveValue('');
 		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/cruises/14');
 	});

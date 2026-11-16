@@ -1,6 +1,7 @@
 import { getCruise, getTrip, getTripSignUp, listTripCrew } from '#lib/api/routes.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
+import { loadCountries } from '#lib/location/countries.js';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ params }) => {
@@ -15,7 +16,7 @@ export const load: PageLoad = async ({ params }) => {
 	// The crew feeds a section only admins and the leg's captain see; the
 	// page shows its failure only to them.
 	const crewLoadErrors: string[] = [];
-	const [crew, signUp, cruise] = await Promise.all([
+	const [crew, signUp, cruise, countries] = await Promise.all([
 		settle(
 			listTripCrew(id).then((c) => c ?? []),
 			[],
@@ -24,7 +25,8 @@ export const load: PageLoad = async ({ params }) => {
 		settle(getTripSignUp(id), null, noteFailure(loadErrors, 'zapis na etap')),
 		trip.cruise_id
 			? settle(getCruise(trip.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'))
-			: Promise.resolve(null)
+			: Promise.resolve(null),
+		settle(loadCountries(), [], noteFailure(loadErrors, 'lista krajów'))
 	]);
-	return { trip, cruise, crew, signUp, loadErrors, crewLoadErrors };
+	return { trip, cruise, crew, signUp, countries, loadErrors, crewLoadErrors };
 };

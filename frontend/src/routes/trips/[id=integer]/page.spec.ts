@@ -4,6 +4,7 @@ import { makeCruise, makeTrip } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	getTrip: vi.fn(),
 	deleteTrip: vi.fn(),
 	listTripCrew: vi.fn(),
@@ -83,6 +84,15 @@ describe('trip page back link', () => {
 		const back = await screen.findByTestId('back-link');
 		expect(back).toHaveAttribute('href', '/cruises/1');
 		expect(back).toHaveAccessibleName('Część wydarzenia: Bałtyk 2027');
+	});
+});
+
+describe('trip page countries', () => {
+	it("names the leg's countries in Polish", async () => {
+		serve(makeTrip({ id: 50, countries: ['NO', 'SE'] }));
+		await renderPage();
+
+		expect(await screen.findByText(/Norwegia, Szwecja/)).toBeInTheDocument();
 	});
 });
 

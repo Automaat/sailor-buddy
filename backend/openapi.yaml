@@ -104,6 +104,23 @@ components:
           format: int64
           type: integer
       type: object
+    Country:
+      additionalProperties: false
+      properties:
+        code:
+          description: ISO 3166-1 alpha-2 code
+          examples:
+            - "NO"
+          type: string
+        name:
+          description: Polish name
+          examples:
+            - Norwegia
+          type: string
+      required:
+        - code
+        - name
+      type: object
     CreateTripBody:
       additionalProperties: false
       properties:
@@ -135,7 +152,14 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
+          uniqueItems: true
         cruise_id:
           description: Club event (cruise) this trip is a leg of; omit for a standalone trip, which gets its own cruise without a series
           format: int64
@@ -392,7 +416,12 @@ components:
           readOnly: true
           type: string
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         created_at:
           format: date-time
           type: string
@@ -452,6 +481,7 @@ components:
       required:
         - id
         - name
+        - countries
         - included
         - not_included
         - created_at
@@ -468,7 +498,14 @@ components:
           readOnly: true
           type: string
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
+          uniqueItems: true
         description:
           type: string
         edition:
@@ -694,7 +731,12 @@ components:
       additionalProperties: false
       properties:
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         description:
           type: string
         id:
@@ -728,6 +770,7 @@ components:
       required:
         - id
         - name
+        - countries
         - included
         - not_included
       type: object
@@ -798,7 +841,12 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         currency:
           enum:
             - PLN
@@ -845,6 +893,7 @@ components:
         - status
         - id
         - name
+        - countries
         - currency
       type: object
     EnrollLegResult:
@@ -934,7 +983,12 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         currency:
           enum:
             - PLN
@@ -975,6 +1029,7 @@ components:
       required:
         - id
         - name
+        - countries
         - currency
       type: object
     Enrollment:
@@ -2255,7 +2310,12 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         created_at:
           format: date-time
           type: string
@@ -2329,6 +2389,7 @@ components:
         - cruise_id
         - name
         - status
+        - countries
         - currency
         - created_at
         - updated_at
@@ -2377,7 +2438,14 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
+          uniqueItems: true
         cruise_id:
           description: Club event (cruise) this trip is a leg of
           format: int64
@@ -2463,7 +2531,12 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         created_at:
           format: date-time
           type: string
@@ -2540,6 +2613,7 @@ components:
         - cruise_id
         - name
         - status
+        - countries
         - currency
         - created_at
         - updated_at
@@ -2702,7 +2776,12 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         created_at:
           format: date-time
           type: string
@@ -2775,6 +2854,7 @@ components:
         - id
         - cruise_id
         - name
+        - countries
         - hours_total
         - hours_sail
         - hours_engine
@@ -2809,7 +2889,14 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none
+          items:
+            type: string
+          maxItems: 30
+          type:
+            - array
+            - "null"
+          uniqueItems: true
         cruise_id:
           description: Club event (cruise) this voyage was a leg of
           format: int64
@@ -2900,7 +2987,12 @@ components:
           format: double
           type: number
         countries:
-          type: string
+          description: ISO 3166-1 alpha-2 country codes in display order; empty when none
+          items:
+            type: string
+          type:
+            - array
+            - "null"
         created_at:
           format: date-time
           type: string
@@ -2976,6 +3068,7 @@ components:
         - id
         - cruise_id
         - name
+        - countries
         - hours_total
         - hours_sail
         - hours_engine
@@ -3460,6 +3553,30 @@ paths:
       summary: Ask an admin to link the current account to a person
       tags:
         - Auth
+  /countries:
+    get:
+      description: Every ISO 3166-1 alpha-2 code the API accepts in `countries`, with its Polish name, ordered by code.
+      operationId: list-countries
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Country"
+                type:
+                  - array
+                  - "null"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List the countries cruises, trips and voyages may name
+      tags:
+        - Countries
   /crew:
     get:
       operationId: list-crew

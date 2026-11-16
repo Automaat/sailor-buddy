@@ -53,7 +53,7 @@ INSERT INTO cruises (
 type CreateCruiseParams struct {
 	CreatedBy     types.NullInt64  `json:"created_by"`
 	Name          string           `json:"name"`
-	Countries     types.NullString `json:"countries"`
+	Countries     types.TextArray  `json:"countries"`
 	Description   types.NullString `json:"description"`
 	ImageLogoUrl  types.NullString `json:"image_logo_url"`
 	ImagePhotoUrl types.NullString `json:"image_photo_url"`
@@ -179,7 +179,7 @@ FROM cruises WHERE enroll_token = $1 AND published_at IS NOT NULL
 type GetCruiseByEnrollTokenRow struct {
 	ID            int64            `json:"id"`
 	Name          string           `json:"name"`
-	Countries     types.NullString `json:"countries"`
+	Countries     types.TextArray  `json:"countries"`
 	Description   types.NullString `json:"description"`
 	ImagePhotoUrl types.NullString `json:"image_photo_url"`
 	Included      json.RawMessage  `json:"included"`
@@ -728,7 +728,7 @@ WHERE id = $13
 
 type UpdateCruiseParams struct {
 	Name          string           `json:"name"`
-	Countries     types.NullString `json:"countries"`
+	Countries     types.TextArray  `json:"countries"`
 	Description   types.NullString `json:"description"`
 	ImageLogoUrl  types.NullString `json:"image_logo_url"`
 	ImagePhotoUrl types.NullString `json:"image_photo_url"`

@@ -10,6 +10,7 @@
 	import { clearFailure, errorMessage, noteFailure, settle } from '#lib/api/errors.js';
 	import type { LegSignUp } from '#lib/api/types.js';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import { formatCountries } from '#lib/location/countries.js';
 	import CruiseEnrollmentAdmin from './CruiseEnrollmentAdmin.svelte';
 	import PriceCoverage from '#lib/components/PriceCoverage.svelte';
 	import { formatPrice, yourPrice } from '#lib/pricing.js';
@@ -172,8 +173,10 @@
 					Edycja {cruise.edition}
 				</p>
 			{/if}
-			{#if cruise.countries}
-				<p class="mt-1 [overflow-wrap:anywhere] text-[var(--text-muted)]">{cruise.countries}</p>
+			{#if cruise.countries?.length}
+				<p class="mt-1 [overflow-wrap:anywhere] text-[var(--text-muted)]">
+					{formatCountries(cruise.countries, data.countries)}
+				</p>
 			{/if}
 		</div>
 		{#if isAdmin}

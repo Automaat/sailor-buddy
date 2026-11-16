@@ -87,6 +87,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the countries cruises, trips and voyages may name
+         * @description Every ISO 3166-1 alpha-2 code the API accepts in `countries`, with its Polish name, ordered by code.
+         */
+        get: operations["list-countries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/crew": {
         parameters: {
             query?: never;
@@ -1503,6 +1523,18 @@ export interface components {
             /** Format: int64 */
             year?: number;
         };
+        Country: {
+            /**
+             * @description ISO 3166-1 alpha-2 code
+             * @example NO
+             */
+            code: string;
+            /**
+             * @description Polish name
+             * @example Norwegia
+             */
+            name: string;
+        };
         CreateTripBody: {
             /**
              * Format: uri
@@ -1529,7 +1561,8 @@ export interface components {
             cost_per_person_non_member?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none */
+            countries?: string[] | null;
             /**
              * Format: int64
              * @description Club event (cruise) this trip is a leg of; omit for a standalone trip, which gets its own cruise without a series
@@ -1682,7 +1715,8 @@ export interface components {
              * @example /api/Cruise.json
              */
             readonly $schema?: string;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
@@ -1728,7 +1762,8 @@ export interface components {
              * @example /api/CruiseBody.json
              */
             readonly $schema?: string;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none */
+            countries?: string[] | null;
             description?: string;
             /** @description Edition label within the series, e.g. 2025 or 2026/27 */
             edition?: string;
@@ -1862,7 +1897,8 @@ export interface components {
             note?: string;
         };
         EnrollCruise: {
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             description?: string;
             /** Format: int64 */
             id: number;
@@ -1913,7 +1949,8 @@ export interface components {
              * @description Non-member (gosc) price per person
              */
             cost_per_person_non_member?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** @enum {string} */
             currency: "PLN" | "EUR";
             /**
@@ -1996,7 +2033,8 @@ export interface components {
              * @description Non-member (gosc) price per person
              */
             cost_per_person_non_member?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** @enum {string} */
             currency: "PLN" | "EUR";
             /**
@@ -2845,7 +2883,8 @@ export interface components {
             cost_per_person_non_member?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
@@ -2930,7 +2969,8 @@ export interface components {
             cost_per_person_non_member?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none */
+            countries?: string[] | null;
             /**
              * Format: int64
              * @description Club event (cruise) this trip is a leg of
@@ -2998,7 +3038,8 @@ export interface components {
             cost_per_person_non_member?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
@@ -3155,7 +3196,8 @@ export interface components {
             cost_per_person?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
@@ -3219,7 +3261,8 @@ export interface components {
             cost_per_person?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none */
+            countries?: string[] | null;
             /**
              * Format: int64
              * @description Club event (cruise) this voyage was a leg of
@@ -3278,7 +3321,8 @@ export interface components {
             cost_per_person?: number;
             /** Format: double */
             cost_total?: number;
-            countries?: string;
+            /** @description ISO 3166-1 alpha-2 country codes in display order; empty when none */
+            countries: string[] | null;
             /** Format: date-time */
             created_at: string;
             /** Format: int64 */
@@ -3721,6 +3765,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Country"][] | null;
+                };
             };
             /** @description Error */
             default: {

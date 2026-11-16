@@ -4,6 +4,7 @@ import { makeCruise, makeTrip } from '#lib/test-utils.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	getTrip: vi.fn(),
 	deleteTrip: vi.fn(),
 	listTripCrew: vi.fn(),
