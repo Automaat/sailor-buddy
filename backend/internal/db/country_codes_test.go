@@ -65,6 +65,9 @@ func TestMigrate_CountryCodes(t *testing.T) {
 	denmark := voyage("dania")
 	aegean := voyage("Grecja i Turcja")
 	trinidad := voyage("Trinidad & Tobago")
+	congo := voyage("Congo - Kinshasa, Norway")
+	scandinavia := voyage("Norwegia – Szwecja")
+	ivory := voyage("Côte d’Ivoire")
 	voyageNone := voyage(nil)
 
 	if err := Migrate(t.Context(), conn); err != nil {
@@ -88,6 +91,9 @@ func TestMigrate_CountryCodes(t *testing.T) {
 		{"voyages", denmark, []string{"DK"}},
 		{"voyages", aegean, []string{"GR", "TR"}},
 		{"voyages", trinidad, []string{"TT"}},
+		{"voyages", congo, []string{"CD", "NO"}},
+		{"voyages", scandinavia, []string{"NO", "SE"}},
+		{"voyages", ivory, []string{"CI"}},
 		{"voyages", voyageNone, []string{}},
 	}
 	for _, tt := range tests {
@@ -162,20 +168,34 @@ func TestMigrate_CountryCodesColumns(t *testing.T) {
 }
 
 // TestMigrate_CountryCodesRefusesUnknownName checks migration 038 stops,
-// naming the row and the value, rather than drop a country it cannot map.
+// naming the row and the value, rather than drop a country it cannot map:
+// an unknown name, and text in another script, which folding would
+// otherwise erase, alone or next to a known name.
 func TestMigrate_CountryCodesRefusesUnknownName(t *testing.T) {
-	conn, insert := countryCodesFixture(t)
-	cruise := insert(`INSERT INTO cruises (name, countries) VALUES ('Edycja', 'Norwegia') RETURNING id`)
-	voyage := insert(`INSERT INTO voyages (cruise_id, name, countries) VALUES ($1, 'Rejs', 'Dania, Atlantyda') RETURNING id`, cruise)
-
-	err := Migrate(t.Context(), conn)
-	if err == nil || !strings.Contains(err.Error(), `"Atlantyda" is not a known country`) ||
-		!strings.Contains(err.Error(), "voyage ") {
-		t.Fatalf("migrate = %v, want the unknown country refused", err)
+	tests := []struct {
+		value, wantPart string
+	}{
+		{"Dania, Atlantyda", "Atlantyda"},
+		{"日本", "日本"},
+		{"Norwegia, 日本", "日本"},
+		{"Norwegia 日本", "Norwegia 日本"},
 	}
-	var kept string
-	mustScan(t, conn.QueryRow(`SELECT countries FROM voyages WHERE id = $1`, voyage), &kept)
-	if kept != "Dania, Atlantyda" {
-		t.Errorf("voyage countries = %q, want the text left untouched", kept)
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			conn, insert := countryCodesFixture(t)
+			cruise := insert(`INSERT INTO cruises (name, countries) VALUES ('Edycja', 'Norwegia') RETURNING id`)
+			voyage := insert(`INSERT INTO voyages (cruise_id, name, countries) VALUES ($1, 'Rejs', $2) RETURNING id`, cruise, tt.value)
+
+			err := Migrate(t.Context(), conn)
+			if err == nil || !strings.Contains(err.Error(), `"`+tt.wantPart+`" is not a known country`) ||
+				!strings.Contains(err.Error(), "voyage ") {
+				t.Fatalf("migrate = %v, want %q refused", err, tt.wantPart)
+			}
+			var kept string
+			mustScan(t, conn.QueryRow(`SELECT countries FROM voyages WHERE id = $1`, voyage), &kept)
+			if kept != tt.value {
+				t.Errorf("voyage countries = %q, want the text left untouched", kept)
+			}
+		})
 	}
 }

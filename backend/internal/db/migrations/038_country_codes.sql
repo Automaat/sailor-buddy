@@ -15,12 +15,18 @@
 -- The name table below is historical data for this migration only; it is
 -- dropped at the end.
 
+-- country_key_038 folds a name for matching: Latin letters without
+-- accents, lower case, punctuation turned into single spaces. It is '' for
+-- text with no letters or digits and NULL for text holding a character it
+-- cannot fold (another script, an unlisted accent), so such a value never
+-- passes as blank or matches a name: the migration stops on it instead.
 CREATE FUNCTION country_key_038(s TEXT) RETURNS TEXT
 LANGUAGE sql IMMUTABLE AS $$
-    SELECT btrim(regexp_replace(lower(translate(s,
-        'ĄĆĘŁŃÓŚŹŻąćęłńóśźżÀÁÂÃÄÅàáâãäåÇçÈÉÊËèéêëÌÍÎÏìíîïÑñÒÔÕÖØòôõöøÙÚÛÜùúûüÝýÿŠšŽžÆæ',
-        'ACELNOSZZacelnoszzAAAAAAaaaaaaCcEEEEeeeeIIIIiiiiNnOOOOOoooooUUUUuuuuYyySsZzAa')),
-        '[^a-z0-9]+', ' ', 'g'))
+    SELECT CASE WHEN f ~ '[^\x01-\x7F]' THEN NULL
+                ELSE btrim(regexp_replace(lower(f), '[^a-z0-9]+', ' ', 'g')) END
+    FROM (SELECT translate(s,
+        'ĄĆĘŁŃÓŚŹŻąćęłńóśźżÀÁÂÃÄÅàáâãäåÇçÈÉÊËèéêëÌÍÎÏìíîïÑñÒÔÕÖØòôõöøÙÚÛÜùúûüÝýÿŠšŽžÆæ–—’‘“” ',
+        'ACELNOSZZacelnoszzAAAAAAaaaaaaCcEEEEeeeeIIIIiiiiNnOOOOOoooooUUUUuuuuYyySsZzAa--''''"" ') AS f) folded
 $$;
 
 CREATE TABLE country_names_038 (
@@ -750,11 +756,17 @@ SELECT country_key_038(name), code FROM (VALUES
     ('PS', 'Palestine')
 ) AS names (code, name);
 
+-- country_codes_038 converts one old value. The whole value is tried as a
+-- name first ("Korea, Republic of"); otherwise it is split on commas and
+-- similar separators. Each part is tried as a name, then split on spaced
+-- dashes ("Congo - Kinshasa" stays one name), then on conjunctions. Every
+-- piece that is not blank must be a known name.
 CREATE FUNCTION country_codes_038(raw TEXT, what TEXT) RETURNS TEXT[]
 LANGUAGE plpgsql AS $$
 DECLARE
     codes TEXT[] := '{}';
     part TEXT;
+    dpart TEXT;
     piece TEXT;
     hit TEXT;
 BEGIN
@@ -765,26 +777,32 @@ BEGIN
     IF hit IS NOT NULL THEN
         RETURN ARRAY[hit];
     END IF;
-    FOREACH part IN ARRAY regexp_split_to_array(raw, '\s*[,;/+\n]\s*|\s+[-–—]\s+') LOOP
+    FOREACH part IN ARRAY regexp_split_to_array(raw, '\s*[,;/+\n]\s*') LOOP
         CONTINUE WHEN country_key_038(part) = '';
         SELECT code INTO hit FROM country_names_038 WHERE key = country_key_038(part);
-        IF hit IS NOT NULL THEN
-            IF NOT hit = ANY (codes) THEN
-                codes := codes || hit;
-            END IF;
-            CONTINUE;
+        IF hit IS NULL THEN
+            FOREACH dpart IN ARRAY regexp_split_to_array(part, '\s+[-–—]\s+') LOOP
+                CONTINUE WHEN country_key_038(dpart) = '';
+                SELECT code INTO hit FROM country_names_038 WHERE key = country_key_038(dpart);
+                IF hit IS NULL THEN
+                    FOREACH piece IN ARRAY regexp_split_to_array(dpart, '\s+(i|oraz|and)\s+|\s*&\s*', 'i') LOOP
+                        CONTINUE WHEN country_key_038(piece) = '';
+                        SELECT code INTO hit FROM country_names_038 WHERE key = country_key_038(piece);
+                        IF hit IS NULL THEN
+                            RAISE EXCEPTION 'countries: % has "%": "%" is not a known country; change it to country names separated by commas, then migrate again',
+                                what, raw, btrim(piece);
+                        END IF;
+                        IF NOT hit = ANY (codes) THEN
+                            codes := codes || hit;
+                        END IF;
+                    END LOOP;
+                ELSIF NOT hit = ANY (codes) THEN
+                    codes := codes || hit;
+                END IF;
+            END LOOP;
+        ELSIF NOT hit = ANY (codes) THEN
+            codes := codes || hit;
         END IF;
-        FOREACH piece IN ARRAY regexp_split_to_array(part, '\s+(i|oraz|and)\s+|\s*&\s*', 'i') LOOP
-            CONTINUE WHEN country_key_038(piece) = '';
-            SELECT code INTO hit FROM country_names_038 WHERE key = country_key_038(piece);
-            IF hit IS NULL THEN
-                RAISE EXCEPTION 'countries: % has "%": "%" is not a known country; change it to country names separated by commas, then migrate again',
-                    what, raw, btrim(piece);
-            END IF;
-            IF NOT hit = ANY (codes) THEN
-                codes := codes || hit;
-            END IF;
-        END LOOP;
     END LOOP;
     RETURN codes;
 END
