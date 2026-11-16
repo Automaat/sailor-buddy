@@ -1466,47 +1466,73 @@ type Querier interface {
 	//        WHERE v.id = $3::BIGINT AND cm.user_id = $5::BIGINT))
 	SetVoyagePortPosition(ctx context.Context, arg SetVoyagePortPositionParams) (int64, error)
 	// Port names the club already entered that match a typed query, ignoring
-	// case and accents: names starting with the query first, then by trigram
-	// similarity (typos), then by use count. Spellings of one name collapse
-	// into one row named after the most used spelling, with the coordinates of
-	// the latest port that has them. Without include_hidden only ports of
-	// voyages visible to members (voyage and its cruise published) count.
+	// case and accents: visited ports of voyages and the start and end ports of
+	// trips and voyages. Names starting with the query come first, then by
+	// trigram similarity (typos), then by use count. Spellings of one name
+	// collapse into one row named after the most used spelling, with the
+	// coordinates of the latest visited port that has them; start and end
+	// ports carry none. Without include_hidden only ports of legs visible to
+	// members (leg and its cruise published) count. Each source is a branch of
+	// its own, so each can use the trigram index on its column.
 	//
-	//  WITH needle AS (
-	//      SELECT port_search_norm($2::TEXT) AS q
-	//  ),
-	//  matched AS (
-	//      SELECT p.id, p.name, p.latitude, p.longitude,
-	//             port_search_norm(p.name) AS norm,
-	//             n.q,
-	//             COUNT(*) OVER (PARTITION BY p.name) AS spelling_uses
+	//  WITH matched AS (
+	//      SELECT p.id, p.name, p.latitude, p.longitude
 	//      FROM voyage_ports p
 	//      JOIN voyages v ON v.id = p.voyage_id
-	//      CROSS JOIN needle n
-	//      WHERE ($3::BOOLEAN OR (v.published_at IS NOT NULL AND EXISTS (
-	//              SELECT 1 FROM cruises c WHERE c.id = v.cruise_id AND c.published_at IS NOT NULL)))
-	//        AND (starts_with(port_search_norm(p.name), n.q)
-	//             OR port_search_norm(p.name) % n.q
-	//             OR n.q <% port_search_norm(p.name))
+	//      JOIN cruises c ON c.id = v.cruise_id
+	//      WHERE port_search_matches(p.name, $1::TEXT)
+	//        AND ($3::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
+	//      UNION ALL
+	//      SELECT t.id, t.start_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+	//      FROM trips t
+	//      JOIN cruises c ON c.id = t.cruise_id
+	//      WHERE port_search_matches(t.start_port, $1::TEXT)
+	//        AND ($3::BOOLEAN OR (t.published_at IS NOT NULL AND c.published_at IS NOT NULL))
+	//      UNION ALL
+	//      SELECT t.id, t.end_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+	//      FROM trips t
+	//      JOIN cruises c ON c.id = t.cruise_id
+	//      WHERE port_search_matches(t.end_port, $1::TEXT)
+	//        AND ($3::BOOLEAN OR (t.published_at IS NOT NULL AND c.published_at IS NOT NULL))
+	//      UNION ALL
+	//      SELECT v.id, v.start_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+	//      FROM voyages v
+	//      JOIN cruises c ON c.id = v.cruise_id
+	//      WHERE port_search_matches(v.start_port, $1::TEXT)
+	//        AND ($3::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
+	//      UNION ALL
+	//      SELECT v.id, v.end_port, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION
+	//      FROM voyages v
+	//      JOIN cruises c ON c.id = v.cruise_id
+	//      WHERE port_search_matches(v.end_port, $1::TEXT)
+	//        AND ($3::BOOLEAN OR (v.published_at IS NOT NULL AND c.published_at IS NOT NULL))
+	//  ),
+	//  spelled AS (
+	//      SELECT m.id, m.name, m.latitude, m.longitude,
+	//             port_search_norm(m.name) AS norm,
+	//             COUNT(*) OVER (PARTITION BY m.name) AS spelling_uses
+	//      FROM matched m
 	//  ),
 	//  grouped AS (
-	//      SELECT norm, q,
-	//             (array_agg(name ORDER BY spelling_uses DESC, id DESC))[1] AS name,
+	//      SELECT norm,
+	//             (array_agg(name ORDER BY spelling_uses DESC, id DESC, name))[1] AS name,
 	//             COUNT(*) AS uses
-	//      FROM matched
-	//      GROUP BY norm, q
+	//      FROM spelled
+	//      GROUP BY norm
 	//  )
 	//  SELECT g.name::TEXT AS name, coords.latitude, coords.longitude, g.uses::BIGINT AS uses
 	//  FROM grouped g
 	//  LEFT JOIN LATERAL (
-	//      SELECT m.latitude, m.longitude
-	//      FROM matched m
-	//      WHERE m.norm = g.norm AND m.latitude IS NOT NULL
-	//      ORDER BY m.id DESC
+	//      SELECT s.latitude, s.longitude
+	//      FROM spelled s
+	//      WHERE s.norm = g.norm AND s.latitude IS NOT NULL
+	//      ORDER BY s.id DESC
 	//      LIMIT 1
 	//  ) coords ON TRUE
-	//  ORDER BY starts_with(g.norm, g.q) DESC, similarity(g.norm, g.q) DESC, g.uses DESC, g.norm
-	//  LIMIT $1
+	//  ORDER BY starts_with(g.norm, port_search_norm($1::TEXT)) DESC,
+	//           port_search_similarity(g.norm, port_search_norm($1::TEXT)) DESC,
+	//           g.uses DESC, g.norm
+	//  LIMIT $2
 	SuggestPorts(ctx context.Context, arg SuggestPortsParams) ([]SuggestPortsRow, error)
 	// Detaches the person from its account. The e-mail goes too when it is the
 	// account's, since an unlinked person with the account's e-mail would still

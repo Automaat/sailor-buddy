@@ -1956,7 +1956,7 @@ components:
         name:
           type: string
         uses:
-          description: How many visited ports carry this name
+          description: How many visited, start and end ports carry this name
           format: int64
           type: integer
       required:

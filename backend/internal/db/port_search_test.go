@@ -3,12 +3,23 @@ package db
 import (
 	"database/sql"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
 const portSearchMigration = "036_port_search.sql"
+
+// portSearchIndexes are the trigram indexes behind the port suggestions,
+// one per searched column.
+var portSearchIndexes = []string{
+	"voyage_ports_name_trgm_idx",
+	"trips_start_port_trgm_idx",
+	"trips_end_port_trgm_idx",
+	"voyages_start_port_trgm_idx",
+	"voyages_end_port_trgm_idx",
+}
 
 // TestMigrate_PortSearch checks migration 036 on a database that already
 // holds ports: it installs both extensions, the IMMUTABLE normalizer and the
@@ -29,8 +40,9 @@ func TestMigrate_PortSearch(t *testing.T) {
 }
 
 // TestMigrate_PortSearchExtensionsSchema runs every migration on a fresh
-// database where unaccent was installed in its own schema beforehand, which
-// CREATE EXTENSION IF NOT EXISTS keeps.
+// database where both extensions were installed in their own schema, off
+// search_path, beforehand, which CREATE EXTENSION IF NOT EXISTS keeps. The
+// suggestions then run with the default search_path.
 func TestMigrate_PortSearchExtensionsSchema(t *testing.T) {
 	conn := testDB(t)
 	resetSchema(t, conn)
@@ -42,12 +54,18 @@ func TestMigrate_PortSearchExtensionsSchema(t *testing.T) {
 	dropExtensionsSchema()
 	t.Cleanup(dropExtensionsSchema)
 	if _, err := conn.Exec(`CREATE SCHEMA extensions;
+		CREATE EXTENSION pg_trgm SCHEMA extensions;
 		CREATE EXTENSION unaccent SCHEMA extensions;`); err != nil {
-		t.Fatalf("install unaccent in extensions: %v", err)
+		t.Fatalf("install extensions in extensions: %v", err)
 	}
 
 	if err := Migrate(t.Context(), conn); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+	var searchPath string
+	mustScan(t, conn.QueryRow(`SHOW search_path`), &searchPath)
+	if strings.Contains(searchPath, "extensions") {
+		t.Fatalf("search_path = %q, want it without the extensions schema", searchPath)
 	}
 
 	cruiseID := insertPortSearchCruise(t, conn, true)
@@ -87,9 +105,9 @@ func TestMigrate_PortSearchUpgrade(t *testing.T) {
 	assertPortSearch(t, conn, "public")
 }
 
-// assertPortSearch checks the port search objects of migration 036 against
-// unaccent installed in schema, and that a stored "Świnoujście" is suggested
-// for queries typed without diacritics.
+// assertPortSearch checks the port search objects of migrations 036 and 037
+// against both extensions installed in schema, and that a stored
+// "Świnoujście" is suggested for queries typed without diacritics.
 func assertPortSearch(t *testing.T, conn *sql.DB, schema string) {
 	t.Helper()
 	var exts []string
@@ -106,11 +124,13 @@ func assertPortSearch(t *testing.T, conn *sql.DB, schema string) {
 	if !reflect.DeepEqual(exts, []string{"pg_trgm", "unaccent"}) {
 		t.Fatalf("extensions = %v, want [pg_trgm unaccent]", exts)
 	}
-	var extSchema string
-	mustScan(t, conn.QueryRow(`SELECT extnamespace::regnamespace::TEXT FROM pg_extension
-		WHERE extname = 'unaccent'`), &extSchema)
-	if extSchema != schema {
-		t.Fatalf("unaccent schema = %q, want %q", extSchema, schema)
+	for _, ext := range exts {
+		var extSchema string
+		mustScan(t, conn.QueryRow(`SELECT extnamespace::regnamespace::TEXT FROM pg_extension
+			WHERE extname = $1`, ext), &extSchema)
+		if extSchema != schema {
+			t.Fatalf("%s schema = %q, want %q", ext, extSchema, schema)
+		}
 	}
 
 	var volatility, src string
@@ -128,11 +148,19 @@ func assertPortSearch(t *testing.T, conn *sql.DB, schema string) {
 	if folded != "swinoujscie" {
 		t.Fatalf("port_search_norm = %q, want swinoujscie", folded)
 	}
-	var indexed bool
-	mustScan(t, conn.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_indexes
-		WHERE tablename = 'voyage_ports' AND indexname = 'voyage_ports_name_trgm_idx')`), &indexed)
-	if !indexed {
-		t.Fatal("trigram index missing")
+	for _, index := range portSearchIndexes {
+		var opclass string
+		mustScan(t, conn.QueryRow(`SELECT opc.opcnamespace::regnamespace || '.' || opc.opcname
+			FROM pg_index i JOIN pg_opclass opc ON opc.oid = i.indclass[0]
+			WHERE i.indexrelid = $1::regclass`, index), &opclass)
+		if opclass != schema+".gin_trgm_ops" {
+			t.Fatalf("index %s operator class = %q, want %s.gin_trgm_ops", index, opclass, schema)
+		}
+	}
+	var matchSrc string
+	mustScan(t, conn.QueryRow(`SELECT prosrc FROM pg_proc WHERE proname = 'port_search_matches'`), &matchSrc)
+	if !strings.Contains(matchSrc, "OPERATOR("+schema+".%)") || !strings.Contains(matchSrc, "OPERATOR("+schema+".<%)") {
+		t.Fatalf("port_search_matches body = %q, want operators of schema %s", matchSrc, schema)
 	}
 
 	for _, query := range []string{"swinou", "Swinoujscie"} {
@@ -175,6 +203,15 @@ func TestSuggestPorts(t *testing.T) {
 	insertPortSearchPort(t, conn, hiddenVoyage, "Władysławowo", 54.79, 18.41)
 	insertPortSearchPort(t, conn, hiddenByCruise, "Svendborg", 55.06, 10.61)
 
+	// Start and end ports of trips and voyages, which carry no coordinates.
+	insertPortSearchLeg(t, conn, "trips", publishedCruise, true, "Kołobrzeg", "Hel")
+	insertPortSearchLeg(t, conn, "trips", publishedCruise, true, "", "Stara Ustka")
+	insertPortSearchLeg(t, conn, "voyages", publishedCruise, true, "Ustka Port Jachtowy Wschodni", "Łeba")
+	insertPortSearchLeg(t, conn, "trips", publishedCruise, false, "Rowy", "")
+	insertPortSearchLeg(t, conn, "trips", hiddenCruise, true, "", "Dziwnów")
+	insertPortSearchLeg(t, conn, "voyages", publishedCruise, false, "Mielno", "")
+	insertPortSearchLeg(t, conn, "voyages", hiddenCruise, true, "", "Darłowo")
+
 	type row struct {
 		name   string
 		coords bool
@@ -192,11 +229,29 @@ func TestSuggestPorts(t *testing.T) {
 		{"prefix in upper case", "JASTARN", false, 8, []row{{"Jastarnia", true, 54.70, 1}}},
 		{"typo", "Svolvar", false, 8, []row{{"Svolvær", true, 68.23, 1}}},
 		{"exact before longer prefix match", "hel", false, 8, []row{
-			{"Hel", true, 54.60, 3},
+			{"Hel", true, 54.60, 4},
 			{"Helsinki", true, 60.17, 1},
 		}},
 		{"name-only port", "zatoka", false, 8, []row{{"Zatoka Pucka", false, 0, 1}}},
-		{"limit", "hel", false, 1, []row{{"Hel", true, 54.60, 3}}},
+		{"limit", "hel", false, 1, []row{{"Hel", true, 54.60, 4}}},
+		{"trip start port only", "KOLOBRZ", false, 8, []row{{"Kołobrzeg", false, 0, 1}}},
+		{"trip start port with accents", "kołob", false, 8, []row{{"Kołobrzeg", false, 0, 1}}},
+		{"two-character query", "ko", false, 8, []row{{"Kołobrzeg", false, 0, 1}}},
+		{"voyage end port", "leba", false, 8, []row{{"Łeba", false, 0, 1}}},
+		{"prefix before a more similar name", "ustka", false, 8, []row{
+			{"Ustka Port Jachtowy Wschodni", false, 0, 1},
+			{"Stara Ustka", false, 0, 1},
+		}},
+		{"hidden trip not suggested to members", "rowy", false, 8, nil},
+		{"hidden trip suggested with include_hidden", "rowy", true, 8, []row{{"Rowy", false, 0, 1}}},
+		{"trip of a hidden cruise not suggested to members", "dziwn", false, 8, nil},
+		{"trip of a hidden cruise suggested with include_hidden", "dziwn", true, 8, []row{{"Dziwnów", false, 0, 1}}},
+		{"hidden voyage start port not suggested to members", "mieln", false, 8, nil},
+		{"hidden voyage start port suggested with include_hidden", "mieln", true, 8, []row{{"Mielno", false, 0, 1}}},
+		{"voyage of a hidden cruise not suggested to members", "darlo", false, 8, nil},
+		{"voyage of a hidden cruise suggested with include_hidden", "darlo", true, 8, []row{{"Darłowo", false, 0, 1}}},
+		{"LIKE wildcard matches literally", "k%", false, 8, nil},
+		{"LIKE single-character wildcard matches literally", "k_", false, 8, nil},
 		{"hidden voyage not suggested to members", "wlady", false, 8, nil},
 		{"hidden voyage suggested with include_hidden", "wlady", true, 8, []row{{"Władysławowo", true, 54.79, 1}}},
 		{"hidden cruise not suggested to members", "svend", false, 8, nil},
@@ -240,6 +295,20 @@ func insertPortSearchVoyage(t *testing.T, conn *sql.DB, cruiseID int64, publishe
 	mustScan(t, conn.QueryRow(`INSERT INTO voyages (cruise_id, name, published_at)
 		VALUES ($1, 'leg', CASE WHEN $2::BOOLEAN THEN CURRENT_TIMESTAMP END) RETURNING id`, cruiseID, published), &id)
 	return id
+}
+
+// insertPortSearchLeg inserts a trip or a voyage (table) with the given
+// start and end ports; an empty port is NULL.
+func insertPortSearchLeg(t *testing.T, conn *sql.DB, table string, cruiseID int64, published bool, start, end string) {
+	t.Helper()
+	query := `INSERT INTO trips (cruise_id, name, start_port, end_port, published_at)
+		VALUES ($1, 'leg', NULLIF($2, ''), NULLIF($3, ''), CASE WHEN $4::BOOLEAN THEN CURRENT_TIMESTAMP END)`
+	if table == "voyages" {
+		query = strings.Replace(query, "trips", "voyages", 1)
+	}
+	if _, err := conn.Exec(query, cruiseID, start, end, published); err != nil {
+		t.Fatalf("insert %s %q-%q: %v", table, start, end, err)
+	}
 }
 
 func insertPortSearchPort(t *testing.T, conn *sql.DB, voyageID int64, name string, lat, lon float64) {

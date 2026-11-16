@@ -2648,7 +2648,7 @@ export interface components {
             name: string;
             /**
              * Format: int64
-             * @description How many visited ports carry this name
+             * @description How many visited, start and end ports carry this name
              */
             uses: number;
         };

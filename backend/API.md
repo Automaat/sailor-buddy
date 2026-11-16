@@ -695,22 +695,25 @@ Both take `q` (required, at least 2 visible characters; surrounding blanks
 and invisible characters are trimmed). A bare `q`, a blank one or a
 one-character one is `422`.
 
-**Suggestions** (`/ports/suggest`) search the `voyage_ports` table, ignoring
+**Suggestions** (`/ports/suggest`) search every port the club entered: the
+visited ports of voyages and the start and end ports of trips and voyages,
+ignoring
 case and accents and tolerating small typos (PostgreSQL `pg_trgm` +
 `unaccent`): `swinou` finds Świnoujście, `Jastarn` Jastarnia, `Svolvar`
 Svolvær. Names starting with the query come first, then by similarity, then
 by use count. Spellings that differ only in case or accents collapse into one
 row named after the most used spelling. `limit` is 1–20 (default 8). Callers
-who cannot see hidden voyages (everyone but admins and the captain group)
-get names only from published voyages of published cruises.
+who cannot see hidden records (everyone but admins and the captain group)
+get names only from published trips and voyages of published cruises.
 
 ```json
 [{ "name": "Hel", "latitude": 54.6, "longitude": 18.8, "uses": 3 },
  { "name": "Zatoka Pucka", "uses": 1 }]
 ```
 
-`latitude`/`longitude` come from the latest port of that name with a
-location; a name only ever entered without one has none.
+`latitude`/`longitude` come from the latest visited port of that name with
+a location; start and end ports have none, so a name never entered as a
+visited port with a location has none. `uses` counts every entry.
 
 **Geocoding** (`/geocode`) proxies
 [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) and returns

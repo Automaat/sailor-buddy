@@ -87,15 +87,16 @@ type GeocodeResult struct {
 	Source    string  `json:"source" enum:"nominatim,photon" doc:"Search service that found the place"`
 }
 
-// PortSuggestion is a port name the club already entered on a voyage. Its
-// coordinates come from the latest such port that has them; a name only
-// ever entered without a location has none. Uses counts the ports with
-// this name, ignoring case and accents.
+// PortSuggestion is a port name the club already entered: a voyage's
+// visited port, or a trip's or voyage's start or end port. Its coordinates
+// come from the latest visited port with this name that has them; a name
+// never entered with a location has none. Uses counts the entries with this
+// name, ignoring case and accents.
 type PortSuggestion struct {
 	Name      string   `json:"name"`
 	Latitude  *float64 `json:"latitude,omitempty"`
 	Longitude *float64 `json:"longitude,omitempty"`
-	Uses      int64    `json:"uses" doc:"How many visited ports carry this name"`
+	Uses      int64    `json:"uses" doc:"How many visited, start and end ports carry this name"`
 }
 
 // PortSuggestionsFromDB maps suggestion rows, returning a non-nil slice so an
