@@ -60,8 +60,8 @@ type VoyageBody struct {
 	EmbarkDate      *string      `json:"embark_date,omitempty"`
 	DisembarkDate   *string      `json:"disembark_date,omitempty"`
 	Countries       CountryCodes `json:"countries,omitempty" maxItems:"30" uniqueItems:"true" doc:"ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none"`
-	StartPort       *string      `json:"start_port,omitempty"`
-	EndPort         *string      `json:"end_port,omitempty"`
+	StartPort       *string      `json:"start_port,omitempty" doc:"Port name, at most 100 characters; blank means no port"`
+	EndPort         *string      `json:"end_port,omitempty" doc:"Port name, at most 100 characters; blank means no port"`
 	CaptainName     *string      `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
 	CaptainPersonID *int64       `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the voyage; any person may be chosen"`
 	YachtID         *int64       `json:"yacht_id,omitempty"`
@@ -83,9 +83,14 @@ type VoyageBody struct {
 	CruiseID        int64        `json:"cruise_id" minimum:"1" doc:"Club event (cruise) this voyage was a leg of"`
 }
 
-// Resolve rejects a track link that is not an absolute http(s) URL.
+// Resolve rejects a track link that is not an absolute http(s) URL, a
+// start or end port name that the location name rule rejects and a country
+// code that is not on the list.
 func (b *VoyageBody) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
-	return trackURLErrors(b.TrackUrl, prefix)
+	errs := trackURLErrors(b.TrackUrl, prefix)
+	errs = append(errs, portNameErrors(prefix, "start_port", b.StartPort)...)
+	errs = append(errs, portNameErrors(prefix, "end_port", b.EndPort)...)
+	return append(errs, countryCodeErrors(prefix, "countries", b.Countries)...)
 }
 
 // VoyageLogBody is the post-cruise log a voyage's captain (or an admin)

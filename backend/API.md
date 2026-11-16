@@ -694,6 +694,14 @@ Voyage body — `name` required; also accepts `year` and the sailing-log fields
 Port body — `name` required; `latitude` and `longitude` are optional but come
 together (one without the other is 422). A name-only port is listed in the
 route but not drawn on the map. `anchorage: true` marks an anchorage.
+Without `position` the server adds the port after the voyage's last one;
+concurrent adds to one voyage take turns, so they get distinct positions.
+
+Port names, here and in a trip's or voyage's `start_port` and `end_port`,
+lose surrounding blanks (whitespace and invisible characters) and keep one
+space between words; a name longer than 100 characters after that is 422.
+A blank `start_port` or `end_port` is stored as no port; a blank port
+`name` is 422.
 
 ### Port search
 
@@ -702,26 +710,30 @@ route but not drawn on the map. `anchorage: true` marks an anchorage.
 | GET | `/api/ports/suggest?q=` | member | Port names the club already entered | 200 |
 | GET | `/api/geocode?q=` | member | Search towns in OpenStreetMap | 200 |
 
-Both take `q` (required, at least 2 visible characters; surrounding blanks
-and invisible characters are trimmed). A bare `q`, a blank one or a
-one-character one is `422`.
+Both take `q` (required, at least 2 visible characters and at most 100, as
+a port name may hold; surrounding blanks and invisible characters are
+trimmed). A bare `q`, a blank one, a one-character one or a longer one is
+`422`.
 
-**Suggestions** (`/ports/suggest`) search the `voyage_ports` table, ignoring
+**Suggestions** (`/ports/suggest`) search every port the club entered: the
+visited ports of voyages and the start and end ports of trips and voyages,
+ignoring
 case and accents and tolerating small typos (PostgreSQL `pg_trgm` +
 `unaccent`): `swinou` finds Świnoujście, `Jastarn` Jastarnia, `Svolvar`
 Svolvær. Names starting with the query come first, then by similarity, then
 by use count. Spellings that differ only in case or accents collapse into one
 row named after the most used spelling. `limit` is 1–20 (default 8). Callers
-who cannot see hidden voyages (everyone but admins and the captain group)
-get names only from published voyages of published cruises.
+who cannot see hidden records (everyone but admins and the captain group)
+get names only from published trips and voyages of published cruises.
 
 ```json
 [{ "name": "Hel", "latitude": 54.6, "longitude": 18.8, "uses": 3 },
  { "name": "Zatoka Pucka", "uses": 1 }]
 ```
 
-`latitude`/`longitude` come from the latest port of that name with a
-location; a name only ever entered without one has none.
+`latitude`/`longitude` come from the latest visited port of that name with
+a location; start and end ports have none, so a name never entered as a
+visited port with a location has none. `uses` counts every entry.
 
 **Geocoding** (`/geocode`) proxies
 [Nominatim](https://nominatim.org/release-docs/latest/api/Search/) and returns

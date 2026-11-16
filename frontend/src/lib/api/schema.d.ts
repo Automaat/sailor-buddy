@@ -1581,6 +1581,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
+            /** @description Port name, at most 100 characters; blank means no port */
             end_port?: string;
             image_logo_url?: string;
             image_photo_url?: string;
@@ -1594,6 +1595,7 @@ export interface components {
              * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
              */
             sign_up_deadline?: string;
+            /** @description Port name, at most 100 characters; blank means no port */
             start_port?: string;
             /**
              * Format: double
@@ -2696,7 +2698,7 @@ export interface components {
             name: string;
             /**
              * Format: int64
-             * @description How many visited ports carry this name
+             * @description How many visited, start and end ports carry this name
              */
             uses: number;
         };
@@ -2987,6 +2989,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
+            /** @description Port name, at most 100 characters; blank means no port */
             end_port?: string;
             image_logo_url?: string;
             image_photo_url?: string;
@@ -3000,6 +3003,7 @@ export interface components {
              * @description Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline
              */
             sign_up_deadline?: string;
+            /** @description Port name, at most 100 characters; blank means no port */
             start_port?: string;
             /**
              * Format: double
@@ -3269,6 +3273,7 @@ export interface components {
             description?: string;
             disembark_date?: string;
             embark_date?: string;
+            /** @description Port name, at most 100 characters; blank means no port */
             end_port?: string;
             /** Format: double */
             hours_engine?: number;
@@ -3285,6 +3290,7 @@ export interface components {
             miles?: number;
             /** @description Voyage name */
             name: string;
+            /** @description Port name, at most 100 characters; blank means no port */
             start_port?: string;
             /** Format: int64 */
             tidal_waters?: number;
@@ -3456,11 +3462,11 @@ export interface components {
              * @description Longitude; omit with latitude for a name-only port
              */
             longitude?: number;
-            /** @description Port / town name */
+            /** @description Port / town name, at most 100 characters; surrounding blanks are dropped and inner runs of blanks become one space */
             name: string;
             /**
              * Format: int64
-             * @description Order in the visited sequence
+             * @description Order in the visited sequence, at most 10000 so the next append cannot overflow; omit to add the port after the last one
              */
             position?: number;
         };
@@ -4801,7 +4807,7 @@ export interface operations {
     geocode: {
         parameters: {
             query: {
-                /** @description Town or place name to search for */
+                /** @description Town or place name to search for; at least 2 and at most 100 characters */
                 q: string;
                 /** @description Latitude of the map centre; nearby places rank higher. Give together with lon */
                 lat?: number;
@@ -5123,7 +5129,7 @@ export interface operations {
     "suggest-ports": {
         parameters: {
             query: {
-                /** @description Start or part of a port name; case, accents and small typos are ignored */
+                /** @description Start or part of a port name, at least 2 and at most 100 characters; case, accents and small typos are ignored */
                 q: string;
                 /** @description Maximum number of suggestions */
                 limit?: number;

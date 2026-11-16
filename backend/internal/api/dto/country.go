@@ -23,21 +23,26 @@ func CountriesFrom(list []countries.Country) []Country {
 }
 
 // CountryCodes is a request's list of ISO 3166-1 alpha-2 country codes.
-// Resolve rejects a code that is not on the list (GET /countries).
+// Each body that carries one checks it in its own Resolve with
+// countryCodeErrors: a resolver on this type would not run inside a body
+// that embeds a struct with its own Resolve, such as TripFields.
 type CountryCodes []string
 
-// Resolve reports each unknown code at its index.
-func (c CountryCodes) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
+// countryCodeErrors reports each code in codes that is not on the list
+// (GET /countries), at its index under prefix's field.
+func countryCodeErrors(prefix *huma.PathBuffer, field string, codes CountryCodes) []error {
 	var errs []error
-	for i, code := range c {
+	for i, code := range codes {
 		if countries.Known(code) {
 			continue
 		}
+		prefix.Push(field)
 		errs = append(errs, &huma.ErrorDetail{
 			Message:  "unknown country code; use an ISO 3166-1 alpha-2 code from GET /countries",
 			Location: prefix.WithIndex(i),
 			Value:    code,
 		})
+		prefix.Pop()
 	}
 	return errs
 }

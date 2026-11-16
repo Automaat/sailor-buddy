@@ -46,6 +46,7 @@ type mockQuerier struct {
 
 	// voyage ports
 	addVoyagePortFn    func(ctx context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error)
+	lockVoyagePortsFn  func(ctx context.Context, voyageID int64) error
 	listVoyagePortsFn  func(ctx context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error)
 	suggestPortsFn     func(ctx context.Context, arg sqlcdb.SuggestPortsParams) ([]sqlcdb.SuggestPortsRow, error)
 	deleteVoyagePortFn func(ctx context.Context, arg sqlcdb.DeleteVoyagePortParams) (bool, error)
@@ -335,6 +336,13 @@ func (m *mockQuerier) AddVoyagePort(ctx context.Context, arg sqlcdb.AddVoyagePor
 		panic("unexpected call to AddVoyagePort")
 	}
 	return m.addVoyagePortFn(ctx, arg)
+}
+
+func (m *mockQuerier) LockVoyagePorts(ctx context.Context, voyageID int64) error {
+	if m.lockVoyagePortsFn == nil {
+		panic("unexpected call to LockVoyagePorts")
+	}
+	return m.lockVoyagePortsFn(ctx, voyageID)
 }
 
 func (m *mockQuerier) ListVoyagePorts(ctx context.Context, voyageID int64) ([]sqlcdb.VoyagePort, error) {

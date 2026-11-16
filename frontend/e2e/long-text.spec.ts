@@ -19,6 +19,8 @@ const VIEWPORTS = [
 
 // 120 characters without a break opportunity.
 const long = (tag: string) => tag + 'W'.repeat(120 - tag.length);
+// Ports are capped at 100 characters, so they get the longest valid name.
+const longPort = (tag: string) => tag + 'W'.repeat(100 - tag.length);
 
 // Countries are codes, so the longest Polish names stand in for long text.
 const longCountries = ['TF', 'UM', 'GS', 'IO', 'VI', 'ST', 'CF'];
@@ -77,8 +79,8 @@ test.describe.serial('Long unbroken text', () => {
 			captain_person_id: captain.id,
 			description: long('Desc'),
 			countries: longCountries,
-			start_port: long('Start'),
-			end_port: long('End'),
+			start_port: longPort('Start'),
+			end_port: longPort('End'),
 			embark_date: '2027-07-01',
 			disembark_date: '2027-07-08',
 			max_crew: 8
@@ -89,8 +91,8 @@ test.describe.serial('Long unbroken text', () => {
 			captain_person_id: captain.id,
 			description: long('VDesc'),
 			countries: longCountries,
-			start_port: long('VStart'),
-			end_port: long('VEnd'),
+			start_port: longPort('VStart'),
+			end_port: longPort('VEnd'),
 			embark_date: '2025-06-01',
 			disembark_date: '2025-06-08',
 			year: 2025

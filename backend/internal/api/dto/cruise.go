@@ -3,6 +3,8 @@ package dto
 import (
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -44,6 +46,11 @@ type CruiseBody struct {
 	NotIncluded   []string     `json:"not_included,omitempty" maxItems:"30" doc:"What no leg's price covers; blank entries are dropped, each at most 200 characters"`
 	TravelNotes   *string      `json:"travel_notes,omitempty" maxLength:"5000" doc:"How to get there: flights, transport, meeting point; blank clears it"`
 	MinAge        *int64       `json:"min_age,omitempty" minimum:"0" maximum:"99" doc:"Minimum crew age, shown as information only; the app does not check it"`
+}
+
+// Resolve rejects a country code that is not on the list.
+func (b *CruiseBody) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
+	return countryCodeErrors(prefix, "countries", b.Countries)
 }
 
 // CruiseFromDB maps a database row to the API model.

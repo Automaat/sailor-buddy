@@ -88,6 +88,17 @@ func unlockMigrations(conn *sql.Conn) error {
 	return fmt.Errorf("release migration lock: %w", err)
 }
 
+// extensionSearchPath appends the schemas of installed extensions to the
+// search_path of the current transaction. An extension created before the
+// migrations ran may live outside search_path (CREATE EXTENSION IF NOT EXISTS
+// keeps it there), and a released migration such as 036 names its objects
+// unqualified. New objects still go to the first schema on the path.
+const extensionSearchPath = `SELECT set_config('search_path', concat_ws(', ',
+	NULLIF(current_setting('search_path'), ''),
+	(SELECT string_agg(DISTINCT quote_ident(n.nspname), ', ')
+	 FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+	 WHERE n.nspname <> ALL (current_schemas(true)))), true)`
+
 func applyMigrations(ctx context.Context, conn *sql.Conn) error {
 	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version TEXT PRIMARY KEY,
@@ -128,6 +139,11 @@ func applyMigrations(ctx context.Context, conn *sql.Conn) error {
 		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("begin tx for %s: %w", entry.Name(), err)
+		}
+
+		if _, err := tx.ExecContext(ctx, extensionSearchPath); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("set search path for %s: %w", entry.Name(), err)
 		}
 
 		if _, err := tx.ExecContext(ctx, string(content)); err != nil {
