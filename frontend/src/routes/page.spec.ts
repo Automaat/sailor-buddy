@@ -225,7 +225,7 @@ describe('dashboard page', () => {
 		).toBeInTheDocument();
 		expect(within(mine).getByRole('link', { name: 'Zobacz rejsy klubu' })).toHaveAttribute(
 			'href',
-			'/series'
+			'/rejsy'
 		);
 		expect(within(mine).queryByText('Zrealizowane rejsy')).not.toBeInTheDocument();
 	});
@@ -348,7 +348,7 @@ describe('dashboard upcoming legs', () => {
 		expect(within(mine).getByText('Nie masz nadchodzących etapów.')).toBeInTheDocument();
 		expect(within(mine).getByRole('link', { name: 'Zobacz rejsy' })).toHaveAttribute(
 			'href',
-			'/series'
+			'/rejsy'
 		);
 	});
 

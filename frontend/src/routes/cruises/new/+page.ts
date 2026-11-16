@@ -5,7 +5,7 @@ import type { PageLoad } from './$types';
 const notFoundCopy: NotFoundCopy = {
 	title: 'Nie znaleziono serii',
 	message: 'Nowa edycja powstaje na stronie swojej serii. Ta seria nie istnieje.',
-	backHref: '/series',
+	backHref: '/rejsy',
 	backLabel: 'Wszystkie rejsy'
 };
 

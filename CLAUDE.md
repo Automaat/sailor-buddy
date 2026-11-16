@@ -96,13 +96,14 @@ Go DTO structs (internal/api/dto) → huma → backend/openapi.yaml
 - Single club: all sailing data (cruises, trips, voyages, yachts, crew) is
   club-wide and shared. No per-user/per-org scoping.
 - Every trip and voyage belongs to a cruise (club event): `cruise_id` is
-  NOT NULL. The "Rejsy" nav item opens the series list (`/series`); each
+  NOT NULL. The "Rejsy" nav item opens the series list (`/rejsy`); each
   series page lists its editions, and trips and voyages are legs shown on
   the edition page. At the end of Rejsy, "Bez serii" lists every leg of a
   cruise without a series, plus such a cruise with no leg
   (`GET /standalone-legs`, `src/lib/rejsy.ts`), so none is unreachable.
-  `/cruises` redirects to `/series`. There are no other trip/voyage list
-  pages; the caller's own upcoming legs are on the dashboard.
+  `/cruises` and the old `/series` and `/series/{id}` redirect to `/rejsy`
+  and `/rejsy/{id}`. There are no other trip/voyage list pages; the
+  caller's own upcoming legs are on the dashboard.
 - Seria (`cruise_series`) → Edycja (`cruises` with `series_id`) → Etap
   (`trips`/`voyages`). Edycje are created only from the series page
   (`/cruises/new?series_id=`); `POST /cruises` requires `series_id` and

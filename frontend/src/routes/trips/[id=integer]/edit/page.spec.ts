@@ -223,7 +223,7 @@ describe('trip edit page load', () => {
 			body: {
 				message: 'Ten rejs nie istnieje lub nie masz do niego dostępu.',
 				title: 'Nie znaleziono rejsu',
-				backHref: '/series'
+				backHref: '/rejsy'
 			}
 		});
 	});

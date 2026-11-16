@@ -20,7 +20,7 @@ describe('root error page', () => {
 			status: 404,
 			message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
 			title: 'Nie znaleziono wydarzenia',
-			backHref: '/series',
+			backHref: '/rejsy',
 			backLabel: 'Wszystkie rejsy'
 		};
 		render(ErrorPage);
@@ -29,10 +29,7 @@ describe('root error page', () => {
 		expect(
 			screen.getByText('To wydarzenie nie istnieje lub nie masz do niego dostępu.')
 		).toBeInTheDocument();
-		expect(screen.getByRole('link', { name: 'Wszystkie rejsy' })).toHaveAttribute(
-			'href',
-			'/series'
-		);
+		expect(screen.getByRole('link', { name: 'Wszystkie rejsy' })).toHaveAttribute('href', '/rejsy');
 	});
 
 	it('falls back to the generic not-found copy for an unknown route', () => {
