@@ -304,7 +304,8 @@ captain through their person (`captain_person_id`) or on a crew list through a c
 record linked to their account (`crew_members.user_id`). It has `total`,
 `as_captain` and `as_crew` sums (`voyage_count`, `total_hours`,
 `total_hours_sail`, `total_hours_engine`, `total_miles`, `total_days`),
-`by_year` and a `voyages` list with `role` (`captain`|`crew`). A voyage
+`by_year` and a `voyages` list with `role` (`captain`|`crew`) and optional
+`published_at` and `cruise_published_at`. A voyage
 counts once; captain wins when both apply. Crew records without a linked
 account don't count; an account's own person (created at sign-in) does.
 Admins also get `club` with the club-wide `total` and
@@ -321,10 +322,12 @@ appears once with the strongest relation: `captain`, then `crew`, then
 `sign_up` with `sign_up_status` `accepted`, `pending` or `waitlisted`, in that
 order. Each entry carries `id`, `name`, `cruise_id`, `cruise_name`, optional
 `series_id`, `series_name`, `edition`, `embark_date`, `disembark_date`,
-`start_port` and `end_port`, plus `relation` and `sign_up_status`. Legs are
+`start_port`, `end_port`, `published_at` and `cruise_published_at`, plus
+`relation` and `sign_up_status`. Legs are
 sorted by `embark_date`, undated last; the list is not paged and holds at most
 100 legs. Hidden legs and legs of hidden cruises are listed only for admins
-and the captain group.
+and the captain group; a missing `published_at` or `cruise_published_at`
+marks them.
 
 ### Members
 
