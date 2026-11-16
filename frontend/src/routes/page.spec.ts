@@ -15,7 +15,7 @@ import type { PageData } from './$types';
 
 const mockGet = vi.mocked(getDashboard);
 const mockLegs = vi.mocked(listMyLegs);
-const mockAuth = auth as unknown as { isAdmin: boolean };
+const mockAuth = auth as unknown as { isAdmin: boolean; user: { is_captain?: boolean } };
 
 function runLoad() {
 	return load({} as unknown as Parameters<typeof load>[0]) as Promise<PageData>;
@@ -125,6 +125,7 @@ beforeEach(() => {
 	mockGet.mockReset();
 	mockLegs.mockReset().mockResolvedValue([]);
 	mockAuth.isAdmin = false;
+	mockAuth.user.is_captain = false;
 	vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -379,5 +380,62 @@ describe('dashboard club statistics', () => {
 		await renderPage();
 
 		expect(screen.getByRole('region', { name: 'Klub' })).toBeInTheDocument();
+	});
+});
+
+describe('dashboard hidden legs', () => {
+	const at = '2026-01-01T00:00:00Z';
+	const cruiseHidden = 'Ukryte, bo wydarzenie jest ukryte';
+	const draftReason = 'Szkic: widzą go tylko zarząd i kadra kapitańska';
+
+	function mockHiddenRecords() {
+		mockLegs.mockResolvedValue([
+			leg({ id: 1, name: 'Szkic etapu', cruise_published_at: at }),
+			leg({ id: 2, name: 'Etap ukrytego rejsu', published_at: at }),
+			leg({ id: 3, name: 'Opublikowany', published_at: at, cruise_published_at: at })
+		]);
+		const voyage = { role: 'crew', miles: 10, hours_total: 2, days: 1 } as const;
+		mockGet.mockResolvedValue({
+			personal: {
+				...sailor.personal,
+				voyages: [
+					{ ...voyage, id: 21, name: 'Szkic rejsu', cruise_published_at: at },
+					{ ...voyage, id: 22, name: 'Rejs ukrytego wydarzenia', published_at: at },
+					{
+						...voyage,
+						id: 23,
+						name: 'Rejs opublikowany',
+						published_at: at,
+						cruise_published_at: at
+					}
+				]
+			}
+		});
+	}
+
+	function badgeReasons(region: string): (string | null)[] {
+		return within(screen.getByRole('region', { name: region }))
+			.getAllByRole('link')
+			.map((link) => within(link).queryByTestId('hidden-badge')?.getAttribute('title') ?? null);
+	}
+
+	it.each([
+		['admin', () => (mockAuth.isAdmin = true)],
+		['captain group', () => (mockAuth.user.is_captain = true)]
+	])('marks hidden legs and voyages for the %s', async (_, asViewer) => {
+		asViewer();
+		mockHiddenRecords();
+		await renderPage();
+
+		expect(badgeReasons('Twoje etapy')).toEqual([draftReason, cruiseHidden, null]);
+		expect(badgeReasons('Mój staż')).toEqual([draftReason, cruiseHidden, null]);
+	});
+
+	it('shows no badge to a member', async () => {
+		mockHiddenRecords();
+		await renderPage();
+
+		expect(badgeReasons('Twoje etapy')).toEqual([null, null, null]);
+		expect(badgeReasons('Mój staż')).toEqual([null, null, null]);
 	});
 });
