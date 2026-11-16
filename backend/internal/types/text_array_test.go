@@ -34,6 +34,10 @@ func TestTextArrayScan(t *testing.T) {
 	if err := a.Scan("not an array"); err == nil {
 		t.Error("Scan of a non-array = nil error")
 	}
+	var none *TextArray
+	if err := none.Scan("{}"); err == nil {
+		t.Error("Scan into a nil *TextArray = nil error")
+	}
 }
 
 func TestTextArrayValue(t *testing.T) {

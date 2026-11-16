@@ -11,6 +11,7 @@ package countries
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -40,12 +41,16 @@ func mustParse(raw []byte) []Country {
 	return list
 }
 
-// parse decodes the list and rejects a malformed code, a blank name or a
-// repeated code, so a bad edit fails every test instead of a request.
+// parse decodes the list and rejects an empty list, a malformed code, a
+// blank name or a repeated code, so a bad edit fails every test instead of
+// a request.
 func parse(raw []byte) ([]Country, error) {
 	var list []Country
 	if err := json.Unmarshal(raw, &list); err != nil {
 		return nil, fmt.Errorf("countries.json: %w", err)
+	}
+	if len(list) == 0 {
+		return nil, errors.New("countries.json: the list is empty")
 	}
 	seen := make(map[string]bool, len(list))
 	for _, c := range list {
@@ -73,7 +78,9 @@ func index(list []Country) map[string]string {
 
 // All returns every country, ordered by code. The slice is a copy.
 func All() []Country {
-	return append([]Country(nil), all...)
+	out := make([]Country, len(all))
+	copy(out, all)
+	return out
 }
 
 // Known reports whether code is on the list.

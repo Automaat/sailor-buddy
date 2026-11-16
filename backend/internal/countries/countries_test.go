@@ -63,6 +63,8 @@ func TestFormat(t *testing.T) {
 func TestParse_RejectsBadData(t *testing.T) {
 	tests := []struct{ name, raw, want string }{
 		{"not json", `{`, "countries.json"},
+		{"null", `null`, "the list is empty"},
+		{"empty", `[]`, "the list is empty"},
 		{"lower-case code", `[{"code":"no","name":"Norwegia"}]`, "two upper-case letters"},
 		{"blank name", `[{"code":"NO","name":" "}]`, "has no name"},
 		{"repeated code", `[{"code":"NO","name":"Norwegia"},{"code":"NO","name":"Norwegia"}]`, "listed twice"},

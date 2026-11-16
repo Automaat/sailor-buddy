@@ -2,6 +2,7 @@ package types
 
 import (
 	"database/sql/driver"
+	"errors"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -14,6 +15,9 @@ type TextArray []string
 
 // Scan implements sql.Scanner.
 func (a *TextArray) Scan(value any) error {
+	if a == nil {
+		return errors.New("types: Scan into a nil *TextArray")
+	}
 	var s []string
 	if err := pgtype.NewMap().SQLScanner(&s).Scan(value); err != nil {
 		return err
