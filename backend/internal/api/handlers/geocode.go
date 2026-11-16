@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
@@ -13,17 +12,13 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/danielgtaylor/huma/v2"
 	"golang.org/x/sync/singleflight"
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 	"golang.org/x/time/rate"
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/location"
 )
 
 const (
@@ -179,68 +174,26 @@ func (c *geocodeCache) evictLocked(now time.Time) {
 // geocodeKey normalizes a query so case and surrounding invisible characters
 // do not defeat the cache; Nominatim matching ignores both.
 func geocodeKey(q string) string {
-	return strings.ToLower(trimGeocodeQuery(q))
+	return strings.ToLower(location.TrimBlanks(q))
 }
-
-// isBlankGeocodeRune reports whether r carries no searchable text:
-//   - whitespace;
-//   - format (Cf, such as zero-width spaces and the byte order mark) and
-//     control (Cc, such as NUL) characters;
-//   - the other default-ignorable code points: Hangul fillers (U+115F,
-//     U+1160, U+3164, U+FFA0), the combining grapheme joiner (U+034F) and the
-//     variation selectors (U+FE00..U+FE0F and others);
-//   - the braille blank (U+2800), which renders as an empty cell;
-//   - bytes that are not valid UTF-8.
-//
-// It matches explicit code points, not whole categories: the combining
-// marks of decomposed (NFD) letters, such as the acute in "ź", stay.
-func isBlankGeocodeRune(r rune) bool {
-	return unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Cc, r) ||
-		unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
-		unicode.Is(unicode.Variation_Selector, r) ||
-		r == '⠀' || r == utf8.RuneError
-}
-
-// trimGeocodeQuery strips leading and trailing runes that isBlankGeocodeRune
-// matches. Blank runes between other characters stay. The result may still
-// start with a combining mark or hold only marks, so the length check counts
-// with geocodeBaseCharCount instead of the rune count.
-func trimGeocodeQuery(q string) string {
-	return strings.TrimFunc(q, isBlankGeocodeRune)
-}
-
-// geocodeBaseCharCount counts the runes in q that are neither blank nor
-// combining marks (M). A letter and its decomposed accents count once, so NFC
-// and NFD spellings of a name have the same count.
-func geocodeBaseCharCount(q string) int {
-	n := 0
-	for _, r := range q {
-		if !isBlankGeocodeRune(r) && !unicode.Is(unicode.M, r) {
-			n++
-		}
-	}
-	return n
-}
-
-// geocodeMinQueryLen is the fewest base characters, as geocodeBaseCharCount
-// counts them, that a query worth sending upstream holds.
-const geocodeMinQueryLen = 2
 
 type geocodeInput struct {
-	Query string  `query:"q" required:"true" minLength:"2" doc:"Town or place name to search for"`
+	Query string  `query:"q" required:"true" minLength:"2" doc:"Town or place name to search for; at least 2 and at most 100 characters"`
 	Lat   float64 `query:"lat" minimum:"-90" maximum:"90" doc:"Latitude of the map centre; nearby places rank higher. Give together with lon"`
 	Lon   float64 `query:"lon" minimum:"-180" maximum:"180" doc:"Longitude of the map centre; nearby places rank higher. Give together with lat"`
 
 	bias *geocodeBias
 }
 
-// Resolve rejects a query that holds fewer than two base characters: the
-// upstream call sends the trimmed text, so "  ", " a", two zero-width spaces,
-// two Hangul fillers or two lone combining marks would spend a request of the
-// Nominatim rate budget on an empty or one-letter search. It also rejects a
+// Resolve applies the location query rule: fewer than two base characters
+// fail, since the upstream call sends the trimmed text, so "  ", " a", two
+// zero-width spaces, two Hangul fillers or two lone combining marks would
+// spend a request of the Nominatim rate budget on an empty or one-letter
+// search; so does a query longer than a port name may be. It also rejects a
 // bare "q" with no "=", which huma reads as the value "true", and a lat
 // without lon or the other way round. huma runs Resolve before the handler,
-// so a rejected query touches neither the cache nor the limiters.
+// so a rejected query touches neither the cache nor the limiters. On
+// success Query holds the trimmed query.
 func (i *geocodeInput) Resolve(ctx huma.Context) []error {
 	u := ctx.URL()
 	if isBareQueryParam(u.RawQuery, "q") {
@@ -249,13 +202,11 @@ func (i *geocodeInput) Resolve(ctx huma.Context) []error {
 			Location: "query.q",
 		}}
 	}
-	if geocodeBaseCharCount(i.Query) < geocodeMinQueryLen {
-		return []error{&huma.ErrorDetail{
-			Message:  fmt.Sprintf("expected at least %d visible characters", geocodeMinQueryLen),
-			Location: "query.q",
-			Value:    i.Query,
-		}}
+	q, err := location.ParseQuery(i.Query)
+	if err != nil {
+		return []error{&huma.ErrorDetail{Message: err.Error(), Location: "query.q", Value: i.Query}}
 	}
+	i.Query = q
 	params := u.Query()
 	hasLat, hasLon := params.Has("lat"), params.Has("lon")
 	if hasLat != hasLon {
@@ -265,10 +216,11 @@ func (i *geocodeInput) Resolve(ctx huma.Context) []error {
 		}}
 	}
 	if hasLat {
-		if math.IsNaN(i.Lat) || math.IsNaN(i.Lon) {
+		c, err := location.NewCoordinates(i.Lat, i.Lon)
+		if err != nil {
 			return []error{&huma.ErrorDetail{Message: "expected a number", Location: "query.lat"}}
 		}
-		b := roundGeocodeBias(i.Lat, i.Lon)
+		b := roundGeocodeBias(c.Latitude, c.Longitude)
 		i.bias = &b
 	}
 	return nil
@@ -408,7 +360,7 @@ func (h *GeocodeHandler) search(ctx context.Context, in *geocodeInput) (*geocode
 	}
 	lookupCtx := context.WithoutCancel(ctx)
 	v, err, _ := h.inflight.Do(key, func() (any, error) {
-		return h.lookup(lookupCtx, key, trimGeocodeQuery(in.Query), in.bias)
+		return h.lookup(lookupCtx, key, location.TrimBlanks(in.Query), in.bias)
 	})
 	if err != nil {
 		return nil, err
@@ -527,8 +479,8 @@ func (h *GeocodeHandler) searchNominatim(ctx context.Context, query string, bias
 		if !isNominatimSettlement(r) {
 			continue
 		}
-		lat, lon, ok := parseCoordinates(r.Lat, r.Lon)
-		if !ok {
+		c, err := location.ParseCoordinates(r.Lat, r.Lon)
+		if err != nil {
 			continue
 		}
 		name := r.Name
@@ -544,7 +496,7 @@ func (h *GeocodeHandler) searchNominatim(ctx context.Context, query string, bias
 			fullPath = label
 		}
 		found.add(dto.GeocodeResult{
-			Name: name, Label: label, Latitude: lat, Longitude: lon, Source: geocodeSourceNominatim,
+			Name: name, Label: label, Latitude: c.Latitude, Longitude: c.Longitude, Source: geocodeSourceNominatim,
 		}, fullPath)
 		if found.full() {
 			break
@@ -579,13 +531,13 @@ func (h *GeocodeHandler) searchPhoton(ctx context.Context, query string, bias *g
 		if p.OSMKey != "place" || !settlementTypes[p.OSMValue] || p.Name == "" || len(f.Geometry.Coordinates) < 2 {
 			continue
 		}
-		lat, lon := f.Geometry.Coordinates[1], f.Geometry.Coordinates[0]
-		if !validCoordinates(lat, lon) {
+		c, err := location.NewCoordinates(f.Geometry.Coordinates[1], f.Geometry.Coordinates[0])
+		if err != nil {
 			continue
 		}
 		label := geocodeLabel(p.Name, p.County, p.State, p.Country)
 		found.add(dto.GeocodeResult{
-			Name: p.Name, Label: label, Latitude: lat, Longitude: lon, Source: geocodeSourcePhoton,
+			Name: p.Name, Label: label, Latitude: c.Latitude, Longitude: c.Longitude, Source: geocodeSourcePhoton,
 		}, label)
 		if found.full() {
 			break
@@ -601,7 +553,7 @@ func geocodeLabel(parts ...string) string {
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
-		if p == "" || (len(out) > 0 && foldPlaceName(out[len(out)-1]) == foldPlaceName(p)) {
+		if p == "" || (len(out) > 0 && location.Fold(out[len(out)-1]) == location.Fold(p)) {
 			continue
 		}
 		out = append(out, p)
@@ -625,7 +577,7 @@ type geocodeCandidate struct {
 }
 
 func (c *geocodeCandidates) add(r dto.GeocodeResult, fullPath string) {
-	cand := geocodeCandidate{result: r, name: foldPlaceName(r.Name), path: foldPlaceName(fullPath)}
+	cand := geocodeCandidate{result: r, name: location.Fold(r.Name), path: location.Fold(fullPath)}
 	for _, k := range c.kept {
 		if k.name != cand.name {
 			continue
@@ -648,24 +600,6 @@ func (c *geocodeCandidates) results() []dto.GeocodeResult {
 	return out
 }
 
-// placeFolds spells out letters that Unicode does not decompose into a base
-// letter and a mark, so "Łeba" folds like "Leba" and "Svolvær" like
-// "Svolvaer", as PostgreSQL's unaccent does.
-var placeFolds = strings.NewReplacer(
-	"ł", "l", "đ", "d", "ø", "o", "æ", "ae", "œ", "oe", "ß", "ss", "þ", "th", "ð", "d", "ı", "i",
-)
-
-// foldPlaceName lowercases a name, strips its accents and collapses its
-// blanks, so spellings that differ only in case or diacritics compare equal.
-func foldPlaceName(s string) string {
-	s = placeFolds.Replace(strings.ToLower(s))
-	stripped, _, err := transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), s)
-	if err == nil {
-		s = stripped
-	}
-	return strings.Join(strings.FieldsFunc(s, isBlankGeocodeRune), " ")
-}
-
 // distanceKm is the great-circle distance between two points.
 func distanceKm(lat1, lon1, lat2, lon2 float64) float64 {
 	const earthRadiusKm = 6371.0
@@ -675,22 +609,4 @@ func distanceKm(lat1, lon1, lat2, lon2 float64) float64 {
 	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
 		math.Cos(lat1*rad)*math.Cos(lat2*rad)*math.Sin(dLon/2)*math.Sin(dLon/2)
 	return 2 * earthRadiusKm * math.Asin(math.Min(1, math.Sqrt(a)))
-}
-
-// parseCoordinates parses a Nominatim lat/lon pair and reports whether it is
-// a usable position.
-func parseCoordinates(rawLat, rawLon string) (lat, lon float64, ok bool) {
-	lat, latErr := strconv.ParseFloat(rawLat, 64)
-	lon, lonErr := strconv.ParseFloat(rawLon, 64)
-	if latErr != nil || lonErr != nil || !validCoordinates(lat, lon) {
-		return 0, 0, false
-	}
-	return lat, lon, true
-}
-
-// validCoordinates rejects NaN, which the JSON encoder cannot write, so a
-// record carrying one would break the whole response. ±Inf also fails the
-// range check, which drops out-of-range positions from a broken upstream.
-func validCoordinates(lat, lon float64) bool {
-	return !math.IsNaN(lat) && !math.IsNaN(lon) && math.Abs(lat) <= 90 && math.Abs(lon) <= 180
 }

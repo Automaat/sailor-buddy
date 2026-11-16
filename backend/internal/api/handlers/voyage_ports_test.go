@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -239,5 +240,49 @@ func TestVoyagePorts_Add_MemberForbidden(t *testing.T) {
 		map[string]any{"name": "Hvar", "latitude": 43.17, "longitude": 16.44})
 	if resp.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403; body=%s", resp.Code, resp.Body)
+	}
+}
+
+// TestVoyagePorts_AddAppliesPortRules checks that an added port goes
+// through the location rules: its name is normalized, and a blank or too
+// long name and unpaired or out-of-range coordinates are refused before
+// the write.
+func TestVoyagePorts_AddAppliesPortRules(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     map[string]any
+		wantName string
+	}{
+		{"normalized name", map[string]any{"name": "  Nowa \u00a0 Wieś\u200b "}, "Nowa Wieś"},
+		{"longest name", map[string]any{"name": strings.Repeat("ł", 100)}, strings.Repeat("ł", 100)},
+		{"blank name", map[string]any{"name": " \u200b "}, ""},
+		{"too long name", map[string]any{"name": strings.Repeat("ł", 101)}, ""},
+		{"unpaired coordinates", map[string]any{"name": "Hel", "longitude": 18.8}, ""},
+		{"latitude out of range", map[string]any{"name": "Hel", "latitude": 90.5, "longitude": 18.8}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got *sqlcdb.AddVoyagePortParams
+			m := &mockQuerier{
+				getVoyageFn: func(_ context.Context, id int64) (sqlcdb.Voyage, error) { return sqlcdb.Voyage{ID: id}, nil },
+				addVoyagePortFn: func(_ context.Context, arg sqlcdb.AddVoyagePortParams) (sqlcdb.VoyagePort, error) {
+					got = &arg
+					return sqlcdb.VoyagePort{ID: 9, VoyageID: arg.VoyageID, Name: arg.Name}, nil
+				},
+			}
+			resp := voyagePortTestAPI(t, m).PostCtx(userCtx(context.Background()), "/voyages/5/ports", tt.body)
+			if tt.wantName == "" {
+				if resp.Code != http.StatusUnprocessableEntity || got != nil {
+					t.Fatalf("status = %d, written = %v; want 422 and no write; body=%s", resp.Code, got != nil, resp.Body)
+				}
+				return
+			}
+			if resp.Code != http.StatusCreated || got == nil {
+				t.Fatalf("status = %d, written = %v; want 201 and a write; body=%s", resp.Code, got != nil, resp.Body)
+			}
+			if got.Name != tt.wantName {
+				t.Fatalf("stored name = %q, want %q", got.Name, tt.wantName)
+			}
+		})
 	}
 }

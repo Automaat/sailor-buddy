@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/location"
 )
 
 type VoyagePortHandler struct {
@@ -53,23 +53,23 @@ type voyagePortListOutput struct {
 }
 
 type suggestPortsInput struct {
-	Query string `query:"q" required:"true" minLength:"2" maxLength:"100" doc:"Start or part of a port name; case, accents and small typos are ignored"`
+	Query string `query:"q" required:"true" minLength:"2" doc:"Start or part of a port name, at least 2 and at most 100 characters; case, accents and small typos are ignored"`
 	Limit int32  `query:"limit" minimum:"1" maximum:"20" default:"8" doc:"Maximum number of suggestions"`
 }
 
-// Resolve applies the geocode query rules: a bare "q" or one with fewer than
-// two visible characters is rejected before the database is asked.
+// Resolve applies the location query rule, as /geocode does: a bare "q",
+// one with fewer than two visible characters or one longer than a port name
+// may be is rejected before the database is asked. On success Query holds
+// the trimmed query.
 func (i *suggestPortsInput) Resolve(ctx huma.Context) []error {
 	if isBareQueryParam(ctx.URL().RawQuery, "q") {
 		return []error{&huma.ErrorDetail{Message: "expected a value for q", Location: "query.q"}}
 	}
-	if geocodeBaseCharCount(i.Query) < geocodeMinQueryLen {
-		return []error{&huma.ErrorDetail{
-			Message:  fmt.Sprintf("expected at least %d visible characters", geocodeMinQueryLen),
-			Location: "query.q",
-			Value:    i.Query,
-		}}
+	q, err := location.ParseQuery(i.Query)
+	if err != nil {
+		return []error{&huma.ErrorDetail{Message: err.Error(), Location: "query.q", Value: i.Query}}
 	}
+	i.Query = q
 	return nil
 }
 
@@ -126,12 +126,13 @@ func (h *VoyagePortHandler) list(ctx context.Context, in *voyagePortListInput) (
 	return &voyagePortListOutput{Body: dto.VoyagePortsFromDB(ports)}, nil
 }
 
-// suggest lists previously entered port names matching the query. Callers
-// who cannot see hidden voyages get only names from visible ones, so a draft
-// voyage's route does not leak through the suggestions.
+// suggest lists previously entered port names matching the query, which is
+// normalized as stored names are. Callers who cannot see hidden records get
+// only names from visible ones, so a draft leg's route does not leak
+// through the suggestions.
 func (h *VoyagePortHandler) suggest(ctx context.Context, in *suggestPortsInput) (*portSuggestionsOutput, error) {
 	rows, err := h.q.SuggestPorts(ctx, sqlcdb.SuggestPortsParams{
-		Query:         trimGeocodeQuery(in.Query),
+		Query:         location.NormalizeName(in.Query),
 		IncludeHidden: canSeeHidden(ctx),
 		RowLimit:      in.Limit,
 	})
@@ -146,12 +147,17 @@ func (h *VoyagePortHandler) add(ctx context.Context, in *addVoyagePortInput) (*v
 	if _, err := getVoyageForCaptain(ctx, h.q, in.VoyageID); err != nil {
 		return nil, err
 	}
+	p, err := in.Body.Port()
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+	lat, lon := portCoordinates(p)
 	callerID, admin := captainCaller(ctx)
 	port, err := h.q.AddVoyagePort(ctx, sqlcdb.AddVoyagePortParams{
 		VoyageID:      in.VoyageID,
-		Name:          in.Body.Name,
-		Latitude:      nullFloat64(in.Body.Latitude),
-		Longitude:     nullFloat64(in.Body.Longitude),
+		Name:          p.Name,
+		Latitude:      lat,
+		Longitude:     lon,
 		Anchorage:     in.Body.Anchorage,
 		Position:      valOrZeroInt(in.Body.Position),
 		CallerIsAdmin: admin,

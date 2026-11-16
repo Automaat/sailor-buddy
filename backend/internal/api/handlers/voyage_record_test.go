@@ -322,6 +322,19 @@ func TestTripComplete_RejectsHalfCoordinates(t *testing.T) {
 	}
 }
 
+// TestTripComplete_RejectsBadPortNames refuses a completion whose ports
+// break the location name rule before any database call.
+func TestTripComplete_RejectsBadPortNames(t *testing.T) {
+	for _, name := range []string{" \u200b ", strings.Repeat("a", 101)} {
+		resp := tripTestAPI(t, &mockQuerier{}).PostCtx(callerCtx(1, "admin"), "/trips/1/complete", map[string]any{
+			"ports": []map[string]any{{"name": "Hel"}, {"name": name}},
+		})
+		if resp.Code != http.StatusUnprocessableEntity || !strings.Contains(resp.Body.String(), "ports[1].name") {
+			t.Fatalf("name %q: status = %d, want 422 at ports[1].name; body=%s", name, resp.Code, resp.Body)
+		}
+	}
+}
+
 func TestVoyageListYachts_Authorization(t *testing.T) {
 	tests := []struct {
 		name   string

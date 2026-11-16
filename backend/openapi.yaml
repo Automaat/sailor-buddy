@@ -159,6 +159,7 @@ components:
         embark_date:
           type: string
         end_port:
+          description: Port name, at most 100 characters; blank means no port
           type: string
         image_logo_url:
           type: string
@@ -178,6 +179,7 @@ components:
           format: date
           type: string
         start_port:
+          description: Port name, at most 100 characters; blank means no port
           type: string
         yacht_fund:
           description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
@@ -2383,6 +2385,7 @@ components:
         embark_date:
           type: string
         end_port:
+          description: Port name, at most 100 characters; blank means no port
           type: string
         image_logo_url:
           type: string
@@ -2402,6 +2405,7 @@ components:
           format: date
           type: string
         start_port:
+          description: Port name, at most 100 characters; blank means no port
           type: string
         yacht_fund:
           description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
@@ -2696,6 +2700,7 @@ components:
         embark_date:
           type: string
         end_port:
+          description: Port name, at most 100 characters; blank means no port
           type: string
         hours_engine:
           format: double
@@ -2723,6 +2728,7 @@ components:
           minLength: 1
           type: string
         start_port:
+          description: Port name, at most 100 characters; blank means no port
           type: string
         tidal_waters:
           format: int64
@@ -3007,7 +3013,7 @@ components:
           minimum: -180
           type: number
         name:
-          description: Port / town name
+          description: Port / town name, at most 100 characters; surrounding blanks are dropped and inner runs of blanks become one space
           minLength: 1
           type: string
         position:
@@ -4283,13 +4289,13 @@ paths:
     get:
       operationId: geocode
       parameters:
-        - description: Town or place name to search for
+        - description: Town or place name to search for; at least 2 and at most 100 characters
           explode: false
           in: query
           name: q
           required: true
           schema:
-            description: Town or place name to search for
+            description: Town or place name to search for; at least 2 and at most 100 characters
             minLength: 2
             type: string
         - description: Latitude of the map centre; nearby places rank higher. Give together with lon
@@ -4577,14 +4583,13 @@ paths:
     get:
       operationId: suggest-ports
       parameters:
-        - description: Start or part of a port name; case, accents and small typos are ignored
+        - description: Start or part of a port name, at least 2 and at most 100 characters; case, accents and small typos are ignored
           explode: false
           in: query
           name: q
           required: true
           schema:
-            description: Start or part of a port name; case, accents and small typos are ignored
-            maxLength: 100
+            description: Start or part of a port name, at least 2 and at most 100 characters; case, accents and small typos are ignored
             minLength: 2
             type: string
         - description: Maximum number of suggestions

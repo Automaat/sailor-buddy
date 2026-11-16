@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -829,6 +830,10 @@ func TestGeocode_QueryValidation(t *testing.T) {
 		{"two decomposed letters", "/geocode?q=a%CC%81e%CC%81", http.StatusOK, "a\u0301e\u0301"},
 		{"literal true", "/geocode?q=true", http.StatusOK, "true"},
 		{"value before bare", "/geocode?q=ab&q", http.StatusOK, "ab"},
+		{"longest query", "/geocode?q=" + strings.Repeat("a", 100), http.StatusOK, strings.Repeat("a", 100)},
+		{"longest query with inner blanks", "/geocode?q=" + strings.Repeat("a", 50) + "%20%20" + strings.Repeat("a", 49), http.StatusOK, strings.Repeat("a", 50) + "  " + strings.Repeat("a", 49)},
+		{"too long", "/geocode?q=" + strings.Repeat("a", 101), http.StatusUnprocessableEntity, ""},
+		{"too long multibyte", "/geocode?q=" + strings.Repeat("%C5%82", 101), http.StatusUnprocessableEntity, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -921,31 +926,5 @@ func TestGeocode_DropsInvalidCoordinates(t *testing.T) {
 				t.Fatalf("upstream hits = %d, want 1", n)
 			}
 		})
-	}
-}
-
-func TestFoldPlaceName(t *testing.T) {
-	tests := map[string]string{
-		"Świnoujście":        "swinoujscie",
-		"  ŁEBA ":            "leba",
-		"Svolvær":            "svolvaer",
-		"København":          "kobenhavn",
-		"Gdan\u0301sk":       "gdansk",
-		"Nowa\u00a0  Wieś":   "nowa wies",
-		"Hel\u200b":          "hel",
-		"Λευκάδα":            "λευκαδα",
-		"Szczecin, Polska":   "szczecin, polska",
-		"Straße am Hafen":    "strasse am hafen",
-		"Đurđevac":           "durdevac",
-		"Œuilly":             "oeuilly",
-		"Þórshöfn":           "thorshofn",
-		"Ísafjörður":         "isafjordur",
-		"Kızkalesi":          "kizkalesi",
-		"Kraków  i  okolice": "krakow i okolice",
-	}
-	for in, want := range tests {
-		if got := foldPlaceName(in); got != want {
-			t.Errorf("foldPlaceName(%q) = %q, want %q", in, got, want)
-		}
 	}
 }

@@ -684,6 +684,12 @@ Port body — `name` required; `latitude` and `longitude` are optional but come
 together (one without the other is 422). A name-only port is listed in the
 route but not drawn on the map. `anchorage: true` marks an anchorage.
 
+Port names, here and in a trip's or voyage's `start_port` and `end_port`,
+lose surrounding blanks (whitespace and invisible characters) and keep one
+space between words; a name longer than 100 characters after that is 422.
+A blank `start_port` or `end_port` is stored as no port; a blank port
+`name` is 422.
+
 ### Port search
 
 | Method | Path | Auth | Description | Success |
@@ -691,9 +697,10 @@ route but not drawn on the map. `anchorage: true` marks an anchorage.
 | GET | `/api/ports/suggest?q=` | member | Port names the club already entered | 200 |
 | GET | `/api/geocode?q=` | member | Search towns in OpenStreetMap | 200 |
 
-Both take `q` (required, at least 2 visible characters; surrounding blanks
-and invisible characters are trimmed). A bare `q`, a blank one or a
-one-character one is `422`.
+Both take `q` (required, at least 2 visible characters and at most 100, as
+a port name may hold; surrounding blanks and invisible characters are
+trimmed). A bare `q`, a blank one, a one-character one or a longer one is
+`422`.
 
 **Suggestions** (`/ports/suggest`) search every port the club entered: the
 visited ports of voyages and the start and end ports of trips and voyages,
