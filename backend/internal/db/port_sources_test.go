@@ -62,12 +62,11 @@ func TestMigrate_PortSources(t *testing.T) {
 	// Positions written before the API capped them, out of order and with a
 	// tie: the migration keeps the listed order and renumbers from 0.
 	orderVoyage := insertPortSearchVoyage(t, conn, cruiseID, true)
-	var positioned []int64
-	for _, pos := range []int64{9223372036854775807, 5, 5, -3} {
-		var id int64
+	legacy := []int64{9223372036854775807, 5, 5, -3}
+	positioned := make([]int64, len(legacy))
+	for i, pos := range legacy {
 		mustScan(t, conn.QueryRow(`INSERT INTO voyage_ports (voyage_id, name, position) VALUES ($1, 'p', $2) RETURNING id`,
-			orderVoyage, pos), &id)
-		positioned = append(positioned, id)
+			orderVoyage, pos), &positioned[i])
 	}
 	wantOrder := []int64{positioned[3], positioned[1], positioned[2], positioned[0]}
 
