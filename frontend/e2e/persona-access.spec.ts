@@ -285,12 +285,12 @@ test.describe.serial('Single-club persona matrix', () => {
 		await expect(page.getByLabel('Edycja *')).toHaveValue(String(cruiseId));
 		await expect(page.getByLabel('Edycja *')).toBeDisabled();
 		await page.getByLabel('Nazwa rejsu *').fill(tripName);
-		await page.getByLabel('Port wyjścia').fill(startPortName.slice(0, 9));
+		await page.getByRole('textbox', { name: 'Port wyjścia' }).fill(startPortName.slice(0, 9));
 		await page.getByRole('button', { name: new RegExp(`^${startPortName}`) }).click();
-		await expect(page.getByLabel('Port wyjścia')).toHaveValue(startPortName);
+		await expect(page.getByRole('textbox', { name: 'Port wyjścia' })).toHaveValue(startPortName);
 		await expect(page.getByText('54.35000, 18.66000')).toBeVisible();
-		await page.getByLabel('Port docelowy').fill('Visby');
-		await page.getByLabel('Port docelowy').press('Escape');
+		await page.getByRole('textbox', { name: 'Port docelowy' }).fill('Visby');
+		await page.getByRole('textbox', { name: 'Port docelowy' }).press('Escape');
 		await expect(page.getByRole('button', { name: 'Usuń kraj: Norwegia' })).toBeVisible();
 		await page.getByRole('button', { name: 'Usuń kraj: Dania' }).click();
 		await page.getByRole('combobox', { name: 'Kraje' }).fill('szwe');
