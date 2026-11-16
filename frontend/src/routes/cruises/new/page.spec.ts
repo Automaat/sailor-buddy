@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('#lib/api/routes.js', () => ({ createCruise: vi.fn(), getSeries: vi.fn() }));
+vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
+	createCruise: vi.fn(),
+	getSeries: vi.fn()
+}));
 vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
@@ -145,13 +149,16 @@ describe('new edition page logistics fields', () => {
 			target: { value: 'Tanie loty do Katanii' }
 		});
 		await fireEvent.input(screen.getByLabelText('Minimalny wiek'), { target: { value: '18' } });
+		const countries = screen.getByLabelText('Kraje');
+		await fireEvent.input(countries, { target: { value: 'wło' } });
+		await fireEvent.keyDown(countries, { key: 'Enter' });
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz edycję' }));
 
 		expect(mockCreate).toHaveBeenCalledWith({
 			name: 'Sycylia',
 			series_id: 3,
 			edition: '2026',
-			countries: '',
+			countries: ['IT'],
 			description: '',
 			travel_notes: 'Tanie loty do Katanii',
 			min_age: 18,

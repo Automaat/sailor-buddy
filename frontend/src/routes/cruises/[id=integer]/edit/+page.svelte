@@ -9,6 +9,8 @@
 	import PriceCoverageFields from '#lib/components/PriceCoverageFields.svelte';
 	import { listText, parseList } from '#lib/pricing.js';
 	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -30,7 +32,7 @@
 			name: cruise.name,
 			series_id: cruise.series_id ?? null,
 			edition: cruise.edition ?? '',
-			countries: cruise.countries ?? '',
+			countries: [...(cruise.countries ?? [])],
 			description: cruise.description ?? '',
 			travel_notes: cruise.travel_notes ?? '',
 			min_age: cruise.min_age ?? null
@@ -61,6 +63,7 @@
 <div class="mx-auto max-w-3xl">
 	<BackLink href="/cruises/{id}" label={data.cruise.name} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Edytuj wydarzenie</h1>
+	<LoadErrorBanner errors={data.loadErrors} />
 
 	{#if submit.error}
 		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{submit.error}</div>
@@ -85,12 +88,7 @@
 			/>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-				<input
-					id="countries"
-					type="text"
-					bind:value={form.countries}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
+				<CountryPicker id="countries" bind:value={form.countries} countries={data.countries} />
 			</div>
 			<PriceCoverageFields bind:included bind:notIncluded />
 			<CruiseLogisticsFields bind:travelNotes={form.travel_notes} bind:minAge={form.min_age} />

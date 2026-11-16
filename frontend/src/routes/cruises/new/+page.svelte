@@ -7,6 +7,8 @@
 	import PriceCoverageFields from '#lib/components/PriceCoverageFields.svelte';
 	import { parseList } from '#lib/pricing.js';
 	import CruiseLogisticsFields from '#lib/components/CruiseLogisticsFields.svelte';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -26,7 +28,7 @@
 			form: {
 				name: '',
 				edition: '',
-				countries: '',
+				countries: [] as string[],
 				description: '',
 				travel_notes: '',
 				min_age: null as number | null
@@ -73,6 +75,7 @@
 <div class="mx-auto max-w-3xl">
 	<BackLink href={seriesHref} label={series.name} />
 	<h1 class="mb-6 text-3xl font-bold text-[var(--navy)]">Nowa edycja</h1>
+	<LoadErrorBanner errors={data.loadErrors} />
 
 	{#if draft.error}
 		<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{draft.error}</div>
@@ -114,12 +117,7 @@
 			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-				<input
-					id="countries"
-					type="text"
-					bind:value={form.countries}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
+				<CountryPicker id="countries" bind:value={form.countries} countries={data.countries} />
 			</div>
 			<PriceCoverageFields bind:included={draft.included} bind:notIncluded={draft.notIncluded} />
 			<CruiseLogisticsFields bind:travelNotes={form.travel_notes} bind:minAge={form.min_age} />

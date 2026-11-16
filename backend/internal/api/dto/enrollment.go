@@ -83,7 +83,7 @@ type EnrollTrip struct {
 	Name                   string   `json:"name"`
 	EmbarkDate             *string  `json:"embark_date,omitempty"`
 	DisembarkDate          *string  `json:"disembark_date,omitempty"`
-	Countries              *string  `json:"countries,omitempty"`
+	Countries              []string `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
 	StartPort              *Port    `json:"start_port,omitempty"`
 	EndPort                *Port    `json:"end_port,omitempty"`
 	Description            *string  `json:"description,omitempty"`
@@ -111,7 +111,7 @@ type EnrollLeg struct {
 type EnrollCruise struct {
 	ID            int64    `json:"id"`
 	Name          string   `json:"name"`
-	Countries     *string  `json:"countries,omitempty"`
+	Countries     []string `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
 	Description   *string  `json:"description,omitempty"`
 	ImagePhotoUrl *string  `json:"image_photo_url,omitempty"`
 	Included      []string `json:"included" doc:"What every leg's price covers"`
@@ -286,7 +286,7 @@ func EnrollTripFromRow(t sqlcdb.GetTripByEnrollTokenRow) EnrollTrip {
 		Name:                   t.Name,
 		EmbarkDate:             strPtr(t.EmbarkDate),
 		DisembarkDate:          strPtr(t.DisembarkDate),
-		Countries:              strPtr(t.Countries),
+		Countries:              countryCodes(t.Countries),
 		StartPort:              portFromDB(t.StartPort, t.StartPortLatitude, t.StartPortLongitude),
 		EndPort:                portFromDB(t.EndPort, t.EndPortLatitude, t.EndPortLongitude),
 		Description:            strPtr(t.Description),
@@ -307,7 +307,7 @@ func EnrollCruiseFromRow(c sqlcdb.GetCruiseByEnrollTokenRow) EnrollCruise {
 	return EnrollCruise{
 		ID:            c.ID,
 		Name:          c.Name,
-		Countries:     strPtr(c.Countries),
+		Countries:     countryCodes(c.Countries),
 		Description:   strPtr(c.Description),
 		ImagePhotoUrl: strPtr(c.ImagePhotoUrl),
 		Included:      stringList(c.Included),
@@ -328,7 +328,7 @@ func EnrollLegsFromDB(ts []sqlcdb.Trip) []EnrollLeg {
 			Status:                 string(t.Status),
 			EmbarkDate:             strPtr(t.EmbarkDate),
 			DisembarkDate:          strPtr(t.DisembarkDate),
-			Countries:              strPtr(t.Countries),
+			Countries:              countryCodes(t.Countries),
 			StartPort:              portFromDB(t.StartPort, t.StartPortLatitude, t.StartPortLongitude),
 			EndPort:                portFromDB(t.EndPort, t.EndPortLatitude, t.EndPortLongitude),
 			Description:            strPtr(t.Description),

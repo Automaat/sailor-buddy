@@ -4,6 +4,7 @@ import type { Cruise } from '#lib/api/types.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	getCruise: vi.fn(),
 	getSeries: vi.fn(),
 	deleteCruise: vi.fn(),
@@ -75,6 +76,7 @@ function cruise(overrides: Partial<Cruise> = {}): Cruise {
 	return {
 		id: 7,
 		name: 'Sycylia 2026',
+		countries: [],
 		included: [],
 		not_included: [],
 		created_at: '2026-01-01T00:00:00Z',
@@ -202,7 +204,7 @@ describe('cruise page logistics', () => {
 
 describe('cruise page header', () => {
 	it("shows the edition's countries", async () => {
-		mockGet.mockResolvedValue(cruise({ countries: 'Włochy, Malta' }));
+		mockGet.mockResolvedValue(cruise({ countries: ['IT', 'MT'] }));
 		await renderPage();
 
 		await screen.findByRole('heading', { name: 'Sycylia 2026' });

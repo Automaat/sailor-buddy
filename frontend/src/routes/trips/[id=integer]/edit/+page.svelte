@@ -12,6 +12,7 @@
 	import { priceBody, priceFormFrom } from '#lib/pricing.js';
 	import PortField from '#lib/location/PortField.svelte';
 	import { portBody, portDraft } from '#lib/location/port.js';
+	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -41,7 +42,7 @@
 			embark_date: trip.embark_date ?? '',
 			disembark_date: trip.disembark_date ?? '',
 			sign_up_deadline: trip.sign_up_deadline ?? '',
-			countries: trip.countries ?? '',
+			countries: [...(trip.countries ?? [])],
 			start_port: portDraft(trip.start_port),
 			end_port: portDraft(trip.end_port),
 			cruise_id: trip.cruise_id,
@@ -169,12 +170,7 @@
 				</div>
 				<div class="sm:col-span-2">
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-					<input
-						id="countries"
-						type="text"
-						bind:value={form.countries}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<CountryPicker id="countries" bind:value={form.countries} countries={data.countries} />
 				</div>
 			</div>
 

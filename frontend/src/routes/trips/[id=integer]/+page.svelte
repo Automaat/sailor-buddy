@@ -21,6 +21,7 @@
 	import ActionsMenu from '#lib/components/ActionsMenu.svelte';
 	import BackLink from '#lib/components/BackLink.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import { formatCountries } from '#lib/location/countries.js';
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import { formatPrice, hasPriceInfo } from '#lib/pricing.js';
 	import LegSignUpControl from '#lib/components/LegSignUpControl.svelte';
@@ -328,8 +329,8 @@
 				{#if route}
 					{route}
 				{/if}
-				{#if trip.countries}
-					· {trip.countries}{/if}
+				{#if trip.countries?.length}
+					· {formatCountries(trip.countries, data.countries)}{/if}
 			</p>
 		</div>
 		{#if canManageCrew || canComplete}

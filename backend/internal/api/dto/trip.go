@@ -3,6 +3,8 @@ package dto
 import (
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
 )
 
@@ -15,7 +17,7 @@ type Trip struct {
 	Status                 string     `json:"status" enum:"planned,cancelled"`
 	EmbarkDate             *string    `json:"embark_date,omitempty"`
 	DisembarkDate          *string    `json:"disembark_date,omitempty"`
-	Countries              *string    `json:"countries,omitempty"`
+	Countries              []string   `json:"countries" doc:"ISO 3166-1 alpha-2 country codes in display order; empty when none"`
 	StartPort              *Port      `json:"start_port,omitempty"`
 	EndPort                *Port      `json:"end_port,omitempty"`
 	CaptainName            *string    `json:"captain_name,omitempty"`
@@ -48,27 +50,35 @@ type TripDetail struct {
 
 // TripFields are the trip fields shared by the create and update payloads.
 type TripFields struct {
-	Name                   string   `json:"name" minLength:"1" doc:"Trip name"`
-	EmbarkDate             *string  `json:"embark_date,omitempty"`
-	DisembarkDate          *string  `json:"disembark_date,omitempty"`
-	Countries              *string  `json:"countries,omitempty"`
-	StartPort              *Port    `json:"start_port,omitempty" doc:"Where the trip starts; omit for no port"`
-	EndPort                *Port    `json:"end_port,omitempty" doc:"Where the trip ends; omit for no port"`
-	CaptainName            *string  `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
-	CaptainPersonID        *int64   `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip; any person may be chosen"`
-	YachtID                *int64   `json:"yacht_id,omitempty"`
-	CostTotal              *float64 `json:"cost_total,omitempty"`
-	CostPerPerson          *float64 `json:"cost_per_person,omitempty" minimum:"0" doc:"Member price per person (czlonek, sympatyk)"`
-	Currency               string   `json:"currency,omitempty" enum:"PLN,EUR" doc:"Currency of every price on the trip; PLN when omitted"`
-	CostPerPersonNonMember *float64 `json:"cost_per_person_non_member,omitempty" minimum:"0" doc:"Non-member (gosc) price per person"`
-	YachtFund              *float64 `json:"yacht_fund,omitempty" minimum:"0" doc:"Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"`
-	Deposit                *float64 `json:"deposit,omitempty" minimum:"0" doc:"Refundable deposit (kaucja) per person"`
-	MaxCrew                *int64   `json:"max_crew,omitempty"`
-	ImageLogoUrl           *string  `json:"image_logo_url,omitempty"`
-	ImagePhotoUrl          *string  `json:"image_photo_url,omitempty"`
-	ImageRouteUrl          *string  `json:"image_route_url,omitempty"`
-	Description            *string  `json:"description,omitempty"`
-	SignUpDeadline         *string  `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline"`
+	Name                   string       `json:"name" minLength:"1" doc:"Trip name"`
+	EmbarkDate             *string      `json:"embark_date,omitempty"`
+	DisembarkDate          *string      `json:"disembark_date,omitempty"`
+	Countries              CountryCodes `json:"countries,omitempty" maxItems:"30" uniqueItems:"true" doc:"ISO 3166-1 alpha-2 country codes from GET /countries, in display order; omit or [] for none"`
+	StartPort              *Port        `json:"start_port,omitempty" doc:"Where the trip starts; omit for no port"`
+	EndPort                *Port        `json:"end_port,omitempty" doc:"Where the trip ends; omit for no port"`
+	CaptainName            *string      `json:"captain_name,omitempty" doc:"Free-text captain; replaced by the person's name when captain_person_id is set"`
+	CaptainPersonID        *int64       `json:"captain_person_id,omitempty" doc:"Person (crew record) who captains the trip; any person may be chosen"`
+	YachtID                *int64       `json:"yacht_id,omitempty"`
+	CostTotal              *float64     `json:"cost_total,omitempty"`
+	CostPerPerson          *float64     `json:"cost_per_person,omitempty" minimum:"0" doc:"Member price per person (czlonek, sympatyk)"`
+	Currency               string       `json:"currency,omitempty" enum:"PLN,EUR" doc:"Currency of every price on the trip; PLN when omitted"`
+	CostPerPersonNonMember *float64     `json:"cost_per_person_non_member,omitempty" minimum:"0" doc:"Non-member (gosc) price per person"`
+	YachtFund              *float64     `json:"yacht_fund,omitempty" minimum:"0" doc:"Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"`
+	Deposit                *float64     `json:"deposit,omitempty" minimum:"0" doc:"Refundable deposit (kaucja) per person"`
+	MaxCrew                *int64       `json:"max_crew,omitempty"`
+	ImageLogoUrl           *string      `json:"image_logo_url,omitempty"`
+	ImagePhotoUrl          *string      `json:"image_photo_url,omitempty"`
+	ImageRouteUrl          *string      `json:"image_route_url,omitempty"`
+	Description            *string      `json:"description,omitempty"`
+	SignUpDeadline         *string      `json:"sign_up_deadline,omitempty" format:"date" doc:"Last day (YYYY-MM-DD, Europe/Warsaw, inclusive) the leg takes sign-ups; no later than embark_date; omit for no deadline"`
+}
+
+// Resolve rejects a start or end port that the location rules reject and
+// a country code that is not on the list.
+func (f *TripFields) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
+	errs := portErrors(prefix, "start_port", f.StartPort)
+	errs = append(errs, portErrors(prefix, "end_port", f.EndPort)...)
+	return append(errs, countryCodeErrors(prefix, "countries", f.Countries)...)
 }
 
 // TripBody is the update request payload for a trip.
@@ -109,7 +119,7 @@ func TripFromDB(t sqlcdb.Trip) Trip {
 		Status:                 string(t.Status),
 		EmbarkDate:             strPtr(t.EmbarkDate),
 		DisembarkDate:          strPtr(t.DisembarkDate),
-		Countries:              strPtr(t.Countries),
+		Countries:              countryCodes(t.Countries),
 		StartPort:              portFromDB(t.StartPort, t.StartPortLatitude, t.StartPortLongitude),
 		EndPort:                portFromDB(t.EndPort, t.EndPortLatitude, t.EndPortLongitude),
 		CaptainName:            strPtr(t.CaptainName),

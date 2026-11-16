@@ -127,7 +127,7 @@ test.describe.serial('Phone layout', () => {
 			name: 'Wydarzenie z bardzo długą nazwą na telefon',
 			series_id: series.id,
 			edition: '2027',
-			countries: 'Polska, Dania, Szwecja',
+			countries: ['PL', 'DK', 'SE'],
 			description: 'Opis wydarzenia, który jest na tyle długi, że musi się zawinąć.',
 			included: ['Jacht z pełnym wyposażeniem i ubezpieczeniem'],
 			not_included: ['Dojazd do portu zaokrętowania']

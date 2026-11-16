@@ -26,6 +26,7 @@ export type VoyagePort = Schemas['VoyagePort'];
 export type VoyagePortBody = Schemas['VoyagePortBody'];
 export type GeocodeResult = Schemas['GeocodeResult'];
 export type PortSuggestion = Schemas['PortSuggestion'];
+export type Country = Schemas['Country'];
 
 export type Yacht = Schemas['Yacht'];
 export type YachtSummary = Schemas['YachtSummary'];

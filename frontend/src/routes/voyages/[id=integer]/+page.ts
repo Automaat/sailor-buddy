@@ -8,6 +8,7 @@ import {
 } from '#lib/api/routes.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
+import { loadCountries } from '#lib/location/countries.js';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ params }) => {
@@ -24,7 +25,7 @@ export const load: PageLoad = async ({ params }) => {
 	// those who see its section.
 	const crewLoadErrors: string[] = [];
 	const adminLoadErrors: string[] = [];
-	const [crew, opinions, ports, allCrewMembers, cruise] = await Promise.all([
+	const [crew, opinions, ports, allCrewMembers, cruise, countries] = await Promise.all([
 		settle(
 			listVoyageCrew(id).then((c) => c ?? []),
 			[],
@@ -43,11 +44,13 @@ export const load: PageLoad = async ({ params }) => {
 		settle(listAssignableCrew(), [], noteFailure(adminLoadErrors, 'lista osób')),
 		voyage.cruise_id
 			? settle(getCruise(voyage.cruise_id), null, noteFailure(loadErrors, 'wydarzenie'))
-			: Promise.resolve(null)
+			: Promise.resolve(null),
+		settle(loadCountries(), [], noteFailure(loadErrors, 'lista krajów'))
 	]);
 	return {
 		voyage,
 		cruise,
+		countries,
 		crew,
 		opinions,
 		ports,

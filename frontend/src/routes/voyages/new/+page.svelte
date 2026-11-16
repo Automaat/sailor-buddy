@@ -10,6 +10,7 @@
 	import { legFormParent } from '#lib/rejsy.js';
 	import PortField from '#lib/location/PortField.svelte';
 	import { portBody } from '#lib/location/port.js';
+	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -35,7 +36,7 @@
 			year: new Date().getFullYear(),
 			embark_date: '',
 			disembark_date: '',
-			countries: '',
+			countries: [] as string[],
 			start_port: { name: '' },
 			end_port: { name: '' },
 			cruise_id: cruiseID,
@@ -155,12 +156,7 @@
 				</div>
 				<div>
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-					<input
-						id="countries"
-						type="text"
-						bind:value={form.countries}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<CountryPicker id="countries" bind:value={form.countries} countries={data.countries} />
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/danielgtaylor/huma/v2/humatest"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/marcinskalski/sailor-buddy/backend/internal/api/dto"
 	"github.com/marcinskalski/sailor-buddy/backend/internal/db/sqlcdb"
+	"github.com/marcinskalski/sailor-buddy/backend/internal/types"
 )
 
 // standaloneTripBody is a trip without a cruise, with the fields the wrapper
@@ -22,7 +24,7 @@ func standaloneTripBody() map[string]any {
 		"name":                       "Etap Bałtyk",
 		"embark_date":                "2027-06-01",
 		"disembark_date":             "2027-06-08",
-		"countries":                  "PL, SE",
+		"countries":                  []string{"PL", "SE"},
 		"start_port":                 map[string]any{"name": "Gdynia", "latitude": 54.53, "longitude": 18.55},
 		"end_port":                   map[string]any{"name": "Visby"},
 		"description":                "Tydzień na Bałtyku",
@@ -84,8 +86,8 @@ func TestTripCreate_StandaloneGetsWrapperCruise(t *testing.T) {
 	if cruise.Name != "Etap Bałtyk" || cruise.CreatedBy.Int64 != 1 {
 		t.Fatalf("wrapper name/creator = %q/%d", cruise.Name, cruise.CreatedBy.Int64)
 	}
-	if cruise.Countries.String != "PL, SE" || cruise.Description.String != "Tydzień na Bałtyku" {
-		t.Errorf("wrapper countries/description = %q/%q", cruise.Countries.String, cruise.Description.String)
+	if !slices.Equal(cruise.Countries, types.TextArray{"PL", "SE"}) || cruise.Description.String != "Tydzień na Bałtyku" {
+		t.Errorf("wrapper countries/description = %q/%q", cruise.Countries, cruise.Description.String)
 	}
 	onTrip := map[string][2]any{
 		"embark_date":                {trip.EmbarkDate.String, "2027-06-01"},
@@ -226,7 +228,7 @@ func TestTripCreate_StandaloneRollbackAgainstDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wrapper cruise: %v", err)
 	}
-	if cruise.SeriesID.Valid || cruise.Name != "Etap Bałtyk" || cruise.Countries.String != "PL, SE" {
+	if cruise.SeriesID.Valid || cruise.Name != "Etap Bałtyk" || !slices.Equal(cruise.Countries, types.TextArray{"PL", "SE"}) {
 		t.Fatalf("wrapper cruise = %+v", cruise)
 	}
 	if trip.Currency != "EUR" || trip.EmbarkDate == nil || *trip.EmbarkDate != "2027-06-01" {

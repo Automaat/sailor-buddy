@@ -30,6 +30,9 @@ func selfService(r *http.Request) bool {
 	if r.URL.Path == "/api/auth/me" {
 		return r.Method == http.MethodGet || r.Method == http.MethodPut
 	}
+	if r.URL.Path == "/api/countries" {
+		return r.Method == http.MethodGet
+	}
 	token, ok := strings.CutPrefix(r.URL.Path, "/api/enroll/")
 	if !ok {
 		return false

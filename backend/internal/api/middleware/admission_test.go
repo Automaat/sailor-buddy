@@ -34,6 +34,8 @@ func TestAdmission(t *testing.T) {
 		{"unverified token enrollment", unverified, http.MethodPost, "/api/enroll/abc", ""},
 		{"unverified token leg enrollment", unverified, http.MethodPost, "/api/enroll/abc/legs", ""},
 		{"unverified person candidates", unverified, http.MethodGet, "/api/auth/me/person-candidates", "email_unverified"},
+		{"unverified country list", unverified, http.MethodGet, "/api/countries", ""},
+		{"suspended country list", suspended, http.MethodGet, "/api/countries", "account_suspended"},
 		{"suspended club read", suspended, http.MethodGet, "/api/crew", "account_suspended"},
 		{"suspended own profile", suspended, http.MethodGet, "/api/auth/me", "account_suspended"},
 		{"suspended token preview", suspended, http.MethodGet, "/api/enroll/abc", "account_suspended"},

@@ -5,6 +5,7 @@
 	import { auth } from '#lib/stores/auth.svelte.js';
 	import BackLink from '#lib/components/BackLink.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import { formatCountries } from '#lib/location/countries.js';
 	import VoyageLog from './VoyageLog.svelte';
 	import VoyageCrew from './VoyageCrew.svelte';
 	import VoyageOpinions from './VoyageOpinions.svelte';
@@ -108,8 +109,8 @@
 				{#if route}
 					{route}
 				{/if}
-				{#if voyage.countries}
-					· {voyage.countries}{/if}
+				{#if voyage.countries?.length}
+					· {formatCountries(voyage.countries, data.countries)}{/if}
 				{#if voyage.year}
 					· {voyage.year}{/if}
 			</p>

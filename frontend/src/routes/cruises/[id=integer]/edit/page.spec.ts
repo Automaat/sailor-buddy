@@ -9,6 +9,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	getCruise: vi.fn(),
 	updateCruise: vi.fn(),
 	listSeries: vi.fn()
@@ -52,7 +53,7 @@ beforeEach(() => {
 					edition: '2026',
 					included: ['Jacht']
 				})
-			: makeCruise({ id, name: 'Chorwacja 2026', countries: 'Chorwacja' })
+			: makeCruise({ id, name: 'Chorwacja 2026', countries: ['HR', 'MT'] })
 	);
 	fn(listSeries).mockResolvedValue([seriesRow(3, 'Sycylia'), seriesRow(4, 'Chorwacja')]);
 	fn(updateCruise).mockResolvedValue(undefined);
@@ -176,9 +177,14 @@ describe('cruise edit page same-route navigation', () => {
 		expect(screen.getByLabelText('Nazwa wydarzenia *')).toHaveValue('Chorwacja 2026');
 		expect(screen.getByLabelText('Seria')).toHaveValue('');
 		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/cruises/8');
+		expect(screen.getByRole('button', { name: 'Usuń kraj: Chorwacja' })).toBeInTheDocument();
 		const [id, body] = await save();
 		expect(id).toBe(8);
-		expect(body).toMatchObject({ name: 'Chorwacja 2026', countries: 'Chorwacja', included: [] });
+		expect(body).toMatchObject({
+			name: 'Chorwacja 2026',
+			countries: ['HR', 'MT'],
+			included: []
+		});
 	});
 
 	it("clears the first cruise's save error", async () => {

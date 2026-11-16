@@ -1,5 +1,7 @@
 // Reusable factories and helpers shared across form/component test suites.
+import { fireEvent, screen } from '@testing-library/svelte';
 import type {
+	Country,
 	CrewMember,
 	Cruise,
 	CruiseSeries,
@@ -7,6 +9,34 @@ import type {
 	TripDetail,
 	VoyageDetail
 } from '#lib/api/types.js';
+
+/** A few countries as GET /countries serves them, for pages that name countries. */
+export const testCountries: Country[] = [
+	{ code: 'DK', name: 'Dania' },
+	{ code: 'FI', name: 'Finlandia' },
+	{ code: 'HR', name: 'Chorwacja' },
+	{ code: 'IT', name: 'Włochy' },
+	{ code: 'MT', name: 'Malta' },
+	{ code: 'NO', name: 'Norwegia' },
+	{ code: 'PL', name: 'Polska' },
+	{ code: 'SE', name: 'Szwecja' }
+];
+
+const removeCountry = 'Usuń kraj: ';
+
+/** pickedCountries lists the names a CountryPicker shows as picked, in order. */
+export function pickedCountries(): string[] {
+	return screen
+		.queryAllByRole('button', { name: new RegExp(`^${removeCountry}`) })
+		.map((b) => (b.getAttribute('aria-label') ?? '').slice(removeCountry.length));
+}
+
+/** pickCountry types query into the CountryPicker labelled label and picks the first match. */
+export async function pickCountry(query: string, label = 'Kraje') {
+	const input = screen.getByLabelText(label);
+	await fireEvent.input(input, { target: { value: query } });
+	await fireEvent.keyDown(input, { key: 'Enter' });
+}
 
 export function makePerson(overrides: Partial<CrewMember> = {}): CrewMember {
 	return {
@@ -39,6 +69,7 @@ export function makeCruise(overrides: Partial<Cruise> = {}): Cruise {
 	return {
 		id: 1,
 		name: 'Regaty Klubowe',
+		countries: [],
 		included: [],
 		not_included: [],
 		created_at: '2026-01-01T00:00:00Z',
@@ -64,6 +95,7 @@ export function makeTrip(overrides: Partial<TripDetail> = {}): TripDetail {
 		cruise_id: 1,
 		name: 'Rejs Bałtyk',
 		status: 'planned',
+		countries: [],
 		currency: 'PLN',
 		embark_date: '2025-06-01',
 		disembark_date: '2025-06-07',
@@ -78,6 +110,7 @@ export function makeVoyage(overrides: Partial<VoyageDetail> = {}): VoyageDetail 
 		id: 1,
 		cruise_id: 1,
 		name: 'Rejs Bałtyk',
+		countries: [],
 		hours_total: 0,
 		hours_sail: 0,
 		hours_engine: 0,

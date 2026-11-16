@@ -81,11 +81,19 @@ func (p *Port) Location() (port location.Port, ok bool, err error) {
 	return location.ParseOptionalPort(p.Name, p.Latitude, p.Longitude)
 }
 
-// Resolve rejects a port that Location rejects: a too long name,
-// coordinates out of range or without their pair, or coordinates without a
-// name.
-func (p *Port) Resolve(_ huma.Context, prefix *huma.PathBuffer) []error {
+// portErrors rejects a start or end port that Location rejects: a too long
+// name, coordinates out of range or without their pair, or coordinates
+// without a name, reported at the port's field under prefix. Each body
+// checks its ports in its own Resolve: a resolver on Port would not run
+// inside a body that embeds a struct with its own Resolve, such as
+// TripFields.
+func portErrors(prefix *huma.PathBuffer, field string, p *Port) []error {
+	if p == nil {
+		return nil
+	}
 	if _, _, err := p.Location(); err != nil {
+		prefix.Push(field)
+		defer prefix.Pop()
 		return []error{locationError(prefix, err, p.Name, p.Latitude, p.Longitude)}
 	}
 	return nil

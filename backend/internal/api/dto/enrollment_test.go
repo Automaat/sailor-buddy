@@ -63,7 +63,7 @@ func TestEnrollLegsFromDB(t *testing.T) {
 			Status:                 sqlcdb.TripStatusCancelled,
 			EmbarkDate:             types.NullString{String: "2025-07-01", Valid: true},
 			DisembarkDate:          types.NullString{String: "2025-07-10", Valid: true},
-			Countries:              types.NullString{String: "Norwegia", Valid: true},
+			Countries:              types.TextArray{"NO"},
 			StartPort:              types.NullString{String: "Bodø", Valid: true},
 			StartPortLatitude:      types.NullFloat64{Float64: 67.28, Valid: true},
 			StartPortLongitude:     types.NullFloat64{Float64: 14.4, Valid: true},
@@ -93,7 +93,7 @@ func TestEnrollLegsFromDB(t *testing.T) {
 		Name:                   "Bodø – Tromsø",
 		EmbarkDate:             new("2025-07-01"),
 		DisembarkDate:          new("2025-07-10"),
-		Countries:              new("Norwegia"),
+		Countries:              []string{"NO"},
 		StartPort:              &Port{Name: "Bodø", Latitude: new(67.28), Longitude: new(14.4)},
 		EndPort:                &Port{Name: "Tromsø"},
 		Description:            new("Etap 1"),
@@ -110,7 +110,7 @@ func TestEnrollLegsFromDB(t *testing.T) {
 	if !reflect.DeepEqual(out[0], want) {
 		t.Fatalf("leg 1 = %+v, want %+v", out[0], want)
 	}
-	empty := EnrollLeg{ID: 2, Name: "Pusty", Currency: "PLN", Status: "planned"}
+	empty := EnrollLeg{ID: 2, Name: "Pusty", Countries: []string{}, Currency: "PLN", Status: "planned"}
 	if !reflect.DeepEqual(out[1], empty) {
 		t.Fatalf("leg 2 = %+v, want %+v", out[1], empty)
 	}

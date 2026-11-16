@@ -12,6 +12,7 @@
 	import { legFormParent } from '#lib/rejsy.js';
 	import PortField from '#lib/location/PortField.svelte';
 	import { portBody, type PortDraft } from '#lib/location/port.js';
+	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -27,17 +28,13 @@
 		}
 	});
 
-	// An edition holds no dates, ports or prices: only its countries carry over to a new leg.
-	type Prefillable = 'countries';
-	const prefillable: Prefillable[] = ['countries'];
-
 	type Draft = {
 		form: {
 			name: string;
 			embark_date: string;
 			disembark_date: string;
 			sign_up_deadline: string;
-			countries: string;
+			countries: string[];
 			start_port: PortDraft;
 			end_port: PortDraft;
 			cruise_id: number;
@@ -48,7 +45,8 @@
 		/** The edition picker's first step: standalone, "Bez serii" or a series id. */
 		group: string;
 		price: PriceForm;
-		prefilled: Partial<Record<Prefillable, string>>;
+		/** The countries last copied from the edition: of its fields only they carry over to a new leg. */
+		prefilled: string[];
 		error: string;
 		saving: boolean;
 	};
@@ -61,7 +59,7 @@
 				embark_date: '',
 				disembark_date: '',
 				sign_up_deadline: '',
-				countries: '',
+				countries: [],
 				start_port: { name: '' },
 				end_port: { name: '' },
 				cruise_id: cruiseID,
@@ -71,7 +69,7 @@
 			},
 			group: groupOf(cruiseID, list),
 			price: priceFormFrom(),
-			prefilled: {},
+			prefilled: [],
 			error: '',
 			saving: false
 		};
@@ -83,18 +81,20 @@
 		return draft;
 	}
 
-	/** Copies the event's defaults into fields the admin has not edited since the last prefill. */
+	/** Copies the event's countries unless the admin has edited them since the last prefill. */
 	function prefill(target: Draft, c: Cruise | undefined) {
 		if (!c) return;
-		const next: Partial<Record<Prefillable, string>> = {};
-		for (const field of prefillable) {
-			const untouched = !target.form[field] || target.form[field] === target.prefilled[field];
-			if (untouched) {
-				target.form[field] = c[field] ?? '';
-				next[field] = target.form[field];
-			}
+		const current = target.form.countries;
+		const untouched =
+			current.length === 0 ||
+			(current.length === target.prefilled.length &&
+				current.every((code, i) => code === target.prefilled[i]));
+		if (!untouched) {
+			target.prefilled = [];
+			return;
 		}
-		target.prefilled = next;
+		target.form.countries = [...(c.countries ?? [])];
+		target.prefilled = [...target.form.countries];
 	}
 
 	/** Starts over when a link moves the page to another event's planning (?cruise_id=): SvelteKit reuses this component across them. */
@@ -224,12 +224,7 @@
 			</div>
 			<div class="sm:col-span-2">
 				<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-				<input
-					id="countries"
-					type="text"
-					bind:value={form.countries}
-					class="w-full rounded-lg border px-3 py-2"
-				/>
+				<CountryPicker id="countries" bind:value={form.countries} countries={data.countries} />
 			</div>
 		</div>
 

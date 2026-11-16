@@ -87,7 +87,7 @@ type Cruise struct {
 	ID            int64            `json:"id"`
 	CreatedBy     types.NullInt64  `json:"created_by"`
 	Name          string           `json:"name"`
-	Countries     types.NullString `json:"countries"`
+	Countries     types.TextArray  `json:"countries"`
 	Description   types.NullString `json:"description"`
 	ImageLogoUrl  types.NullString `json:"image_logo_url"`
 	ImagePhotoUrl types.NullString `json:"image_photo_url"`
@@ -171,7 +171,7 @@ type Trip struct {
 	Name                   string            `json:"name"`
 	EmbarkDate             types.NullString  `json:"embark_date"`
 	DisembarkDate          types.NullString  `json:"disembark_date"`
-	Countries              types.NullString  `json:"countries"`
+	Countries              types.TextArray   `json:"countries"`
 	StartPort              types.NullString  `json:"start_port"`
 	EndPort                types.NullString  `json:"end_port"`
 	CaptainName            types.NullString  `json:"captain_name"`
@@ -239,7 +239,7 @@ type Voyage struct {
 	Year               types.NullInt64   `json:"year"`
 	EmbarkDate         types.NullString  `json:"embark_date"`
 	DisembarkDate      types.NullString  `json:"disembark_date"`
-	Countries          types.NullString  `json:"countries"`
+	Countries          types.TextArray   `json:"countries"`
 	StartPort          types.NullString  `json:"start_port"`
 	EndPort            types.NullString  `json:"end_port"`
 	CaptainName        types.NullString  `json:"captain_name"`

@@ -182,6 +182,12 @@ linters:
           - nilnil
           - recvcheck
         path: internal/types/null\.go
+      # TextArray is a sql.Scanner and driver.Valuer like the Null* types:
+      # Scan needs a pointer receiver, Value a value receiver so a plain
+      # TextArray query argument is a Valuer.
+      - linters:
+          - recvcheck
+        path: internal/types/text_array\.go
       # seed-dev is a local-only CLI; its only outbound request targets the
       # Firebase Auth emulator whose host comes from a dev env var, not a
       # network-facing input — gosec's SSRF taint guard cannot see that.

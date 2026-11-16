@@ -22,7 +22,7 @@ type portColumns struct {
 
 // legPort stores an optional start or end port by the location rules: an
 // absent port, or a blank name without coordinates, is all NULL. The
-// port's Resolve has already rejected one the rules refuse.
+// body's Resolve has already rejected one the rules refuse.
 func legPort(p *dto.Port) portColumns {
 	if p == nil {
 		return portColumns{}

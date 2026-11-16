@@ -227,6 +227,12 @@ export function geocode(q: string, bias?: GeocodeBias): Promise<Schemas['Geocode
 	return api.get('/geocode', { query }).then((r) => r ?? []);
 }
 
+// listCountries lists every country code the API accepts, with its Polish
+// name. Use loadCountries (#lib/location/countries.js), which fetches it once.
+export function listCountries(): Promise<Schemas['Country'][]> {
+	return api.get('/countries').then((r) => r ?? []);
+}
+
 // suggestPorts lists port names the club already entered that match q.
 export function suggestPorts(q: string): Promise<Schemas['PortSuggestion'][]> {
 	return api.get('/ports/suggest', { query: { q } }).then((r) => r ?? []);

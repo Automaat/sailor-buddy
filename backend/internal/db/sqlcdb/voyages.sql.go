@@ -49,7 +49,7 @@ type CreateVoyageParams struct {
 	Year               types.NullInt64   `json:"year"`
 	EmbarkDate         types.NullString  `json:"embark_date"`
 	DisembarkDate      types.NullString  `json:"disembark_date"`
-	Countries          types.NullString  `json:"countries"`
+	Countries          types.TextArray   `json:"countries"`
 	StartPort          types.NullString  `json:"start_port"`
 	EndPort            types.NullString  `json:"end_port"`
 	CaptainName        types.NullString  `json:"captain_name"`
@@ -718,7 +718,7 @@ type UpdateVoyageParams struct {
 	Year               types.NullInt64   `json:"year"`
 	EmbarkDate         types.NullString  `json:"embark_date"`
 	DisembarkDate      types.NullString  `json:"disembark_date"`
-	Countries          types.NullString  `json:"countries"`
+	Countries          types.TextArray   `json:"countries"`
 	StartPort          types.NullString  `json:"start_port"`
 	EndPort            types.NullString  `json:"end_port"`
 	CaptainName        types.NullString  `json:"captain_name"`

@@ -16,6 +16,8 @@
 	import PriceInfo from '#lib/components/PriceInfo.svelte';
 	import PriceCoverage from '#lib/components/PriceCoverage.svelte';
 	import CruiseLogistics from '#lib/components/CruiseLogistics.svelte';
+	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
+	import { formatCountries } from '#lib/location/countries.js';
 
 	// loaded comes from +page.ts, which reruns when the URL's token changes,
 	// so following one enroll link after another shows the second.
@@ -115,6 +117,7 @@
 
 <div class="min-h-screen bg-[var(--surface)] px-4 py-12">
 	<div class="mx-auto max-w-lg">
+		<LoadErrorBanner errors={loaded.loadErrors} />
 		<div class="rounded-2xl bg-white p-8 shadow-sm">
 			{#if data.kind === 'trip'}
 				{@const route = formatRoute(data.trip.start_port, data.trip.end_port)}
@@ -124,8 +127,8 @@
 					{#if route}
 						{route}
 					{/if}
-					{#if data.trip.countries}
-						· {data.trip.countries}{/if}
+					{#if data.trip.countries?.length}
+						· {formatCountries(data.trip.countries, loaded.countries)}{/if}
 				</p>
 
 				{#if data.trip.embark_date}
@@ -180,8 +183,10 @@
 					Wydarzenie klubu
 				</p>
 				<h1 class="mb-1 text-2xl font-bold text-[var(--navy)]">{data.cruise.name}</h1>
-				{#if data.cruise.countries}
-					<p class="mb-4 text-sm text-[var(--text-muted)]">{data.cruise.countries}</p>
+				{#if data.cruise.countries?.length}
+					<p class="mb-4 text-sm text-[var(--text-muted)]">
+						{formatCountries(data.cruise.countries, loaded.countries)}
+					</p>
 				{/if}
 
 				{#if data.cruise.description}
