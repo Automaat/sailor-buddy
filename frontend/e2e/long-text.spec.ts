@@ -20,6 +20,9 @@ const VIEWPORTS = [
 // 120 characters without a break opportunity.
 const long = (tag: string) => tag + 'W'.repeat(120 - tag.length);
 
+// Countries are codes, so the longest Polish names stand in for long text.
+const longCountries = ['TF', 'UM', 'GS', 'IO', 'VI', 'ST', 'CF'];
+
 let paths: { admin: string[]; member: string[] };
 let memberEmail: string;
 
@@ -73,7 +76,7 @@ test.describe.serial('Long unbroken text', () => {
 			name: long('Trip'),
 			captain_person_id: captain.id,
 			description: long('Desc'),
-			countries: long('Countries'),
+			countries: longCountries,
 			start_port: long('Start'),
 			end_port: long('End'),
 			embark_date: '2027-07-01',
@@ -85,7 +88,7 @@ test.describe.serial('Long unbroken text', () => {
 			name: long('Voyage'),
 			captain_person_id: captain.id,
 			description: long('VDesc'),
-			countries: long('VCountries'),
+			countries: longCountries,
 			start_port: long('VStart'),
 			end_port: long('VEnd'),
 			embark_date: '2025-06-01',

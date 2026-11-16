@@ -5,6 +5,7 @@ import type { Yacht } from '#lib/api/types.js';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	getVoyage: vi.fn(),
 	deleteVoyage: vi.fn(),
 	listVoyageCrew: vi.fn(() => Promise.resolve([])),
@@ -93,6 +94,13 @@ beforeEach(() => {
 });
 
 describe('voyage page record', () => {
+	it("names the voyage's countries in Polish", async () => {
+		vi.mocked(getVoyage).mockResolvedValue(makeVoyage({ id: 5, countries: ['DK'] }));
+		await renderPage();
+
+		expect(await screen.findByText(/· Dania/)).toBeInTheDocument();
+	});
+
 	it('shows the yacht, track link, card and a name-only anchorage route', async () => {
 		vi.mocked(getVoyage).mockResolvedValue(
 			makeVoyage({

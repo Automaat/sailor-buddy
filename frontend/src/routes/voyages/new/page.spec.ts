@@ -7,6 +7,7 @@ vi.mock('#lib/stores/auth.svelte.js', () => ({
 	auth: { isAdmin: true, user: { id: 1, role: 'admin' } }
 }));
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	listCruises: vi.fn(),
 	listYachts: vi.fn(),
 	createYacht: vi.fn(),

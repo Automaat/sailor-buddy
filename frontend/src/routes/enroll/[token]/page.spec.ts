@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('#lib/api/routes.js', () => ({
+	listCountries: async () => (await import('#lib/test-utils.js')).testCountries,
 	resolveEnroll: vi.fn(),
 	enroll: vi.fn(),
 	enrollLegs: vi.fn()
@@ -94,6 +95,30 @@ describe('enroll page — profile summary', () => {
 		expect(summary).toHaveTextContent('Jan Kowalski');
 		expect(summary).toHaveTextContent('+48 600 100 200 · Żeglarz Jachtowy · ZJ-1');
 		expect(screen.getByRole('link', { name: 'Edytuj' })).toHaveAttribute('href', '/profile');
+	});
+});
+
+describe('enroll page — countries', () => {
+	it("names the cruise's countries in Polish", async () => {
+		resolveMock.mockResolvedValue(
+			cruiseData({ cruise: { id: 7, name: 'NNE 2025', countries: ['NO', 'DK'] } })
+		);
+		await renderPage();
+
+		expect(await screen.findByText('Norwegia, Dania')).toBeInTheDocument();
+	});
+
+	it("names a single trip's countries in Polish", async () => {
+		resolveMock.mockResolvedValue({
+			kind: 'trip',
+			trip: { id: 5, name: 'Skagerrak', countries: ['DK'] },
+			enrolled: false,
+			accepted_count: 0,
+			total_count: 0
+		});
+		await renderPage();
+
+		expect(await screen.findByText(/· Dania/)).toBeInTheDocument();
 	});
 });
 

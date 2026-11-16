@@ -188,6 +188,13 @@ test.describe.serial('Single-club persona matrix', () => {
 
 		await page.getByLabel('Nazwa wydarzenia *').fill(cruiseName);
 		await page.getByLabel('Edycja *').fill('2026');
+		const countries = page.getByRole('combobox', { name: 'Kraje' });
+		await countries.fill('norw');
+		await page.getByRole('option', { name: 'Norwegia' }).click();
+		await countries.fill('dan');
+		await countries.press('Enter');
+		await expect(page.getByRole('button', { name: 'Usuń kraj: Norwegia' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Usuń kraj: Dania' })).toBeVisible();
 		await page.getByRole('button', { name: 'Utwórz edycję' }).click();
 
 		await page.waitForURL(`/rejsy/${seriesId}`, { timeout: 10_000 });
@@ -197,6 +204,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(/\/cruises\/\d+/, { timeout: 10_000 });
 		cruiseId = Number(page.url().split('/').pop());
 		await expect(page.getByRole('heading', { name: cruiseName })).toBeVisible();
+		await expect(page.getByText('Norwegia, Dania')).toBeVisible();
 	});
 
 	test('admin: plans a standalone trip from Rejsy', async ({ page }) => {
@@ -265,12 +273,17 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.getByLabel('Nazwa rejsu *').fill(tripName);
 		await page.getByLabel('Port wyjścia').fill('Gdańsk');
 		await page.getByLabel('Port docelowy').fill('Visby');
+		await expect(page.getByRole('button', { name: 'Usuń kraj: Norwegia' })).toBeVisible();
+		await page.getByRole('button', { name: 'Usuń kraj: Dania' }).click();
+		await page.getByRole('combobox', { name: 'Kraje' }).fill('szwe');
+		await page.getByRole('combobox', { name: 'Kraje' }).press('Enter');
 		await page.getByRole('button', { name: 'Zaplanuj rejs' }).click();
 
 		await page.waitForURL(/\/trips\/\d+/, { timeout: 10_000 });
 		tripId = Number(page.url().split('/').pop());
 		await expect(page.getByText('Nadchodzący')).toBeVisible({ timeout: 10_000 });
 		await expect(page.getByRole('heading', { name: tripName })).toBeVisible();
+		await expect(page.getByText(/Norwegia, Szwecja/)).toBeVisible();
 	});
 
 	test("admin: a link from one trip's edit page to another shows the second", async ({ page }) => {

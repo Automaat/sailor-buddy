@@ -7,6 +7,7 @@ import {
 } from '#lib/api/routes.js';
 import { noteFailure, settle } from '#lib/api/errors.js';
 import { found } from '#lib/api/load.js';
+import { loadCountries } from '#lib/location/countries.js';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ params }) => {
@@ -18,7 +19,7 @@ export const load: PageLoad = async ({ params }) => {
 		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];
-	const [trips, voyages, signUps, series] = await Promise.all([
+	const [trips, voyages, signUps, series, countries] = await Promise.all([
 		settle(
 			listCruiseTrips(id).then((r) => r ?? []),
 			[],
@@ -36,7 +37,8 @@ export const load: PageLoad = async ({ params }) => {
 		),
 		cruise.series_id
 			? settle(getSeries(cruise.series_id), null, noteFailure(loadErrors, 'cykl'))
-			: Promise.resolve(null)
+			: Promise.resolve(null),
+		settle(loadCountries(), [], noteFailure(loadErrors, 'lista krajów'))
 	]);
-	return { cruise, trips, voyages, signUps, series, loadErrors };
+	return { cruise, trips, voyages, signUps, series, countries, loadErrors };
 };

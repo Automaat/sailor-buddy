@@ -8,6 +8,7 @@
 	import CruiseSelect from '#lib/components/CruiseSelect.svelte';
 	import LoadErrorBanner from '#lib/components/LoadErrorBanner.svelte';
 	import YachtSelect from '#lib/components/YachtSelect.svelte';
+	import CountryPicker from '#lib/location/CountryPicker.svelte';
 	import { perLoad } from '#lib/state.svelte.js';
 
 	let { data } = $props();
@@ -36,7 +37,7 @@
 			year: voyage.year ?? 0,
 			embark_date: voyage.embark_date ?? '',
 			disembark_date: voyage.disembark_date ?? '',
-			countries: voyage.countries ?? '',
+			countries: [...(voyage.countries ?? [])],
 			start_port: voyage.start_port ?? '',
 			end_port: voyage.end_port ?? '',
 			cruise_id: voyage.cruise_id,
@@ -174,12 +175,7 @@
 				</div>
 				<div>
 					<label for="countries" class="mb-1 block text-sm font-medium">Kraje</label>
-					<input
-						id="countries"
-						type="text"
-						bind:value={form.countries}
-						class="w-full rounded-lg border px-3 py-2"
-					/>
+					<CountryPicker id="countries" bind:value={form.countries} countries={data.countries} />
 				</div>
 				<div>
 					<label for="captain" class="mb-1 block text-sm font-medium">Kapitan</label>
