@@ -13,7 +13,7 @@ export const load: PageLoad = async ({ params }) => {
 		found(getCruise(id), {
 			title: 'Nie znaleziono wydarzenia',
 			message: 'To wydarzenie nie istnieje lub nie masz do niego dostępu.',
-			backHref: '/series',
+			backHref: '/rejsy',
 			backLabel: 'Wszystkie rejsy'
 		}),
 		listSeries().then((r) => r ?? [])

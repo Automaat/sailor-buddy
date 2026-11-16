@@ -75,12 +75,12 @@
 			return;
 		}
 		if (seriesId !== id) return;
-		void goto('/series');
+		void goto('/rejsy');
 	}
 </script>
 
 <div class="mx-auto max-w-5xl">
-	<BackLink href="/series" label="Rejsy" />
+	<BackLink href="/rejsy" label="Rejsy" />
 	{#if editing}
 		<form onsubmit={handleSave} class="mb-6 space-y-4 rounded-2xl bg-white p-6 shadow-sm">
 			{#if error}

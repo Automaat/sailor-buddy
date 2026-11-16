@@ -100,7 +100,7 @@
 				<div class="rounded-2xl bg-white p-6 text-center shadow-sm">
 					<p class="text-[var(--text-muted)]">Nie masz nadchodzących etapów.</p>
 					<a
-						href="/series"
+						href="/rejsy"
 						class="tap-target mt-3 inline-block font-medium text-[var(--ocean)] underline"
 					>
 						Zobacz rejsy
@@ -160,7 +160,7 @@
 				<div class="rounded-2xl bg-white p-6 text-center shadow-sm">
 					<p class="text-[var(--text-muted)]">Nie masz jeszcze zrealizowanych rejsów z klubem.</p>
 					<a
-						href="/series"
+						href="/rejsy"
 						class="tap-target mt-3 inline-block font-medium text-[var(--ocean)] underline"
 					>
 						Zobacz rejsy klubu

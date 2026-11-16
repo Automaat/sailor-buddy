@@ -11,6 +11,7 @@ export type Page<T> = Omit<Schemas['PageTrip'], 'items' | '$schema'> & { items: 
 export type User = Schemas['Me'];
 
 export type Trip = Schemas['Trip'];
+export type TripDetail = Schemas['TripDetail'];
 export type TripStatus = Trip['status'];
 export type TripBody = Schemas['TripBody'];
 export type CreateTripBody = Schemas['CreateTripBody'];

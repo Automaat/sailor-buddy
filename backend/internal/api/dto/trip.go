@@ -39,6 +39,13 @@ type Trip struct {
 	PublishedAt            *time.Time `json:"published_at,omitempty" doc:"When the trip was published; absent while it is a hidden draft"`
 }
 
+// TripDetail is a single trip with its yacht, so the leg page names the
+// yacht for members who may not read the yacht list.
+type TripDetail struct {
+	Trip
+	Yacht *YachtSummary `json:"yacht,omitempty" doc:"Yacht the leg sails; absent when yacht_id is unset"`
+}
+
 // TripFields are the trip fields shared by the create and update payloads.
 type TripFields struct {
 	Name                   string   `json:"name" minLength:"1" doc:"Trip name"`

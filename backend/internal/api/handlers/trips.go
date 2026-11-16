@@ -53,6 +53,11 @@ type tripOutput struct {
 	Body dto.Trip
 }
 
+// tripDetailOutput is a single trip with its yacht's summary.
+type tripDetailOutput struct {
+	Body dto.TripDetail
+}
+
 type tripListOutput struct {
 	Body dto.Page[dto.Trip]
 }
@@ -139,7 +144,7 @@ func (h *TripHandler) list(ctx context.Context, in *pageParams) (*tripListOutput
 		func(r sqlcdb.Trip) any { return dateKey{Date: nullTextKey(r.EmbarkDate), ID: r.ID} })}, nil
 }
 
-func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripOutput, error) {
+func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripDetailOutput, error) {
 	trip, err := h.q.GetTrip(ctx, sqlcdb.GetTripParams{ID: in.ID, IncludeHidden: canSeeHidden(ctx)})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -148,7 +153,22 @@ func (h *TripHandler) get(ctx context.Context, in *tripIDParam) (*tripOutput, er
 		slog.Error("get trip", "trip_id", in.ID, "err", err)
 		return nil, huma.Error500InternalServerError("failed to get trip")
 	}
-	return &tripOutput{Body: dto.TripFromDB(trip)}, nil
+	out := &tripDetailOutput{Body: dto.TripDetail{Trip: dto.TripFromDB(trip)}}
+	if !trip.YachtID.Valid {
+		return out, nil
+	}
+	yacht, err := h.q.GetYacht(ctx, trip.YachtID.Int64)
+	switch {
+	case err == nil:
+		summary := dto.YachtSummaryFromDB(yacht)
+		out.Body.Yacht = &summary
+	case errors.Is(err, sql.ErrNoRows):
+		// The trip changed yacht and the old one was deleted after the read.
+	default:
+		slog.Error("get trip yacht", "trip_id", in.ID, "yacht_id", trip.YachtID.Int64, "err", err)
+		return nil, huma.Error500InternalServerError("failed to get trip")
+	}
+	return out, nil
 }
 
 func (h *TripHandler) create(ctx context.Context, in *createTripInput) (*tripOutput, error) {

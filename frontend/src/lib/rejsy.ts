@@ -70,7 +70,7 @@ export function legFormParent(
 	cruiseId: number,
 	cruises: Pick<Cruise, 'id' | 'name'>[]
 ): { href: string; label: string } {
-	if (!cruiseId) return { href: '/series', label: 'Rejsy' };
+	if (!cruiseId) return { href: '/rejsy', label: 'Rejsy' };
 	const cruise = cruises.find((c) => c.id === cruiseId);
 	return { href: `/cruises/${cruiseId}`, label: cruise?.name ?? 'Wydarzenie' };
 }

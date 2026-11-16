@@ -43,6 +43,8 @@
 	let signUp = $derived(data.signUp);
 	let loadErrors = $derived(data.loadErrors);
 	let enrollToken = $derived(data.trip.enroll_token ?? null);
+	// Only the trip read carries the yacht; a cancel or publish replies without it.
+	const yacht = $derived(data.trip.yacht ?? null);
 
 	const id = $derived(data.trip.id);
 
@@ -423,7 +425,7 @@
 		</div>
 	{/if}
 
-	{#if trip.embark_date || trip.captain_name || trip.cost_total}
+	{#if trip.embark_date || trip.captain_name || yacht || trip.cost_total}
 		<div class="mb-6 rounded-2xl bg-white p-6 shadow-sm">
 			<h2 class="mb-3 font-semibold text-[var(--navy)]">Szczegóły</h2>
 			<dl class="grid grid-cols-1 text-sm sm:grid-cols-2 sm:gap-2 max-sm:[&>dd]:mb-2">
@@ -434,6 +436,10 @@
 				{#if trip.captain_name}
 					<dt class="text-[var(--text-muted)]">Kapitan</dt>
 					<dd>{trip.captain_name}</dd>
+				{/if}
+				{#if yacht}
+					<dt class="text-[var(--text-muted)]">Jacht</dt>
+					<dd>{yacht.yacht_type ? `${yacht.yacht_type} ` : ''}{yacht.name}</dd>
 				{/if}
 				{#if trip.max_crew}
 					<dt class="text-[var(--text-muted)]">Maks. załoga</dt>

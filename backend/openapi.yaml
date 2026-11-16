@@ -2431,6 +2431,115 @@ components:
         - cruise_id
         - name
       type: object
+    TripDetail:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - /api/TripDetail.json
+          format: uri
+          readOnly: true
+          type: string
+        captain_name:
+          type: string
+        captain_person_id:
+          description: Person (crew record) who captains the trip
+          format: int64
+          type: integer
+        cost_per_person:
+          description: Member price per person (czlonek, sympatyk)
+          format: double
+          type: number
+        cost_per_person_non_member:
+          description: Non-member (gosc) price per person
+          format: double
+          type: number
+        cost_total:
+          format: double
+          type: number
+        countries:
+          type: string
+        created_at:
+          format: date-time
+          type: string
+        created_by:
+          format: int64
+          type: integer
+        cruise_id:
+          format: int64
+          type: integer
+        currency:
+          description: Currency of every price on the trip
+          enum:
+            - PLN
+            - EUR
+          type: string
+        deposit:
+          description: Refundable deposit (kaucja) per person
+          format: double
+          type: number
+        description:
+          type: string
+        disembark_date:
+          type: string
+        embark_date:
+          type: string
+        end_port:
+          type: string
+        enroll_token:
+          type: string
+        id:
+          format: int64
+          type: integer
+        image_logo_url:
+          type: string
+        image_photo_url:
+          type: string
+        image_route_url:
+          type: string
+        max_crew:
+          format: int64
+          type: integer
+        name:
+          type: string
+        published_at:
+          description: When the trip was published; absent while it is a hidden draft
+          format: date-time
+          type: string
+        sign_up_deadline:
+          description: Last day (Europe/Warsaw, inclusive) the leg takes sign-ups; omitted when none
+          format: date
+          type: string
+        start_port:
+          type: string
+        status:
+          enum:
+            - planned
+            - cancelled
+          type: string
+        updated_at:
+          format: date-time
+          type: string
+        yacht:
+          $ref: "#/components/schemas/YachtSummary"
+          description: Yacht the leg sails; absent when yacht_id is unset
+        yacht_fund:
+          description: "Estimated yacht fund (kasa jachtowa) per person: food, fuel, marinas"
+          format: double
+          type: number
+        yacht_id:
+          format: int64
+          type: integer
+      required:
+        - id
+        - cruise_id
+        - name
+        - status
+        - currency
+        - created_at
+        - updated_at
+      type: object
     TripEnrollmentCreateBody:
       additionalProperties: false
       properties:
@@ -5107,7 +5216,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Trip"
+                $ref: "#/components/schemas/TripDetail"
           description: OK
         default:
           content:
