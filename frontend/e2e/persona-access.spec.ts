@@ -130,7 +130,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL('/profile', { timeout: 10_000 });
 
 		await page.goto('/cruises');
-		await page.waitForURL('/series', { timeout: 10_000 });
+		await page.waitForURL('/rejsy', { timeout: 10_000 });
 		await expect(page.getByRole('heading', { name: 'Rejsy', level: 1 })).toBeVisible();
 		await expect(page.getByRole('link', { name: '+ Nowy rejs' })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: '+ Dodaj serię' })).toHaveCount(0);
@@ -181,7 +181,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		seriesId = series.id;
 		await loginViaUI(page, adminEmail, PASSWORD);
 
-		await page.goto(`/series/${seriesId}`);
+		await page.goto(`/rejsy/${seriesId}`);
 		await page.getByRole('link', { name: '+ Nowa edycja' }).click();
 		await page.waitForURL(`/cruises/new?series_id=${seriesId}`);
 		await expect(page.getByRole('heading', { name: 'Nowa edycja' })).toBeVisible();
@@ -190,7 +190,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.getByLabel('Edycja *').fill('2026');
 		await page.getByRole('button', { name: 'Utwórz edycję' }).click();
 
-		await page.waitForURL(`/series/${seriesId}`, { timeout: 10_000 });
+		await page.waitForURL(`/rejsy/${seriesId}`, { timeout: 10_000 });
 		const row = page.getByTestId('edition-row').filter({ hasText: cruiseName });
 		await expect(row).toContainText('2026');
 		await row.getByRole('link', { name: cruiseName }).click();
@@ -205,7 +205,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 
 		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
-		await page.waitForURL('/series');
+		await page.waitForURL('/rejsy');
 		await expect(page.getByRole('link', { name: 'Serie', exact: true })).toHaveCount(0);
 		await expect(page.locator('a[href="/cruises/new"]')).toHaveCount(0);
 		await page.getByRole('link', { name: '+ Nowy rejs' }).click();
@@ -217,7 +217,7 @@ test.describe.serial('Single-club persona matrix', () => {
 		await page.waitForURL(/\/trips\/\d+/, { timeout: 10_000 });
 		const soloId = Number(page.url().split('/').pop());
 		await page.goto('/cruises?tab=all');
-		await page.waitForURL('/series');
+		await page.waitForURL('/rejsy');
 		const noSeries = page.getByRole('region', { name: 'Bez serii' });
 		const solo = noSeries.getByRole('link', { name: new RegExp(soloName) });
 		await expect(solo).toHaveAttribute('href', `/trips/${soloId}`);
@@ -329,9 +329,9 @@ test.describe.serial('Single-club persona matrix', () => {
 	test('fully sailed cruise opens from its series on Rejsy', async ({ page }) => {
 		await loginViaUI(page, adminEmail, PASSWORD);
 		await page.getByRole('link', { name: 'Rejsy', exact: true }).click();
-		await page.waitForURL('/series');
+		await page.waitForURL('/rejsy');
 		await page.getByRole('link', { name: `Series ${RUN_ID}` }).click();
-		await page.waitForURL(`/series/${seriesId}`);
+		await page.waitForURL(`/rejsy/${seriesId}`);
 
 		await page.getByRole('link', { name: cruiseName }).click();
 		await page.waitForURL(`/cruises/${cruiseId}`);
@@ -344,10 +344,10 @@ test.describe.serial('Single-club persona matrix', () => {
 		await apiRequest(idToken, 'POST', `/cruises/${cruiseId}/publish`, { include_legs: true });
 		await loginViaUI(page, memberEmail, PASSWORD);
 
-		await page.goto('/series');
+		await page.goto('/rejsy');
 		await expect(page.getByRole('link', { name: '+ Nowy rejs' })).toHaveCount(0);
 		await page.getByRole('link', { name: `Series ${RUN_ID}` }).click();
-		await page.waitForURL(`/series/${seriesId}`);
+		await page.waitForURL(`/rejsy/${seriesId}`);
 		await expect(page.getByText(cruiseName)).toBeVisible();
 
 		await page.goto(`/cruises/${cruiseId}`);

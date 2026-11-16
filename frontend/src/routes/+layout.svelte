@@ -37,7 +37,7 @@
 	const navItems: NavItem[] = [
 		{ href: '/', label: 'Pulpit', icon: Anchor },
 		{
-			href: '/series',
+			href: '/rejsy',
 			label: 'Rejsy',
 			icon: Sailboat,
 			alsoActiveUnder: ['/cruises', '/trips', '/voyages']

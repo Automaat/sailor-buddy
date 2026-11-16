@@ -91,11 +91,11 @@ describe('layout navigation', () => {
 
 		const links = screen.getAllByRole('link', { name: 'Rejsy' });
 		expect(links.length).toBeGreaterThan(0);
-		for (const link of links) expect(link).toHaveAttribute('href', '/series');
+		for (const link of links) expect(link).toHaveAttribute('href', '/rejsy');
 		expect(screen.queryByRole('link', { name: 'Serie' })).not.toBeInTheDocument();
 	});
 
-	it.each(['/series', '/series/3', '/cruises/5', '/trips/7', '/voyages/2'])(
+	it.each(['/rejsy', '/rejsy/3', '/cruises/5', '/trips/7', '/voyages/2'])(
 		'marks Rejsy as the current page on %s',
 		(path) => {
 			page.url = new URL(`http://localhost${path}`);

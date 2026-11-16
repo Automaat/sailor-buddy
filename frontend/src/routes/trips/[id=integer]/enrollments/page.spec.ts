@@ -205,7 +205,7 @@ describe('trip enrollments page load', () => {
 
 		await expect(runLoad()).rejects.toMatchObject({
 			status: 404,
-			body: { title: 'Nie znaleziono rejsu', backHref: '/series' }
+			body: { title: 'Nie znaleziono rejsu', backHref: '/rejsy' }
 		});
 	});
 

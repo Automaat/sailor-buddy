@@ -15,7 +15,7 @@ export const load: PageLoad = async ({ params }) => {
 	const voyage = await found(getVoyage(id), {
 		title: 'Nie znaleziono rejsu',
 		message: 'Ten zrealizowany rejs nie istnieje lub nie masz do niego dostępu.',
-		backHref: '/series',
+		backHref: '/rejsy',
 		backLabel: 'Wszystkie rejsy'
 	});
 	const loadErrors: string[] = [];

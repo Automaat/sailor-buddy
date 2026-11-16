@@ -53,7 +53,7 @@ describe('new edition page load', () => {
 	])('throws a 404 %s', async (_, href) => {
 		await expect(runLoad(href)).rejects.toMatchObject({
 			status: 404,
-			body: { title: 'Nie znaleziono serii', backHref: '/series' }
+			body: { title: 'Nie znaleziono serii', backHref: '/rejsy' }
 		});
 		expect(mockGetSeries).not.toHaveBeenCalled();
 	});
@@ -70,7 +70,7 @@ describe('new edition page load', () => {
 describe('new edition page', () => {
 	it('links back to its series above the title', async () => {
 		await renderPage();
-		expect(screen.getByRole('link', { name: 'May I Sail' })).toHaveAttribute('href', '/series/3');
+		expect(screen.getByRole('link', { name: 'May I Sail' })).toHaveAttribute('href', '/rejsy/3');
 	});
 
 	it('shows the series read-only under the "Nowa edycja" title', async () => {
@@ -79,7 +79,7 @@ describe('new edition page', () => {
 		expect(screen.getByLabelText('Seria')).toHaveValue('May I Sail');
 		expect(screen.getByLabelText('Seria')).toHaveAttribute('readonly');
 		expect(screen.getByLabelText('Edycja *')).toBeRequired();
-		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/series/3');
+		expect(screen.getByRole('link', { name: 'Anuluj' })).toHaveAttribute('href', '/rejsy/3');
 	});
 
 	it('creates the edition in the series and goes back to the series page', async () => {
@@ -87,7 +87,7 @@ describe('new edition page', () => {
 		await fillRequired('MIS 2026', ' 2026 ');
 		await fireEvent.click(screen.getByRole('button', { name: 'Utwórz edycję' }));
 
-		await waitFor(() => expect(goto).toHaveBeenCalledWith('/series/3'));
+		await waitFor(() => expect(goto).toHaveBeenCalledWith('/rejsy/3'));
 		expect(mockCreate).toHaveBeenCalledWith(
 			expect.objectContaining({ name: 'MIS 2026', series_id: 3, edition: ' 2026 ' })
 		);
