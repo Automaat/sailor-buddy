@@ -143,6 +143,16 @@
 		}
 	}
 
+	/**
+	 * searchFromButton moves focus to the input before the lookup starts: the
+	 * button disables itself while searching, and a disabled button loses
+	 * focus, which would close the field and drop the results.
+	 */
+	function searchFromButton() {
+		input?.focus();
+		return runSearch();
+	}
+
 	/** close hides the suggestions and lookup results and drops pending requests. */
 	function close() {
 		clearTimeout(suggestTimer);
@@ -249,7 +259,7 @@
 		/>
 		<button
 			type="button"
-			onclick={runSearch}
+			onclick={searchFromButton}
 			disabled={!canSearch}
 			aria-label="Szukaj miejsca: {label}"
 			class="shrink-0 rounded-lg border px-3 text-sm text-[var(--ocean)] hover:bg-gray-50 disabled:opacity-40"

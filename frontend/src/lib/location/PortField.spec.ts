@@ -149,6 +149,23 @@ describe('PortField', () => {
 		expect(await screen.findByText('Brak wyników')).toBeInTheDocument();
 	});
 
+	it('keeps the results of a Szukaj click once the button disables itself', async () => {
+		let resolve: (v: unknown[]) => void = () => {};
+		geocodeMock.mockReturnValue(new Promise((r) => (resolve = r)));
+		renderField();
+		await type('Hel');
+		searchButton().focus();
+		await fireEvent.click(searchButton());
+		// A browser moves focus off a button it disables, which fires focusout
+		// on the field; focus must already be on the input by then.
+		expect(document.activeElement).toBe(field());
+		await fireEvent.focusOut(field(), { relatedTarget: searchButton() });
+		resolve([
+			{ name: 'Hel', label: 'Hel, Poland', latitude: 54.6, longitude: 18.8, source: 'nominatim' }
+		]);
+		expect(await screen.findByText('Hel, Poland')).toBeInTheDocument();
+	});
+
 	it('does not look up a name shorter than two characters', async () => {
 		renderField();
 		await type('V');
