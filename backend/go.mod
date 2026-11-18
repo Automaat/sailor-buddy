@@ -7,7 +7,7 @@ toolchain go1.27.4
 require (
 	cloud.google.com/go/auth v0.24.4
 	firebase.google.com/go/v4 v4.23.0
-	github.com/chromedp/chromedp v0.23.1
+	github.com/chromedp/chromedp v0.24.0
 	github.com/danielgtaylor/huma/v2 v2.40.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
